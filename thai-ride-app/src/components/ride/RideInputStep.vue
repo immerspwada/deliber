@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MultiStopInput from '../MultiStopInput.vue'
 import { usePlaceSearch, type PlaceResult } from '../../composables/usePlaceSearch'
 
@@ -136,9 +136,78 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   emit('update:multiStops', stops)
 }
 
-const destinationPlaceholder = computed(() => 
-  props.selectedService === 'ride' ? 'ไปไหน?' : 'ส่งที่ไหน?'
-)
+// Typewriter effect for placeholder
+const typewriterTexts = computed(() => {
+  if (props.selectedService === 'ride') {
+    return ['ไปไหนดี?', 'สนามบิน?', 'ห้างสรรพสินค้า?', 'ร้านอาหาร?', 'โรงพยาบาล?']
+  } else if (props.selectedService === 'delivery') {
+    return ['ส่งที่ไหน?', 'บ้านเพื่อน?', 'ออฟฟิศ?', 'คอนโด?']
+  }
+  return ['ซื้อจากไหน?', 'ตลาด?', 'ซูเปอร์มาร์เก็ต?', 'ร้านสะดวกซื้อ?']
+})
+
+const typewriterPlaceholder = ref('')
+const typewriterIndex = ref(0)
+const charIndex = ref(0)
+const isDeleting = ref(false)
+const typewriterTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+
+const typewriterEffect = () => {
+  const texts = typewriterTexts.value
+  const currentText = texts[typewriterIndex.value] || texts[0] || 'ไปไหน?'
+  
+  if (isDeleting.value) {
+    // Deleting
+    typewriterPlaceholder.value = currentText.substring(0, charIndex.value - 1)
+    charIndex.value--
+    
+    if (charIndex.value === 0) {
+      isDeleting.value = false
+      typewriterIndex.value = (typewriterIndex.value + 1) % texts.length
+      typewriterTimer.value = setTimeout(typewriterEffect, 500)
+    } else {
+      typewriterTimer.value = setTimeout(typewriterEffect, 50)
+    }
+  } else {
+    // Typing
+    typewriterPlaceholder.value = currentText.substring(0, charIndex.value + 1)
+    charIndex.value++
+    
+    if (charIndex.value === currentText.length) {
+      // Pause at end before deleting
+      typewriterTimer.value = setTimeout(() => {
+        isDeleting.value = true
+        typewriterEffect()
+      }, 2000)
+    } else {
+      typewriterTimer.value = setTimeout(typewriterEffect, 100)
+    }
+  }
+}
+
+// Start typewriter on mount
+onMounted(() => {
+  typewriterEffect()
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (typewriterTimer.value) {
+    clearTimeout(typewriterTimer.value)
+  }
+})
+
+// Reset typewriter when service changes
+watch(() => props.selectedService, () => {
+  if (typewriterTimer.value) {
+    clearTimeout(typewriterTimer.value)
+  }
+  typewriterIndex.value = 0
+  charIndex.value = 0
+  isDeleting.value = false
+  typewriterPlaceholder.value = ''
+  typewriterEffect()
+})
 
 // Handle destination input
 const onDestinationInput = (event: Event) => {
@@ -242,7 +311,7 @@ watch(() => props.destination, (newVal) => {
         @focus="onDestinationFocus"
         @blur="onDestinationBlur"
         type="text" 
-        :placeholder="destinationPlaceholder"
+        :placeholder="typewriterPlaceholder || 'ไปไหน?'"
         class="location-input destination-input"
         autocomplete="off"
       />
