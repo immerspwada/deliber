@@ -12,7 +12,7 @@ import SearchingStep from '../components/ride/SearchingStep.vue'
 import DriverMatchedStep from '../components/ride/DriverMatchedStep.vue'
 import RidingStep from '../components/ride/RidingStep.vue'
 import RideRatingModal from '../components/ride/RideRatingModal.vue'
-import type { GeoLocation } from '../composables/useLocation'
+import { useLocation, type GeoLocation } from '../composables/useLocation'
 import { useServices } from '../composables/useServices'
 import { useRideStore } from '../stores/ride'
 import { useAdvancedFeatures } from '../composables/useAdvancedFeatures'
@@ -40,6 +40,7 @@ interface RideSubscription {
 
 const router = useRouter()
 const rideStore = useRideStore()
+const { reverseGeocode, getCurrentPosition } = useLocation()
 const {
   recentPlaces,
   currentDriver,
@@ -209,13 +210,20 @@ onMounted(async () => {
     subscriptions.value.push(subscription)
   }
 
-  // Set default location fallback
-  setTimeout(() => {
-    if (!pickupLocation.value) {
-      pickupLocation.value = DEFAULT_LOCATION
-      pickup.value = DEFAULT_LOCATION.address
+  // Get current location on mount
+  if (!rideStore.currentRide) {
+    try {
+      await centerOnCurrentLocation()
+    } catch {
+      // Fallback to default location if geolocation fails
+      setTimeout(() => {
+        if (!pickupLocation.value) {
+          pickupLocation.value = DEFAULT_LOCATION
+          pickup.value = DEFAULT_LOCATION.address
+        }
+      }, LOCATION_FALLBACK_DELAY)
     }
-  }, LOCATION_FALLBACK_DELAY)
+  }
 })
 
 // Cleanup on unmount
@@ -229,37 +237,81 @@ watch(selectedService, () => {
 })
 
 // Handle location detected from map
-const onLocationDetected = (location: { lat: number; lng: number }) => {
+const onLocationDetected = async (location: { lat: number; lng: number }) => {
+  // Set location immediately with loading state
   pickupLocation.value = {
     lat: location.lat,
     lng: location.lng,
-    address: 'ตำแหน่งปัจจุบัน'
+    address: 'กำลังค้นหาที่อยู่...'
   }
-  pickup.value = 'ตำแหน่งปัจจุบัน'
+  pickup.value = 'กำลังค้นหาที่อยู่...'
+  
+  // Reverse geocode to get actual address
+  try {
+    const address = await reverseGeocode(location.lat, location.lng)
+    // Format address to show meaningful name (soi, road, district)
+    const formattedAddress = formatThaiAddress(address)
+    pickupLocation.value = {
+      lat: location.lat,
+      lng: location.lng,
+      address: address
+    }
+    pickup.value = formattedAddress
+  } catch {
+    // Fallback to coordinates if geocoding fails
+    pickup.value = `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+  }
 }
 
-// GPS button handler
-const centerOnCurrentLocation = () => {
-  if (navigator.geolocation) {
-    loading.value = true
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        pickupLocation.value = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          address: 'ตำแหน่งปัจจุบัน'
-        }
-        pickup.value = 'ตำแหน่งปัจจุบัน'
-        loading.value = false
-      },
-      (error) => {
-        console.warn('Geolocation error:', error)
-        errorMessage.value = 'ไม่สามารถระบุตำแหน่งได้'
-        loading.value = false
-        setTimeout(() => { errorMessage.value = null }, 3000)
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
+// Format Thai address to show meaningful short name
+const formatThaiAddress = (fullAddress: string): string => {
+  if (!fullAddress) return 'ไม่ทราบที่อยู่'
+  
+  // Split by comma and get meaningful parts
+  const parts = fullAddress.split(',').map(p => p.trim())
+  
+  // Look for soi, road, or district
+  const meaningfulParts: string[] = []
+  
+  for (const part of parts) {
+    const lower = part.toLowerCase()
+    // Skip country, province, postal code
+    if (lower.includes('thailand') || lower.includes('ประเทศไทย')) continue
+    if (/^\d{5}$/.test(part)) continue // postal code
+    if (lower.includes('bangkok') && meaningfulParts.length > 0) continue
+    if (lower.includes('กรุงเทพ') && meaningfulParts.length > 0) continue
+    
+    meaningfulParts.push(part)
+    if (meaningfulParts.length >= 2) break
+  }
+  
+  return meaningfulParts.length > 0 ? meaningfulParts.join(', ') : parts[0] || 'ไม่ทราบที่อยู่'
+}
+
+// GPS button handler - get current location with real address
+const centerOnCurrentLocation = async () => {
+  loading.value = true
+  pickup.value = 'กำลังค้นหาตำแหน่ง...'
+  
+  try {
+    // Use the composable to get position with proper error handling
+    const location = await getCurrentPosition()
+    
+    pickupLocation.value = {
+      lat: location.lat,
+      lng: location.lng,
+      address: location.address
+    }
+    
+    // Format address to show meaningful name
+    pickup.value = formatThaiAddress(location.address)
+  } catch (error: any) {
+    console.warn('Geolocation error:', error)
+    errorMessage.value = error.message || 'ไม่สามารถระบุตำแหน่งได้'
+    pickup.value = ''
+    setTimeout(() => { errorMessage.value = null }, 3000)
+  } finally {
+    loading.value = false
   }
 }
 

@@ -2,9 +2,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useServices } from '../composables/useServices'
+import { useLocation } from '../composables/useLocation'
+import AddressSearchInput from '../components/AddressSearchInput.vue'
+import type { PlaceResult } from '../composables/usePlaceSearch'
 
 const router = useRouter()
-const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
+const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces, savePlace: savePlaceToDb } = useServices()
+const { currentLocation } = useLocation()
 
 const loading = ref(true)
 const activeTab = ref<'saved' | 'recent'>('saved')
@@ -53,9 +57,26 @@ const openEditModal = (place: any) => {
 }
 
 const savePlace = async () => {
-  // In production, save to database
-  console.log('Saving place:', newPlace.value)
+  if (!newPlace.value.name || !newPlace.value.address) return
+  
+  await savePlaceToDb({
+    name: newPlace.value.name,
+    address: newPlace.value.address,
+    lat: newPlace.value.lat,
+    lng: newPlace.value.lng,
+    place_type: newPlace.value.type
+  })
+  
+  await fetchSavedPlaces()
   showAddModal.value = false
+}
+
+// Handle search result selection in modal
+const handleSearchSelect = (place: PlaceResult) => {
+  newPlace.value.name = place.name
+  newPlace.value.address = place.address
+  newPlace.value.lat = place.lat
+  newPlace.value.lng = place.lng
 }
 
 const deletePlace = async (id: string) => {
@@ -239,8 +260,15 @@ const goBack = () => router.back()
         </div>
 
         <div class="form-group">
-          <label>ที่อยู่</label>
-          <input v-model="newPlace.address" type="text" placeholder="ที่อยู่เต็ม" />
+          <label>ค้นหาที่อยู่</label>
+          <AddressSearchInput
+            v-model="newPlace.address"
+            placeholder="ค้นหาสถานที่หรือที่อยู่..."
+            :show-saved-places="false"
+            :current-lat="currentLocation?.lat"
+            :current-lng="currentLocation?.lng"
+            @select="handleSearchSelect"
+          />
         </div>
 
         <div class="modal-actions">

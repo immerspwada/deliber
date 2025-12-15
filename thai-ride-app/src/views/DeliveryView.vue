@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import LocationPicker from '../components/LocationPicker.vue'
+import AddressSearchInput from '../components/AddressSearchInput.vue'
 import MapView from '../components/MapView.vue'
 import { useLocation, type GeoLocation } from '../composables/useLocation'
 import { useDelivery } from '../composables/useDelivery'
+import { useServices } from '../composables/useServices'
+import type { PlaceResult } from '../composables/usePlaceSearch'
 
 const router = useRouter()
-const { calculateDistance } = useLocation()
+const { calculateDistance, currentLocation } = useLocation()
 const { createDeliveryRequest, calculateFee, loading } = useDelivery()
+const { homePlace, workPlace, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
+
+// Fetch saved places on mount
+fetchSavedPlaces()
+fetchRecentPlaces()
 
 // Sender info
 const senderName = ref('')
@@ -45,14 +52,60 @@ const canCalculate = computed(() =>
   senderLocation.value && recipientLocation.value && packageWeight.value
 )
 
-const handleSenderLocationSelected = (location: GeoLocation) => {
-  senderLocation.value = location
+// Handle search result selection
+const handleSenderSearchSelect = (place: PlaceResult) => {
+  senderAddress.value = place.name
+  senderLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
   showResult.value = false
 }
 
-const handleRecipientLocationSelected = (location: GeoLocation) => {
-  recipientLocation.value = location
+const handleRecipientSearchSelect = (place: PlaceResult) => {
+  recipientAddress.value = place.name
+  recipientLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
   showResult.value = false
+}
+
+// Handle saved place selection
+const handleSenderHome = () => {
+  if (homePlace.value) {
+    senderAddress.value = homePlace.value.name
+    senderLocation.value = { lat: homePlace.value.lat, lng: homePlace.value.lng, address: homePlace.value.address }
+  }
+}
+
+const handleSenderWork = () => {
+  if (workPlace.value) {
+    senderAddress.value = workPlace.value.name
+    senderLocation.value = { lat: workPlace.value.lat, lng: workPlace.value.lng, address: workPlace.value.address }
+  }
+}
+
+const handleRecipientHome = () => {
+  if (homePlace.value) {
+    recipientAddress.value = homePlace.value.name
+    recipientLocation.value = { lat: homePlace.value.lat, lng: homePlace.value.lng, address: homePlace.value.address }
+  }
+}
+
+const handleRecipientWork = () => {
+  if (workPlace.value) {
+    recipientAddress.value = workPlace.value.name
+    recipientLocation.value = { lat: workPlace.value.lat, lng: workPlace.value.lng, address: workPlace.value.address }
+  }
+}
+
+const handleRecentSelect = (place: { name: string; address: string; lat?: number; lng?: number }, target: 'sender' | 'recipient') => {
+  if (target === 'sender') {
+    senderAddress.value = place.name
+    if (place.lat && place.lng) {
+      senderLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
+    }
+  } else {
+    recipientAddress.value = place.name
+    if (place.lat && place.lng) {
+      recipientLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
+    }
+  }
 }
 
 const handleRouteCalculated = (data: { distance: number; duration: number }) => {
@@ -138,11 +191,19 @@ watch(packageType, () => {
           <input v-model="senderPhone" type="tel" placeholder="เบอร์โทรผู้ส่ง" class="input-field" />
         </div>
         <div class="form-group">
-          <LocationPicker
+          <AddressSearchInput
             v-model="senderAddress"
-            placeholder="ที่อยู่ผู้ส่ง - ค้นหาหรือใช้ GPS"
-            type="pickup"
-            @location-selected="handleSenderLocationSelected"
+            placeholder="ค้นหาที่อยู่ผู้ส่ง..."
+            icon="pickup"
+            :home-place="homePlace"
+            :work-place="workPlace"
+            :recent-places="recentPlaces"
+            :current-lat="currentLocation?.lat"
+            :current-lng="currentLocation?.lng"
+            @select="handleSenderSearchSelect"
+            @select-home="handleSenderHome"
+            @select-work="handleSenderWork"
+            @select-recent="(p) => handleRecentSelect(p, 'sender')"
           />
         </div>
       </div>
@@ -163,11 +224,19 @@ watch(packageType, () => {
           <input v-model="recipientPhone" type="tel" placeholder="เบอร์โทรผู้รับ" class="input-field" />
         </div>
         <div class="form-group">
-          <LocationPicker
+          <AddressSearchInput
             v-model="recipientAddress"
-            placeholder="ที่อยู่ผู้รับ - ค้นหาสถานที่"
-            type="destination"
-            @location-selected="handleRecipientLocationSelected"
+            placeholder="ค้นหาที่อยู่ผู้รับ..."
+            icon="destination"
+            :home-place="homePlace"
+            :work-place="workPlace"
+            :recent-places="recentPlaces"
+            :current-lat="currentLocation?.lat"
+            :current-lng="currentLocation?.lng"
+            @select="handleRecipientSearchSelect"
+            @select-home="handleRecipientHome"
+            @select-work="handleRecipientWork"
+            @select-recent="(p) => handleRecentSelect(p, 'recipient')"
           />
         </div>
       </div>

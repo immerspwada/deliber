@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import LocationPicker from '../components/LocationPicker.vue'
+import AddressSearchInput from '../components/AddressSearchInput.vue'
 import MapView from '../components/MapView.vue'
 import { useLocation, type GeoLocation } from '../composables/useLocation'
 import { useShopping } from '../composables/useShopping'
+import { useServices } from '../composables/useServices'
+import type { PlaceResult } from '../composables/usePlaceSearch'
 
 const router = useRouter()
-const { calculateDistance } = useLocation()
+const { calculateDistance, currentLocation } = useLocation()
 const { createShoppingRequest, calculateServiceFee, loading } = useShopping()
+const { homePlace, workPlace, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
+
+// Fetch saved places
+fetchSavedPlaces()
+fetchRecentPlaces()
 
 // Store info
 const storeName = ref('')
@@ -40,14 +47,46 @@ const itemCount = computed(() => {
   return itemList.value.split('\n').filter(line => line.trim()).length
 })
 
-const handleStoreLocationSelected = (location: GeoLocation) => {
-  storeLocation.value = location
+// Handle search result selection
+const handleStoreSearchSelect = (place: PlaceResult) => {
+  storeAddress.value = place.name
+  storeLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
   showResult.value = false
 }
 
-const handleDeliveryLocationSelected = (location: GeoLocation) => {
-  deliveryLocation.value = location
+const handleDeliverySearchSelect = (place: PlaceResult) => {
+  deliveryAddress.value = place.name
+  deliveryLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
   showResult.value = false
+}
+
+// Handle saved place selection
+const handleDeliveryHome = () => {
+  if (homePlace.value) {
+    deliveryAddress.value = homePlace.value.name
+    deliveryLocation.value = { lat: homePlace.value.lat, lng: homePlace.value.lng, address: homePlace.value.address }
+  }
+}
+
+const handleDeliveryWork = () => {
+  if (workPlace.value) {
+    deliveryAddress.value = workPlace.value.name
+    deliveryLocation.value = { lat: workPlace.value.lat, lng: workPlace.value.lng, address: workPlace.value.address }
+  }
+}
+
+const handleRecentSelect = (place: { name: string; address: string; lat?: number; lng?: number }, target: 'store' | 'delivery') => {
+  if (target === 'store') {
+    storeAddress.value = place.name
+    if (place.lat && place.lng) {
+      storeLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
+    }
+  } else {
+    deliveryAddress.value = place.name
+    if (place.lat && place.lng) {
+      deliveryLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
+    }
+  }
 }
 
 const handleRouteCalculated = (data: { distance: number; duration: number }) => {
@@ -119,11 +158,16 @@ const handleCreateShopping = async () => {
           <input v-model="storeName" type="text" placeholder="ชื่อร้าน (ถ้าทราบ)" class="input-field" />
         </div>
         <div class="form-group">
-          <LocationPicker
+          <AddressSearchInput
             v-model="storeAddress"
-            placeholder="ที่อยู่ร้าน - ค้นหาสถานที่"
-            type="pickup"
-            @location-selected="handleStoreLocationSelected"
+            placeholder="ค้นหาร้านค้าหรือสถานที่..."
+            icon="pickup"
+            :show-saved-places="false"
+            :recent-places="recentPlaces"
+            :current-lat="currentLocation?.lat"
+            :current-lng="currentLocation?.lng"
+            @select="handleStoreSearchSelect"
+            @select-recent="(p) => handleRecentSelect(p, 'store')"
           />
         </div>
       </div>
@@ -137,11 +181,19 @@ const handleCreateShopping = async () => {
           <h3 class="card-title">ส่งถึง</h3>
         </div>
         <div class="form-group">
-          <LocationPicker
+          <AddressSearchInput
             v-model="deliveryAddress"
-            placeholder="ที่อยู่จัดส่ง - ค้นหาหรือใช้ GPS"
-            type="destination"
-            @location-selected="handleDeliveryLocationSelected"
+            placeholder="ค้นหาที่อยู่จัดส่ง..."
+            icon="destination"
+            :home-place="homePlace"
+            :work-place="workPlace"
+            :recent-places="recentPlaces"
+            :current-lat="currentLocation?.lat"
+            :current-lng="currentLocation?.lng"
+            @select="handleDeliverySearchSelect"
+            @select-home="handleDeliveryHome"
+            @select-work="handleDeliveryWork"
+            @select-recent="(p) => handleRecentSelect(p, 'delivery')"
           />
         </div>
       </div>
