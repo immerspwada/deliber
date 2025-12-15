@@ -1,51 +1,32 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { useReferral } from '../composables/useReferral'
 
 const router = useRouter()
-const authStore = useAuthStore()
+const { 
+  referralCode, 
+  referrals, 
+  stats, 
+  loading,
+  fetchReferralCode, 
+  fetchReferrals, 
+  copyCode, 
+  shareReferral,
+  maskName 
+} = useReferral()
 
-const referralCode = computed(() => {
-  const userId = authStore.user?.id || 'demo'
-  return `THAI${userId.substring(0, 6).toUpperCase()}`
+const copied = ref(false)
+
+onMounted(async () => {
+  await Promise.all([fetchReferralCode(), fetchReferrals()])
 })
 
-const referralLink = computed(() => `https://thairide.app/invite/${referralCode.value}`)
-
-const stats = ref({
-  invited: 5,
-  completed: 3,
-  earned: 150
-})
-
-const referrals = ref([
-  { id: 1, name: 'สมชาย ใ***', status: 'completed', reward: 50, date: '14 ธ.ค. 2567' },
-  { id: 2, name: 'สมหญิง ร***', status: 'completed', reward: 50, date: '12 ธ.ค. 2567' },
-  { id: 3, name: 'วิชัย ก***', status: 'completed', reward: 50, date: '10 ธ.ค. 2567' },
-  { id: 4, name: 'มานี ส***', status: 'pending', reward: 0, date: '8 ธ.ค. 2567' },
-  { id: 5, name: 'ประยุทธ์ จ***', status: 'pending', reward: 0, date: '5 ธ.ค. 2567' }
-])
-
-const copyCode = () => {
-  navigator.clipboard?.writeText(referralCode.value)
-  alert('คัดลอกโค้ดแล้ว')
-}
-
-const copyLink = () => {
-  navigator.clipboard?.writeText(referralLink.value)
-  alert('คัดลอกลิงก์แล้ว')
-}
-
-const shareReferral = () => {
-  if (navigator.share) {
-    navigator.share({
-      title: 'ชวนใช้ ThaiRide',
-      text: `ใช้โค้ด ${referralCode.value} รับส่วนลด 50 บาท!`,
-      url: referralLink.value
-    })
-  } else {
-    copyLink()
+const handleCopyCode = async () => {
+  const success = await copyCode()
+  if (success) {
+    copied.value = true
+    setTimeout(() => copied.value = false, 2000)
   }
 }
 
@@ -72,18 +53,21 @@ const goBack = () => router.back()
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
           </svg>
         </div>
-        <h2>รับ ฿50 ทุกครั้งที่ชวนเพื่อน</h2>
-        <p>เพื่อนของคุณก็ได้รับส่วนลด ฿50 เช่นกัน</p>
+        <h2>รับ ฿{{ referralCode?.reward_amount || 50 }} ทุกครั้งที่ชวนเพื่อน</h2>
+        <p>เพื่อนของคุณก็ได้รับส่วนลด ฿{{ referralCode?.referee_reward || 50 }} เช่นกัน</p>
       </div>
 
       <!-- Referral Code -->
       <div class="code-section">
         <span class="code-label">โค้ดชวนเพื่อนของคุณ</span>
         <div class="code-box">
-          <span class="code-value">{{ referralCode }}</span>
-          <button @click="copyCode" class="copy-btn">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="code-value">{{ referralCode?.code || '...' }}</span>
+          <button @click="handleCopyCode" class="copy-btn">
+            <svg v-if="!copied" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
           </button>
         </div>
@@ -100,15 +84,15 @@ const goBack = () => router.back()
       <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-card">
-          <span class="stat-value">{{ stats.invited }}</span>
+          <span class="stat-value">{{ stats.total_invited }}</span>
           <span class="stat-label">ชวนแล้ว</span>
         </div>
         <div class="stat-card">
-          <span class="stat-value">{{ stats.completed }}</span>
+          <span class="stat-value">{{ stats.total_completed }}</span>
           <span class="stat-label">สำเร็จ</span>
         </div>
         <div class="stat-card highlight">
-          <span class="stat-value">฿{{ stats.earned }}</span>
+          <span class="stat-value">฿{{ stats.total_earned }}</span>
           <span class="stat-label">รับแล้ว</span>
         </div>
       </div>
@@ -151,7 +135,16 @@ const goBack = () => router.back()
       <!-- Referral History -->
       <div class="history-section">
         <h3>ประวัติการชวน</h3>
-        <div class="referral-list">
+        
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+        </div>
+        
+        <div v-else-if="referrals.length === 0" class="empty-state">
+          <p>ยังไม่มีการชวนเพื่อน</p>
+        </div>
+        
+        <div v-else class="referral-list">
           <div v-for="ref in referrals" :key="ref.id" class="referral-item">
             <div class="ref-avatar">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,11 +152,11 @@ const goBack = () => router.back()
               </svg>
             </div>
             <div class="ref-info">
-              <span class="ref-name">{{ ref.name }}</span>
-              <span class="ref-date">{{ ref.date }}</span>
+              <span class="ref-name">{{ maskName(ref.referee?.name || 'ผู้ใช้') }}</span>
+              <span class="ref-date">{{ new Date(ref.created_at).toLocaleDateString('th-TH') }}</span>
             </div>
             <div :class="['ref-status', ref.status]">
-              <span v-if="ref.status === 'completed'">+฿{{ ref.reward }}</span>
+              <span v-if="ref.status === 'completed'">+฿{{ ref.referrer_reward }}</span>
               <span v-else>รอดำเนินการ</span>
             </div>
           </div>
@@ -333,17 +326,13 @@ const goBack = () => router.back()
   font-weight: 700;
 }
 
-.stat-card.highlight .stat-value {
-  color: #fff;
+.stat-label {
+  font-size: 12px;
+  color: #6B6B6B;
 }
 
 .stat-card.highlight .stat-label {
   color: rgba(255,255,255,0.7);
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #6B6B6B;
 }
 
 /* How Section */
@@ -402,6 +391,31 @@ const goBack = () => router.back()
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
+}
+
+.loading-state {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #E5E5E5;
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #6B6B6B;
 }
 
 .referral-list {

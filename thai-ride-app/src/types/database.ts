@@ -600,6 +600,58 @@ export type PaymentMethod = Database['public']['Tables']['payment_methods']['Row
 export type TripShare = Database['public']['Tables']['trip_shares']['Row']
 export type UserNotification = Database['public']['Tables']['user_notifications']['Row']
 
+// Wallet types
+export interface UserWallet {
+  id: string
+  user_id: string
+  balance: number
+  total_earned: number
+  total_spent: number
+  currency: string
+  created_at: string
+  updated_at: string
+}
+
+export interface WalletTransaction {
+  id: string
+  wallet_id: string
+  user_id: string
+  type: 'topup' | 'payment' | 'refund' | 'cashback' | 'referral' | 'promo' | 'withdrawal'
+  amount: number
+  balance_before: number
+  balance_after: number
+  reference_type: string | null
+  reference_id: string | null
+  description: string | null
+  status: string
+  created_at: string
+}
+
+// Referral types
+export interface ReferralCode {
+  id: string
+  user_id: string
+  code: string
+  reward_amount: number
+  referee_reward: number
+  usage_count: number
+  max_usage: number | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface Referral {
+  id: string
+  referrer_id: string
+  referee_id: string
+  referral_code: string
+  referrer_reward: number
+  referee_reward: number
+  status: 'pending' | 'completed' | 'expired'
+  completed_at: string | null
+  created_at: string
+}
+
 // Additional types for advanced features (placeholder types for tables not yet in database)
 export interface DeliveryRequest {
   id: string

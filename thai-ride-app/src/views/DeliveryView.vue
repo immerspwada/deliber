@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import LocationPicker from '../components/LocationPicker.vue'
 import MapView from '../components/MapView.vue'
 import { useLocation, type GeoLocation } from '../composables/useLocation'
+import { useDelivery } from '../composables/useDelivery'
 
+const router = useRouter()
 const { calculateDistance } = useLocation()
+const { createDeliveryRequest, calculateFee, loading } = useDelivery()
 
 // Sender info
 const senderName = ref('')
@@ -61,7 +65,7 @@ const calculateDeliveryFee = async () => {
   
   isCalculating.value = true
   
-  await new Promise(resolve => setTimeout(resolve, 500))
+  await new Promise(resolve => setTimeout(resolve, 300))
   
   // Calculate distance if not from map
   if (estimatedDistance.value === 0) {
@@ -69,30 +73,35 @@ const calculateDeliveryFee = async () => {
       senderLocation.value.lat, senderLocation.value.lng,
       recipientLocation.value.lat, recipientLocation.value.lng
     )
-    // Estimate time: ~25 km/h average in Bangkok
     estimatedTime.value = Math.ceil((estimatedDistance.value / 25) * 60)
   }
   
-  // Calculate fee
-  const baseFee = 40
-  const distanceFee = estimatedDistance.value * 8 // 8 baht per km
-  const weight = parseFloat(packageWeight.value) || 0
-  const weightFee = weight > 5 ? (weight - 5) * 5 : 0 // Extra fee for weight > 5kg
-  
-  const typeMultiplier = {
-    document: 0.8,
-    small: 1.0,
-    medium: 1.3,
-    large: 1.6
-  }
-  
-  deliveryFee.value = Math.ceil((baseFee + distanceFee + weightFee) * typeMultiplier[packageType.value])
+  deliveryFee.value = calculateFee(estimatedDistance.value, packageType.value)
   showResult.value = true
   isCalculating.value = false
 }
 
-const createDeliveryRequest = () => {
-  alert('ระบบส่งของจะพร้อมใช้งานเร็วๆ นี้')
+const handleCreateDelivery = async () => {
+  if (!senderLocation.value || !recipientLocation.value) return
+  
+  const result = await createDeliveryRequest({
+    senderName: senderName.value,
+    senderPhone: senderPhone.value,
+    senderAddress: senderAddress.value,
+    senderLocation: senderLocation.value,
+    recipientName: recipientName.value,
+    recipientPhone: recipientPhone.value,
+    recipientAddress: recipientAddress.value,
+    recipientLocation: recipientLocation.value,
+    packageType: packageType.value,
+    packageWeight: parseFloat(packageWeight.value) || 1,
+    packageDescription: packageDescription.value,
+    distanceKm: estimatedDistance.value
+  })
+  
+  if (result) {
+    router.push(`/track/${result.tracking_id}`)
+  }
 }
 
 watch(packageType, () => {
@@ -106,8 +115,12 @@ watch(packageType, () => {
   <div class="page-container">
     <div class="content-container">
       <div class="page-header">
+        <button @click="router.back()" class="back-btn">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
         <h1 class="page-title">ส่งของ</h1>
-        <p class="page-subtitle">กรอกข้อมูลการจัดส่ง</p>
       </div>
 
       <!-- Sender Section -->
@@ -206,13 +219,7 @@ watch(packageType, () => {
         :disabled="!canCalculate || isCalculating"
         class="btn-primary"
       >
-        <span v-if="isCalculating" class="btn-loading">
-          <svg class="spinner" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span>กำลังคำนวณ</span>
-        </span>
+        <span v-if="isCalculating">กำลังคำนวณ...</span>
         <span v-else>คำนวณค่าส่ง</span>
       </button>
 
@@ -232,11 +239,11 @@ watch(packageType, () => {
             <span class="fare-amount">฿{{ deliveryFee }}</span>
           </div>
         </div>
-        <button @click="createDeliveryRequest" class="btn-primary">
+        <button @click="handleCreateDelivery" :disabled="loading" class="btn-primary">
           <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
           </svg>
-          สร้างคำขอส่งของ
+          {{ loading ? 'กำลังสร้าง...' : 'สร้างคำขอส่งของ' }}
         </button>
       </div>
     </div>
@@ -245,18 +252,31 @@ watch(packageType, () => {
 
 <style scoped>
 .page-header {
-  padding: 24px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.back-btn {
+  width: 40px;
+  height: 40px;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.back-btn svg {
+  width: 24px;
+  height: 24px;
 }
 
 .page-title {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.page-subtitle {
-  font-size: 14px;
-  color: var(--color-text-secondary);
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .form-card {
@@ -273,13 +293,12 @@ watch(packageType, () => {
 .card-icon {
   width: 20px;
   height: 20px;
-  color: var(--color-text-secondary);
+  color: #6B6B6B;
 }
 
 .card-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary);
 }
 
 .form-group {
@@ -288,6 +307,13 @@ watch(packageType, () => {
 
 .form-group:last-child {
   margin-bottom: 0;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  color: #6B6B6B;
+  margin-bottom: 8px;
 }
 
 .package-type-grid {
@@ -301,20 +327,20 @@ watch(packageType, () => {
   flex-direction: column;
   align-items: center;
   padding: 12px 4px;
-  background-color: var(--color-surface);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  background: #F6F6F6;
+  border: 2px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .package-type-btn:hover {
-  border-color: var(--color-text-muted);
+  border-color: #CCC;
 }
 
 .package-type-btn.active {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary);
+  border-color: #000;
+  background: #000;
   color: white;
 }
 
@@ -329,29 +355,37 @@ watch(packageType, () => {
   margin-top: 2px;
 }
 
-.btn-loading {
+.btn-primary {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 16px;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 16px;
 }
 
-.spinner {
+.btn-primary:disabled {
+  background: #CCC;
+}
+
+.btn-icon {
   width: 20px;
   height: 20px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 .fare-result {
   margin-top: 24px;
   padding: 20px;
-  background-color: var(--color-surface);
-  border-radius: var(--radius-md);
+  background: #fff;
+  border-radius: 16px;
 }
 
 .fare-details {
@@ -366,14 +400,14 @@ watch(packageType, () => {
 }
 
 .fare-row-total {
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid #E5E5E5;
   margin-top: 8px;
   padding-top: 16px;
 }
 
 .fare-label {
   font-size: 14px;
-  color: var(--color-text-secondary);
+  color: #6B6B6B;
 }
 
 .fare-value {
@@ -384,10 +418,5 @@ watch(packageType, () => {
 .fare-amount {
   font-size: 28px;
   font-weight: 700;
-}
-
-.btn-icon {
-  width: 20px;
-  height: 20px;
 }
 </style>

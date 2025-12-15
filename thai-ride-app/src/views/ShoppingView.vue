@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import LocationPicker from '../components/LocationPicker.vue'
 import MapView from '../components/MapView.vue'
 import { useLocation, type GeoLocation } from '../composables/useLocation'
+import { useShopping } from '../composables/useShopping'
 
+const router = useRouter()
 const { calculateDistance } = useLocation()
+const { createShoppingRequest, calculateServiceFee, loading } = useShopping()
 
 // Store info
 const storeName = ref('')
@@ -31,6 +35,11 @@ const canCalculate = computed(() =>
   storeLocation.value && deliveryLocation.value && itemList.value && budgetLimit.value
 )
 
+const itemCount = computed(() => {
+  if (!itemList.value.trim()) return 0
+  return itemList.value.split('\n').filter(line => line.trim()).length
+})
+
 const handleStoreLocationSelected = (location: GeoLocation) => {
   storeLocation.value = location
   showResult.value = false
@@ -43,53 +52,59 @@ const handleDeliveryLocationSelected = (location: GeoLocation) => {
 
 const handleRouteCalculated = (data: { distance: number; duration: number }) => {
   estimatedDistance.value = data.distance
-  estimatedTime.value = data.duration
+  estimatedTime.value = data.duration + 30 // +30 min for shopping
 }
 
-const calculateServiceFee = async () => {
+const calculateFee = async () => {
   if (!canCalculate.value || !storeLocation.value || !deliveryLocation.value) return
   
   isCalculating.value = true
+  await new Promise(resolve => setTimeout(resolve, 300))
   
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  // Calculate distance if not from map
   if (estimatedDistance.value === 0) {
     estimatedDistance.value = calculateDistance(
       storeLocation.value.lat, storeLocation.value.lng,
       deliveryLocation.value.lat, deliveryLocation.value.lng
     )
-    estimatedTime.value = Math.ceil((estimatedDistance.value / 20) * 60) + 30 // +30 min for shopping
+    estimatedTime.value = Math.ceil((estimatedDistance.value / 20) * 60) + 30
   }
   
-  // Calculate fee
-  const budget = parseFloat(budgetLimit.value) || 0
-  const baseFee = 50
-  const percentageFee = Math.min(budget * 0.1, 200) // 10% capped at 200
-  const deliveryFee = Math.max(30, estimatedDistance.value * 6) // 6 baht per km, min 30
-  
-  serviceFee.value = Math.ceil(baseFee + percentageFee + deliveryFee)
+  serviceFee.value = calculateServiceFee(parseFloat(budgetLimit.value) || 0, estimatedDistance.value)
   showResult.value = true
   isCalculating.value = false
 }
 
-const createShoppingRequest = () => {
-  alert('ระบบซื้อของจะพร้อมใช้งานเร็วๆ นี้')
+const handleCreateShopping = async () => {
+  if (!storeLocation.value || !deliveryLocation.value) return
+  
+  const result = await createShoppingRequest({
+    storeName: storeName.value,
+    storeAddress: storeAddress.value,
+    storeLocation: storeLocation.value,
+    deliveryAddress: deliveryAddress.value,
+    deliveryLocation: deliveryLocation.value,
+    itemList: itemList.value,
+    budgetLimit: parseFloat(budgetLimit.value) || 0,
+    specialInstructions: specialInstructions.value,
+    distanceKm: estimatedDistance.value
+  })
+  
+  if (result) {
+    router.push(`/track/${result.tracking_id}`)
+  }
 }
-
-// Count items in list
-const itemCount = computed(() => {
-  if (!itemList.value.trim()) return 0
-  return itemList.value.split('\n').filter(line => line.trim()).length
-})
 </script>
 
 <template>
   <div class="page-container">
     <div class="content-container">
       <div class="page-header">
+        <button @click="router.back()" class="back-btn">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
         <h1 class="page-title">ซื้อของ</h1>
-        <p class="page-subtitle">ให้เราไปซื้อของให้คุณ</p>
       </div>
 
       <!-- Store Section -->
@@ -152,8 +167,8 @@ const itemCount = computed(() => {
         <div class="form-group">
           <textarea 
             v-model="itemList" 
-            placeholder="ระบุรายการสินค้า (บรรทัดละ 1 รายการ)&#10;เช่น:&#10;นมสด 1 กล่อง&#10;ขนมปัง 2 ห่อ&#10;ไข่ไก่ 1 แผง" 
-            rows="5" 
+            placeholder="ระบุรายการสินค้า (บรรทัดละ 1 รายการ)&#10;เช่น:&#10;นมสด 1 กล่อง&#10;ขนมปัง 2 ห่อ" 
+            rows="4" 
             class="input-field textarea"
           ></textarea>
         </div>
@@ -176,7 +191,7 @@ const itemCount = computed(() => {
         <div class="form-group">
           <textarea 
             v-model="specialInstructions" 
-            placeholder="คำแนะนำพิเศษ (ถ้ามี) เช่น ยี่ห้อที่ต้องการ, ของทดแทนถ้าไม่มี" 
+            placeholder="คำแนะนำพิเศษ (ถ้ามี)" 
             rows="2" 
             class="input-field textarea"
           ></textarea>
@@ -184,19 +199,8 @@ const itemCount = computed(() => {
       </div>
 
       <!-- Calculate Button -->
-      <button
-        @click="calculateServiceFee"
-        :disabled="!canCalculate || isCalculating"
-        class="btn-primary"
-      >
-        <span v-if="isCalculating" class="btn-loading">
-          <svg class="spinner" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span>กำลังคำนวณ</span>
-        </span>
-        <span v-else>คำนวณค่าบริการ</span>
+      <button @click="calculateFee" :disabled="!canCalculate || isCalculating" class="btn-primary">
+        {{ isCalculating ? 'กำลังคำนวณ...' : 'คำนวณค่าบริการ' }}
       </button>
 
       <!-- Result -->
@@ -212,32 +216,17 @@ const itemCount = computed(() => {
           </div>
         </div>
         
-        <div class="fee-breakdown">
-          <div class="fee-row">
-            <span>ค่าบริการพื้นฐาน</span>
-            <span>฿50</span>
-          </div>
-          <div class="fee-row">
-            <span>ค่าบริการ (10%)</span>
-            <span>฿{{ Math.min(Math.ceil(parseFloat(budgetLimit) * 0.1), 200) }}</span>
-          </div>
-          <div class="fee-row">
-            <span>ค่าส่ง</span>
-            <span>฿{{ Math.max(30, Math.ceil(estimatedDistance * 6)) }}</span>
-          </div>
-        </div>
-        
         <div class="fare-total">
           <span class="fare-label">ค่าบริการรวม</span>
           <span class="fare-amount">฿{{ serviceFee }}</span>
         </div>
         <p class="fare-note">ไม่รวมราคาสินค้า (งบประมาณ ฿{{ budgetLimit }})</p>
         
-        <button @click="createShoppingRequest" class="btn-primary">
+        <button @click="handleCreateShopping" :disabled="loading" class="btn-primary">
           <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
           </svg>
-          สร้างคำขอซื้อของ
+          {{ loading ? 'กำลังสร้าง...' : 'สร้างคำขอซื้อของ' }}
         </button>
       </div>
     </div>
@@ -246,23 +235,26 @@ const itemCount = computed(() => {
 
 <style scoped>
 .page-header {
-  padding: 24px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
 }
 
-.page-title {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 4px;
+.back-btn {
+  width: 40px;
+  height: 40px;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.page-subtitle {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.form-card {
-  margin-bottom: 16px;
-}
+.back-btn svg { width: 24px; height: 24px; }
+.page-title { font-size: 20px; font-weight: 600; }
+.form-card { margin-bottom: 16px; }
 
 .card-header {
   display: flex;
@@ -271,138 +263,84 @@ const itemCount = computed(() => {
   margin-bottom: 16px;
 }
 
-.card-icon {
-  width: 20px;
-  height: 20px;
-  color: var(--color-text-secondary);
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
+.card-icon { width: 20px; height: 20px; color: #6B6B6B; }
+.card-title { font-size: 16px; font-weight: 600; }
 
 .item-count {
   margin-left: auto;
   font-size: 12px;
-  color: var(--color-text-muted);
-  background-color: var(--color-secondary);
+  color: #6B6B6B;
+  background: #F6F6F6;
   padding: 2px 8px;
   border-radius: 10px;
 }
 
-.form-group {
-  margin-bottom: 12px;
-}
+.form-group { margin-bottom: 12px; }
+.form-group:last-child { margin-bottom: 0; }
+.textarea { resize: none; }
 
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.textarea {
-  resize: none;
-}
-
-.input-with-suffix {
-  position: relative;
-}
-
-.input-with-suffix .input-field {
-  padding-right: 50px;
-}
-
+.input-with-suffix { position: relative; }
+.input-with-suffix .input-field { padding-right: 50px; }
 .input-suffix {
   position: absolute;
   right: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--color-text-muted);
+  color: #6B6B6B;
   font-size: 14px;
 }
 
-.btn-loading {
+.btn-primary {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 16px;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 16px;
 }
 
-.spinner {
-  width: 20px;
-  height: 20px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+.btn-primary:disabled { background: #CCC; }
+.btn-icon { width: 20px; height: 20px; }
 
 .fare-result {
   margin-top: 24px;
   padding: 20px;
-  background-color: var(--color-surface);
-  border-radius: var(--radius-md);
+  background: #fff;
+  border-radius: 16px;
 }
 
-.fare-details {
-  margin-bottom: 12px;
-}
-
+.fare-details { margin-bottom: 12px; }
 .fare-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   padding: 6px 0;
   font-size: 14px;
 }
 
-.fare-label {
-  color: var(--color-text-secondary);
-}
-
-.fare-value {
-  font-weight: 500;
-}
-
-.fee-breakdown {
-  background-color: var(--color-secondary);
-  border-radius: var(--radius-sm);
-  padding: 12px 16px;
-  margin-bottom: 16px;
-}
-
-.fee-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  padding: 4px 0;
-  color: var(--color-text-secondary);
-}
+.fare-label { color: #6B6B6B; }
+.fare-value { font-weight: 500; }
 
 .fare-total {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid #E5E5E5;
 }
 
-.fare-amount {
-  font-size: 28px;
-  font-weight: 700;
-}
-
+.fare-amount { font-size: 28px; font-weight: 700; }
 .fare-note {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: #6B6B6B;
   text-align: right;
   margin-bottom: 16px;
-}
-
-.btn-icon {
-  width: 20px;
-  height: 20px;
 }
 </style>

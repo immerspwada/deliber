@@ -1,48 +1,51 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useWallet } from '../composables/useWallet'
 
 const router = useRouter()
+const { 
+  balance, 
+  transactions, 
+  loading, 
+  fetchBalance, 
+  fetchTransactions, 
+  topUp,
+  subscribeToWallet,
+  getTransactionIcon 
+} = useWallet()
 
-const balance = ref(250)
-const loading = ref(false)
 const showTopUpModal = ref(false)
 const selectedAmount = ref(100)
+const topUpLoading = ref(false)
 
 const topUpAmounts = [100, 200, 500, 1000, 2000]
 
-const transactions = ref([
-  { id: 1, type: 'topup', amount: 500, date: '14 ธ.ค. 2567', desc: 'เติมเงินผ่านพร้อมเพย์' },
-  { id: 2, type: 'ride', amount: -85, date: '14 ธ.ค. 2567', desc: 'เรียกรถ สยาม → อโศก' },
-  { id: 3, type: 'promo', amount: 50, date: '13 ธ.ค. 2567', desc: 'โบนัสผู้ใช้ใหม่' },
-  { id: 4, type: 'ride', amount: -120, date: '12 ธ.ค. 2567', desc: 'เรียกรถ บ้าน → ออฟฟิศ' },
-  { id: 5, type: 'refund', amount: 45, date: '11 ธ.ค. 2567', desc: 'คืนเงินจากการยกเลิก' }
-])
+let subscription: { unsubscribe: () => void } | null = null
+
+onMounted(async () => {
+  await Promise.all([fetchBalance(), fetchTransactions()])
+  subscription = subscribeToWallet()
+})
+
+onUnmounted(() => {
+  subscription?.unsubscribe()
+})
 
 const handleTopUp = async () => {
-  loading.value = true
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  balance.value += selectedAmount.value
-  transactions.value.unshift({
-    id: Date.now(),
-    type: 'topup',
-    amount: selectedAmount.value,
-    date: new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }),
-    desc: 'เติมเงินผ่านพร้อมเพย์'
-  })
-  loading.value = false
-  showTopUpModal.value = false
+  topUpLoading.value = true
+  const result = await topUp(selectedAmount.value, 'promptpay')
+  topUpLoading.value = false
+  if (result) {
+    showTopUpModal.value = false
+  }
 }
 
-const getTransactionIcon = (type: string) => {
-  switch (type) {
-    case 'topup': return 'M12 6v6m0 0v6m0-6h6m-6 0H6'
-    case 'ride': return 'M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14'
-    case 'promo': return 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7'
-    case 'refund': return 'M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6'
-    default: return 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-  }
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 
+                  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear() + 543}`
 }
 
 const goBack = () => router.back()
@@ -66,7 +69,7 @@ const goBack = () => router.back()
         <span class="balance-label">ยอดเงินคงเหลือ</span>
         <div class="balance-amount">
           <span class="currency">฿</span>
-          <span class="amount">{{ balance.toLocaleString() }}</span>
+          <span class="amount">{{ balance.balance.toLocaleString() }}</span>
         </div>
         <button @click="showTopUpModal = true" class="topup-btn">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,7 +97,7 @@ const goBack = () => router.back()
           </div>
           <span>สแกนจ่าย</span>
         </button>
-        <button class="action-card">
+        <button class="action-card" @click="router.push('/history')">
           <div class="action-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
@@ -104,22 +107,46 @@ const goBack = () => router.back()
         </button>
       </div>
 
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-item">
+          <span class="stat-label">รับเข้าทั้งหมด</span>
+          <span class="stat-value">฿{{ balance.total_earned.toLocaleString() }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">ใช้ไปทั้งหมด</span>
+          <span class="stat-value">฿{{ balance.total_spent.toLocaleString() }}</span>
+        </div>
+      </div>
+
       <!-- Transactions -->
       <div class="transactions-section">
         <h2 class="section-title">รายการล่าสุด</h2>
-        <div class="transactions-list">
+        
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+        </div>
+        
+        <div v-else-if="transactions.length === 0" class="empty-state">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <p>ยังไม่มีรายการ</p>
+        </div>
+        
+        <div v-else class="transactions-list">
           <div v-for="tx in transactions" :key="tx.id" class="transaction-item">
-            <div :class="['tx-icon', tx.type]">
+            <div class="tx-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getTransactionIcon(tx.type)"/>
               </svg>
             </div>
             <div class="tx-info">
-              <span class="tx-desc">{{ tx.desc }}</span>
-              <span class="tx-date">{{ tx.date }}</span>
+              <span class="tx-desc">{{ tx.description || tx.type }}</span>
+              <span class="tx-date">{{ formatDate(tx.created_at) }}</span>
             </div>
-            <span :class="['tx-amount', { positive: tx.amount > 0 }]">
-              {{ tx.amount > 0 ? '+' : '' }}฿{{ Math.abs(tx.amount) }}
+            <span :class="['tx-amount', { positive: ['topup', 'refund', 'cashback', 'referral', 'promo'].includes(tx.type) }]">
+              {{ ['topup', 'refund', 'cashback', 'referral', 'promo'].includes(tx.type) ? '+' : '-' }}฿{{ Math.abs(tx.amount).toLocaleString() }}
             </span>
           </div>
         </div>
@@ -178,8 +205,8 @@ const goBack = () => router.back()
           </div>
         </div>
 
-        <button @click="handleTopUp" :disabled="loading || selectedAmount < 20" class="btn-primary">
-          {{ loading ? 'กำลังดำเนินการ...' : `เติมเงิน ฿${selectedAmount}` }}
+        <button @click="handleTopUp" :disabled="topUpLoading || selectedAmount < 20" class="btn-primary">
+          {{ topUpLoading ? 'กำลังดำเนินการ...' : `เติมเงิน ฿${selectedAmount}` }}
         </button>
       </div>
     </div>
@@ -294,7 +321,7 @@ const goBack = () => router.back()
 .quick-actions {
   display: flex;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .action-card {
@@ -322,7 +349,7 @@ const goBack = () => router.back()
 .action-icon {
   width: 44px;
   height: 44px;
-  background: #fff;
+  background: #F6F6F6;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -339,11 +366,69 @@ const goBack = () => router.back()
   font-weight: 500;
 }
 
+/* Stats Row */
+.stats-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-item {
+  flex: 1;
+  background: #F6F6F6;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: #6B6B6B;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
 /* Transactions */
 .section-title {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
+}
+
+.loading-state {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #E5E5E5;
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #6B6B6B;
+}
+
+.empty-state svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
 }
 
 .transactions-list {
@@ -369,7 +454,7 @@ const goBack = () => router.back()
 .tx-icon {
   width: 40px;
   height: 40px;
-  background: #fff;
+  background: #F6F6F6;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -380,8 +465,6 @@ const goBack = () => router.back()
   width: 20px;
   height: 20px;
 }
-
-.tx-icon svg { color: #000; }
 
 .tx-info {
   flex: 1;
