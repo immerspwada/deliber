@@ -27,14 +27,14 @@ defineEmits<{
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24px 0;
+  padding: 32px 0;
 }
 
 .search-animation {
   position: relative;
-  width: 80px;
-  height: 80px;
-  margin-bottom: 20px;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 28px;
 }
 
 .ripple {
@@ -58,40 +58,52 @@ defineEmits<{
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   background: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
 }
 
 .search-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.5;
 }
 
 .search-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .search-subtitle {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 20px;
+  font-size: 15px;
+  color: #888;
+  margin-bottom: 28px;
 }
 
 .btn-cancel-search {
-  padding: 12px 32px;
+  padding: 14px 40px;
   background: #F6F6F6;
   color: #000;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 48px;
+}
+
+.btn-cancel-search:hover {
+  background: #EBEBEB;
+}
+
+.btn-cancel-search:active {
+  transform: scale(0.97);
 }
 </style>

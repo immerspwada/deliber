@@ -182,62 +182,75 @@ const selectSchedule = (value: string) => {
 <style scoped>
 /* Route Info Bar */
 .route-info-bar {
-  padding: 12px 0;
-  margin-bottom: 12px;
-  border-bottom: 1px solid #E5E5E5;
+  padding: 14px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #F0F0F0;
 }
 
 .route-text {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 14px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .route-from {
   color: #666;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .route-arrow {
-  width: 16px;
-  height: 16px;
-  color: #999;
+  width: 18px;
+  height: 18px;
+  color: #888;
+  flex-shrink: 0;
 }
 
 .route-to {
   font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .route-meta {
   font-size: 13px;
-  color: #666;
+  color: #888;
+  font-weight: 500;
 }
 
 /* Vehicle List */
 .vehicle-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  max-height: 200px;
+  gap: 10px;
+  margin-bottom: 20px;
+  max-height: 220px;
   overflow-y: auto;
+  padding: 2px;
 }
 
 .vehicle-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
+  gap: 14px;
+  padding: 16px;
   background: white;
-  border: 2px solid #E5E5E5;
-  border-radius: 14px;
+  border: 2px solid #E8E8E8;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-height: 72px;
 }
 
 .vehicle-card:hover {
-  border-color: #CCCCCC;
+  border-color: #D0D0D0;
+  background: #FAFAFA;
 }
 
 .vehicle-card:active {
@@ -247,20 +260,23 @@ const selectSchedule = (value: string) => {
 .vehicle-card.selected {
   border-color: #000;
   background: #FAFAFA;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .vehicle-icon-wrap {
-  width: 48px;
-  height: 36px;
+  width: 56px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #F6F6F6;
+  border-radius: 10px;
 }
 
 .vehicle-icon-wrap svg {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  stroke-width: 1.5;
 }
 
 .vehicle-details {
@@ -270,34 +286,38 @@ const selectSchedule = (value: string) => {
 .vehicle-name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 2px;
 }
 
 .vehicle-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
 }
 
 .vehicle-eta {
   font-size: 12px;
   color: #666;
+  background: #F0F0F0;
+  padding: 2px 8px;
+  border-radius: 10px;
 }
 
 .vehicle-desc {
   font-size: 13px;
-  color: #666;
+  color: #888;
 }
 
 .vehicle-price {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 /* Options Row */
 .options-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .option-btn {
@@ -305,18 +325,30 @@ const selectSchedule = (value: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px;
+  gap: 8px;
+  padding: 12px 10px;
   background: #F6F6F6;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+}
+
+.option-btn:hover {
+  background: #EBEBEB;
+}
+
+.option-btn:active {
+  transform: scale(0.97);
 }
 
 .option-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.5;
 }
 
 .fare-split-btn {
@@ -414,16 +446,21 @@ const selectSchedule = (value: string) => {
   display: flex;
   align-items: center;
   gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid #F0F0F0;
+  margin-top: 8px;
 }
 
 .price-display {
   display: flex;
   flex-direction: column;
+  min-width: 90px;
 }
 
 .price-label {
   font-size: 12px;
-  color: #666;
+  color: #888;
+  margin-bottom: 2px;
 }
 
 .price-row {
@@ -439,17 +476,17 @@ const selectSchedule = (value: string) => {
 }
 
 .price-value {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
 }
 
 .btn-confirm {
   flex: 1;
-  padding: 16px;
+  padding: 18px;
   background: #000;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;

@@ -70,61 +70,65 @@ defineEmits<{
 }
 
 .ride-progress {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .progress-bar {
-  height: 4px;
+  height: 6px;
   background: #E5E5E5;
-  border-radius: 2px;
-  margin-bottom: 8px;
+  border-radius: 3px;
+  margin-bottom: 10px;
 }
 
 .progress-fill {
   height: 100%;
   background: #000;
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.3s;
 }
 
 .progress-text {
-  font-size: 13px;
+  font-size: 14px;
   color: #666;
+  font-weight: 500;
 }
 
 .ride-destination {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 12px;
+  padding: 14px 16px;
   background: #F6F6F6;
-  border-radius: 10px;
-  margin-bottom: 16px;
+  border-radius: 14px;
+  margin-bottom: 20px;
 }
 
 .ride-destination svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.5;
 }
 
 .ride-destination span {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .ride-eta {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .eta-big {
-  font-size: 40px;
+  font-size: 52px;
   font-weight: 700;
   display: block;
+  line-height: 1;
+  margin-bottom: 4px;
 }
 
 .eta-label {
-  font-size: 14px;
+  font-size: 15px;
   color: #666;
 }
 
@@ -140,28 +144,45 @@ defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px;
   background: #F6F6F6;
   border: none;
-  border-radius: 10px;
-  font-size: 13px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 52px;
+}
+
+.safety-btn:hover {
+  background: #EBEBEB;
+}
+
+.safety-btn:active {
+  transform: scale(0.97);
 }
 
 .safety-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.5;
 }
 
 .safety-btn.sos {
   background: #FEE2E2;
   color: #E11900;
+  font-weight: 600;
+}
+
+.safety-btn.sos:hover {
+  background: #FECACA;
 }
 
 /* Ride Contact Actions */
 .ride-contact-actions {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .ride-contact-btn {
@@ -169,30 +190,51 @@ defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px;
   background: #F6F6F6;
   border: none;
-  border-radius: 10px;
-  font-size: 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 52px;
+}
+
+.ride-contact-btn:hover {
+  background: #EBEBEB;
+}
+
+.ride-contact-btn:active {
+  transform: scale(0.97);
 }
 
 .ride-contact-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.5;
 }
 
 /* Button */
 .btn-primary {
   width: 100%;
-  padding: 16px;
+  padding: 18px;
   background: #000;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
 }
 </style>

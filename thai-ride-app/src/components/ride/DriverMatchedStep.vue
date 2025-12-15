@@ -83,58 +83,60 @@ defineEmits<{
 
 <style scoped>
 .driver-matched {
-  padding: 8px 0;
+  padding: 12px 0;
 }
 
 .eta-display {
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .eta-number {
-  font-size: 48px;
+  font-size: 56px;
   font-weight: 700;
   line-height: 1;
 }
 
 .eta-unit {
-  font-size: 18px;
+  font-size: 20px;
   color: #666;
+  font-weight: 500;
 }
 
 .eta-text {
   text-align: center;
-  font-size: 15px;
+  font-size: 16px;
   color: #666;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .driver-info-card {
   background: #F6F6F6;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 20px;
 }
 
 .driver-profile {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .driver-avatar {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   background: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  border: 2px solid #E5E5E5;
 }
 
 .driver-avatar img {
@@ -144,8 +146,9 @@ defineEmits<{
 }
 
 .driver-avatar svg {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  color: #888;
 }
 
 .driver-text {
@@ -153,51 +156,58 @@ defineEmits<{
 }
 
 .driver-name {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .driver-rating {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 14px;
   color: #666;
 }
 
 .driver-rating svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   color: #F59E0B;
 }
 
 .trips-count {
   margin-left: 8px;
+  color: #888;
 }
 
 .car-info {
   display: flex;
   justify-content: space-between;
-  padding-top: 12px;
-  border-top: 1px solid #E5E5E5;
+  align-items: center;
+  padding-top: 14px;
+  border-top: 1px solid #E0E0E0;
 }
 
 .car-model {
-  font-size: 14px;
+  font-size: 15px;
+  color: #333;
 }
 
 .car-plate {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
+  background: #000;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
 }
 
 /* Contact Actions */
 .contact-actions {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .contact-btn {
@@ -205,13 +215,14 @@ defineEmits<{
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 14px;
+  gap: 8px;
+  padding: 16px;
   background: #F6F6F6;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-height: 72px;
 }
 
 .contact-btn:hover {
@@ -223,23 +234,30 @@ defineEmits<{
 }
 
 .contact-btn svg {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.5;
 }
 
 .contact-btn span {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .btn-cancel-ride {
   width: 100%;
-  padding: 14px;
+  padding: 16px;
   background: none;
   color: #E11900;
   border: none;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel-ride:hover {
+  background: #FEE2E2;
+  border-radius: 12px;
 }
 </style>

@@ -293,6 +293,16 @@ const selectRecentPlace = (place: { name: string; address: string; lat?: number;
   }
 }
 
+// Select search result from place search API
+const selectSearchResult = (place: { name: string; address: string; lat: number; lng: number }) => {
+  destination.value = place.name
+  destinationLocation.value = {
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address
+  }
+}
+
 // Confirm destination and move to vehicle selection
 const confirmDestination = () => {
   if (!pickup.value || !destination.value) return
@@ -582,6 +592,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         :home-place="homePlace || null"
         :work-place="workPlace || null"
         :recent-places="recentPlaces"
+        :current-lat="pickupLocation?.lat"
+        :current-lng="pickupLocation?.lng"
         @update:pickup="pickup = $event"
         @update:destination="destination = $event"
         @update:selectedService="selectedService = $event"
@@ -589,6 +601,7 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         @confirm="confirmDestination"
         @select-saved-place="selectSavedPlace"
         @select-recent-place="selectRecentPlace"
+        @select-search-result="selectSearchResult"
       />
 
       <!-- Step: Select vehicle -->
@@ -742,22 +755,22 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   position: absolute;
   top: 16px;
   left: 16px;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   background: white;
   border: none;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
 }
 
 .map-back-btn:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.16);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.16);
 }
 
 .map-back-btn:active {
@@ -765,30 +778,31 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 }
 
 .map-back-btn svg {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  stroke-width: 2;
 }
 
 .gps-btn {
   position: absolute;
   bottom: 24px;
   right: 16px;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   background: white;
   border: none;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
 }
 
 .gps-btn:hover:not(:disabled) {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.16);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.16);
 }
 
 .gps-btn:active:not(:disabled) {
@@ -801,8 +815,9 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 }
 
 .gps-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.5;
 }
 
 .animate-spin {
@@ -817,20 +832,20 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 /* Bottom Sheet */
 .bottom-sheet {
   background: white;
-  border-radius: 24px 24px 0 0;
-  padding: 12px 20px 24px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  box-shadow: 0 -8px 32px rgba(0,0,0,0.1);
+  border-radius: 28px 28px 0 0;
+  padding: 14px 24px 28px;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 40px rgba(0,0,0,0.12);
   transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
 }
 
 .sheet-handle {
-  width: 40px;
-  height: 4px;
+  width: 44px;
+  height: 5px;
   background: #E0E0E0;
-  border-radius: 2px;
-  margin: 0 auto 16px;
+  border-radius: 3px;
+  margin: 0 auto 20px;
   cursor: grab;
 }
 </style>
