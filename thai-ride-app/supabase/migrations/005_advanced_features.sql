@@ -447,14 +447,14 @@ CREATE POLICY "Users can view own subscription usage" ON public.subscription_usa
 
 -- Scheduled rides tracking ID
 CREATE OR REPLACE FUNCTION set_scheduled_ride_tracking_id()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.tracking_id IS NULL THEN
     NEW.tracking_id := generate_tracking_id('ride');
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_scheduled_ride_tracking_id
   BEFORE INSERT ON public.scheduled_rides
@@ -462,14 +462,14 @@ CREATE TRIGGER trigger_scheduled_ride_tracking_id
 
 -- Voice calls tracking ID
 CREATE OR REPLACE FUNCTION set_voice_call_tracking_id()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.tracking_id IS NULL THEN
     NEW.tracking_id := generate_tracking_id('chat');
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_voice_call_tracking_id
   BEFORE INSERT ON public.voice_calls
@@ -477,14 +477,14 @@ CREATE TRIGGER trigger_voice_call_tracking_id
 
 -- Insurance claims tracking ID
 CREATE OR REPLACE FUNCTION set_insurance_claim_tracking_id()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.tracking_id IS NULL THEN
     NEW.tracking_id := generate_tracking_id('support');
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_insurance_claim_tracking_id
   BEFORE INSERT ON public.insurance_claims
@@ -492,14 +492,14 @@ CREATE TRIGGER trigger_insurance_claim_tracking_id
 
 -- Company tracking ID
 CREATE OR REPLACE FUNCTION set_company_tracking_id()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.tracking_id IS NULL THEN
     NEW.tracking_id := generate_tracking_id('customer');
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_company_tracking_id
   BEFORE INSERT ON public.companies
@@ -507,14 +507,14 @@ CREATE TRIGGER trigger_company_tracking_id
 
 -- User subscription tracking ID
 CREATE OR REPLACE FUNCTION set_user_subscription_tracking_id()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.tracking_id IS NULL THEN
     NEW.tracking_id := generate_tracking_id('order');
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_user_subscription_tracking_id
   BEFORE INSERT ON public.user_subscriptions
@@ -582,7 +582,7 @@ RETURNS TABLE (
   free_cancellations_remaining INTEGER,
   free_wait_time_minutes INTEGER,
   insurance_included BOOLEAN
-) AS $
+) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
@@ -604,7 +604,7 @@ BEGIN
     RETURN QUERY SELECT false, NULL::VARCHAR(100), 0::DECIMAL(5,2), false, 0, 0, false;
   END IF;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to apply subscription discount
 CREATE OR REPLACE FUNCTION apply_subscription_discount(p_user_id UUID, p_original_fare DECIMAL(10,2))
@@ -612,7 +612,7 @@ RETURNS TABLE (
   final_fare DECIMAL(10,2),
   discount_amount DECIMAL(10,2),
   subscription_applied BOOLEAN
-) AS $
+) AS $$
 DECLARE
   v_discount_pct DECIMAL(5,2);
   v_discount DECIMAL(10,2);
@@ -631,7 +631,7 @@ BEGIN
     RETURN QUERY SELECT p_original_fare, 0::DECIMAL(10,2), false;
   END IF;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to get user's favorite drivers
 CREATE OR REPLACE FUNCTION get_favorite_drivers(p_user_id UUID)
@@ -643,7 +643,7 @@ RETURNS TABLE (
   total_trips INTEGER,
   vehicle_type VARCHAR(50),
   vehicle_plate VARCHAR(20)
-) AS $
+) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
@@ -660,18 +660,18 @@ BEGIN
   WHERE fd.user_id = p_user_id
   ORDER BY fd.priority DESC, fd.created_at DESC;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to check if driver is blocked
 CREATE OR REPLACE FUNCTION is_driver_blocked(p_user_id UUID, p_provider_id UUID)
-RETURNS BOOLEAN AS $
+RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.blocked_drivers
     WHERE user_id = p_user_id AND provider_id = p_provider_id
   );
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to calculate fare with multi-stops
 CREATE OR REPLACE FUNCTION calculate_multistop_fare(
@@ -679,11 +679,11 @@ CREATE OR REPLACE FUNCTION calculate_multistop_fare(
   p_stop_count INTEGER,
   p_total_wait_minutes INTEGER DEFAULT 0
 )
-RETURNS DECIMAL(10,2) AS $
+RETURNS DECIMAL(10,2) AS $$
 DECLARE
   v_stop_fee DECIMAL(10,2) := 20; -- 20 baht per stop
   v_wait_fee_per_min DECIMAL(10,2) := 2; -- 2 baht per minute wait
 BEGIN
   RETURN p_base_fare + (p_stop_count * v_stop_fee) + (p_total_wait_minutes * v_wait_fee_per_min);
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;

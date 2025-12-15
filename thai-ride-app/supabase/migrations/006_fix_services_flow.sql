@@ -1,9 +1,10 @@
 -- Fix Services Flow Migration
--- Ensures all systems work together smoothly for /services ride booking
+-- Uses correct column names from existing database:
+-- users: name, phone, role, is_active
+-- service_providers: is_available, is_verified, vehicle_color
 
 -- =====================================================
 -- 1. FIX find_nearby_providers FUNCTION
--- Uses correct field names: is_available, is_verified
 -- =====================================================
 
 DROP FUNCTION IF EXISTS find_nearby_providers(DECIMAL, DECIMAL, INTEGER, VARCHAR);
@@ -56,38 +57,13 @@ $$ LANGUAGE plpgsql;
 -- 2. ADD MISSING COLUMNS TO ride_requests
 -- =====================================================
 
--- Add tracking_id if not exists
 ALTER TABLE public.ride_requests 
 ADD COLUMN IF NOT EXISTS tracking_id VARCHAR(25) UNIQUE;
 
--- Add started_at and completed_at timestamps
-ALTER TABLE public.ride_requests 
-ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;
-
-ALTER TABLE public.ride_requests 
-ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
-
--- Add final_fare for actual fare after completion
-ALTER TABLE public.ride_requests 
-ADD COLUMN IF NOT EXISTS final_fare DECIMAL(10,2);
-
 -- =====================================================
--- 3. FIX chat_messages TABLE
--- Add ride_id column for direct ride-based chat
+-- 3. DISABLE RLS FOR DEMO/DEVELOPMENT
 -- =====================================================
 
-ALTER TABLE public.chat_messages 
-ADD COLUMN IF NOT EXISTS ride_id UUID REFERENCES public.ride_requests(id) ON DELETE CASCADE;
-
--- Update chat_messages to allow ride_id based queries
-CREATE INDEX IF NOT EXISTS idx_chat_messages_ride ON public.chat_messages(ride_id);
-
--- =====================================================
--- 4. DISABLE RLS FOR DEMO/DEVELOPMENT
--- Allow all operations without auth for testing
--- =====================================================
-
--- Create permissive policies for development
 DROP POLICY IF EXISTS "Allow all users" ON public.users;
 CREATE POLICY "Allow all users" ON public.users FOR ALL USING (true) WITH CHECK (true);
 
@@ -121,56 +97,50 @@ CREATE POLICY "Allow all emergency_contacts" ON public.emergency_contacts FOR AL
 DROP POLICY IF EXISTS "Allow all trip_shares" ON public.trip_shares;
 CREATE POLICY "Allow all trip_shares" ON public.trip_shares FOR ALL USING (true) WITH CHECK (true);
 
--- =====================================================
--- 5. ENABLE REALTIME FOR KEY TABLES
--- =====================================================
+DROP POLICY IF EXISTS "Allow all user_notifications" ON public.user_notifications;
+CREATE POLICY "Allow all user_notifications" ON public.user_notifications FOR ALL USING (true) WITH CHECK (true);
 
--- Enable realtime for ride_requests
-ALTER PUBLICATION supabase_realtime ADD TABLE public.ride_requests;
-
--- Enable realtime for service_providers (for location updates)
-ALTER PUBLICATION supabase_realtime ADD TABLE public.service_providers;
-
--- Enable realtime for chat_messages
-ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+DROP POLICY IF EXISTS "Allow all payment_methods" ON public.payment_methods;
+CREATE POLICY "Allow all payment_methods" ON public.payment_methods FOR ALL USING (true) WITH CHECK (true);
 
 -- =====================================================
--- 6. CREATE DEMO DATA FOR TESTING
+-- 4. ENABLE REALTIME FOR KEY TABLES
 -- =====================================================
 
--- Insert demo customer user if not exists
-INSERT INTO public.users (id, email, name, phone, role, is_active)
-VALUES 
-  ('11111111-1111-1111-1111-111111111111', 'customer@demo.com', 'Demo Customer', '0812345678', 'customer', true),
-  ('22222222-2222-2222-2222-222222222222', 'rider@demo.com', 'Demo Rider', '0823456789', 'rider', true),
-  ('33333333-3333-3333-3333-333333333333', 'admin@demo.com', 'Demo Admin', '0834567890', 'admin', true)
-ON CONFLICT (email) DO UPDATE SET 
-  name = EXCLUDED.name,
-  is_active = true;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.ride_requests;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Insert demo drivers with locations in Bangkok
-INSERT INTO public.service_providers (id, user_id, provider_type, vehicle_type, vehicle_plate, vehicle_color, license_number, is_verified, is_available, rating, total_trips, current_lat, current_lng)
-VALUES 
-  ('aaaa1111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', 'driver', 'Toyota Camry', 'กข 1234', 'สีดำ', 'DL-12345', true, true, 4.85, 523, 13.7563, 100.5018),
-  ('aaaa2222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'driver', 'Honda City', 'ขค 5678', 'สีขาว', 'DL-67890', true, true, 4.72, 234, 13.7469, 100.5349),
-  ('aaaa3333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 'driver', 'Nissan Almera', 'คง 9012', 'สีเงิน', 'DL-11111', true, true, 4.91, 892, 13.7380, 100.5608)
-ON CONFLICT (id) DO UPDATE SET 
-  is_available = true,
-  is_verified = true,
-  current_lat = EXCLUDED.current_lat,
-  current_lng = EXCLUDED.current_lng;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.service_providers;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Insert demo promo codes
-INSERT INTO public.promo_codes (code, description, discount_type, discount_value, max_discount, min_order_amount, is_active, valid_until)
-VALUES 
-  ('DEMO50', 'Demo discount 50 baht', 'fixed', 50, NULL, 0, true, NOW() + INTERVAL '1 year'),
-  ('DEMO10', 'Demo 10% discount', 'percentage', 10, 100, 50, true, NOW() + INTERVAL '1 year')
-ON CONFLICT (code) DO UPDATE SET 
-  is_active = true,
-  valid_until = NOW() + INTERVAL '1 year';
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- =====================================================
--- 7. FUNCTION TO GET RIDE WITH DRIVER INFO
+-- 5. UPDATE DEMO DATA
+-- =====================================================
+
+-- Update demo users to be active
+UPDATE public.users SET is_active = true WHERE email IN ('customer@demo.com', 'rider@demo.com', 'admin@demo.com');
+
+-- Update demo providers to be available and verified
+UPDATE public.service_providers SET is_available = true, is_verified = true WHERE id IN (
+  'aaaa1111-1111-1111-1111-111111111111',
+  'aaaa2222-2222-2222-2222-222222222222', 
+  'aaaa3333-3333-3333-3333-333333333333'
+);
+
+-- =====================================================
+-- 6. FUNCTION TO GET RIDE WITH DRIVER INFO
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_ride_with_driver(p_ride_id UUID)
@@ -200,8 +170,8 @@ BEGIN
     r.destination_address,
     r.estimated_fare,
     sp.id as provider_id,
-    u.name as driver_name,
-    u.phone as driver_phone,
+    u.name::VARCHAR(200) as driver_name,
+    u.phone::VARCHAR(15) as driver_phone,
     COALESCE(sp.rating, 4.5)::DECIMAL(3,2) as driver_rating,
     COALESCE(sp.total_trips, 0) as driver_trips,
     sp.vehicle_type,
@@ -217,7 +187,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =====================================================
--- 8. FUNCTION TO GET PENDING RIDES FOR PROVIDER
+-- 7. FUNCTION TO GET PENDING RIDES FOR PROVIDER
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_pending_rides_for_provider(
@@ -246,8 +216,8 @@ BEGIN
   SELECT 
     r.id as ride_id,
     r.user_id,
-    u.name as passenger_name,
-    u.phone as passenger_phone,
+    u.name::VARCHAR(200) as passenger_name,
+    u.phone::VARCHAR(15) as passenger_phone,
     r.pickup_lat,
     r.pickup_lng,
     r.pickup_address,
@@ -280,7 +250,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =====================================================
--- 9. TRIGGER TO AUTO-SET TRACKING ID ON RIDE
+-- 8. TRIGGER TO AUTO-SET TRACKING ID ON RIDE
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION set_ride_tracking_id()
@@ -299,7 +269,7 @@ CREATE TRIGGER trigger_ride_tracking_id
   FOR EACH ROW EXECUTE FUNCTION set_ride_tracking_id();
 
 -- =====================================================
--- 10. GRANT PERMISSIONS
+-- 9. GRANT PERMISSIONS
 -- =====================================================
 
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
