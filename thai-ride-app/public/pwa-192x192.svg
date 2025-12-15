@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#000000"/>
+  <g fill="#FFFFFF">
+    <path d="M96 40c-30.9 0-56 25.1-56 56s25.1 56 56 56 56-25.1 56-56-25.1-56-56-56zm0 100c-24.3 0-44-19.7-44-44s19.7-44 44-44 44 19.7 44 44-19.7 44-44 44z"/>
+    <circle cx="96" cy="96" r="16"/>
+    <text x="96" y="168" font-family="Arial, sans-serif" font-size="22" font-weight="bold" text-anchor="middle">ThaiRide</text>
+  </g>
+</svg>

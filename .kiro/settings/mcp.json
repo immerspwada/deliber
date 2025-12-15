@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "uvx",
+      "args": [
+        "supabase-mcp-server"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://svpxagcxvbfflcdcfsoo.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2cHhhZ2N4dmJmZmxjZGNmc29vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NDI0MzIsImV4cCI6MjA4MTMxODQzMn0.8q8Rjd1EJc5ea3TlEezQbSJTGIs_59ydPzvDa3g7F0U",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2cHhhZ2N4dmJmZmxjZGNmc29vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTc0MjQzMiwiZXhwIjoyMDgxMzE4NDMyfQ.gg-IE_Q8lx0cJFsF_PZJB93dsTzNpk7BvRaznL9IYao"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "get_schemas",
+        "execute_postgresql",
+        "live_dangerously",
+        "get_tables",
+        "call_auth_admin_method",
+        "retrieve_migrations"
+      ]
+    }
+  }
+}
