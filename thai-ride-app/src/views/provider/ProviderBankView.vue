@@ -11,8 +11,7 @@ const {
   bankAccounts, 
   fetchBankAccounts, 
   addBankAccount, 
-  deleteBankAccount,
-  loading 
+  deleteBankAccount
 } = useProviderEarnings()
 
 const isLoading = ref(true)
@@ -25,11 +24,6 @@ const newBankCode = ref('')
 const newAccountNumber = ref('')
 const newAccountName = ref('')
 const newIsDefault = ref(false)
-
-const selectedBankName = computed(() => {
-  const bank = THAI_BANKS.find(b => b.code === newBankCode.value)
-  return bank?.name || ''
-})
 
 const canAdd = computed(() => 
   newBankCode.value && 

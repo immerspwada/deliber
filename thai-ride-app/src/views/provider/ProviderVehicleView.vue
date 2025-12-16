@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProvider } from '../../composables/useProvider'
 import ProviderLayout from '../../components/ProviderLayout.vue'
@@ -37,12 +37,13 @@ const colors = [
 
 const loadVehicleData = () => {
   if (profile.value) {
-    vehicleType.value = profile.value.vehicle_type || ''
-    vehiclePlate.value = profile.value.vehicle_plate || ''
-    vehicleColor.value = profile.value.vehicle_color || ''
-    vehicleBrand.value = profile.value.vehicle_brand || profile.value.vehicle_info?.brand || ''
-    vehicleModel.value = profile.value.vehicle_model || profile.value.vehicle_info?.model || ''
-    vehicleYear.value = profile.value.vehicle_year?.toString() || profile.value.vehicle_info?.year || ''
+    const p = profile.value as any
+    vehicleType.value = p.vehicle_type || ''
+    vehiclePlate.value = p.vehicle_plate || ''
+    vehicleColor.value = p.vehicle_color || ''
+    vehicleBrand.value = p.vehicle_brand || p.vehicle_info?.brand || ''
+    vehicleModel.value = p.vehicle_model || p.vehicle_info?.model || ''
+    vehicleYear.value = p.vehicle_year?.toString() || p.vehicle_info?.year || ''
   }
 }
 

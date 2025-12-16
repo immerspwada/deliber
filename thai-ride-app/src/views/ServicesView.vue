@@ -73,6 +73,8 @@ const errorMessage = ref<string | null>(null)
 // Location state
 const pickupLocation = ref<GeoLocation | null>(null)
 const destinationLocation = ref<GeoLocation | null>(null)
+const isEditingLocation = ref(false)
+const isLoadingAddress = ref(false)
 
 // Promo state
 const promoCode = ref('')

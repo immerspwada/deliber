@@ -78,13 +78,15 @@ const getDocStatus = (docValue: any): 'verified' | 'pending' | 'rejected' | 'mis
 
 // Helper to get rejection reason if available
 const getDocRejectionReason = (docType: string): string | undefined => {
-  const rejectionReasons = profile.value?.rejection_reasons as Record<string, string> | undefined
+  const p = profile.value as any
+  const rejectionReasons = p?.rejection_reasons as Record<string, string> | undefined
   return rejectionReasons?.[docType]
 }
 
 // Helper to get document updated timestamp
 const getDocUpdatedAt = (docType: string): string | undefined => {
-  const timestamps = profile.value?.document_timestamps as Record<string, string> | undefined
+  const p = profile.value as any
+  const timestamps = p?.document_timestamps as Record<string, string> | undefined
   return timestamps?.[docType]
 }
 
@@ -106,7 +108,8 @@ const formatDate = (dateStr: string | undefined): string => {
 }
 
 const loadDocuments = () => {
-  const docs = profile.value?.documents || {}
+  const p = profile.value as any
+  const docs = p?.documents || {}
   documents.value = [
     {
       type: 'id_card',
@@ -120,7 +123,7 @@ const loadDocuments = () => {
       type: 'license',
       label: 'ใบขับขี่',
       status: getDocStatus(docs.license),
-      expiry: profile.value?.license_expiry || undefined,
+      expiry: (profile.value as any)?.license_expiry || undefined,
       url: typeof docs.license === 'string' && !['verified', 'rejected', 'pending'].includes(docs.license) ? docs.license : undefined,
       rejectionReason: getDocRejectionReason('license'),
       updatedAt: getDocUpdatedAt('license')
@@ -142,7 +145,8 @@ const handleFileSelect = async (docType: 'id_card' | 'license' | 'vehicle', even
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
 
-  let file = input.files[0]
+  let file: File | undefined = input.files[0]
+  if (!file) return
   
   // Validate file type
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -162,8 +166,8 @@ const handleFileSelect = async (docType: 'id_card' | 'license' | 'vehicle', even
     // Compress image if needed
     ocrProgress.value = 10
     ocrStatus.value = 'กำลังบีบอัดรูปภาพ...'
-    if (await needsCompression(file, 800)) {
-      file = await compressImage(file, {
+    if (await needsCompression(file!, 800)) {
+      file = await compressImage(file!, {
         maxWidth: 1200,
         maxHeight: 1200,
         quality: 0.85
@@ -177,13 +181,13 @@ const handleFileSelect = async (docType: 'id_card' | 'license' | 'vehicle', even
       ocrStatus.value = 'กำลังอ่านข้อมูลจากเอกสาร...'
       ocrProgress.value = 50
       
-      const result = await performOCR(file, docType)
+      const result = await performOCR(file!, docType)
       ocrProgress.value = 90
       
       if (result.success && Object.keys(result.data).length > 0) {
         // Show OCR results modal
         ocrResult.value = result
-        pendingUpload.value = { file, docType }
+        pendingUpload.value = { file: file!, docType }
         showOCRModal.value = true
         processingOCR.value = false
         uploadingDoc.value = null
@@ -197,7 +201,7 @@ const handleFileSelect = async (docType: 'id_card' | 'license' | 'vehicle', even
     }
 
     // Proceed with upload
-    await uploadDocumentInternal(file, docType)
+    await uploadDocumentInternal(file!, docType)
     
   } catch (e: any) {
     // แปลง error เป็นภาษาไทยที่เข้าใจง่าย
@@ -231,7 +235,7 @@ const uploadDocumentInternal = async (file: File, docType: 'id_card' | 'license'
     
     if (isDemoMode()) {
       await new Promise(resolve => setTimeout(resolve, 1000))
-      const currentDocs = profile.value?.documents || {}
+      const currentDocs = (profile.value as any)?.documents || {}
       await safeUpdateProfile({
         documents: { ...currentDocs, [docType]: 'pending' }
       })
@@ -263,7 +267,7 @@ const uploadDocumentInternal = async (file: File, docType: 'id_card' | 'license'
         .from('provider-documents')
         .getPublicUrl(fileName)
 
-      const currentDocs = profile.value?.documents || {}
+      const currentDocs = (profile.value as any)?.documents || {}
       await safeUpdateProfile({
         documents: { ...currentDocs, [docType]: urlData.publicUrl },
         status: 'pending'

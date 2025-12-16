@@ -8,11 +8,13 @@ const props = defineProps<{
   destination?: GeoLocation | null
   showRoute?: boolean
   height?: string
+  draggable?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'routeCalculated', data: { distance: number; duration: number }): void
   (e: 'locationDetected', data: { lat: number; lng: number }): void
+  (e: 'markerDragged', data: { type: 'pickup' | 'destination'; lat: number; lng: number }): void
 }>()
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -66,21 +68,39 @@ const updateMarkers = async () => {
   const locations: { lat: number; lng: number }[] = []
 
   if (props.pickup) {
-    addMarker({
+    const pickupMarker = addMarker({
       position: { lat: props.pickup.lat, lng: props.pickup.lng },
       title: 'จุดรับ',
-      icon: 'pickup'
+      icon: 'pickup',
+      draggable: props.draggable
     })
     locations.push({ lat: props.pickup.lat, lng: props.pickup.lng })
+    
+    // Listen for drag events on pickup marker
+    if (pickupMarker && props.draggable) {
+      pickupMarker.on('dragend', () => {
+        const pos = pickupMarker.getLatLng()
+        emit('markerDragged', { type: 'pickup', lat: pos.lat, lng: pos.lng })
+      })
+    }
   }
 
   if (props.destination) {
-    addMarker({
+    const destMarker = addMarker({
       position: { lat: props.destination.lat, lng: props.destination.lng },
       title: 'จุดหมาย',
-      icon: 'destination'
+      icon: 'destination',
+      draggable: props.draggable
     })
     locations.push({ lat: props.destination.lat, lng: props.destination.lng })
+    
+    // Listen for drag events on destination marker
+    if (destMarker && props.draggable) {
+      destMarker.on('dragend', () => {
+        const pos = destMarker.getLatLng()
+        emit('markerDragged', { type: 'destination', lat: pos.lat, lng: pos.lng })
+      })
+    }
   }
 
   // Fit bounds if we have locations

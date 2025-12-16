@@ -117,7 +117,7 @@ onMounted(async () => {
           <div class="vehicle-info">
             <div class="vehicle-row">
               <span class="vehicle-label">ยี่ห้อ/รุ่น</span>
-              <span class="vehicle-value">{{ profile.vehicle_brand || 'Toyota' }} {{ profile.vehicle_model || 'Vios' }}</span>
+              <span class="vehicle-value">{{ (profile as any).vehicle_brand || 'Toyota' }} {{ (profile as any).vehicle_model || 'Vios' }}</span>
             </div>
             <div class="vehicle-row">
               <span class="vehicle-label">ประเภท</span>
@@ -131,9 +131,9 @@ onMounted(async () => {
               <span class="vehicle-label">สี</span>
               <span class="vehicle-value">{{ profile.vehicle_color || 'สีดำ' }}</span>
             </div>
-            <div v-if="profile.vehicle_year" class="vehicle-row">
+            <div v-if="(profile as any).vehicle_year" class="vehicle-row">
               <span class="vehicle-label">ปี</span>
-              <span class="vehicle-value">{{ profile.vehicle_year }}</span>
+              <span class="vehicle-value">{{ (profile as any).vehicle_year }}</span>
             </div>
           </div>
         </div>

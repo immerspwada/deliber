@@ -237,12 +237,11 @@ const approveDocument = async (docType: 'id_card' | 'license' | 'vehicle') => {
   actionLoading.value = false
 }
 
-// Document rejection modal
-const showRejectModal = ref(false)
+// Document rejection state
 const rejectingDocType = ref<'id_card' | 'license' | 'vehicle' | null>(null)
 const rejectReason = ref('')
 
-const openRejectModal = (docType: 'id_card' | 'license' | 'vehicle') => {
+const openDocRejectModal = (docType: 'id_card' | 'license' | 'vehicle') => {
   rejectingDocType.value = docType
   rejectReason.value = ''
   showRejectModal.value = true
@@ -256,7 +255,7 @@ const cancelReject = () => {
 
 // Reject individual document with reason
 const rejectDocument = async (docType: 'id_card' | 'license' | 'vehicle') => {
-  openRejectModal(docType)
+  openDocRejectModal(docType)
 }
 
 const confirmRejectDocument = async () => {

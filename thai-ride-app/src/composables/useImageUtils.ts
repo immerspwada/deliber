@@ -124,7 +124,7 @@ export function useImageUtils() {
     // Thai ID number pattern: 1-1234-12345-12-1
     const idPattern = /(\d[\s-]?\d{4}[\s-]?\d{5}[\s-]?\d{2}[\s-]?\d)/
     const idMatch = text.match(idPattern)
-    if (idMatch) {
+    if (idMatch && idMatch[1]) {
       data.idNumber = idMatch[1].replace(/[\s-]/g, '')
     }
 

@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { validateThaiID, performOCR, compressImage } = useImageUtils()
+const { validateThaiID, performOCR } = useImageUtils()
 
 const isLoading = ref(false)
 const error = ref('')
