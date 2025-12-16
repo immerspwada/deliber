@@ -16,6 +16,127 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow
 })
 
+// ============================================
+// Offline Map Tile Caching
+// ============================================
+const TILE_CACHE_NAME = 'thai-ride-map-tiles-v1'
+const TILE_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+// Initialize tile cache
+const initTileCache = async () => {
+  if (!('caches' in window)) return null
+  try {
+    return await caches.open(TILE_CACHE_NAME)
+  } catch {
+    return null
+  }
+}
+
+// Custom tile layer with caching
+class CachedTileLayer extends L.TileLayer {
+  private tileCache: Cache | null = null
+  
+  async initialize() {
+    this.tileCache = await initTileCache()
+  }
+
+  createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
+    const tile = document.createElement('img')
+    const url = this.getTileUrl(coords)
+
+    tile.alt = ''
+    tile.setAttribute('role', 'presentation')
+
+    // Try to load from cache first
+    this.loadTileWithCache(url, tile, done)
+
+    return tile
+  }
+
+  private async loadTileWithCache(url: string, tile: HTMLImageElement, done: L.DoneCallback) {
+    try {
+      // Try cache first
+      if (this.tileCache) {
+        const cachedResponse = await this.tileCache.match(url)
+        if (cachedResponse) {
+          const blob = await cachedResponse.blob()
+          tile.src = URL.createObjectURL(blob)
+          tile.onload = () => {
+            URL.revokeObjectURL(tile.src)
+            done(undefined, tile)
+          }
+          tile.onerror = () => {
+            // Cache hit but failed, try network
+            this.loadFromNetwork(url, tile, done)
+          }
+          return
+        }
+      }
+
+      // No cache, load from network
+      await this.loadFromNetwork(url, tile, done)
+    } catch {
+      // Fallback to default behavior
+      tile.src = url
+      tile.onload = () => done(undefined, tile)
+      tile.onerror = () => done(new Error('Tile load failed'), tile)
+    }
+  }
+
+  private async loadFromNetwork(url: string, tile: HTMLImageElement, done: L.DoneCallback) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error('Network error')
+
+      const blob = await response.blob()
+      
+      // Cache the tile
+      if (this.tileCache) {
+        const responseToCache = new Response(blob, {
+          headers: { 'Cache-Time': Date.now().toString() }
+        })
+        this.tileCache.put(url, responseToCache).catch(() => {})
+      }
+
+      tile.src = URL.createObjectURL(blob)
+      tile.onload = () => {
+        URL.revokeObjectURL(tile.src)
+        done(undefined, tile)
+      }
+      tile.onerror = () => done(new Error('Tile load failed'), tile)
+    } catch {
+      tile.src = url // Fallback
+      tile.onload = () => done(undefined, tile)
+      tile.onerror = () => done(new Error('Tile load failed'), tile)
+    }
+  }
+}
+
+// Clean old cached tiles
+const cleanOldTileCache = async () => {
+  if (!('caches' in window)) return
+  try {
+    const cache = await caches.open(TILE_CACHE_NAME)
+    const keys = await cache.keys()
+    const now = Date.now()
+
+    for (const request of keys) {
+      const response = await cache.match(request)
+      if (response) {
+        const cacheTime = response.headers.get('Cache-Time')
+        if (cacheTime && now - parseInt(cacheTime) > TILE_CACHE_MAX_AGE) {
+          await cache.delete(request)
+        }
+      }
+    }
+  } catch {
+    // Ignore cache cleanup errors
+  }
+}
+
+// Run cache cleanup on load
+cleanOldTileCache()
+
 export interface MapOptions {
   center?: { lat: number; lng: number }
   zoom?: number
@@ -57,6 +178,7 @@ const createIcon = (type: 'pickup' | 'destination' | 'driver') => {
       </div>
       <style>
         .pickup-marker { position: relative; }
+        .pickup-marker.bounce { animation: marker-drop 0.4s ease-out; }
         .pulse-ring { transform-origin: center; }
         .pulse-ring-1 { animation: pulse-outer 2s ease-out infinite; }
         .pulse-ring-2 { animation: pulse-inner 2s ease-out infinite 0.3s; }
@@ -67,6 +189,11 @@ const createIcon = (type: 'pickup' | 'destination' | 'driver') => {
         @keyframes pulse-inner {
           0% { transform: scale(0.8); opacity: 0.8; }
           100% { transform: scale(1.3); opacity: 0; }
+        }
+        @keyframes marker-drop {
+          0% { transform: translateY(-30px) scale(0.8); opacity: 0; }
+          60% { transform: translateY(5px) scale(1.05); }
+          100% { transform: translateY(0) scale(1); opacity: 1; }
         }
       </style>
     `
@@ -173,13 +300,14 @@ export function useLeafletMap() {
       attributionControl: true
     })
 
-    // CartoDB Positron (Light) - Uber-style clean map
-    // Options: 'light_all', 'light_nolabels', 'dark_all', 'voyager'
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // CartoDB Positron (Light) - Uber-style clean map with offline caching
+    const tileLayer = new CachedTileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 20
-    }).addTo(map)
+    })
+    tileLayer.initialize() // Initialize cache
+    tileLayer.addTo(map)
 
     mapInstance.value = map
     isMapReady.value = true

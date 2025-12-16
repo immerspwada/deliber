@@ -7,6 +7,8 @@ import SafetyModal from '../components/SafetyModal.vue'
 import FareSplitModal from '../components/FareSplitModal.vue'
 import VoiceCallModal from '../components/VoiceCallModal.vue'
 import LocationPermissionModal from '../components/LocationPermissionModal.vue'
+import LocationConfirmModal from '../components/LocationConfirmModal.vue'
+import NearbyPlacesSheet from '../components/NearbyPlacesSheet.vue'
 import RideInputStep from '../components/ride/RideInputStep.vue'
 import VehicleSelectStep from '../components/ride/VehicleSelectStep.vue'
 import SearchingStep from '../components/ride/SearchingStep.vue'
@@ -96,6 +98,31 @@ const showSafetyModal = ref(false)
 const showFareSplit = ref(false)
 const showVoiceCall = ref(false)
 const showRating = ref(false)
+const showLocationConfirm = ref(false)
+const showNearbyPlaces = ref(false)
+const pendingLocationConfirm = ref<{
+  type: 'pickup' | 'destination'
+  lat: number
+  lng: number
+  address: string
+  fullAddress: string
+} | null>(null)
+
+// Bottom sheet swipe state with snap points
+type SheetSnapPoint = 'collapsed' | 'half' | 'full'
+const sheetSnapPoint = ref<SheetSnapPoint>('collapsed')
+const sheetRef = ref<HTMLElement | null>(null)
+const isDragging = ref(false)
+const startY = ref(0)
+const currentY = ref(0)
+const sheetTranslateY = ref(0)
+
+// Snap point heights (vh)
+const SNAP_HEIGHTS = {
+  collapsed: 35,
+  half: 55,
+  full: 85
+} as const
 
 // Advanced features
 const { initiateVoiceCall, createFareSplit } = useAdvancedFeatures()
@@ -139,7 +166,7 @@ const driver = computed(() => {
 
 // Cleanup all subscriptions
 const cleanupSubscriptions = () => {
-  subscriptions.value.forEach(sub => {
+  subscriptions.value.forEach((sub) => {
     try {
       sub.unsubscribe()
     } catch (e) {
@@ -147,6 +174,87 @@ const cleanupSubscriptions = () => {
     }
   })
   subscriptions.value = []
+}
+
+// Haptic feedback helper
+const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
+  if ('vibrate' in navigator) {
+    const duration = style === 'light' ? 10 : style === 'medium' ? 25 : 50
+    navigator.vibrate(duration)
+  }
+}
+
+// Bottom sheet swipe handlers
+const handleSheetTouchStart = (e: TouchEvent) => {
+  const target = e.target as HTMLElement
+  // Only handle drag on sheet-handle
+  if (!target.closest('.sheet-handle')) return
+
+  isDragging.value = true
+  startY.value = e.touches[0].clientY
+  currentY.value = e.touches[0].clientY
+}
+
+const handleSheetTouchMove = (e: TouchEvent) => {
+  if (!isDragging.value) return
+
+  currentY.value = e.touches[0].clientY
+  const deltaY = currentY.value - startY.value
+
+  // Allow dragging in both directions with resistance at edges
+  const currentHeight = SNAP_HEIGHTS[sheetSnapPoint.value]
+  const maxDrag = window.innerHeight * 0.3
+
+  if (sheetSnapPoint.value === 'full' && deltaY > 0) {
+    // At full, allow drag down with resistance
+    sheetTranslateY.value = Math.min(deltaY, maxDrag)
+  } else if (sheetSnapPoint.value === 'collapsed' && deltaY < 0) {
+    // At collapsed, allow drag up with resistance
+    sheetTranslateY.value = Math.max(deltaY, -maxDrag)
+  } else {
+    // At half or between states, allow both directions
+    sheetTranslateY.value = Math.max(-maxDrag, Math.min(maxDrag, deltaY))
+  }
+}
+
+const handleSheetTouchEnd = () => {
+  if (!isDragging.value) return
+
+  isDragging.value = false
+  const deltaY = currentY.value - startY.value
+  const velocity = Math.abs(deltaY) / 100 // Simple velocity estimate
+  const threshold = velocity > 1 ? 30 : 60 // Lower threshold for fast swipes
+
+  const currentSnap = sheetSnapPoint.value
+  let newSnap: SheetSnapPoint = currentSnap
+
+  if (deltaY < -threshold) {
+    // Swiped up - go to next higher snap point
+    if (currentSnap === 'collapsed') newSnap = 'half'
+    else if (currentSnap === 'half') newSnap = 'full'
+  } else if (deltaY > threshold) {
+    // Swiped down - go to next lower snap point
+    if (currentSnap === 'full') newSnap = 'half'
+    else if (currentSnap === 'half') newSnap = 'collapsed'
+  }
+
+  // Apply new snap point with haptic feedback
+  if (newSnap !== currentSnap) {
+    sheetSnapPoint.value = newSnap
+    triggerHaptic(newSnap === 'full' ? 'medium' : 'light')
+  }
+
+  // Reset translate
+  sheetTranslateY.value = 0
+}
+
+// Cycle through snap points on handle click
+const toggleSheetExpand = () => {
+  const snapOrder: SheetSnapPoint[] = ['collapsed', 'half', 'full']
+  const currentIndex = snapOrder.indexOf(sheetSnapPoint.value)
+  const nextIndex = (currentIndex + 1) % snapOrder.length
+  sheetSnapPoint.value = snapOrder[nextIndex]
+  triggerHaptic('light')
 }
 
 // Initialize on mount
@@ -236,9 +344,69 @@ const onLocationDetected = async (location: { lat: number; lng: number }) => {
   await updateLocationWithAddress(location.lat, location.lng, 'pickup')
 }
 
-// Handle marker dragged on map
+// Handle marker dragged on map - show confirm modal
 const onMarkerDragged = async (data: { type: 'pickup' | 'destination'; lat: number; lng: number }) => {
-  await updateLocationWithAddress(data.lat, data.lng, data.type)
+  isLoadingAddress.value = true
+  
+  try {
+    const fullAddress = await reverseGeocode(data.lat, data.lng)
+    const formattedAddress = formatThaiAddress(fullAddress)
+    
+    // Show confirm modal
+    pendingLocationConfirm.value = {
+      type: data.type,
+      lat: data.lat,
+      lng: data.lng,
+      address: formattedAddress,
+      fullAddress: fullAddress
+    }
+    showLocationConfirm.value = true
+  } catch {
+    // If geocoding fails, apply directly
+    await updateLocationWithAddress(data.lat, data.lng, data.type)
+  } finally {
+    isLoadingAddress.value = false
+  }
+}
+
+// Handle location confirm modal actions
+const handleLocationConfirm = () => {
+  if (pendingLocationConfirm.value) {
+    const { type, lat, lng, address, fullAddress } = pendingLocationConfirm.value
+    
+    if (type === 'pickup') {
+      pickupLocation.value = { lat, lng, address: fullAddress }
+      pickup.value = address
+    } else {
+      destinationLocation.value = { lat, lng, address: fullAddress }
+      destination.value = address
+    }
+  }
+  
+  showLocationConfirm.value = false
+  pendingLocationConfirm.value = null
+  isEditingLocation.value = false
+}
+
+const handleLocationConfirmCancel = () => {
+  showLocationConfirm.value = false
+  pendingLocationConfirm.value = null
+}
+
+const handleLocationConfirmEdit = () => {
+  showLocationConfirm.value = false
+  // Keep editing mode on
+}
+
+// Handle nearby place selection
+const handleNearbyPlaceSelect = (place: { name: string; address: string; lat: number; lng: number }) => {
+  destination.value = place.name
+  destinationLocation.value = {
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address
+  }
+  showNearbyPlaces.value = false
 }
 
 // Update location with reverse geocoding
@@ -735,9 +903,23 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
     </div>
 
     <!-- Bottom Sheet -->
-    <div :class="['bottom-sheet', `step-${step}`]">
-      <!-- Drag handle -->
-      <div class="sheet-handle"></div>
+    <div
+      ref="sheetRef"
+      :class="['bottom-sheet', `step-${step}`, `snap-${sheetSnapPoint}`, { dragging: isDragging }]"
+      :style="isDragging ? { transform: `translateY(${sheetTranslateY}px)` } : {}"
+      @touchstart="handleSheetTouchStart"
+      @touchmove="handleSheetTouchMove"
+      @touchend="handleSheetTouchEnd"
+    >
+      <!-- Drag handle with snap indicator -->
+      <div class="sheet-handle-area" @click="toggleSheetExpand">
+        <div class="sheet-handle"></div>
+        <div class="snap-dots">
+          <span :class="['snap-dot', { active: sheetSnapPoint === 'collapsed' }]"></span>
+          <span :class="['snap-dot', { active: sheetSnapPoint === 'half' }]"></span>
+          <span :class="['snap-dot', { active: sheetSnapPoint === 'full' }]"></span>
+        </div>
+      </div>
 
       <!-- Step: Input -->
       <RideInputStep
@@ -756,6 +938,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         @select-saved-place="selectSavedPlace"
         @select-recent-place="selectRecentPlace"
         @select-search-result="selectSearchResult"
+        @use-current-location="centerOnCurrentLocation"
+        @open-nearby-places="showNearbyPlaces = true"
       />
 
       <!-- Step: Select vehicle -->
@@ -851,12 +1035,36 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
       @allow="handleLocationPermissionAllow"
       @deny="handleLocationPermissionDeny"
     />
+
+    <!-- Location Confirm Modal -->
+    <LocationConfirmModal
+      v-if="pendingLocationConfirm"
+      :show="showLocationConfirm"
+      :type="pendingLocationConfirm.type"
+      :address="pendingLocationConfirm.address"
+      :full-address="pendingLocationConfirm.fullAddress"
+      :lat="pendingLocationConfirm.lat"
+      :lng="pendingLocationConfirm.lng"
+      @confirm="handleLocationConfirm"
+      @cancel="handleLocationConfirmCancel"
+      @edit="handleLocationConfirmEdit"
+    />
+
+    <!-- Nearby Places Sheet -->
+    <NearbyPlacesSheet
+      :show="showNearbyPlaces"
+      :current-lat="pickupLocation?.lat"
+      :current-lng="pickupLocation?.lng"
+      @close="showNearbyPlaces = false"
+      @select="handleNearbyPlaceSelect"
+    />
   </div>
 </template>
 
 <style scoped>
 .services-page {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: #F6F6F6;
@@ -1101,14 +1309,45 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 .bottom-sheet {
   background: white;
   border-radius: 28px 28px 0 0;
-  padding: 16px 20px 28px;
-  padding-bottom: calc(28px + env(safe-area-inset-bottom));
-  box-shadow: 0 -12px 40px rgba(0,0,0,0.12);
-  transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-  will-change: transform;
-  max-height: 70vh;
+  padding: 8px 20px 28px;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.12);
+  transition: max-height 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform, max-height;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Snap point states */
+.bottom-sheet.snap-collapsed {
+  max-height: 35vh;
+}
+
+.bottom-sheet.snap-half {
+  max-height: 55vh;
+}
+
+.bottom-sheet.snap-full {
+  max-height: 85vh;
+}
+
+/* Dragging state - disable transition for smooth drag */
+.bottom-sheet.dragging {
+  transition: none;
+}
+
+/* Sheet handle area */
+.sheet-handle-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle-area:active {
+  cursor: grabbing;
 }
 
 .sheet-handle {
@@ -1116,8 +1355,69 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   height: 5px;
   background: #E0E0E0;
   border-radius: 3px;
-  margin: 0 auto 20px;
-  cursor: grab;
-  touch-action: none;
+  transition: background 0.2s ease, width 0.2s ease;
+}
+
+.sheet-handle-area:hover .sheet-handle {
+  background: #ccc;
+  width: 56px;
+}
+
+.sheet-handle-area:active .sheet-handle {
+  background: #bbb;
+}
+
+/* Snap dots indicator */
+.snap-dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.snap-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #E0E0E0;
+  transition: all 0.2s ease;
+}
+
+.snap-dot.active {
+  background: #000;
+  transform: scale(1.2);
+}
+
+/* Hide snap dots on certain steps */
+.bottom-sheet.step-searching .snap-dots,
+.bottom-sheet.step-matched .snap-dots,
+.bottom-sheet.step-riding .snap-dots {
+  display: none;
+}
+
+/* Expand indicator - removed, using dots instead */
+.bottom-sheet::before {
+  display: none;
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #E0E0E0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.bottom-sheet:not(.expanded)::before {
+  opacity: 0.6;
+}
+
+.bottom-sheet.expanded::before {
+  border-bottom: none;
+  border-top: 6px solid #E0E0E0;
+  opacity: 0.6;
 }
 </style>

@@ -52,6 +52,8 @@ const emit = defineEmits<{
   'select-recent-place': [place: RecentPlace]
   'update:multiStops': [stops: Stop[]]
   'select-search-result': [place: PlaceResult]
+  'use-current-location': []
+  'open-nearby-places': []
 }>()
 
 const { results: searchResults, loading: searchLoading, searchPlaces, clearResults } = usePlaceSearch()
@@ -245,6 +247,16 @@ watch(() => props.destination, (newVal) => {
         readonly 
         class="location-input" 
       />
+      <!-- Use current location button -->
+      <button 
+        @click="$emit('use-current-location')" 
+        class="current-location-btn"
+        title="ใช้ตำแหน่งปัจจุบัน"
+      >
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06z"/>
+        </svg>
+      </button>
     </div>
     <div class="location-divider"></div>
     <div class="location-row destination-row">
@@ -343,6 +355,15 @@ watch(() => props.destination, (newVal) => {
         </svg>
       </div>
       <span>{{ workPlace?.name || 'ที่ทำงาน' }}</span>
+    </button>
+    <button class="quick-place" @click="$emit('open-nearby-places')">
+      <div class="quick-icon nearby-icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </div>
+      <span>ใกล้เคียง</span>
     </button>
     <button class="quick-place" @click="showRecentPlaces = true">
       <div class="quick-icon">
@@ -447,6 +468,36 @@ watch(() => props.destination, (newVal) => {
 
 .location-input::placeholder {
   color: #888;
+}
+
+/* Current location button */
+.current-location-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F0F0F0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.current-location-btn:hover {
+  background: #E5E5E5;
+}
+
+.current-location-btn:active {
+  transform: scale(0.92);
+  background: #D5D5D5;
+}
+
+.current-location-btn svg {
+  width: 20px;
+  height: 20px;
+  color: #000;
 }
 
 .destination-input {
@@ -652,6 +703,11 @@ watch(() => props.destination, (newVal) => {
   width: 100%;
   height: 100%;
   stroke-width: 1.5;
+}
+
+.quick-icon.nearby-icon {
+  background: #000;
+  color: #fff;
 }
 
 .quick-place span {

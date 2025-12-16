@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import L from 'leaflet'
 import { useLeafletMap } from '../composables/useLeafletMap'
 import type { GeoLocation } from '../composables/useLocation'
 
@@ -37,6 +38,18 @@ const currentLocation = ref<{ lat: number; lng: number } | null>(null)
 const triggerHapticFeedback = () => {
   if ('vibrate' in navigator) {
     navigator.vibrate(50) // Short vibration 50ms
+  }
+}
+
+// Trigger bounce animation on marker after drag
+const triggerBounceAnimation = (marker: L.Marker) => {
+  const element = marker.getElement()
+  if (element) {
+    const markerDiv = element.querySelector('.pickup-marker, .destination-marker')
+    if (markerDiv) {
+      markerDiv.classList.add('bounce')
+      setTimeout(() => markerDiv.classList.remove('bounce'), 400)
+    }
   }
 }
 
@@ -90,6 +103,7 @@ const updateMarkers = async () => {
       pickupMarker.on('dragend', () => {
         const pos = pickupMarker.getLatLng()
         triggerHapticFeedback()
+        triggerBounceAnimation(pickupMarker)
         emit('markerDragged', { type: 'pickup', lat: pos.lat, lng: pos.lng })
       })
     }
@@ -109,6 +123,7 @@ const updateMarkers = async () => {
       destMarker.on('dragend', () => {
         const pos = destMarker.getLatLng()
         triggerHapticFeedback()
+        triggerBounceAnimation(destMarker)
         emit('markerDragged', { type: 'destination', lat: pos.lat, lng: pos.lng })
       })
     }
@@ -158,39 +173,55 @@ onMounted(async () => {
     zoom: defaultZoom
   })
 
+  // Always update markers if pickup or destination is provided
   if (props.pickup || props.destination) {
-    updateMarkers()
+    // Use nextTick to ensure map is fully ready
+    setTimeout(() => {
+      updateMarkers()
+    }, 100)
   }
 
-  // Get GPS location in background (non-blocking) only if no pickup provided
-  if (!props.pickup) {
-    getCurrentLocation()
-      .then((gpsLocation) => {
-        currentLocation.value = gpsLocation
-        emit('locationDetected', gpsLocation)
-        // Only add marker if still no pickup and no markers exist
-        if (!props.pickup && isMapReady.value && markers.value.length === 0) {
-          clearMarkers() // Clear any existing markers first
-          addMarker({
-            position: gpsLocation,
-            title: 'ตำแหน่งของคุณ',
-            icon: 'pickup'
-          })
-          // Center map on GPS location
-          if (mapInstance.value) {
-            mapInstance.value.setView([gpsLocation.lat, gpsLocation.lng], 18)
-          }
-        }
-      })
-      .catch(() => {
-        console.log('GPS not available, using default location')
-      })
-  }
+  // Get GPS location in background (non-blocking)
+  getCurrentLocation()
+    .then((gpsLocation) => {
+      currentLocation.value = gpsLocation
+      emit('locationDetected', gpsLocation)
+      
+      // If no markers exist yet, add one for current location
+      if (isMapReady.value && markers.value.length === 0) {
+        addMarker({
+          position: gpsLocation,
+          title: 'ตำแหน่งของคุณ',
+          icon: 'pickup'
+        })
+      }
+      
+      // Center map on GPS location
+      if (mapInstance.value) {
+        mapInstance.value.setView([gpsLocation.lat, gpsLocation.lng], 18)
+      }
+    })
+    .catch(() => {
+      console.log('GPS not available, using default location')
+      // If GPS fails but we have pickup, still show marker
+      if (props.pickup && isMapReady.value && markers.value.length === 0) {
+        updateMarkers()
+      }
+    })
 })
 </script>
 
 <template>
   <div class="map-wrapper" :style="{ height: height || '200px' }">
+    <!-- Loading skeleton -->
+    <div v-if="!isMapReady" class="map-skeleton">
+      <div class="skeleton-pulse"></div>
+      <div class="skeleton-center">
+        <div class="skeleton-spinner"></div>
+        <span class="skeleton-text">กำลังโหลดแผนที่...</span>
+      </div>
+    </div>
+    
     <div ref="mapContainer" class="map-container"></div>
 
     <!-- Route info overlay -->
@@ -256,5 +287,64 @@ onMounted(async () => {
 :deep(.custom-marker) {
   background: transparent;
   border: none;
+}
+
+/* Loading skeleton */
+.map-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 50%, #f0f0f0 100%);
+  background-size: 200% 200%;
+  animation: skeleton-gradient 1.5s ease infinite;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skeleton-pulse {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 1;
+}
+
+.skeleton-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.skeleton-text {
+  font-size: 13px;
+  color: #6B6B6B;
+  font-weight: 500;
+}
+
+@keyframes skeleton-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

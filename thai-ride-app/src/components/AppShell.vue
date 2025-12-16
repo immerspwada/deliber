@@ -34,6 +34,11 @@ const showHeader = computed(() => {
   return !['/customer', '/login', '/register'].includes(route.path)
 })
 
+// Full screen pages that handle their own layout (no padding-bottom needed)
+const isFullScreenPage = computed(() => {
+  return ['/customer/services', '/customer/ride'].includes(route.path)
+})
+
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/customer/services': 'บริการ',
@@ -78,7 +83,7 @@ const goBack = () => {
       </div>
     </header>
 
-    <main class="main-content" :class="{ 'no-header': !showHeader }">
+    <main class="main-content" :class="{ 'no-header': !showHeader, 'full-screen': isFullScreenPage }">
       <slot />
     </main>
 
@@ -193,6 +198,11 @@ const goBack = () => {
   flex: 1;
   padding-bottom: 90px;
   -webkit-overflow-scrolling: touch;
+}
+
+.main-content.full-screen {
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
 /* Bottom Navigation */
