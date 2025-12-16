@@ -194,7 +194,8 @@ export function useLeafletMap() {
     const marker = L.marker([options.position.lat, options.position.lng], {
       icon,
       draggable: options.draggable ?? false,
-      title: options.title
+      title: options.title,
+      zIndexOffset: options.icon === 'pickup' ? 1000 : options.icon === 'destination' ? 900 : 800
     }).addTo(mapInstance.value)
 
     if (options.title) {

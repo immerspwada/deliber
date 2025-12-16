@@ -25,11 +25,20 @@ const {
   fitBounds,
   getDirections,
   clearDirections,
-  isMapReady
+  isMapReady,
+  markers,
+  mapInstance
 } = useLeafletMap()
 
 const routeInfo = ref<{ distance: number; duration: number } | null>(null)
 const currentLocation = ref<{ lat: number; lng: number } | null>(null)
+
+// Haptic feedback for mobile devices
+const triggerHapticFeedback = () => {
+  if ('vibrate' in navigator) {
+    navigator.vibrate(50) // Short vibration 50ms
+  }
+}
 
 // Get current GPS location
 const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
@@ -80,6 +89,7 @@ const updateMarkers = async () => {
     if (pickupMarker && props.draggable) {
       pickupMarker.on('dragend', () => {
         const pos = pickupMarker.getLatLng()
+        triggerHapticFeedback()
         emit('markerDragged', { type: 'pickup', lat: pos.lat, lng: pos.lng })
       })
     }
@@ -98,6 +108,7 @@ const updateMarkers = async () => {
     if (destMarker && props.draggable) {
       destMarker.on('dragend', () => {
         const pos = destMarker.getLatLng()
+        triggerHapticFeedback()
         emit('markerDragged', { type: 'destination', lat: pos.lat, lng: pos.lng })
       })
     }
@@ -157,13 +168,18 @@ onMounted(async () => {
       .then((gpsLocation) => {
         currentLocation.value = gpsLocation
         emit('locationDetected', gpsLocation)
-        // Update map center if still no pickup
-        if (!props.pickup && isMapReady.value) {
+        // Only add marker if still no pickup and no markers exist
+        if (!props.pickup && isMapReady.value && markers.value.length === 0) {
+          clearMarkers() // Clear any existing markers first
           addMarker({
             position: gpsLocation,
             title: 'ตำแหน่งของคุณ',
             icon: 'pickup'
           })
+          // Center map on GPS location
+          if (mapInstance.value) {
+            mapInstance.value.setView([gpsLocation.lat, gpsLocation.lng], 18)
+          }
         }
       })
       .catch(() => {

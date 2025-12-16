@@ -233,34 +233,54 @@ onUnmounted(() => {
 
 // Handle location detected from map
 const onLocationDetected = async (location: { lat: number; lng: number }) => {
-  // Set location immediately with loading state
-  pickupLocation.value = {
-    lat: location.lat,
-    lng: location.lng,
-    address: 'กำลังค้นหาที่อยู่...'
-  }
-  pickup.value = 'กำลังค้นหาที่อยู่...'
+  await updateLocationWithAddress(location.lat, location.lng, 'pickup')
+}
+
+// Handle marker dragged on map
+const onMarkerDragged = async (data: { type: 'pickup' | 'destination'; lat: number; lng: number }) => {
+  await updateLocationWithAddress(data.lat, data.lng, data.type)
+}
+
+// Update location with reverse geocoding
+const updateLocationWithAddress = async (lat: number, lng: number, type: 'pickup' | 'destination') => {
+  isLoadingAddress.value = true
   
-  // Reverse geocode to get actual address
-  try {
-    const address = await reverseGeocode(location.lat, location.lng)
-    // Format address to show meaningful name (soi, road, district)
-    const formattedAddress = formatThaiAddress(address)
-    pickupLocation.value = {
-      lat: location.lat,
-      lng: location.lng,
-      address: address
-    }
-    pickup.value = formattedAddress
-  } catch {
-    // Fallback to generic text if geocoding fails (don't show coordinates)
-    pickup.value = 'ตำแหน่งปัจจุบัน'
-    pickupLocation.value = {
-      lat: location.lat,
-      lng: location.lng,
-      address: 'ตำแหน่งปัจจุบัน'
-    }
+  if (type === 'pickup') {
+    pickupLocation.value = { lat, lng, address: 'กำลังค้นหาที่อยู่...' }
+    pickup.value = 'กำลังค้นหาที่อยู่...'
+  } else {
+    destinationLocation.value = { lat, lng, address: 'กำลังค้นหาที่อยู่...' }
+    destination.value = 'กำลังค้นหาที่อยู่...'
   }
+  
+  try {
+    const address = await reverseGeocode(lat, lng)
+    const formattedAddress = formatThaiAddress(address)
+    
+    if (type === 'pickup') {
+      pickupLocation.value = { lat, lng, address }
+      pickup.value = formattedAddress
+    } else {
+      destinationLocation.value = { lat, lng, address }
+      destination.value = formattedAddress
+    }
+  } catch {
+    const fallbackText = 'ตำแหน่งที่เลือก'
+    if (type === 'pickup') {
+      pickup.value = fallbackText
+      pickupLocation.value = { lat, lng, address: fallbackText }
+    } else {
+      destination.value = fallbackText
+      destinationLocation.value = { lat, lng, address: fallbackText }
+    }
+  } finally {
+    isLoadingAddress.value = false
+  }
+}
+
+// Toggle edit location mode
+const toggleEditLocation = () => {
+  isEditingLocation.value = !isEditingLocation.value
 }
 
 // Format Thai address to show meaningful short name
@@ -654,9 +674,11 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         :pickup="pickupLocation"
         :destination="destinationLocation"
         :show-route="!!destinationLocation"
+        :draggable="isEditingLocation"
         height="100%"
         @route-calculated="onRouteCalculated"
         @location-detected="onLocationDetected"
+        @marker-dragged="onMarkerDragged"
       />
       
       <!-- Center pin when selecting destination -->
@@ -675,6 +697,18 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         </svg>
       </button>
 
+      <!-- Edit location button -->
+      <button 
+        v-if="step === 'input' && pickupLocation" 
+        @click="toggleEditLocation" 
+        :class="['edit-location-btn', { active: isEditingLocation }]"
+      >
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+        </svg>
+        <span>{{ isEditingLocation ? 'เสร็จสิ้น' : 'แก้ไข' }}</span>
+      </button>
+
       <!-- GPS button -->
       <button @click="centerOnCurrentLocation" class="gps-btn" :disabled="loading">
         <svg v-if="!loading" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -684,6 +718,20 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
           <circle cx="12" cy="12" r="10" stroke-width="2" stroke-dasharray="32" stroke-dashoffset="32"/>
         </svg>
       </button>
+
+      <!-- Loading address indicator -->
+      <div v-if="isLoadingAddress" class="loading-address-indicator">
+        <div class="shimmer-bar"></div>
+        <span>กำลังค้นหาที่อยู่...</span>
+      </div>
+
+      <!-- Edit mode hint -->
+      <div v-if="isEditingLocation" class="edit-mode-hint">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>ลากหมุดเพื่อปรับตำแหน่ง</span>
+      </div>
     </div>
 
     <!-- Bottom Sheet -->
@@ -937,6 +985,107 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   width: 24px;
   height: 24px;
   stroke-width: 1.5;
+}
+
+/* Edit location button */
+.edit-location-btn {
+  position: absolute;
+  bottom: 24px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: white;
+  border: none;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  color: #000;
+}
+
+.edit-location-btn:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.16);
+}
+
+.edit-location-btn:active {
+  transform: scale(0.95);
+}
+
+.edit-location-btn.active {
+  background: #000;
+  color: #fff;
+}
+
+.edit-location-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Loading address indicator */
+.loading-address-indicator {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  font-size: 13px;
+  color: #6B6B6B;
+}
+
+.shimmer-bar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Edit mode hint */
+.edit-mode-hint {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #000;
+  color: #fff;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  z-index: 100;
+  font-size: 13px;
+  font-weight: 500;
+  animation: fadeInDown 0.3s ease;
+}
+
+.edit-mode-hint svg {
+  width: 18px;
+  height: 18px;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .animate-spin {
