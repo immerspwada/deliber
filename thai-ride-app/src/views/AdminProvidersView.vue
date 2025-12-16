@@ -172,8 +172,157 @@ const getTypeText = (t: string) => ({ driver: 'คนขับ', rider: 'ไร�
 
 // Open image preview modal
 const openImagePreview = (src: string, title: string) => {
+  if (!src) return
   previewImage.value = { src, title }
   showImageModal.value = true
+}
+
+// Approve individual document
+const approveDocument = async (docType: 'id_card' | 'license' | 'vehicle') => {
+  if (!selectedProvider.value) return
+  actionLoading.value = true
+  
+  const currentDocs = selectedProvider.value.documents || {}
+  const updatedDocs = { ...currentDocs, [docType]: 'verified' }
+  
+  // Update timestamps
+  const currentTimestamps = (selectedProvider.value as any).document_timestamps || {}
+  const updatedTimestamps = { ...currentTimestamps, [docType]: new Date().toISOString() }
+  
+  await (supabase.from('service_providers') as any)
+    .update({ 
+      documents: updatedDocs,
+      document_timestamps: updatedTimestamps
+    })
+    .eq('id', selectedProvider.value.id)
+  
+  selectedProvider.value.documents = updatedDocs
+  ;(selectedProvider.value as any).document_timestamps = updatedTimestamps
+  
+  // Send notification for document approval
+  const docNames: Record<string, string> = {
+    id_card: 'บัตรประชาชน',
+    license: 'ใบขับขี่',
+    vehicle: 'รูปยานพาหนะ'
+  }
+  
+  if (selectedProvider.value.user_id) {
+    await (supabase.from('user_notifications') as any).insert({
+      user_id: selectedProvider.value.user_id,
+      type: 'system',
+      title: 'เอกสารผ่านการตรวจสอบ',
+      message: `${docNames[docType]} ได้รับการยืนยันแล้ว`,
+      action_url: '/provider/documents',
+      is_read: false
+    })
+    
+    // Queue push notification
+    await (supabase.from('push_notification_queue') as any).insert({
+      user_id: selectedProvider.value.user_id,
+      title: 'เอกสารผ่านการตรวจสอบ',
+      body: `${docNames[docType]} ได้รับการยืนยันแล้ว`,
+      data: { url: '/provider/documents' }
+    })
+  }
+  
+  // Check if all documents are verified
+  const allVerified = ['id_card', 'license', 'vehicle'].every(
+    key => updatedDocs[key] === 'verified'
+  )
+  
+  if (allVerified && selectedProvider.value.status === 'pending') {
+    await approveProvider(selectedProvider.value.id)
+  }
+  
+  actionLoading.value = false
+}
+
+// Document rejection modal
+const showRejectModal = ref(false)
+const rejectingDocType = ref<'id_card' | 'license' | 'vehicle' | null>(null)
+const rejectReason = ref('')
+
+const openRejectModal = (docType: 'id_card' | 'license' | 'vehicle') => {
+  rejectingDocType.value = docType
+  rejectReason.value = ''
+  showRejectModal.value = true
+}
+
+const cancelReject = () => {
+  showRejectModal.value = false
+  rejectingDocType.value = null
+  rejectReason.value = ''
+}
+
+// Reject individual document with reason
+const rejectDocument = async (docType: 'id_card' | 'license' | 'vehicle') => {
+  openRejectModal(docType)
+}
+
+const confirmRejectDocument = async () => {
+  if (!selectedProvider.value || !rejectingDocType.value) return
+  actionLoading.value = true
+  
+  const docType = rejectingDocType.value
+  const currentDocs = selectedProvider.value.documents || {}
+  const updatedDocs = { ...currentDocs, [docType]: 'rejected' }
+  
+  // Get current rejection reasons or create new object
+  const currentReasons = (selectedProvider.value as any).rejection_reasons || {}
+  const updatedReasons = { 
+    ...currentReasons, 
+    [docType]: rejectReason.value || 'เอกสารไม่ชัดเจนหรือไม่ถูกต้อง' 
+  }
+  
+  // Update timestamps
+  const currentTimestamps = (selectedProvider.value as any).document_timestamps || {}
+  const updatedTimestamps = { ...currentTimestamps, [docType]: new Date().toISOString() }
+  
+  await (supabase.from('service_providers') as any)
+    .update({ 
+      documents: updatedDocs,
+      rejection_reasons: updatedReasons,
+      document_timestamps: updatedTimestamps
+    })
+    .eq('id', selectedProvider.value.id)
+  
+  selectedProvider.value.documents = updatedDocs
+  ;(selectedProvider.value as any).rejection_reasons = updatedReasons
+  ;(selectedProvider.value as any).document_timestamps = updatedTimestamps
+  
+  // Notify provider
+  if (selectedProvider.value.user_id) {
+    const docNames: Record<string, string> = {
+      id_card: 'บัตรประชาชน',
+      license: 'ใบขับขี่',
+      vehicle: 'รูปยานพาหนะ'
+    }
+    
+    const reasonText = rejectReason.value ? ` เหตุผล: ${rejectReason.value}` : ''
+    
+    // In-app notification
+    await (supabase.from('user_notifications') as any).insert({
+      user_id: selectedProvider.value.user_id,
+      type: 'system',
+      title: 'เอกสารไม่ผ่านการตรวจสอบ',
+      message: `${docNames[docType]} ไม่ผ่านการตรวจสอบ${reasonText} กรุณาอัพโหลดใหม่`,
+      action_url: '/provider/documents',
+      is_read: false
+    })
+    
+    // Queue push notification
+    await (supabase.from('push_notification_queue') as any).insert({
+      user_id: selectedProvider.value.user_id,
+      title: 'เอกสารไม่ผ่านการตรวจสอบ',
+      body: `${docNames[docType]} ไม่ผ่าน กรุณาอัพโหลดใหม่`,
+      data: { url: '/provider/documents' }
+    })
+  }
+  
+  actionLoading.value = false
+  showRejectModal.value = false
+  rejectingDocType.value = null
+  rejectReason.value = ''
 }
 </script>
 
@@ -283,9 +432,11 @@ const openImagePreview = (src: string, title: string) => {
               <h3>ข้อมูลยานพาหนะ</h3>
               <div class="detail-grid">
                 <div><span>ประเภท:</span> {{ selectedProvider.vehicle_type || '-' }}</div>
-                <div><span>ยี่ห้อ:</span> {{ selectedProvider.vehicle_info?.brand || '-' }}</div>
-                <div><span>รุ่น:</span> {{ selectedProvider.vehicle_info?.model || '-' }}</div>
-                <div><span>ทะเบียน:</span> {{ selectedProvider.vehicle_info?.license_plate || '-' }}</div>
+                <div><span>ยี่ห้อ:</span> {{ selectedProvider.vehicle_brand || selectedProvider.vehicle_info?.brand || '-' }}</div>
+                <div><span>รุ่น:</span> {{ selectedProvider.vehicle_model || selectedProvider.vehicle_info?.model || '-' }}</div>
+                <div><span>ปี:</span> {{ selectedProvider.vehicle_year || '-' }}</div>
+                <div><span>ทะเบียน:</span> {{ selectedProvider.vehicle_plate || '-' }}</div>
+                <div><span>สี:</span> {{ selectedProvider.vehicle_color || '-' }}</div>
               </div>
             </div>
 
@@ -297,22 +448,50 @@ const openImagePreview = (src: string, title: string) => {
               </div>
             </div>
 
-            <div v-if="selectedProvider.documents" class="detail-section">
+            <div class="detail-section">
               <h3>เอกสาร</h3>
-              <div class="documents-grid">
+              <div v-if="selectedProvider.documents && Object.keys(selectedProvider.documents).length > 0" class="documents-grid">
                 <div v-if="selectedProvider.documents.id_card" class="doc-item">
                   <span>บัตรประชาชน</span>
-                  <img :src="selectedProvider.documents.id_card" alt="ID Card" @click="openImagePreview(selectedProvider.documents.id_card, 'บัตรประชาชน')" />
+                  <div class="doc-preview" @click="openImagePreview(selectedProvider.documents.id_card === 'verified' ? '' : selectedProvider.documents.id_card, 'บัตรประชาชน')">
+                    <img v-if="selectedProvider.documents.id_card !== 'verified' && selectedProvider.documents.id_card !== 'pending'" :src="selectedProvider.documents.id_card" alt="ID Card" />
+                    <div v-else class="doc-status-badge" :class="selectedProvider.documents.id_card">
+                      {{ selectedProvider.documents.id_card === 'verified' ? 'ยืนยันแล้ว' : 'รอตรวจสอบ' }}
+                    </div>
+                  </div>
+                  <div v-if="selectedProvider.documents.id_card !== 'verified'" class="doc-actions">
+                    <button @click="approveDocument('id_card')" class="doc-btn approve">อนุมัติ</button>
+                    <button @click="rejectDocument('id_card')" class="doc-btn reject">ปฏิเสธ</button>
+                  </div>
                 </div>
                 <div v-if="selectedProvider.documents.license" class="doc-item">
                   <span>ใบขับขี่</span>
-                  <img :src="selectedProvider.documents.license" alt="License" @click="openImagePreview(selectedProvider.documents.license, 'ใบขับขี่')" />
+                  <div class="doc-preview" @click="openImagePreview(selectedProvider.documents.license === 'verified' ? '' : selectedProvider.documents.license, 'ใบขับขี่')">
+                    <img v-if="selectedProvider.documents.license !== 'verified' && selectedProvider.documents.license !== 'pending'" :src="selectedProvider.documents.license" alt="License" />
+                    <div v-else class="doc-status-badge" :class="selectedProvider.documents.license">
+                      {{ selectedProvider.documents.license === 'verified' ? 'ยืนยันแล้ว' : 'รอตรวจสอบ' }}
+                    </div>
+                  </div>
+                  <div v-if="selectedProvider.documents.license !== 'verified'" class="doc-actions">
+                    <button @click="approveDocument('license')" class="doc-btn approve">อนุมัติ</button>
+                    <button @click="rejectDocument('license')" class="doc-btn reject">ปฏิเสธ</button>
+                  </div>
                 </div>
                 <div v-if="selectedProvider.documents.vehicle" class="doc-item">
                   <span>รูปรถ</span>
-                  <img :src="selectedProvider.documents.vehicle" alt="Vehicle" @click="openImagePreview(selectedProvider.documents.vehicle, 'รูปรถ')" />
+                  <div class="doc-preview" @click="openImagePreview(selectedProvider.documents.vehicle === 'verified' ? '' : selectedProvider.documents.vehicle, 'รูปรถ')">
+                    <img v-if="selectedProvider.documents.vehicle !== 'verified' && selectedProvider.documents.vehicle !== 'pending'" :src="selectedProvider.documents.vehicle" alt="Vehicle" />
+                    <div v-else class="doc-status-badge" :class="selectedProvider.documents.vehicle">
+                      {{ selectedProvider.documents.vehicle === 'verified' ? 'ยืนยันแล้ว' : 'รอตรวจสอบ' }}
+                    </div>
+                  </div>
+                  <div v-if="selectedProvider.documents.vehicle !== 'verified'" class="doc-actions">
+                    <button @click="approveDocument('vehicle')" class="doc-btn approve">อนุมัติ</button>
+                    <button @click="rejectDocument('vehicle')" class="doc-btn reject">ปฏิเสธ</button>
+                  </div>
                 </div>
               </div>
+              <p v-else class="no-docs">ยังไม่มีเอกสาร</p>
             </div>
 
             <div v-if="selectedProvider.rejection_reason" class="rejection-box">
@@ -333,8 +512,8 @@ const openImagePreview = (src: string, title: string) => {
         </div>
       </div>
 
-      <!-- Reject Modal -->
-      <div v-if="showRejectModal" class="modal-overlay" @click.self="showRejectModal = false">
+      <!-- Reject Provider Modal -->
+      <div v-if="showRejectModal && !rejectingDocType" class="modal-overlay" @click.self="showRejectModal = false">
         <div class="modal-content small">
           <div class="modal-header">
             <h2>ปฏิเสธใบสมัคร</h2>
@@ -353,6 +532,39 @@ const openImagePreview = (src: string, title: string) => {
               {{ actionLoading ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}
             </button>
             <button @click="showRejectModal = false" class="action-btn secondary">ยกเลิก</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reject Document Modal -->
+      <div v-if="showRejectModal && rejectingDocType" class="modal-overlay" @click.self="cancelReject">
+        <div class="modal-content small">
+          <div class="modal-header">
+            <h2>ปฏิเสธเอกสาร</h2>
+            <button @click="cancelReject" class="close-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="reject-doc-info">
+              เอกสาร: <strong>{{ rejectingDocType === 'id_card' ? 'บัตรประชาชน' : rejectingDocType === 'license' ? 'ใบขับขี่' : 'รูปยานพาหนะ' }}</strong>
+            </p>
+            <label class="form-label">เหตุผลที่ปฏิเสธ (ไม่บังคับ)</label>
+            <textarea v-model="rejectReason" placeholder="เช่น รูปไม่ชัด, เอกสารหมดอายุ, ข้อมูลไม่ตรงกัน..." class="form-textarea"></textarea>
+            <div class="reject-reason-hints">
+              <span @click="rejectReason = 'รูปไม่ชัดเจน'" class="hint-chip">รูปไม่ชัดเจน</span>
+              <span @click="rejectReason = 'เอกสารหมดอายุ'" class="hint-chip">เอกสารหมดอายุ</span>
+              <span @click="rejectReason = 'ข้อมูลไม่ตรงกัน'" class="hint-chip">ข้อมูลไม่ตรงกัน</span>
+              <span @click="rejectReason = 'เอกสารถูกตัดต่อ'" class="hint-chip">เอกสารถูกตัดต่อ</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button @click="confirmRejectDocument" :disabled="actionLoading" class="action-btn reject">
+              {{ actionLoading ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}
+            </button>
+            <button @click="cancelReject" class="action-btn secondary">ยกเลิก</button>
           </div>
         </div>
       </div>
@@ -454,8 +666,19 @@ const openImagePreview = (src: string, title: string) => {
 .documents-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .doc-item { text-align: center; }
 .doc-item span { display: block; font-size: 12px; color: #6b6b6b; margin-bottom: 8px; }
-.doc-item img { width: 100%; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid #e5e5e5; }
-.doc-item img:hover { border-color: #000; }
+.doc-preview { width: 100%; height: 80px; border-radius: 8px; cursor: pointer; border: 1px solid #e5e5e5; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f6f6f6; }
+.doc-preview:hover { border-color: #000; }
+.doc-preview img { width: 100%; height: 100%; object-fit: cover; }
+.doc-status-badge { font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; }
+.doc-status-badge.verified { background: #e8f5e9; color: #05944f; }
+.doc-status-badge.pending { background: #fff3e0; color: #e65100; }
+.doc-actions { display: flex; gap: 4px; margin-top: 6px; }
+.doc-btn { flex: 1; padding: 4px 8px; border: none; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; }
+.doc-btn.approve { background: #e8f5e9; color: #05944f; }
+.doc-btn.approve:hover { background: #c8e6c9; }
+.doc-btn.reject { background: #ffebee; color: #e11900; }
+.doc-btn.reject:hover { background: #ffcdd2; }
+.no-docs { font-size: 14px; color: #999; text-align: center; padding: 20px; }
 
 .rejection-box { padding: 12px; background: rgba(225,25,0,0.05); border-radius: 8px; margin-top: 16px; }
 .rejection-box span { font-size: 12px; color: #e11900; font-weight: 600; }
@@ -474,4 +697,14 @@ const openImagePreview = (src: string, title: string) => {
 .image-modal-body img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 8px; }
 .image-modal-footer { display: flex; gap: 12px; padding: 16px 20px; border-top: 1px solid #e5e5e5; justify-content: flex-end; }
 .image-modal-footer a { display: flex; align-items: center; gap: 6px; text-decoration: none; }
+
+/* Reject Document Modal */
+.reject-doc-info { font-size: 14px; color: #6b6b6b; margin-bottom: 16px; }
+.reject-doc-info strong { color: #000; }
+.reject-reason-hints { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.hint-chip { 
+  padding: 6px 12px; background: #f6f6f6; border-radius: 20px; 
+  font-size: 12px; cursor: pointer; transition: all 0.2s; 
+}
+.hint-chip:hover { background: #e5e5e5; }
 </style>

@@ -114,40 +114,41 @@ onMounted(async () => {
 
   // Default center (Bangkok)
   let center = { lat: 13.7563, lng: 100.5018 }
-  const defaultZoom = 18 // ซูมใกล้มาก
+  const defaultZoom = 18
 
-  // Try to get GPS location first
-  try {
-    const gpsLocation = await getCurrentLocation()
-    center = gpsLocation
-    currentLocation.value = gpsLocation
-    emit('locationDetected', gpsLocation)
-  } catch {
-    console.log('GPS not available, using default location')
-  }
-
-  // Use pickup location if provided
+  // Use pickup location if provided (priority)
   if (props.pickup) {
     center = { lat: props.pickup.lat, lng: props.pickup.lng }
   }
 
-  // Initialize map with GPS or default location
+  // Initialize map immediately with default/pickup location
   initMap(mapContainer.value, {
     center,
     zoom: defaultZoom
   })
 
-  // Add current location marker if we have GPS
-  if (currentLocation.value && !props.pickup) {
-    addMarker({
-      position: currentLocation.value,
-      title: 'ตำแหน่งของคุณ',
-      icon: 'pickup'
-    })
-  }
-
   if (props.pickup || props.destination) {
     updateMarkers()
+  }
+
+  // Get GPS location in background (non-blocking) only if no pickup provided
+  if (!props.pickup) {
+    getCurrentLocation()
+      .then((gpsLocation) => {
+        currentLocation.value = gpsLocation
+        emit('locationDetected', gpsLocation)
+        // Update map center if still no pickup
+        if (!props.pickup && isMapReady.value) {
+          addMarker({
+            position: gpsLocation,
+            title: 'ตำแหน่งของคุณ',
+            icon: 'pickup'
+          })
+        }
+      })
+      .catch(() => {
+        console.log('GPS not available, using default location')
+      })
   }
 })
 </script>

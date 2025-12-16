@@ -1,3 +1,24 @@
+/**
+ * useWallet - User Wallet Composable
+ *
+ * Feature: F05 - Wallet/Balance
+ * Tables: user_wallets, wallet_transactions
+ *
+ * @syncs-with
+ * - Admin: useAdmin.ts (ดูยอดเงิน, จัดการ refund)
+ * - Provider: useProviderEarnings.ts (รับเงินจากงาน)
+ * - Customer: stores/ride.ts (ชำระค่าบริการ)
+ * - Database: Realtime subscription on wallet_transactions
+ *
+ * @transaction-types
+ * - topup: เติมเงิน
+ * - payment: ชำระค่าบริการ
+ * - refund: คืนเงิน
+ * - cashback: เงินคืน
+ * - referral: โบนัสแนะนำเพื่อน
+ * - withdrawal: ถอนเงิน (Provider)
+ */
+
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'

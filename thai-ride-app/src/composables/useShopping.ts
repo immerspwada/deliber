@@ -1,3 +1,21 @@
+/**
+ * useShopping - Customer Shopping Composable
+ * 
+ * Feature: F04 - Shopping Service
+ * Tables: shopping_requests, service_providers
+ * 
+ * @syncs-with
+ * - Admin: useAdmin.ts (ดู/จัดการออเดอร์, refund)
+ * - Provider: useProvider.ts (รับงาน/อัพเดทสถานะ)
+ * - Database: Realtime subscription on shopping_requests
+ * - Notifications: Push notification เมื่อสถานะเปลี่ยน
+ * 
+ * @status-flow
+ * Customer: createShopping → [pending]
+ * Provider: accept → [accepted] → [shopping] → [purchased] → [delivering] → [delivered]
+ * Customer: trackShopping, rateShopping
+ */
+
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePWA } from '../composables/usePWA'
 import { usePushNotifications } from '../composables/usePushNotifications'
+import { useBackgroundSync } from '../composables/useBackgroundSync'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
@@ -28,6 +29,23 @@ const {
   sendTestNotification,
   initialize: initPush
 } = usePushNotifications()
+
+const {
+  pendingCount,
+  isSyncing,
+  lastSyncResult,
+  formatLastSyncTime,
+  processQueue,
+  clearQueue,
+  syncHistory,
+  clearSyncHistory,
+  conflicts,
+  resolveConflict,
+  dismissConflict
+} = useBackgroundSync()
+
+const showSyncHistory = ref(false)
+const showConflicts = ref(false)
 
 const loading = ref(true)
 const cacheInfo = ref({ used: 0, quota: 0, percent: 0 })
@@ -130,6 +148,43 @@ const handleClearCache = async () => {
   cacheInfo.value = await getCacheSize()
   clearingCache.value = false
   alert('ล้างแคชเรียบร้อยแล้ว')
+}
+
+// Sync management
+const handleManualSync = async () => {
+  await processQueue()
+}
+
+const handleClearSyncQueue = () => {
+  if (!confirm('ต้องการล้างคิวซิงค์ทั้งหมดหรือไม่? ข้อมูลที่ยังไม่ได้ซิงค์จะหายไป')) return
+  clearQueue()
+  alert('ล้างคิวซิงค์เรียบร้อยแล้ว')
+}
+
+// Sync history
+const handleClearHistory = () => {
+  if (!confirm('ต้องการล้างประวัติการซิงค์ทั้งหมดหรือไม่?')) return
+  clearSyncHistory()
+}
+
+const formatHistoryTime = (timestamp: number): string => {
+  const date = new Date(timestamp)
+  return date.toLocaleString('th-TH', { 
+    day: '2-digit', 
+    month: 'short', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
+
+// Conflict resolution
+const handleResolveConflict = async (conflictId: string, resolution: 'local' | 'server' | 'merge') => {
+  await resolveConflict(conflictId, resolution)
+}
+
+const handleDismissConflict = (conflictId: string) => {
+  if (!confirm('ต้องการยกเลิกข้อขัดแย้งนี้หรือไม่?')) return
+  dismissConflict(conflictId)
 }
 
 const formatBytes = (bytes: number): string => {
@@ -293,6 +348,166 @@ const formatBytes = (bytes: number): string => {
           </button>
         </div>
       </div>
+
+      <!-- Sync Status Section -->
+      <div class="settings-section">
+        <h2 class="section-title">สถานะการซิงค์</h2>
+        
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">รายการรอซิงค์</span>
+            <span class="setting-desc">{{ pendingCount }} รายการ</span>
+          </div>
+          <div :class="['sync-badge', pendingCount > 0 ? 'pending' : 'synced']">
+            {{ pendingCount > 0 ? 'รอซิงค์' : 'ซิงค์แล้ว' }}
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">ซิงค์ล่าสุด</span>
+            <span class="setting-desc">{{ formatLastSyncTime() }}</span>
+          </div>
+          <span v-if="lastSyncResult" class="sync-result">
+            <svg v-if="lastSyncResult.failed === 0" fill="none" stroke="#05944f" viewBox="0 0 24 24" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            <svg v-else fill="none" stroke="#e11900" viewBox="0 0 24 24" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+          </span>
+        </div>
+
+        <div v-if="pendingCount > 0" class="setting-item sync-actions-container">
+          <div class="sync-actions">
+            <button @click="handleManualSync" class="sync-btn" :disabled="isSyncing || !isOnline">
+              <svg v-if="isSyncing" class="spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <span>{{ isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ตอนนี้' }}</span>
+            </button>
+            <button @click="handleClearSyncQueue" class="clear-sync-btn">
+              ล้างคิว
+            </button>
+          </div>
+        </div>
+
+        <!-- Conflicts Alert -->
+        <div v-if="conflicts.length > 0" class="setting-item conflict-alert" @click="showConflicts = true">
+          <div class="setting-info">
+            <span class="setting-label">ข้อมูลขัดแย้ง</span>
+            <span class="setting-desc">{{ conflicts.length }} รายการต้องการการตัดสินใจ</span>
+          </div>
+          <svg fill="none" stroke="#E65100" viewBox="0 0 24 24" width="20" height="20">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+
+        <!-- Sync History Button -->
+        <button class="action-item" @click="showSyncHistory = true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>ประวัติการซิงค์</span>
+          <span v-if="syncHistory.length > 0" class="history-count">{{ syncHistory.length }}</span>
+          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Sync History Modal -->
+      <Teleport to="body">
+        <div v-if="showSyncHistory" class="modal-overlay" @click.self="showSyncHistory = false">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>ประวัติการซิงค์</h3>
+              <button @click="showSyncHistory = false" class="close-btn">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div v-if="syncHistory.length === 0" class="empty-state">
+                <p>ยังไม่มีประวัติการซิงค์</p>
+              </div>
+              <div v-else class="history-list">
+                <div v-for="entry in [...syncHistory].reverse()" :key="entry.id" class="history-item">
+                  <div class="history-icon" :class="entry.status">
+                    <svg v-if="entry.status === 'success'" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <svg v-else-if="entry.status === 'failed'" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"/>
+                    </svg>
+                  </div>
+                  <div class="history-info">
+                    <span class="history-message">{{ entry.message }}</span>
+                    <span class="history-time">{{ formatHistoryTime(entry.timestamp) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="syncHistory.length > 0" class="modal-footer">
+              <button @click="handleClearHistory" class="clear-history-btn">ล้างประวัติ</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Conflicts Modal -->
+      <Teleport to="body">
+        <div v-if="showConflicts" class="modal-overlay" @click.self="showConflicts = false">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>ข้อมูลขัดแย้ง</h3>
+              <button @click="showConflicts = false" class="close-btn">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <div v-if="conflicts.length === 0" class="empty-state">
+                <p>ไม่มีข้อมูลขัดแย้ง</p>
+              </div>
+              <div v-else class="conflict-list">
+                <div v-for="conflict in conflicts" :key="conflict.id" class="conflict-item">
+                  <div class="conflict-header">
+                    <span class="conflict-type">{{ conflict.type }}</span>
+                    <span class="conflict-time">{{ formatHistoryTime(conflict.createdAt) }}</span>
+                  </div>
+                  <div class="conflict-data">
+                    <div class="data-section">
+                      <span class="data-label">ข้อมูล Local:</span>
+                      <pre class="data-preview">{{ JSON.stringify(conflict.localData, null, 2).slice(0, 100) }}...</pre>
+                    </div>
+                    <div class="data-section">
+                      <span class="data-label">ข้อมูล Server:</span>
+                      <pre class="data-preview">{{ JSON.stringify(conflict.serverData, null, 2).slice(0, 100) }}...</pre>
+                    </div>
+                  </div>
+                  <div class="conflict-actions">
+                    <button @click="handleResolveConflict(conflict.id, 'local')" class="resolve-btn local">
+                      ใช้ Local
+                    </button>
+                    <button @click="handleResolveConflict(conflict.id, 'server')" class="resolve-btn server">
+                      ใช้ Server
+                    </button>
+                    <button @click="handleDismissConflict(conflict.id)" class="resolve-btn dismiss">
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Teleport>
 
       <!-- PWA Section -->
       <div class="settings-section">
@@ -650,5 +865,325 @@ const formatBytes = (bytes: number): string => {
 .clear-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Sync Status Styles */
+.sync-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sync-badge.synced {
+  background: #E8F5E9;
+  color: #05944f;
+}
+
+.sync-badge.pending {
+  background: #FFF3E0;
+  color: #E65100;
+}
+
+.sync-result {
+  display: flex;
+  align-items: center;
+}
+
+.sync-actions-container {
+  padding: 16px;
+}
+
+.sync-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.sync-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sync-btn:hover {
+  background: #333;
+}
+
+.sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.clear-sync-btn {
+  padding: 12px 16px;
+  background: #F6F6F6;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.clear-sync-btn:hover {
+  background: #E5E5E5;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* History count badge */
+.history-count {
+  background: #E5E5E5;
+  color: #000;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* Conflict alert */
+.conflict-alert {
+  background: #FFF3E0 !important;
+  border: 1px solid #FFE0B2;
+  cursor: pointer;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #E5E5E5;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6B6B6B;
+}
+
+/* History list */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #F6F6F6;
+  border-radius: 8px;
+}
+
+.history-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.history-icon.success {
+  background: #E8F5E9;
+  color: #05944f;
+}
+
+.history-icon.failed {
+  background: #FFEBEE;
+  color: #e11900;
+}
+
+.history-icon.conflict {
+  background: #FFF3E0;
+  color: #E65100;
+}
+
+.history-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-message {
+  font-size: 14px;
+  color: #000;
+}
+
+.history-time {
+  font-size: 12px;
+  color: #6B6B6B;
+}
+
+.clear-history-btn {
+  width: 100%;
+  padding: 12px;
+  background: #F6F6F6;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.clear-history-btn:hover {
+  background: #E5E5E5;
+}
+
+/* Conflict list */
+.conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.conflict-item {
+  background: #F6F6F6;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.conflict-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.conflict-type {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.conflict-time {
+  font-size: 12px;
+  color: #6B6B6B;
+}
+
+.conflict-data {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.data-section {
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.data-label {
+  font-size: 12px;
+  color: #6B6B6B;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.data-preview {
+  font-size: 11px;
+  color: #000;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 60px;
+  overflow: hidden;
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.resolve-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.resolve-btn.local {
+  background: #000;
+  color: #fff;
+}
+
+.resolve-btn.server {
+  background: #276EF1;
+  color: #fff;
+}
+
+.resolve-btn.dismiss {
+  background: #E5E5E5;
+  color: #000;
 }
 </style>

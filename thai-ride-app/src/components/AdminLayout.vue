@@ -6,31 +6,50 @@ const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
 
-// Check admin auth on mount
+// Check admin auth on mount (with session expiry)
 onMounted(() => {
   const adminToken = localStorage.getItem('admin_token')
+  const loginTime = localStorage.getItem('admin_login_time')
+  const SESSION_TTL = 8 * 60 * 60 * 1000 // 8 hours
+  
   if (!adminToken) {
-    router.push('/login')
+    router.push('/admin/login')
+    return
+  }
+  
+  // Check session expiry
+  if (loginTime) {
+    const elapsed = Date.now() - parseInt(loginTime, 10)
+    if (elapsed > SESSION_TTL) {
+      // Session expired - clear and redirect
+      localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_user')
+      localStorage.removeItem('admin_login_time')
+      localStorage.removeItem('admin_demo_mode')
+      router.push('/admin/login')
+    }
   }
 })
 
 const menuItems = [
-  { path: '/dashboard', label: 'แดชบอร์ด', icon: 'dashboard' },
-  { path: '/users', label: 'ผู้ใช้งาน', icon: 'users' },
-  { path: '/providers', label: 'ผู้ให้บริการ', icon: 'car' },
-  { path: '/orders', label: 'ออเดอร์', icon: 'orders' },
-  { path: '/ratings', label: 'รีวิว', icon: 'ratings' },
-  { path: '/notifications', label: 'Notifications', icon: 'notification' },
-  { path: '/payments', label: 'การเงิน', icon: 'payment' },
-  { path: '/support', label: 'ซัพพอร์ต', icon: 'support' },
-  { path: '/promos', label: 'โปรโมชั่น', icon: 'promo' },
-  { path: '/subscriptions', label: 'แพ็คเกจสมาชิก', icon: 'subscription' },
-  { path: '/insurance', label: 'ประกันภัย', icon: 'insurance' },
-  { path: '/corporate', label: 'บัญชีองค์กร', icon: 'corporate' }
+  { path: '/admin/dashboard', label: 'แดชบอร์ด', icon: 'dashboard' },
+  { path: '/admin/users', label: 'ผู้ใช้งาน', icon: 'users' },
+  { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car' },
+  { path: '/admin/orders', label: 'ออเดอร์', icon: 'orders' },
+  { path: '/admin/ratings', label: 'รีวิว', icon: 'ratings' },
+  { path: '/admin/notifications', label: 'Notifications', icon: 'notification' },
+  { path: '/admin/payments', label: 'การเงิน', icon: 'payment' },
+  { path: '/admin/withdrawals', label: 'การถอนเงิน', icon: 'withdrawal' },
+  { path: '/admin/support', label: 'ซัพพอร์ต', icon: 'support' },
+  { path: '/admin/promos', label: 'โปรโมชั่น', icon: 'promo' },
+  { path: '/admin/subscriptions', label: 'แพ็คเกจสมาชิก', icon: 'subscription' },
+  { path: '/admin/insurance', label: 'ประกันภัย', icon: 'insurance' },
+  { path: '/admin/corporate', label: 'บัญชีองค์กร', icon: 'corporate' },
+  { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' }
 ]
 
 const isActive = (path: string) => {
-  if (path === '/dashboard') return route.path === '/dashboard'
+  if (path === '/admin/dashboard') return route.path === '/admin/dashboard'
   return route.path.startsWith(path)
 }
 
@@ -42,7 +61,10 @@ const navigate = (path: string) => {
 const logout = () => {
   localStorage.removeItem('admin_token')
   localStorage.removeItem('admin_user')
-  router.push('/login')
+  localStorage.removeItem('admin_login_time')
+  localStorage.removeItem('admin_demo_mode')
+  localStorage.removeItem('admin_activity_log')
+  router.push('/admin/login')
 }
 </script>
 
@@ -141,6 +163,16 @@ const logout = () => {
           <!-- Notification -->
           <svg v-else-if="item.icon === 'notification'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          <!-- Withdrawal -->
+          <svg v-else-if="item.icon === 'withdrawal'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+            <path d="M17 3l4 4-4 4M21 7H9"/>
+          </svg>
+          <!-- Audit -->
+          <svg v-else-if="item.icon === 'audit'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
           </svg>
           <span>{{ item.label }}</span>
         </button>

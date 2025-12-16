@@ -17,7 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   const initialize = async () => {
     loading.value = true
     try {
-      // Check demo mode first
+      // Check demo mode first - instant return
       if (isDemoMode.value) {
         const demoUser = localStorage.getItem('demo_user')
         if (demoUser) {
@@ -27,11 +27,29 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
       
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      session.value = currentSession
+      // Check if we have any indication of a real session before calling Supabase
+      // This avoids slow network calls when user is not logged in
+      const hasStoredSession = localStorage.getItem('sb-' + import.meta.env.VITE_SUPABASE_URL?.split('//')[1]?.split('.')[0] + '-auth-token')
       
-      if (currentSession?.user) {
-        await fetchUserProfile(currentSession.user.id)
+      if (!hasStoredSession) {
+        // No stored session - skip Supabase call entirely
+        loading.value = false
+        return
+      }
+      
+      // Has stored session - verify with Supabase (with timeout)
+      const sessionPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise<null>((resolve) => 
+        setTimeout(() => resolve(null), 1000)
+      )
+      
+      const result = await Promise.race([sessionPromise, timeoutPromise])
+      
+      if (result && 'data' in result) {
+        session.value = result.data.session
+        if (result.data.session?.user) {
+          await fetchUserProfile(result.data.session.user.id)
+        }
       }
     } catch (err: any) {
       error.value = err.message

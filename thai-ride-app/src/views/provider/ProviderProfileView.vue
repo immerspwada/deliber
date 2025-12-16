@@ -37,14 +37,14 @@ const userRole = computed(() => {
   return role === 'driver' ? 'คนขับรถ' : 'ไรเดอร์'
 })
 
-// Menu items
+// Menu items - Provider specific routes only
 const menuItems = [
   { icon: 'car', label: 'ข้อมูลยานพาหนะ', path: '/provider/vehicle' },
   { icon: 'document', label: 'เอกสาร', path: '/provider/documents' },
   { icon: 'wallet', label: 'บัญชีธนาคาร', path: '/provider/bank' },
-  { icon: 'bell', label: 'การแจ้งเตือน', path: '/notifications' },
-  { icon: 'help', label: 'ช่วยเหลือ', path: '/help' },
-  { icon: 'settings', label: 'ตั้งค่า', path: '/settings' }
+  { icon: 'bell', label: 'การแจ้งเตือน', path: '/provider/notifications' },
+  { icon: 'help', label: 'ช่วยเหลือ', path: '/provider/help' },
+  { icon: 'settings', label: 'ตั้งค่า', path: '/provider/settings' }
 ]
 
 // Logout
@@ -116,6 +116,10 @@ onMounted(async () => {
           <h3 class="card-title">ข้อมูลยานพาหนะ</h3>
           <div class="vehicle-info">
             <div class="vehicle-row">
+              <span class="vehicle-label">ยี่ห้อ/รุ่น</span>
+              <span class="vehicle-value">{{ profile.vehicle_brand || 'Toyota' }} {{ profile.vehicle_model || 'Vios' }}</span>
+            </div>
+            <div class="vehicle-row">
               <span class="vehicle-label">ประเภท</span>
               <span class="vehicle-value">{{ profile.vehicle_type || 'รถยนต์' }}</span>
             </div>
@@ -126,6 +130,10 @@ onMounted(async () => {
             <div class="vehicle-row">
               <span class="vehicle-label">สี</span>
               <span class="vehicle-value">{{ profile.vehicle_color || 'สีดำ' }}</span>
+            </div>
+            <div v-if="profile.vehicle_year" class="vehicle-row">
+              <span class="vehicle-label">ปี</span>
+              <span class="vehicle-value">{{ profile.vehicle_year }}</span>
             </div>
           </div>
         </div>
@@ -139,21 +147,27 @@ onMounted(async () => {
             class="menu-item"
           >
             <div class="menu-icon">
+              <!-- Car Icon -->
               <svg v-if="item.icon === 'car'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-8 5h8m-4-9a9 9 0 110 18 9 9 0 010-18z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"/>
               </svg>
+              <!-- Document Icon -->
               <svg v-else-if="item.icon === 'document'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
+              <!-- Wallet Icon -->
               <svg v-else-if="item.icon === 'wallet'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
               </svg>
+              <!-- Bell Icon -->
               <svg v-else-if="item.icon === 'bell'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
               </svg>
+              <!-- Help Icon -->
               <svg v-else-if="item.icon === 'help'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
+              <!-- Settings Icon -->
               <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>

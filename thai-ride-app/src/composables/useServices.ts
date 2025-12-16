@@ -2,6 +2,8 @@ import { ref, computed } from 'vue'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
 import { useRideStore } from '../stores/ride'
+import { useOfflineCache } from './useOfflineCache'
+import { useGlobalRequestDedup, RequestKeys } from './useRequestDedup'
 
 export interface SavedPlace {
   id: string
@@ -45,6 +47,8 @@ export interface DriverInfo {
 export function useServices() {
   const authStore = useAuthStore()
   const rideStore = useRideStore()
+  const { cacheSavedPlaces, getCachedSavedPlaces, cacheRecentPlaces, getCachedRecentPlaces, isOnline, updateLastSync } = useOfflineCache()
+  const { dedupRequest } = useGlobalRequestDedup()
 
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -80,66 +84,148 @@ export function useServices() {
     }
   }
 
-  // Fetch saved places with network error handling and timeout
-  const fetchSavedPlaces = async () => {
+  // Fetch saved places with network error handling, timeout, caching and deduplication
+  const fetchSavedPlaces = async (forceRefresh = false) => {
     if (!authStore.user?.id) return []
 
-    try {
-      // Add timeout protection
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
+    const requestKey = RequestKeys.savedPlaces(authStore.user.id)
 
-      const { data, error: fetchError } = await (supabase
-        .from('saved_places') as any)
-        .select('*')
-        .eq('user_id', authStore.user.id)
-        .order('place_type', { ascending: true })
-        .abortSignal(controller.signal)
-
-      clearTimeout(timeoutId)
-
-      if (fetchError) throw fetchError
-      savedPlaces.value = data || []
-      return data || []
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('aborted')) {
-        console.warn('Network error or timeout fetching saved places')
-        // Don't set error - just return empty silently
-      } else {
-        console.warn('Error fetching saved places:', err.message)
+    // Try offline cache first (always check cache first for speed)
+    const cached = getCachedSavedPlaces()
+    if (cached && !forceRefresh) {
+      savedPlaces.value = cached
+      // Return cached immediately, refresh in background if online
+      if (isOnline.value) {
+        refreshSavedPlacesInBackground()
       }
-      return savedPlaces.value // Return cached value if available
+      return cached
+    }
+
+    // No cache or force refresh - fetch from server
+    try {
+      const result = await dedupRequest(
+        requestKey,
+        async () => {
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 3000) // Reduced to 3s
+
+          const { data, error: fetchError } = await (supabase
+            .from('saved_places') as any)
+            .select('*')
+            .eq('user_id', authStore.user!.id)
+            .order('place_type', { ascending: true })
+            .abortSignal(controller.signal)
+
+          clearTimeout(timeoutId)
+
+          if (fetchError) throw fetchError
+          return data || []
+        },
+        { ttl: 120000, forceRefresh } // 2 minute TTL
+      )
+
+      savedPlaces.value = result
+      cacheSavedPlaces(result)
+      updateLastSync()
+      return result
+    } catch (err: any) {
+      console.warn('Error fetching saved places:', err.message)
+      // Return cached data as fallback
+      if (cached) {
+        savedPlaces.value = cached
+        return cached
+      }
+      return savedPlaces.value
     }
   }
 
-  // Fetch recent places with timeout protection
-  const fetchRecentPlaces = async (limit = 10) => {
+  // Background refresh for saved places
+  const refreshSavedPlacesInBackground = async () => {
+    try {
+      const { data } = await (supabase
+        .from('saved_places') as any)
+        .select('*')
+        .eq('user_id', authStore.user!.id)
+        .order('place_type', { ascending: true })
+
+      if (data) {
+        savedPlaces.value = data
+        cacheSavedPlaces(data)
+      }
+    } catch {
+      // Silent fail for background refresh
+    }
+  }
+
+  // Fetch recent places with timeout protection, caching and deduplication
+  const fetchRecentPlaces = async (limit = 10, forceRefresh = false) => {
     if (!authStore.user?.id) return []
 
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
+    const requestKey = RequestKeys.recentPlaces(authStore.user.id)
 
-      const { data, error: fetchError } = await (supabase
+    // Try cache first for speed
+    const cached = getCachedRecentPlaces()
+    if (cached && !forceRefresh) {
+      recentPlaces.value = cached.slice(0, limit)
+      // Refresh in background if online
+      if (isOnline.value) {
+        refreshRecentPlacesInBackground(limit)
+      }
+      return recentPlaces.value
+    }
+
+    try {
+      const result = await dedupRequest(
+        requestKey,
+        async () => {
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 3000) // Reduced to 3s
+
+          const { data, error: fetchError } = await (supabase
+            .from('recent_places') as any)
+            .select('*')
+            .eq('user_id', authStore.user!.id)
+            .order('last_used_at', { ascending: false })
+            .limit(limit)
+            .abortSignal(controller.signal)
+
+          clearTimeout(timeoutId)
+
+          if (fetchError) throw fetchError
+          return data || []
+        },
+        { ttl: 60000, forceRefresh } // 1 minute TTL
+      )
+
+      recentPlaces.value = result
+      cacheRecentPlaces(result)
+      return result
+    } catch (err: any) {
+      console.warn('Error fetching recent places:', err.message)
+      if (cached) {
+        recentPlaces.value = cached.slice(0, limit)
+        return recentPlaces.value
+      }
+      return recentPlaces.value
+    }
+  }
+
+  // Background refresh for recent places
+  const refreshRecentPlacesInBackground = async (limit: number) => {
+    try {
+      const { data } = await (supabase
         .from('recent_places') as any)
         .select('*')
-        .eq('user_id', authStore.user.id)
+        .eq('user_id', authStore.user!.id)
         .order('last_used_at', { ascending: false })
         .limit(limit)
-        .abortSignal(controller.signal)
 
-      clearTimeout(timeoutId)
-
-      if (fetchError) throw fetchError
-      recentPlaces.value = data || []
-      return data || []
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message?.includes('Failed to fetch')) {
-        console.warn('Network error or timeout fetching recent places')
-      } else {
-        console.warn('Error fetching recent places:', err.message)
+      if (data) {
+        recentPlaces.value = data
+        cacheRecentPlaces(data)
       }
-      return recentPlaces.value // Return cached value
+    } catch {
+      // Silent fail for background refresh
     }
   }
 

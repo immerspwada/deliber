@@ -18,6 +18,38 @@ const fillDemoCredentials = () => {
   error.value = ''
 }
 
+// Log admin activity
+const logAdminActivity = (action: string, details?: Record<string, any>) => {
+  const log = {
+    timestamp: new Date().toISOString(),
+    action,
+    admin: details?.email || 'unknown',
+    details,
+    userAgent: navigator.userAgent
+  }
+  const logs = JSON.parse(localStorage.getItem('admin_activity_log') || '[]')
+  logs.unshift(log)
+  if (logs.length > 100) logs.pop()
+  localStorage.setItem('admin_activity_log', JSON.stringify(logs))
+}
+
+// Demo mode login - ไม่ต้องใช้ Supabase
+const loginWithDemoMode = () => {
+  const demoAdminUser = {
+    id: 'demo-admin-001',
+    email: demoAdmin.email,
+    name: 'Demo Admin',
+    role: 'admin',
+    created_at: new Date().toISOString()
+  }
+  localStorage.setItem('admin_token', 'demo_admin_token')
+  localStorage.setItem('admin_user', JSON.stringify(demoAdminUser))
+  localStorage.setItem('admin_demo_mode', 'true')
+  localStorage.setItem('admin_login_time', Date.now().toString())
+  logAdminActivity('login', { email: demoAdmin.email, mode: 'demo' })
+  router.push('/admin/dashboard')
+}
+
 const handleLogin = async () => {
   if (!email.value || !password.value) {
     error.value = 'กรุณากรอกอีเมลและรหัสผ่าน'
@@ -26,6 +58,13 @@ const handleLogin = async () => {
   
   loading.value = true
   error.value = ''
+  
+  // Demo mode - ถ้าใช้ demo credentials ให้ login ทันทีโดยไม่ต้องเชื่อม Supabase
+  if (email.value === demoAdmin.email && password.value === demoAdmin.password) {
+    loginWithDemoMode()
+    loading.value = false
+    return
+  }
   
   try {
     // Login via Supabase auth
@@ -51,7 +90,10 @@ const handleLogin = async () => {
       if ((userData as any)?.role === 'admin') {
         localStorage.setItem('admin_token', authData.session?.access_token || 'admin_token')
         localStorage.setItem('admin_user', JSON.stringify(userData))
-        router.push('/dashboard')
+        localStorage.setItem('admin_login_time', Date.now().toString())
+        localStorage.removeItem('admin_demo_mode')
+        logAdminActivity('login', { email: email.value, mode: 'supabase' })
+        router.push('/admin/dashboard')
       } else {
         error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin'
         await supabase.auth.signOut()
@@ -64,7 +106,10 @@ const handleLogin = async () => {
   }
 }
 
-const goToUserApp = () => router.push('/login')
+const goToUserApp = () => {
+  // Navigate to main user app (index.html)
+  window.location.href = '/'
+}
 </script>
 
 <template>

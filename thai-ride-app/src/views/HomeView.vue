@@ -25,12 +25,9 @@ onMounted(() => {
   updateTime()
   setInterval(updateTime, 60000)
   
-  setTimeout(() => isLoaded.value = true, 100)
-  
-  // Simulate loading data
-  setTimeout(() => {
-    loading.value = false
-  }, 800)
+  // Show content immediately - no artificial delay
+  isLoaded.value = true
+  loading.value = false
 })
 
 const navigateTo = (path: string) => {
@@ -53,7 +50,7 @@ const recentTrips = [
             <p class="greeting-label">{{ greeting }}</p>
             <h1 class="user-name">{{ authStore.user?.name || 'ผู้ใช้' }}</h1>
           </div>
-          <button class="notification-btn" @click="navigateTo('/notifications')">
+          <button class="notification-btn" @click="navigateTo('/customer/notifications')">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
             </svg>
@@ -62,7 +59,7 @@ const recentTrips = [
         </div>
 
         <!-- Main Search -->
-        <button class="search-card" @click="navigateTo('/services')">
+        <button class="search-card" @click="navigateTo('/customer/services')">
           <div class="search-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -84,7 +81,7 @@ const recentTrips = [
       <section class="services-section">
         <SkeletonLoader v-if="loading" type="services" />
         <div v-else class="services-grid">
-          <button class="service-card" @click="navigateTo('/services')">
+          <button class="service-card" @click="navigateTo('/customer/services')">
             <div class="service-icon-wrapper">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"/>
@@ -96,7 +93,7 @@ const recentTrips = [
             </div>
           </button>
 
-          <button class="service-card" @click="navigateTo('/delivery')">
+          <button class="service-card" @click="navigateTo('/customer/delivery')">
             <div class="service-icon-wrapper">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
@@ -108,7 +105,7 @@ const recentTrips = [
             </div>
           </button>
 
-          <button class="service-card" @click="navigateTo('/shopping')">
+          <button class="service-card" @click="navigateTo('/customer/shopping')">
             <div class="service-icon-wrapper">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
@@ -126,7 +123,7 @@ const recentTrips = [
       <section class="quick-section">
         <SkeletonLoader v-if="loading" type="quick-actions" />
         <div v-else class="quick-row">
-          <button class="quick-item" @click="navigateTo('/scheduled-rides')">
+          <button class="quick-item" @click="navigateTo('/customer/scheduled-rides')">
             <div class="quick-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -134,7 +131,7 @@ const recentTrips = [
             </div>
             <span>จองล่วงหน้า</span>
           </button>
-          <button class="quick-item" @click="navigateTo('/subscription')">
+          <button class="quick-item" @click="navigateTo('/customer/subscription')">
             <div class="quick-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
@@ -142,7 +139,7 @@ const recentTrips = [
             </div>
             <span>แพ็คเกจ</span>
           </button>
-          <button class="quick-item" @click="navigateTo('/wallet')">
+          <button class="quick-item" @click="navigateTo('/customer/wallet')">
             <div class="quick-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
@@ -150,7 +147,7 @@ const recentTrips = [
             </div>
             <span>Wallet</span>
           </button>
-          <button class="quick-item" @click="navigateTo('/promotions')">
+          <button class="quick-item" @click="navigateTo('/customer/promotions')">
             <div class="quick-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
@@ -165,7 +162,7 @@ const recentTrips = [
       <section class="more-features">
         <SkeletonLoader v-if="loading" type="more-features" />
         <div v-else class="features-row">
-          <button class="feature-item" @click="navigateTo('/insurance')">
+          <button class="feature-item" @click="navigateTo('/customer/insurance')">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -173,7 +170,7 @@ const recentTrips = [
             </div>
             <span>ประกันภัย</span>
           </button>
-          <button class="feature-item" @click="navigateTo('/favorite-drivers')">
+          <button class="feature-item" @click="navigateTo('/customer/favorite-drivers')">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
@@ -181,7 +178,7 @@ const recentTrips = [
             </div>
             <span>คนขับโปรด</span>
           </button>
-          <button class="feature-item" @click="navigateTo('/saved-places')">
+          <button class="feature-item" @click="navigateTo('/customer/saved-places')">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
@@ -190,7 +187,7 @@ const recentTrips = [
             </div>
             <span>สถานที่บันทึก</span>
           </button>
-          <button class="feature-item" @click="navigateTo('/referral')">
+          <button class="feature-item" @click="navigateTo('/customer/referral')">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
@@ -204,7 +201,7 @@ const recentTrips = [
       <!-- Promo Banner -->
       <section class="promo-section">
         <SkeletonLoader v-if="loading" type="promo" />
-        <button v-else class="promo-card" @click="navigateTo('/promotions')">
+        <button v-else class="promo-card" @click="navigateTo('/customer/promotions')">
           <div class="promo-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
@@ -222,12 +219,12 @@ const recentTrips = [
       <section class="recent-section">
         <div class="section-header">
           <h2 class="section-title">การเดินทางล่าสุด</h2>
-          <button class="see-all-btn" @click="navigateTo('/history')">ดูทั้งหมด</button>
+          <button class="see-all-btn" @click="navigateTo('/customer/history')">ดูทั้งหมด</button>
         </div>
 
         <SkeletonLoader v-if="loading" type="recent-trips" :count="2" />
         <div v-else class="trips-list">
-          <button v-for="trip in recentTrips" :key="trip.id" class="trip-card" @click="navigateTo('/services')">
+          <button v-for="trip in recentTrips" :key="trip.id" class="trip-card" @click="navigateTo('/customer/services')">
             <div class="trip-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"/>

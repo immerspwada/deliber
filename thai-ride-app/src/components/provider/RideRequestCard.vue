@@ -188,7 +188,7 @@ const rideTypeLabel = (type: string) => {
 .request-fare {
   font-size: 24px;
   font-weight: 700;
-  color: #276EF1;
+  color: #000000;
 }
 
 /* Passenger */
@@ -255,7 +255,7 @@ const rideTypeLabel = (type: string) => {
 }
 
 .route-dot.pickup {
-  background: #276EF1;
+  background: #22C55E;
 }
 
 .route-dot.destination {

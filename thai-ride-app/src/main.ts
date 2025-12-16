@@ -63,31 +63,94 @@ const getSessionWithTimeout = async (timeoutMs: number = 2000) => {
   }
 }
 
-// Navigation guard - ตรวจสอบ authentication
-router.beforeEach(async (to, _from, next) => {
-  const isAdminRoute = to.path.startsWith('/admin')
-  const requiresAdminAuth = to.meta.requiresAdminAuth
+// Admin session expiry check (8 hours)
+const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000 // 8 hours in ms
+
+const isAdminSessionValid = (): boolean => {
   const adminToken = localStorage.getItem('admin_token')
+  
+  // No token = not logged in
+  if (!adminToken) {
+    console.log('[Admin] No token found')
+    return false
+  }
+  
+  // Check session expiry if login time exists
+  const loginTime = localStorage.getItem('admin_login_time')
+  if (loginTime) {
+    const elapsed = Date.now() - parseInt(loginTime, 10)
+    if (elapsed > ADMIN_SESSION_TTL) {
+      // Session expired - clear admin data
+      localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_user')
+      localStorage.removeItem('admin_login_time')
+      localStorage.removeItem('admin_demo_mode')
+      console.warn('[Admin] Session expired after', Math.round(elapsed / 1000 / 60), 'minutes')
+      return false
+    }
+  }
+  
+  // Token exists and not expired
+  console.log('[Admin] Session valid')
+  return true
+}
+
+// Admin activity log - บันทึกการเข้าใช้งาน
+const logAdminActivity = (action: string, details?: Record<string, any>) => {
+  const adminUser = localStorage.getItem('admin_user')
+  const log = {
+    timestamp: new Date().toISOString(),
+    action,
+    admin: adminUser ? JSON.parse(adminUser).email : 'unknown',
+    details,
+    userAgent: navigator.userAgent
+  }
+  
+  // Store in localStorage (last 100 entries)
+  const logs = JSON.parse(localStorage.getItem('admin_activity_log') || '[]')
+  logs.unshift(log)
+  if (logs.length > 100) logs.pop()
+  localStorage.setItem('admin_activity_log', JSON.stringify(logs))
+  
+  // Also log to console for debugging
+  console.log('[Admin Activity]', action, details || '')
+}
+
+// Navigation guard - ตรวจสอบ authentication
+router.beforeEach(async (to, from, next) => {
+  const isAdminRoute = to.path.startsWith('/admin')
+  const requiresAdmin = to.meta.requiresAdmin
 
   // Admin routes - ใช้ admin auth แยก
   if (isAdminRoute) {
-    if (requiresAdminAuth && !adminToken) {
+    const isValidSession = isAdminSessionValid()
+    
+    // ถ้าเป็น route ที่ต้องการ admin auth และ session ไม่ valid
+    if (requiresAdmin && !isValidSession) {
       next('/admin/login')
-    } else if (to.path === '/admin/login' && adminToken) {
-      next('/admin')
-    } else {
-      next()
+      return
     }
+    // ถ้าอยู่หน้า login แต่มี valid session แล้ว ให้ไป dashboard
+    if (to.path === '/admin/login' && isValidSession) {
+      next('/admin/dashboard')
+      return
+    }
+    // Log admin navigation
+    if (isValidSession && to.path !== from.path) {
+      logAdminActivity('navigate', { from: from.path, to: to.path })
+    }
+    next()
     return
   }
 
   // User routes - ใช้ user auth
   const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+  const isPublicRoute = to.meta.public
+  const requiresAuth = to.meta.requiresAuth
   
   // Fast path for demo mode - no async needed
   if (isDemoMode) {
     const role = getUserRole()
-    const isPublicRoute = to.meta.public
     
     if (isPublicRoute && (to.path === '/login' || to.path === '/register')) {
       if (role === 'rider' || role === 'driver') {
@@ -107,16 +170,18 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
   
-  // Real auth path
-  const session = await getSessionWithTimeout()
+  // Fast path for public routes (login, register) - no session check needed
+  if (isPublicRoute && !requiresAuth) {
+    next()
+    return
+  }
+  
+  // Only check session for protected routes
+  const session = await getSessionWithTimeout(1500) // Reduced timeout
   const isAuthenticated = !!session
-  const requiresAuth = to.meta.requiresAuth
-  const isPublicRoute = to.meta.public
 
   if (requiresAuth && !isAuthenticated) {
     next('/login')
-  } else if (isPublicRoute && isAuthenticated && (to.path === '/login' || to.path === '/register')) {
-    next('/customer')
   } else if (to.path === '/' && isAuthenticated) {
     next('/customer')
   } else {

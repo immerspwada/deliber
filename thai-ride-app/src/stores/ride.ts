@@ -1,3 +1,21 @@
+/**
+ * useRideStore - Customer Ride Store
+ * 
+ * Feature: F02 - Ride Booking
+ * Tables: ride_requests, service_providers
+ * 
+ * @syncs-with
+ * - Admin: useAdmin.ts (ดู/จัดการออเดอร์, refund)
+ * - Provider: useProvider.ts (รับงาน/อัพเดทสถานะ)
+ * - Database: Realtime subscription on ride_requests
+ * - Notifications: Push notification เมื่อสถานะเปลี่ยน
+ * 
+ * @status-flow
+ * Customer: createRide → [pending]
+ * Provider: acceptRide → [matched] → [pickup] → [in_progress] → [completed]
+ * Customer: trackRide, rateRide
+ */
+
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'

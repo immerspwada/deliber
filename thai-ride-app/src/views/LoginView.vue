@@ -109,32 +109,38 @@ const loginWithEmail = async () => {
         created_at: new Date().toISOString()
       }))
       
-      // Re-initialize auth store with demo user
+      // Re-initialize auth store with demo user and wait for completion
       await authStore.initialize()
       
-      // Redirect based on role
-      if (demoAccount.role === 'rider' || demoAccount.role === 'driver') {
-        router.push('/provider')
-      } else if (demoAccount.role === 'admin') {
-        router.push('/admin')
-      } else {
-        router.push('/')
-      }
+      // Small delay to ensure state is fully updated
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Redirect based on role - use replace to prevent back navigation to login
+      const targetRoute = demoAccount.role === 'rider' || demoAccount.role === 'driver' 
+        ? '/provider' 
+        : demoAccount.role === 'admin' 
+          ? '/admin' 
+          : '/'
+      
+      await router.replace(targetRoute)
       return
     }
     
     // Real Supabase login
     const success = await authStore.login(email.value, password.value)
     if (success) {
-      // Redirect based on user role
+      // Small delay to ensure state is fully updated
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Redirect based on user role - use replace to prevent back navigation
       const userRole = authStore.user?.role
-      if (userRole === 'rider' || userRole === 'driver') {
-        router.push('/provider')
-      } else if (userRole === 'admin') {
-        router.push('/admin')
-      } else {
-        router.push('/')
-      }
+      const targetRoute = userRole === 'rider' || userRole === 'driver' 
+        ? '/provider' 
+        : userRole === 'admin' 
+          ? '/admin' 
+          : '/'
+      
+      await router.replace(targetRoute)
     } else {
       error.value = authStore.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
     }

@@ -1,9 +1,21 @@
 /**
+ * usePushNotifications - Web Push Notifications Composable
+ *
  * Feature: F07 - Push Notifications
  * Tables: push_subscriptions, push_notification_queue
  * Migration: 015_push_notifications.sql
- * 
- * Composable for managing Web Push notifications with VAPID
+ *
+ * @syncs-with
+ * - Admin: useAdmin.ts (ส่ง push notification แบบ broadcast)
+ * - Provider: useProvider.ts (รับ push เมื่อมีงานใหม่)
+ * - Customer: stores/ride.ts (รับ push เมื่อสถานะเปลี่ยน)
+ * - Database: push_notification_queue → Edge Function → Web Push
+ *
+ * @push-events
+ * - new_ride_request: งานใหม่สำหรับ Provider
+ * - ride_status_update: สถานะเปลี่ยนสำหรับ Customer
+ * - new_promo: โปรโมชั่นใหม่
+ * - system_announcement: ประกาศจากระบบ
  */
 
 import { ref, computed } from 'vue'

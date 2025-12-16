@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import './style.css'
 import AdminApp from './AdminApp.vue'
 import type { RouteRecordRaw } from 'vue-router'
@@ -87,12 +87,24 @@ const adminRoutes: RouteRecordRaw[] = [
     name: 'AdminNotifications',
     component: () => import('./views/AdminNotificationsView.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/withdrawals',
+    name: 'AdminWithdrawals',
+    component: () => import('./views/AdminWithdrawalsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/audit-log',
+    name: 'AdminAuditLog',
+    component: () => import('./views/AdminAuditLogView.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
-// Create router for admin
+// Create router for admin - use hash history for multi-page app
 const router = createRouter({
-  history: createWebHistory('/admin.html'),
+  history: createWebHashHistory(),
   routes: adminRoutes
 })
 

@@ -1,3 +1,23 @@
+/**
+ * useNotifications - In-App Notifications Composable
+ *
+ * Feature: F07 - Notifications
+ * Tables: user_notifications
+ *
+ * @syncs-with
+ * - Admin: useAdmin.ts (ส่ง notification ถึง users)
+ * - Provider: useProvider.ts (รับแจ้งเตือนงานใหม่/ยกเลิก)
+ * - Customer: stores/ride.ts (รับแจ้งเตือนสถานะ)
+ * - Database: Realtime subscription on user_notifications
+ *
+ * @notification-types
+ * - promo: โปรโมชั่นใหม่
+ * - ride/delivery/shopping: สถานะออเดอร์
+ * - payment: การชำระเงิน/คืนเงิน
+ * - system: ประกาศจากระบบ
+ * - rating: แจ้งเตือนให้คะแนน
+ */
+
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'

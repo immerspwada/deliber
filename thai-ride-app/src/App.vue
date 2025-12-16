@@ -4,6 +4,8 @@ import { RouterView, useRoute } from 'vue-router'
 import AppShell from './components/AppShell.vue'
 import PWAInstallBanner from './components/PWAInstallBanner.vue'
 import ToastContainer from './components/ToastContainer.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
+import OfflineIndicator from './components/OfflineIndicator.vue'
 import { useAuthStore } from './stores/auth'
 import { useRideStore } from './stores/ride'
 
@@ -26,11 +28,43 @@ onErrorCaptured((err) => {
 
 // Initialize auth and restore active ride on app mount
 onMounted(async () => {
-  // Set timeout to prevent infinite loading
+  // Check demo mode first - instant ready
+  const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+  
+  if (isDemoMode) {
+    // Demo mode - initialize and show app immediately
+    try {
+      await authStore.initialize()
+    } catch (err) {
+      console.warn('[Demo Init]', err)
+    }
+    isReady.value = true
+    
+    // Initialize ride store in background if user exists
+    if (authStore.user?.id) {
+      rideStore.initialize(authStore.user.id).catch((err) => {
+        console.warn('[Ride Init]', err)
+      })
+    }
+    return
+  }
+
+  // Check if user has any stored session before waiting
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0] || ''
+  const hasStoredSession = localStorage.getItem(`sb-${projectRef}-auth-token`)
+  
+  if (!hasStoredSession) {
+    // No stored session - show app immediately (user is not logged in)
+    isReady.value = true
+    return
+  }
+
+  // Has stored session - initialize with short timeout
   const timeout = setTimeout(() => {
     console.warn('[App] Init timeout - showing app anyway')
     isReady.value = true
-  }, 3000)
+  }, 1000) // Short timeout for session verification
 
   try {
     await authStore.initialize()
@@ -64,13 +98,16 @@ onMounted(async () => {
       <div class="loading-spinner"></div>
     </div>
     
-    <!-- Main App -->
-    <template v-else>
+    <!-- Offline Indicator -->
+    <OfflineIndicator />
+    
+    <!-- Main App with Error Boundary -->
+    <ErrorBoundary v-if="isReady" @error="(err) => console.error('[ErrorBoundary]', err)">
       <AppShell v-if="!hideNavigation">
         <RouterView />
       </AppShell>
       <RouterView v-else />
-    </template>
+    </ErrorBoundary>
     
     <!-- PWA Install Banner - only show on user app -->
     <PWAInstallBanner v-if="!isAdminRoute && isReady" />

@@ -1,3 +1,21 @@
+/**
+ * useDelivery - Customer Delivery Composable
+ * 
+ * Feature: F03 - Delivery Service
+ * Tables: delivery_requests, service_providers
+ * 
+ * @syncs-with
+ * - Admin: useAdmin.ts (ดู/จัดการออเดอร์, refund)
+ * - Provider: useProvider.ts (รับงาน/อัพเดทสถานะ)
+ * - Database: Realtime subscription on delivery_requests
+ * - Notifications: Push notification เมื่อสถานะเปลี่ยน
+ * 
+ * @status-flow
+ * Customer: createDelivery → [pending]
+ * Provider: accept → [accepted] → [picking_up] → [picked_up] → [delivering] → [delivered]
+ * Customer: trackDelivery, rateDelivery
+ */
+
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'

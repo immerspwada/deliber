@@ -6,6 +6,7 @@ import ChatModal from '../components/ChatModal.vue'
 import SafetyModal from '../components/SafetyModal.vue'
 import FareSplitModal from '../components/FareSplitModal.vue'
 import VoiceCallModal from '../components/VoiceCallModal.vue'
+import LocationPermissionModal from '../components/LocationPermissionModal.vue'
 import RideInputStep from '../components/ride/RideInputStep.vue'
 import VehicleSelectStep from '../components/ride/VehicleSelectStep.vue'
 import SearchingStep from '../components/ride/SearchingStep.vue'
@@ -40,7 +41,11 @@ interface RideSubscription {
 
 const router = useRouter()
 const rideStore = useRideStore()
-const { reverseGeocode, getCurrentPosition } = useLocation()
+const { reverseGeocode, getCurrentPosition, shouldShowPermissionModal } = useLocation()
+
+// Location permission modal
+const showLocationPermission = ref(false)
+const pendingLocationAction = ref<'gps' | null>(null)
 const {
   recentPlaces,
   currentDriver,
@@ -150,13 +155,10 @@ onMounted(async () => {
     pickup.value = DEFAULT_LOCATION.address
   }
 
-  // Fetch places in background (non-blocking)
-  Promise.all([
-    fetchSavedPlaces().catch(() => []),
-    fetchRecentPlaces().catch(() => [])
-  ]).catch(() => {
-    console.warn('Error fetching places - continuing with defaults')
-  })
+  // Fetch places in background (non-blocking) - use cached data first
+  // These functions already have deduplication and caching built-in
+  fetchSavedPlaces().catch(() => [])
+  fetchRecentPlaces().catch(() => [])
 
   // Restore active ride from database if exists
   if (rideStore.currentRide) {
@@ -249,8 +251,13 @@ const onLocationDetected = async (location: { lat: number; lng: number }) => {
     }
     pickup.value = formattedAddress
   } catch {
-    // Fallback to coordinates if geocoding fails
-    pickup.value = `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+    // Fallback to generic text if geocoding fails (don't show coordinates)
+    pickup.value = 'ตำแหน่งปัจจุบัน'
+    pickupLocation.value = {
+      lat: location.lat,
+      lng: location.lng,
+      address: 'ตำแหน่งปัจจุบัน'
+    }
   }
 }
 
@@ -281,11 +288,24 @@ const formatThaiAddress = (fullAddress: string): string => {
 
 // GPS button handler - get current location with real address
 const centerOnCurrentLocation = async () => {
+  // Check if we should show permission modal first
+  const shouldShow = await shouldShowPermissionModal()
+  if (shouldShow) {
+    pendingLocationAction.value = 'gps'
+    showLocationPermission.value = true
+    return
+  }
+
+  await executeGetCurrentLocation()
+}
+
+// Execute GPS location fetch
+const executeGetCurrentLocation = async () => {
   loading.value = true
   pickup.value = 'กำลังค้นหาตำแหน่ง...'
   
   try {
-    // Use the composable to get position with proper error handling
+    // Use the composable with retry mechanism
     const location = await getCurrentPosition()
     
     pickupLocation.value = {
@@ -304,6 +324,20 @@ const centerOnCurrentLocation = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// Handle permission modal responses
+const handleLocationPermissionAllow = async () => {
+  showLocationPermission.value = false
+  if (pendingLocationAction.value === 'gps') {
+    await executeGetCurrentLocation()
+  }
+  pendingLocationAction.value = null
+}
+
+const handleLocationPermissionDeny = () => {
+  showLocationPermission.value = false
+  pendingLocationAction.value = null
 }
 
 // Route calculation handler
@@ -759,6 +793,13 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
       :final-price="finalPrice"
       @close="showRating = false"
       @submit="handleRatingSubmit"
+    />
+
+    <!-- Location Permission Modal -->
+    <LocationPermissionModal
+      :show="showLocationPermission"
+      @allow="handleLocationPermissionAllow"
+      @deny="handleLocationPermissionDeny"
     />
   </div>
 </template>

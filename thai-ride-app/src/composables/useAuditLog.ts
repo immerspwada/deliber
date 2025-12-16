@@ -1,0 +1,294 @@
+/**
+ * useAuditLog - Status Change Audit Log Composable
+ *
+ * Feature: F30 - Status Change Audit Log
+ * Tables: status_audit_log
+ *
+ * @syncs-with
+ * - Admin: useAdmin.ts (ดู audit trail ทั้งหมด)
+ * - Provider: useProvider.ts (ดู audit trail ของงานตัวเอง)
+ * - Customer: stores/ride.ts, useDelivery.ts, useShopping.ts (ดู audit trail ของออเดอร์ตัวเอง)
+ * - Database: Auto-triggered on status changes via triggers
+ *
+ * @auto-logged-entities
+ * - ride_requests: pending → matched → pickup → in_progress → completed/cancelled
+ * - delivery_requests: pending → accepted → picking_up → picked_up → delivering → delivered/cancelled
+ * - shopping_requests: pending → accepted → shopping → purchased → delivering → delivered/cancelled
+ * - provider_withdrawals: pending → approved/rejected → completed
+ */
+
+import { ref } from 'vue'
+import { supabase } from '../lib/supabase'
+
+export interface AuditLogEntry {
+  id: string
+  entity_type: 'ride' | 'delivery' | 'shopping' | 'provider' | 'user' | 'withdrawal' | 'support_ticket'
+  entity_id: string
+  tracking_id: string | null
+  old_status: string | null
+  new_status: string
+  changed_by: string | null
+  changed_by_role: 'customer' | 'provider' | 'admin' | 'system'
+  changed_by_name: string | null
+  reason: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface StatusChangeStats {
+  entity_type: string
+  status: string
+  change_count: number
+  by_customer: number
+  by_provider: number
+  by_admin: number
+  by_system: number
+}
+
+export function useAuditLog() {
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const auditLogs = ref<AuditLogEntry[]>([])
+  const stats = ref<StatusChangeStats[]>([])
+
+  // Check if demo mode
+  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+
+  // Generate demo audit logs
+  const generateDemoLogs = (): AuditLogEntry[] => {
+    const entityTypes: AuditLogEntry['entity_type'][] = ['ride', 'delivery', 'shopping']
+    const statuses = {
+      ride: ['pending', 'matched', 'pickup', 'in_progress', 'completed'],
+      delivery: ['pending', 'accepted', 'picking_up', 'picked_up', 'delivering', 'delivered'],
+      shopping: ['pending', 'accepted', 'shopping', 'purchased', 'delivering', 'delivered']
+    }
+    const roles: AuditLogEntry['changed_by_role'][] = ['customer', 'provider', 'admin', 'system']
+    const names = ['คุณสมชาย', 'คุณสมหญิง', 'Admin', 'System']
+
+    const logs: AuditLogEntry[] = []
+    const now = new Date()
+
+    for (let i = 0; i < 30; i++) {
+      const entityType = entityTypes[Math.floor(Math.random() * entityTypes.length)]!
+      const statusList = statuses[entityType as keyof typeof statuses]
+      const statusIdx = Math.floor(Math.random() * (statusList.length - 1))
+      const roleIdx = Math.floor(Math.random() * roles.length)
+
+      logs.push({
+        id: `demo-audit-${i}`,
+        entity_type: entityType,
+        entity_id: `demo-entity-${i}`,
+        tracking_id: `${entityType.toUpperCase().slice(0, 3)}-${Date.now()}-${i}`,
+        old_status: statusList[statusIdx] || null,
+        new_status: statusList[statusIdx + 1] || 'completed',
+        changed_by: `demo-user-${roleIdx}`,
+        changed_by_role: roles[roleIdx]!,
+        changed_by_name: names[roleIdx] || 'Unknown',
+        reason: null,
+        metadata: {},
+        created_at: new Date(now.getTime() - i * 1000 * 60 * 5).toISOString()
+      })
+    }
+
+    return logs
+  }
+
+  // Fetch recent audit logs
+  const fetchRecentLogs = async (limit = 50, entityType?: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      if (isDemoMode()) {
+        let logs = generateDemoLogs()
+        if (entityType) {
+          logs = logs.filter(l => l.entity_type === entityType)
+        }
+        auditLogs.value = logs.slice(0, limit)
+        return auditLogs.value
+      }
+
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_recent_status_changes', {
+        p_limit: limit,
+        p_entity_type: entityType || null
+      })
+
+      if (fetchError) throw fetchError
+
+      auditLogs.value = data || []
+      return auditLogs.value
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Unknown error'
+      return []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Fetch audit trail for specific entity
+  const fetchEntityAuditTrail = async (entityType: string, entityId: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      if (isDemoMode()) {
+        // Generate demo trail for entity
+        const statuses = {
+          ride: ['pending', 'matched', 'pickup', 'in_progress', 'completed'],
+          delivery: ['pending', 'accepted', 'picking_up', 'picked_up', 'delivering', 'delivered'],
+          shopping: ['pending', 'accepted', 'shopping', 'purchased', 'delivering', 'delivered']
+        }
+        const statusList = statuses[entityType as keyof typeof statuses] || ['pending', 'completed']
+        const trail: AuditLogEntry[] = []
+        const now = new Date()
+
+        for (let i = 0; i < statusList.length - 1; i++) {
+          trail.push({
+            id: `demo-trail-${i}`,
+            entity_type: entityType as AuditLogEntry['entity_type'],
+            entity_id: entityId,
+            tracking_id: null,
+            old_status: statusList[i] || null,
+            new_status: statusList[i + 1] || 'completed',
+            changed_by: `demo-user-${i}`,
+            changed_by_role: i === 0 ? 'customer' : 'provider',
+            changed_by_name: i === 0 ? 'ลูกค้า' : 'คนขับ',
+            reason: null,
+            metadata: {},
+            created_at: new Date(now.getTime() - (statusList.length - i) * 1000 * 60 * 10).toISOString()
+          })
+        }
+
+        return trail
+      }
+
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_entity_audit_trail', {
+        p_entity_type: entityType,
+        p_entity_id: entityId
+      })
+
+      if (fetchError) throw fetchError
+
+      return data || []
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Unknown error'
+      return []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Fetch status change statistics
+  const fetchStats = async (startDate?: Date, endDate?: Date) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      if (isDemoMode()) {
+        stats.value = [
+          { entity_type: 'ride', status: 'completed', change_count: 156, by_customer: 0, by_provider: 156, by_admin: 0, by_system: 0 },
+          { entity_type: 'ride', status: 'matched', change_count: 162, by_customer: 0, by_provider: 162, by_admin: 0, by_system: 0 },
+          { entity_type: 'ride', status: 'cancelled', change_count: 12, by_customer: 8, by_provider: 2, by_admin: 2, by_system: 0 },
+          { entity_type: 'delivery', status: 'delivered', change_count: 89, by_customer: 0, by_provider: 89, by_admin: 0, by_system: 0 },
+          { entity_type: 'delivery', status: 'cancelled', change_count: 5, by_customer: 3, by_provider: 1, by_admin: 1, by_system: 0 },
+          { entity_type: 'shopping', status: 'delivered', change_count: 45, by_customer: 0, by_provider: 45, by_admin: 0, by_system: 0 }
+        ]
+        return stats.value
+      }
+
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_status_change_stats', {
+        p_start_date: startDate?.toISOString() || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        p_end_date: endDate?.toISOString() || new Date().toISOString()
+      })
+
+      if (fetchError) throw fetchError
+
+      stats.value = data || []
+      return stats.value
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Unknown error'
+      return []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Manual log (for admin actions)
+  const logStatusChange = async (
+    entityType: string,
+    entityId: string,
+    oldStatus: string | null,
+    newStatus: string,
+    reason?: string,
+    metadata?: Record<string, unknown>
+  ) => {
+    if (isDemoMode()) {
+      console.log('Demo: Status change logged', { entityType, entityId, oldStatus, newStatus })
+      return true
+    }
+
+    try {
+      const { error: logError } = await (supabase.rpc as any)('log_status_change', {
+        p_entity_type: entityType,
+        p_entity_id: entityId,
+        p_old_status: oldStatus,
+        p_new_status: newStatus,
+        p_changed_by_role: 'admin',
+        p_reason: reason || null,
+        p_metadata: metadata || {}
+      })
+
+      if (logError) throw logError
+      return true
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Unknown error'
+      return false
+    }
+  }
+
+  // Get status label in Thai
+  const getStatusLabel = (status: string): string => {
+    const labels: Record<string, string> = {
+      pending: 'รอดำเนินการ',
+      matched: 'จับคู่แล้ว',
+      pickup: 'กำลังไปรับ',
+      in_progress: 'กำลังเดินทาง',
+      completed: 'เสร็จสิ้น',
+      cancelled: 'ยกเลิก',
+      accepted: 'รับงานแล้ว',
+      picking_up: 'กำลังไปรับของ',
+      picked_up: 'รับของแล้ว',
+      delivering: 'กำลังจัดส่ง',
+      delivered: 'จัดส่งแล้ว',
+      shopping: 'กำลังซื้อของ',
+      purchased: 'ซื้อของแล้ว',
+      approved: 'อนุมัติแล้ว',
+      rejected: 'ปฏิเสธ'
+    }
+    return labels[status] || status
+  }
+
+  // Get role label in Thai
+  const getRoleLabel = (role: string): string => {
+    const labels: Record<string, string> = {
+      customer: 'ลูกค้า',
+      provider: 'ผู้ให้บริการ',
+      admin: 'แอดมิน',
+      system: 'ระบบ'
+    }
+    return labels[role] || role
+  }
+
+  return {
+    loading,
+    error,
+    auditLogs,
+    stats,
+    fetchRecentLogs,
+    fetchEntityAuditTrail,
+    fetchStats,
+    logStatusChange,
+    getStatusLabel,
+    getRoleLabel
+  }
+}

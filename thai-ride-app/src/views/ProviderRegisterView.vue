@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useImageUtils } from '../composables/useImageUtils'
 import { supabase } from '../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { validateThaiID, performOCR, compressImage } = useImageUtils()
 
 const isLoading = ref(false)
 const error = ref('')
@@ -22,6 +24,16 @@ const licensePlate = ref('')
 const licenseNumber = ref('')
 const licenseExpiry = ref('')
 const acceptTerms = ref(false)
+
+// Thai ID validation
+const nationalId = ref('')
+const nationalIdError = ref('')
+const nationalIdValid = ref(false)
+
+// OCR processing
+const ocrProgress = ref(0)
+const ocrStatus = ref('')
+const isProcessingOCR = ref(false)
 
 // Document uploads
 const idCardFile = ref<File | null>(null)
@@ -47,6 +59,44 @@ const vehicleOptions = {
 
 const currentVehicleOptions = computed(() => vehicleOptions[selectedType.value])
 
+// Real-time Thai ID validation
+watch(nationalId, (value) => {
+  // Remove non-digits
+  const cleaned = value.replace(/\D/g, '')
+  if (cleaned !== value) {
+    nationalId.value = cleaned
+    return
+  }
+  
+  if (cleaned.length === 0) {
+    nationalIdError.value = ''
+    nationalIdValid.value = false
+  } else if (cleaned.length < 13) {
+    nationalIdError.value = `กรอกอีก ${13 - cleaned.length} หลัก`
+    nationalIdValid.value = false
+  } else if (cleaned.length === 13) {
+    if (validateThaiID(cleaned)) {
+      nationalIdError.value = ''
+      nationalIdValid.value = true
+    } else {
+      nationalIdError.value = 'เลขบัตรประชาชนไม่ถูกต้อง'
+      nationalIdValid.value = false
+    }
+  } else {
+    nationalId.value = cleaned.slice(0, 13)
+  }
+})
+
+// Format Thai ID for display (x-xxxx-xxxxx-xx-x)
+const formattedNationalId = computed(() => {
+  const id = nationalId.value
+  if (id.length <= 1) return id
+  if (id.length <= 5) return `${id.slice(0, 1)}-${id.slice(1)}`
+  if (id.length <= 10) return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5)}`
+  if (id.length <= 12) return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10)}`
+  return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10, 12)}-${id.slice(12)}`
+})
+
 // Validations
 const canProceedStep1 = computed(() => !!selectedType.value)
 
@@ -59,7 +109,8 @@ const canProceedStep2 = computed(() =>
 
 const canProceedStep3 = computed(() => 
   licenseNumber.value.trim().length >= 6 &&
-  licenseExpiry.value
+  licenseExpiry.value &&
+  nationalIdValid.value
 )
 
 const canSubmit = computed(() => 
@@ -122,7 +173,7 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<File
   })
 }
 
-// File handling with compression
+// File handling with compression and OCR
 const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -142,8 +193,12 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
   
   try {
     // Compress image
+    ocrStatus.value = 'กำลังบีบอัดรูปภาพ...'
+    ocrProgress.value = 10
     const compressedFile = await compressImage(file)
+    ocrProgress.value = 30
     
+    // Set preview
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
@@ -159,9 +214,57 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
       }
     }
     reader.readAsDataURL(compressedFile)
+    
+    // Perform OCR for ID card and license
+    if (type === 'idCard' || type === 'license') {
+      isProcessingOCR.value = true
+      ocrStatus.value = 'กำลังอ่านข้อมูลจากเอกสาร...'
+      ocrProgress.value = 50
+      
+      try {
+        const ocrResult = await performOCR(compressedFile, type === 'idCard' ? 'id_card' : 'license')
+        ocrProgress.value = 90
+        
+        if (ocrResult.success && ocrResult.data) {
+          // Auto-fill data from OCR
+          if (type === 'idCard' && ocrResult.data.idNumber) {
+            nationalId.value = ocrResult.data.idNumber
+            ocrStatus.value = 'อ่านเลขบัตรประชาชนสำเร็จ'
+          }
+          if (type === 'license') {
+            if (ocrResult.data.licenseNumber) {
+              licenseNumber.value = ocrResult.data.licenseNumber
+            }
+            if (ocrResult.data.expiryDate) {
+              // Convert DD/MM/YYYY to YYYY-MM-DD for date input
+              const parts = ocrResult.data.expiryDate.split('/')
+              if (parts.length === 3) {
+                const year = parseInt(parts[2] || '0')
+                // Convert Buddhist year to Christian year if needed
+                const christianYear = year > 2500 ? year - 543 : year
+                licenseExpiry.value = `${christianYear}-${parts[1]?.padStart(2, '0')}-${parts[0]?.padStart(2, '0')}`
+              }
+            }
+            ocrStatus.value = 'อ่านข้อมูลใบขับขี่สำเร็จ'
+          }
+        }
+      } catch (ocrErr) {
+        console.warn('OCR failed:', ocrErr)
+        ocrStatus.value = 'ไม่สามารถอ่านข้อมูลได้ กรุณากรอกเอง'
+      }
+      
+      ocrProgress.value = 100
+      setTimeout(() => {
+        isProcessingOCR.value = false
+        ocrProgress.value = 0
+        ocrStatus.value = ''
+      }, 2000)
+    }
   } catch (err) {
-    console.error('Compression error:', err)
+    console.error('Processing error:', err)
     error.value = 'ไม่สามารถประมวลผลรูปภาพได้'
+    isProcessingOCR.value = false
+    ocrProgress.value = 0
   }
 }
 
@@ -457,16 +560,48 @@ onMounted(() => {
 
       <!-- Step 3: License Info -->
       <div v-if="step === 3" class="step-content">
-        <h2 class="step-title">ใบอนุญาตขับขี่</h2>
-        <p class="step-desc">กรอกข้อมูลใบขับขี่</p>
+        <h2 class="step-title">ข้อมูลส่วนตัวและใบขับขี่</h2>
+        <p class="step-desc">กรอกข้อมูลเพื่อยืนยันตัวตน</p>
+
+        <!-- Thai National ID -->
+        <div class="form-group">
+          <label class="label">เลขบัตรประชาชน 13 หลัก</label>
+          <div class="id-input-wrapper">
+            <input 
+              v-model="nationalId" 
+              type="text" 
+              inputmode="numeric"
+              maxlength="13"
+              placeholder="x-xxxx-xxxxx-xx-x" 
+              :class="['input-field', { 
+                'input-valid': nationalIdValid, 
+                'input-error': nationalIdError && nationalId.length > 0 
+              }]" 
+            />
+            <div v-if="nationalIdValid" class="input-icon valid">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            </div>
+            <div v-else-if="nationalIdError && nationalId.length > 0" class="input-icon error">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
+              </svg>
+            </div>
+          </div>
+          <span v-if="nationalId.length > 0" :class="['field-hint', { 'hint-error': nationalIdError, 'hint-valid': nationalIdValid }]">
+            {{ nationalIdError || (nationalIdValid ? 'เลขบัตรถูกต้อง' : '') }}
+          </span>
+          <span class="field-format">{{ formattedNationalId }}</span>
+        </div>
 
         <div class="form-group">
-          <label class="label">เลขที่ใบอนุญาต</label>
+          <label class="label">เลขที่ใบอนุญาตขับขี่</label>
           <input v-model="licenseNumber" type="text" placeholder="12345678" class="input-field" />
         </div>
 
         <div class="form-group">
-          <label class="label">วันหมดอายุ</label>
+          <label class="label">วันหมดอายุใบขับขี่</label>
           <input v-model="licenseExpiry" type="date" class="input-field" />
         </div>
 
@@ -481,9 +616,22 @@ onMounted(() => {
         <h2 class="step-title">อัพโหลดเอกสาร</h2>
         <p class="step-desc">อัพโหลดรูปเอกสารเพื่อยืนยันตัวตน</p>
 
+        <!-- OCR Progress -->
+        <div v-if="isProcessingOCR" class="ocr-progress-card">
+          <div class="ocr-progress-header">
+            <div class="ocr-spinner"></div>
+            <span>{{ ocrStatus }}</span>
+          </div>
+          <div class="ocr-progress-bar">
+            <div class="ocr-progress-fill" :style="{ width: `${ocrProgress}%` }"></div>
+          </div>
+          <span class="ocr-progress-text">{{ ocrProgress }}%</span>
+        </div>
+
         <!-- ID Card Upload -->
         <div class="upload-group">
           <label class="label">รูปบัตรประชาชน</label>
+          <p class="upload-desc">ระบบจะอ่านเลขบัตรประชาชนอัตโนมัติ</p>
           <div v-if="!idCardPreview" class="upload-box" @click="($refs.idCardInput as HTMLInputElement).click()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>
@@ -1139,5 +1287,123 @@ onMounted(() => {
   .form-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* Thai ID Input */
+.id-input-wrapper {
+  position: relative;
+}
+
+.id-input-wrapper .input-field {
+  padding-right: 44px;
+}
+
+.input-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+}
+
+.input-icon.valid {
+  color: #05944F;
+}
+
+.input-icon.error {
+  color: #E11900;
+}
+
+.input-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.input-field.input-valid {
+  border-color: #05944F;
+}
+
+.input-field.input-error {
+  border-color: #E11900;
+}
+
+.field-hint {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+  color: #6B6B6B;
+}
+
+.field-hint.hint-error {
+  color: #E11900;
+}
+
+.field-hint.hint-valid {
+  color: #05944F;
+}
+
+.field-format {
+  display: block;
+  font-size: 13px;
+  color: #999;
+  margin-top: 4px;
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+
+/* OCR Progress */
+.ocr-progress-card {
+  padding: 16px;
+  background: #F6F6F6;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.ocr-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ocr-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #E5E5E5;
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.ocr-progress-header span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ocr-progress-bar {
+  height: 6px;
+  background: #E5E5E5;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.ocr-progress-fill {
+  height: 100%;
+  background: #000;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.ocr-progress-text {
+  font-size: 12px;
+  color: #6B6B6B;
+}
+
+.upload-desc {
+  font-size: 12px;
+  color: #6B6B6B;
+  margin-bottom: 8px;
 }
 </style>

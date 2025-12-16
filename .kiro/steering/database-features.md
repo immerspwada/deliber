@@ -34,7 +34,7 @@
 | **F11** | Ride History | `useRideHistory.ts` | `ride_requests`, `ride_ratings` | 001, 002 |
 | **F12** | Chat/Messaging | `useChat.ts` | `chat_sessions`, `chat_messages` | 003 |
 | **F13** | Safety/SOS | `useSafety.ts` | `emergency_contacts`, `trip_shares`, `safety_incidents` | 003, 004 |
-| **F14** | Provider Dashboard | `useProvider.ts` | `service_providers`, `ride_requests` | 001, 006 |
+| **F14** | Provider Dashboard | `useProvider.ts` | `service_providers`, `ride_requests` | 001, 006, 019 |
 
 ### Advanced Features (F15-F22)
 
@@ -57,6 +57,20 @@
 | **F24** | Support Tickets | `useAdmin.ts` | `support_tickets`, `complaints`, `refunds` | 003 |
 | **F25** | Tracking System | `useTracking.ts` | `tracking_sequences` | 003 |
 | **F26** | Service Ratings | `useServiceRatings.ts`, `useAdmin.ts` | `delivery_ratings`, `shopping_ratings` | 008 |
+
+### Provider Features (F27-F28)
+
+| รหัส | ฟีเจอร์ | Composable | ตาราง DB | Migration |
+|------|---------|------------|----------|-----------|
+| **F27** | Provider Earnings Withdrawal | `useProviderEarnings.ts` | `provider_bank_accounts`, `provider_withdrawals` | 017 |
+| **F28** | Provider Online Hours Tracking | `useProviderEarnings.ts`, `useProvider.ts` | `provider_online_sessions`, `provider_daily_stats` | 017 |
+
+### System Features (F29+)
+
+| รหัส | ฟีเจอร์ | Composable | ตาราง DB | Migration |
+|------|---------|------------|----------|-----------|
+| **F29** | Internationalization (i18n) | `useI18n.ts` | - | - |
+| **F30** | Status Change Audit Log | `useAuditLog.ts` | `status_audit_log` | 018 |
 
 ---
 
@@ -131,6 +145,14 @@ refunds                 → F24 (Support)
 tracking_sequences      → F25 (Tracking)
 ```
 
+### ตาราง Provider Earnings (F27-F28)
+```
+provider_bank_accounts  → F27 (Withdrawal)
+provider_withdrawals    → F27 (Withdrawal)
+provider_online_sessions → F28 (Online Hours)
+provider_daily_stats    → F28 (Online Hours)
+```
+
 ### ตาราง Ratings (F26)
 ```
 ride_ratings            → F11, F26 (History, Ratings)
@@ -148,6 +170,15 @@ shopping_ratings        → F26 (Service Ratings)
 | `find_nearby_providers()` | Find drivers | F02 |
 | `get_ride_with_driver()` | Ride details | F02 |
 | `get_pending_rides_for_provider()` | Provider requests | F14 |
+| `accept_ride_request()` | Atomic ride acceptance | F14 |
+| `update_ride_status()` | Update ride status with validation | F14 |
+| `cancel_ride_by_provider()` | Provider cancels ride | F14 |
+| `set_provider_availability()` | Toggle provider online/offline | F14 |
+| `get_available_rides_for_provider()` | Get nearby pending rides | F14 |
+| `get_provider_active_ride()` | Get provider's current ride | F14 |
+| `notify_nearby_providers_new_ride()` | Push notify nearby providers | F14, F07 |
+| `log_provider_cancellation()` | Log provider cancellation | F14 |
+| `get_provider_cancellation_stats()` | Get cancellation stats | F14 |
 | `validate_promo_code()` | Promo validation | F10 |
 | `use_promo_code()` | Apply promo | F10 |
 | `ensure_user_wallet()` | Wallet init | F05 |
@@ -183,6 +214,12 @@ shopping_ratings        → F26 (Service Ratings)
 | `get_user_push_subscriptions()` | Get user's push subscriptions | F07 |
 | `queue_push_notification()` | Queue push notification | F07 |
 | `auto_queue_push_notification()` | Auto-queue on notification insert | F07 |
+| `start_provider_session()` | Start online session | F28 |
+| `end_provider_session()` | End online session | F28 |
+| `get_provider_balance()` | Get provider balance | F27 |
+| `request_withdrawal()` | Request withdrawal | F27 |
+| `get_provider_earnings_summary()` | Get earnings summary | F27, F28 |
+| `get_provider_weekly_hours()` | Get weekly online hours | F28 |
 
 ---
 
@@ -268,6 +305,11 @@ shopping_ratings        → F26 (Service Ratings)
 | `013_promo_favorites_and_category.sql` | Promo Favorites & Categories | F10 |
 | `014_promo_alerts.sql` | Promo Alerts for Favorites | F10 |
 | `015_push_notifications.sql` | Push Subscriptions & Queue | F07 |
+| `016_fix_provider_columns.sql` | Fix provider columns consistency | F14 |
+| `017_provider_earnings_withdrawal.sql` | Provider Earnings & Withdrawal | F27, F28 |
+| `018_status_audit_log.sql` | Status Change Audit Log | F30 |
+| `019_production_provider_system.sql` | Atomic ride acceptance, Provider functions | F14 |
+| `020_provider_push_and_cancellation.sql` | Provider push notifications, Cancellation tracking | F14, F07 |
 
 ---
 

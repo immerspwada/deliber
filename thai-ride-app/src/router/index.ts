@@ -207,6 +207,24 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
+    path: '/provider/vehicle',
+    name: 'ProviderVehicle',
+    component: () => import('../views/provider/ProviderVehicleView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/documents',
+    name: 'ProviderDocuments',
+    component: () => import('../views/provider/ProviderDocumentsView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/bank',
+    name: 'ProviderBank',
+    component: () => import('../views/provider/ProviderBankView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
     path: '/provider/notifications',
     name: 'ProviderNotifications',
     component: () => import('../views/NotificationsView.vue'),
@@ -223,5 +241,103 @@ export const routes: RouteRecordRaw[] = [
     name: 'ProviderHelp',
     component: () => import('../views/HelpView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+
+  // ========================================
+  // Admin Routes
+  // ========================================
+  {
+    path: '/admin/login',
+    name: 'AdminLogin',
+    component: () => import('../views/AdminLoginView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  {
+    path: '/admin',
+    redirect: '/admin/dashboard'
+  },
+  {
+    path: '/admin/dashboard',
+    name: 'AdminDashboard',
+    component: () => import('../views/AdminDashboardView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/users',
+    name: 'AdminUsers',
+    component: () => import('../views/AdminUsersView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/providers',
+    name: 'AdminProviders',
+    component: () => import('../views/AdminProvidersView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/orders',
+    name: 'AdminOrders',
+    component: () => import('../views/AdminOrdersView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/ratings',
+    name: 'AdminRatings',
+    component: () => import('../views/AdminRatingsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/notifications',
+    name: 'AdminNotifications',
+    component: () => import('../views/AdminNotificationsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/payments',
+    name: 'AdminPayments',
+    component: () => import('../views/AdminPaymentsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/withdrawals',
+    name: 'AdminWithdrawals',
+    component: () => import('../views/AdminWithdrawalsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/support',
+    name: 'AdminSupport',
+    component: () => import('../views/AdminSupportView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/promos',
+    name: 'AdminPromos',
+    component: () => import('../views/AdminPromosView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/subscriptions',
+    name: 'AdminSubscriptions',
+    component: () => import('../views/AdminSubscriptionsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/insurance',
+    name: 'AdminInsurance',
+    component: () => import('../views/AdminInsuranceView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/corporate',
+    name: 'AdminCorporate',
+    component: () => import('../views/AdminCorporateView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/audit-log',
+    name: 'AdminAuditLog',
+    component: () => import('../views/AdminAuditLogView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
   }
 ]

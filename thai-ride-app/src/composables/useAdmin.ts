@@ -1,3 +1,22 @@
+/**
+ * useAdmin - Admin Dashboard Composable
+ * 
+ * Feature: F23 - Admin Dashboard
+ * Tables: ทุกตารางในระบบ (full access)
+ * 
+ * @syncs-with
+ * - Provider: useProvider.ts (อนุมัติ/ระงับ, ดูสถานะ)
+ * - Customer: stores/ride.ts, useDelivery.ts, useShopping.ts (ดู/จัดการออเดอร์)
+ * - Database: Direct access to all tables
+ * - Notifications: ส่ง notification ถึง users/providers
+ * 
+ * @permissions
+ * - View: ดูข้อมูลทั้งหมด
+ * - Edit: แก้ไขสถานะ, อนุมัติ, ปฏิเสธ
+ * - Delete: ระงับ users/providers
+ * - Refund: คืนเงินให้ลูกค้า
+ */
+
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 
@@ -30,9 +49,35 @@ export function useAdmin() {
   const recentUsers = ref<any[]>([])
   const recentPayments = ref<any[]>([])
 
+  // Check if admin demo mode
+  const isAdminDemoMode = () => localStorage.getItem('admin_demo_mode') === 'true'
+
   // Fetch dashboard overview stats
   const fetchDashboardStats = async () => {
     loading.value = true
+    
+    // Demo mode - use mock data immediately
+    if (isAdminDemoMode()) {
+      stats.value = {
+        totalUsers: 1247,
+        totalProviders: 89,
+        totalRides: 5832,
+        totalDeliveries: 1456,
+        totalShopping: 723,
+        totalRevenue: 2847500,
+        activeRides: 23,
+        onlineProviders: 34,
+        pendingVerifications: 12,
+        openTickets: 8,
+        activeSubscriptions: 156,
+        pendingInsuranceClaims: 5,
+        scheduledRides: 18,
+        activeCompanies: 12
+      }
+      loading.value = false
+      return
+    }
+    
     try {
       // Users count
       const { count: usersCount } = await supabase
@@ -157,6 +202,12 @@ export function useAdmin() {
 
   // Fetch recent orders (all types)
   const fetchRecentOrders = async (limit = 10) => {
+    // Demo mode - use mock data
+    if (isAdminDemoMode()) {
+      recentOrders.value = generateMockOrders()
+      return
+    }
+    
     try {
       const [rides, deliveries, shopping] = await Promise.all([
         supabase.from('ride_requests').select('*, users(name)').order('created_at', { ascending: false }).limit(limit),
@@ -170,7 +221,7 @@ export function useAdmin() {
         ...(shopping.data || []).map((s: any) => ({ ...s, type: 'shopping' }))
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, limit)
 
-      recentOrders.value = allOrders
+      recentOrders.value = allOrders.length > 0 ? allOrders : generateMockOrders()
     } catch {
       // Mock data
       recentOrders.value = generateMockOrders()
@@ -1112,6 +1163,47 @@ export function useAdmin() {
     getSegmentUserCount, getUsersBySegment,
     // Push Notifications
     fetchPushSubscriptions, fetchPushQueue, fetchPushStats,
-    sendPushToUser, processPushQueue, queuePushNotification, sendBroadcastPush
+    sendPushToUser, processPushQueue, queuePushNotification, sendBroadcastPush,
+    // Provider Cancellations
+    fetchProviderCancellations, fetchProviderCancellationStats
+  }
+}
+
+// =====================================================
+// PROVIDER CANCELLATION FUNCTIONS (F14 Enhancement)
+// =====================================================
+
+// Fetch provider cancellations
+async function fetchProviderCancellations(page = 1, limit = 20, filter?: { providerId?: string; requestType?: string }) {
+  try {
+    let query = supabase.from('provider_cancellations').select(`
+      *,
+      provider:provider_id (vehicle_type, vehicle_plate, users(name)),
+      ride:ride_id (tracking_id, pickup_address)
+    `, { count: 'exact' })
+    
+    if (filter?.providerId) query = query.eq('provider_id', filter.providerId)
+    if (filter?.requestType) query = query.eq('request_type', filter.requestType)
+    
+    const { data, count } = await query
+      .range((page - 1) * limit, page * limit - 1)
+      .order('cancelled_at', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+// Fetch cancellation stats for a provider
+async function fetchProviderCancellationStats(providerId: string, days = 30) {
+  try {
+    const { data } = await (supabase.rpc as any)('get_provider_cancellation_stats', {
+      p_provider_id: providerId,
+      p_days: days
+    })
+    return data?.[0] || { total_cancellations: 0, cancellation_rate: 0, total_completed: 0, penalty_total: 0, is_flagged: false }
+  } catch {
+    return { total_cancellations: 0, cancellation_rate: 0, total_completed: 0, penalty_total: 0, is_flagged: false }
   }
 }

@@ -20,7 +20,9 @@
         "get_publishable_keys",
         "get_logs",
         "deploy_edge_function",
-        "list_migrations"
+        "list_migrations",
+        "get_advisors",
+        "list_edge_functions"
       ]
     }
   }

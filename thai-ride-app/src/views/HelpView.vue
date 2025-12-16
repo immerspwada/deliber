@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 
 const expandedFaq = ref<number | null>(null)
 
-const faqs = [
+// Check if provider route
+const isProviderRoute = computed(() => route.path.startsWith('/provider'))
+
+// Customer FAQs
+const customerFaqs = [
   {
     question: 'วิธีเรียกรถ',
     answer: 'เปิดแอป > เลือก "เรียกรถ" > ใส่จุดหมาย > เลือกประเภทรถ > กดยืนยัน'
@@ -32,6 +37,40 @@ const faqs = [
     answer: 'ตรวจสอบยอดเงินในบัญชี/บัตร หากยังมีปัญหา ติดต่อฝ่ายสนับสนุน'
   }
 ]
+
+// Provider FAQs
+const providerFaqs = [
+  {
+    question: 'วิธีเปิด/ปิดรับงาน',
+    answer: 'กดปุ่ม "ออนไลน์/ออฟไลน์" ที่หน้าหลัก เมื่อเปิดรับงานระบบจะส่งงานใหม่มาให้อัตโนมัติ'
+  },
+  {
+    question: 'วิธีรับงาน',
+    answer: 'เมื่อมีงานใหม่เข้ามา กดปุ่ม "รับงาน" ภายในเวลาที่กำหนด หากไม่กดรับ งานจะถูกส่งต่อให้คนอื่น'
+  },
+  {
+    question: 'วิธีถอนเงิน',
+    answer: 'ไปที่หน้ารายได้ > กด "ถอนเงิน" > เลือกบัญชีธนาคาร > ใส่จำนวนเงิน > ยืนยัน'
+  },
+  {
+    question: 'ขั้นต่ำการถอนเงิน',
+    answer: 'ถอนขั้นต่ำ 100 บาท ไม่มีค่าธรรมเนียม เงินจะเข้าบัญชีภายใน 1-3 วันทำการ'
+  },
+  {
+    question: 'วิธียกเลิกงาน',
+    answer: 'กดปุ่ม "ยกเลิกงาน" และเลือกเหตุผล การยกเลิกบ่อยอาจส่งผลต่อคะแนนและการรับงาน'
+  },
+  {
+    question: 'ปัญหากับผู้โดยสาร',
+    answer: 'หากมีปัญหา ให้บันทึกหลักฐานและแจ้งฝ่ายสนับสนุนทันที เราจะช่วยแก้ไขปัญหาให้'
+  },
+  {
+    question: 'อัพเดทเอกสาร',
+    answer: 'ไปที่โปรไฟล์ > เอกสาร > ติดต่อฝ่ายสนับสนุนเพื่ออัพเดทเอกสารที่หมดอายุ'
+  }
+]
+
+const faqs = computed(() => isProviderRoute.value ? providerFaqs : customerFaqs)
 
 const supportOptions = [
   { icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z', label: 'โทรหาเรา', desc: '02-xxx-xxxx', action: 'tel:021234567' },

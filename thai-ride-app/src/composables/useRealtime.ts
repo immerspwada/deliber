@@ -1,3 +1,23 @@
+/**
+ * useRealtime - Shared Realtime Composable
+ * 
+ * Feature: Cross-platform sync
+ * Tables: ride_requests, delivery_requests, shopping_requests, chat_messages, etc.
+ * 
+ * @syncs-with
+ * - Admin: ดูสถานะ real-time
+ * - Provider: รับงานใหม่, อัพเดทสถานะ
+ * - Customer: ติดตามสถานะ, รับข้อความ
+ * 
+ * @tables-with-realtime
+ * - ride_requests: Customer ↔ Provider
+ * - delivery_requests: Customer ↔ Provider
+ * - shopping_requests: Customer ↔ Provider
+ * - chat_messages: Customer ↔ Provider
+ * - user_notifications: System → User
+ * - wallet_transactions: System → User
+ */
+
 import { ref, onUnmounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
