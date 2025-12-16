@@ -84,6 +84,7 @@ saved_places            → F09 (Saved Places)
 recent_places           → F09 (Saved Places)
 promo_codes             → F10 (Promos)
 user_promo_usage        → F10 (Promos)
+favorite_promos         → F10 (Promo Favorites)
 ride_ratings            → F11 (History)
 ```
 
@@ -173,6 +174,10 @@ shopping_ratings        → F26 (Service Ratings)
 | `get_users_by_segment()` | Get users by segment for targeting | F07 |
 | `process_scheduled_notification()` | Process and send scheduled notification | F07 |
 | `get_segment_user_count()` | Get user count for segment preview | F07 |
+| `check_promo_expiry_notifications()` | Check and notify expiring promos | F10 |
+| `notify_new_promo()` | Trigger for new promo notifications | F10 |
+| `check_favorite_promo_alerts()` | Check and send favorite promo alerts | F10 |
+| `notify_promo_low_stock()` | Trigger for low stock promo alerts | F10 |
 
 ---
 
@@ -252,3 +257,6 @@ shopping_ratings        → F26 (Service Ratings)
 | `009_rating_notifications.sql` | Rating Reminder Triggers | F07, F26 |
 | `010_notification_templates.sql` | Notification Templates | F07 |
 | `011_scheduled_notifications.sql` | Scheduled Notifications & User Segmentation | F07 |
+| `012_provider_documents_storage.sql` | Provider Documents Storage | F14 |
+| `013_promo_favorites_and_category.sql` | Promo Favorites & Categories | F10 |
+| `014_promo_alerts.sql` | Promo Alerts for Favorites | F10 |

@@ -16,7 +16,9 @@
         "get_project",
         "list_extensions",
         "apply_migration",
-        "get_project_url"
+        "get_project_url",
+        "get_publishable_keys",
+        "get_logs"
       ]
     }
   }

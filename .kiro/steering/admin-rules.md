@@ -31,7 +31,7 @@ Admin มีสิทธิ์จัดการข้อมูลทั้ง�
 
 ### 5. Admin Entry Point
 - URL: `/admin/login` - หน้า Login สำหรับ Admin
-- Demo credentials: `admin@thairide.app` / `admin123`
+- Demo credentials: `admin@demo.com` / `admin1234`
 
 ---
 

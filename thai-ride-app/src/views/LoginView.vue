@@ -14,7 +14,34 @@ const password = ref('')
 const otp = ref('')
 const isOtpSent = ref(false)
 const isLoading = ref(false)
+
+const rememberMe = ref(true)
 const error = ref('')
+const showFillToast = ref(false)
+const filledAccount = ref('')
+
+// Demo accounts - login จริงผ่าน Supabase
+const demoAccounts = [
+  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer' },
+  { label: 'คนขับ', email: 'driver1@demo.com', password: 'driver1234', role: 'rider' },
+  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin' }
+]
+
+const selectDemoAccount = (account: typeof demoAccounts[0]) => {
+  email.value = account.email
+  password.value = account.password
+  loginMethod.value = 'email'
+  error.value = ''
+  
+  // Show toast feedback
+  filledAccount.value = account.label
+  showFillToast.value = true
+  setTimeout(() => {
+    showFillToast.value = false
+  }, 2000)
+}
+
+
 
 const formattedPhone = computed(() => formatThaiPhoneNumber(phone.value))
 const isPhoneValid = computed(() => validateThaiPhoneNumber(phone.value))
@@ -84,34 +111,7 @@ const loginWithEmail = async () => {
 
 const goToRegister = () => router.push('/register')
 
-const enterDemoMode = async () => {
-  isLoading.value = true
-  error.value = ''
-  
-  try {
-    // Try to login with demo customer account from database
-    const success = await authStore.login('customer@demo.com', 'password123')
-    if (success) {
-      router.push('/')
-      return
-    }
-  } catch (e) {
-    console.warn('Demo login failed, using local demo mode')
-  }
-  
-  // Fallback to local demo mode - use valid UUID from database
-  localStorage.setItem('demo_mode', 'true')
-  localStorage.setItem('demo_user', JSON.stringify({
-    id: '22222222-2222-2222-2222-222222222222',
-    email: 'customer@demo.com',
-    name: 'Customer User',
-    phone: '0812345678',
-    role: 'customer',
-    is_active: true
-  }))
-  router.push('/')
-  isLoading.value = false
-}
+
 </script>
 
 <template>
@@ -122,31 +122,6 @@ const enterDemoMode = async () => {
     </div>
 
     <div class="auth-content">
-      <!-- Demo Login Card -->
-      <div class="demo-card">
-        <div class="demo-header">
-          <svg class="demo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
-          <span>Demo Account</span>
-        </div>
-        <p class="demo-desc">ทดลองใช้งานแอปได้ทันที</p>
-        <button @click="enterDemoMode" class="demo-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-            <polyline points="10 17 15 12 10 7"/>
-            <line x1="15" y1="12" x2="3" y2="12"/>
-          </svg>
-          เข้าใช้งาน Demo
-        </button>
-      </div>
-
-      <div class="divider">
-        <span>หรือ</span>
-      </div>
-
       <div class="method-toggle">
         <button
           @click="loginMethod = 'phone'"
@@ -199,10 +174,41 @@ const enterDemoMode = async () => {
           <label class="label">รหัสผ่าน</label>
           <input v-model="password" type="password" placeholder="รหัสผ่าน" class="input-field" />
         </div>
+        <label class="remember-me">
+          <input type="checkbox" v-model="rememberMe" class="checkbox" />
+          <span>จดจำการเข้าสู่ระบบ</span>
+        </label>
         <button @click="loginWithEmail" :disabled="!email || !password || isLoading" class="btn-primary">
           <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังเข้าสู่ระบบ</span>
           <span v-else>เข้าสู่ระบบ</span>
         </button>
+        
+        <!-- Demo Quick Fill -->
+        <div class="demo-fill-section">
+          <p class="demo-hint">กรอกอัตโนมัติ:</p>
+          <div class="demo-fill-btns">
+            <button 
+              v-for="account in demoAccounts" 
+              :key="'fill-' + account.email"
+              @click="selectDemoAccount(account)"
+              class="demo-fill-btn"
+              :title="account.email"
+            >
+              {{ account.label }}
+            </button>
+          </div>
+        </div>
+        
+        <!-- Fill Toast -->
+        <Transition name="toast">
+          <div v-if="showFillToast" class="fill-toast">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>
+            </svg>
+            กรอกข้อมูล {{ filledAccount }} แล้ว
+          </div>
+        </Transition>
+        
         <button class="forgot-btn">ลืมรหัสผ่าน?</button>
       </div>
 
@@ -244,85 +250,118 @@ const enterDemoMode = async () => {
   margin: 0 auto;
 }
 
-/* Demo Card */
-.demo-card {
-  background-color: #F6F6F6;
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
+/* Demo Fill Section */
+.demo-fill-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #E5E5E5;
 }
 
-.demo-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #000000;
+.demo-hint {
+  font-size: 12px;
+  color: #6B6B6B;
+  text-align: center;
   margin-bottom: 8px;
 }
 
-.demo-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.demo-desc {
-  font-size: 14px;
-  color: #6B6B6B;
-  margin-bottom: 16px;
-}
-
-.demo-btn {
+.demo-fill-btns {
   display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  width: 100%;
-  padding: 14px 24px;
-  background-color: #000000;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
+  justify-content: center;
+}
+
+.demo-fill-btn {
+  padding: 8px 16px;
+  background-color: #F6F6F6;
+  border: 1px solid #E5E5E5;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #000000;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.demo-btn:hover {
-  opacity: 0.9;
+.demo-fill-btn:hover {
+  background-color: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
 }
 
-.demo-btn:active {
-  transform: scale(0.98);
+.demo-fill-btn:active {
+  transform: scale(0.95);
 }
 
-.demo-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-/* Divider */
-.divider {
+/* Fill Toast */
+.fill-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  margin: 24px 0;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background-color: #E5E5E5;
-}
-
-.divider span {
-  padding: 0 16px;
+  gap: 8px;
+  padding: 12px 20px;
+  background-color: #000000;
+  color: #FFFFFF;
+  border-radius: 24px;
   font-size: 14px;
-  color: #6B6B6B;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+}
+
+.fill-toast svg {
+  width: 18px;
+  height: 18px;
+  color: #4ADE80;
+}
+
+.toast-enter-active {
+  animation: toastIn 0.3s ease;
+}
+
+.toast-leave-active {
+  animation: toastOut 0.3s ease;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+}
+
+/* Remember Me */
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #000000;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: #000000;
+  cursor: pointer;
 }
 
 /* Method Toggle */

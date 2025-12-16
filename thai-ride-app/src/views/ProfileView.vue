@@ -93,7 +93,15 @@ const menuItems = [
 
 const navigateToMenu = (path: string) => router.push(path)
 const goToLogin = () => router.push('/login')
-const logout = async () => { const success = await authStore.logout(); if (success) router.push('/login') }
+const logout = async () => {
+  // Clear demo mode first
+  localStorage.removeItem('demo_mode')
+  localStorage.removeItem('demo_user')
+  
+  const success = await authStore.logout()
+  // Always redirect to login regardless of success
+  router.push('/login')
+}
 const getVerificationBadge = (status: string) => {
   switch (status) {
     case 'verified': return { text: 'ยืนยันแล้ว', class: 'badge-verified' }

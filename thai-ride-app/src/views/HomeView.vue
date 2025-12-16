@@ -288,7 +288,8 @@ const recentTrips = [
 .hero-header {
   background-color: #000;
   color: #fff;
-  padding: 20px 16px 28px;
+  padding: 20px 16px 36px;
+  border-radius: 0 0 32px 32px;
 }
 
 .hero-content {
@@ -440,6 +441,8 @@ const recentTrips = [
 .services-section {
   margin-top: -12px;
   margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
 }
 
 .services-grid {

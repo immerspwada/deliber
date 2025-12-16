@@ -9,6 +9,15 @@ const password = ref('')
 const loading = ref(false)
 const error = ref('')
 
+// Demo admin account - login จริงผ่าน Supabase
+const demoAdmin = { email: 'admin@demo.com', password: 'admin1234' }
+
+const fillDemoCredentials = () => {
+  email.value = demoAdmin.email
+  password.value = demoAdmin.password
+  error.value = ''
+}
+
 const handleLogin = async () => {
   if (!email.value || !password.value) {
     error.value = 'กรุณากรอกอีเมลและรหัสผ่าน'
@@ -19,13 +28,19 @@ const handleLogin = async () => {
   error.value = ''
   
   try {
-    // Try Supabase auth first
+    // Login via Supabase auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.value,
       password: password.value
     })
     
-    if (!authError && authData.user) {
+    if (authError) {
+      error.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
+      loading.value = false
+      return
+    }
+    
+    if (authData.user) {
       // Check if user is admin
       const { data: userData } = await supabase
         .from('users')
@@ -37,62 +52,16 @@ const handleLogin = async () => {
         localStorage.setItem('admin_token', authData.session?.access_token || 'admin_token')
         localStorage.setItem('admin_user', JSON.stringify(userData))
         router.push('/admin')
-        loading.value = false
-        return
       } else {
         error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin'
         await supabase.auth.signOut()
-        loading.value = false
-        return
       }
     }
-  } catch (e) {
-    console.warn('Supabase auth failed, trying demo mode')
+  } catch (e: any) {
+    error.value = e.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+  } finally {
+    loading.value = false
   }
-  
-  // Fallback: Demo admin credentials
-  if (email.value === 'admin@thairide.app' && password.value === 'admin123') {
-    // Check if admin exists in database
-    const { data: adminUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', 'admin@demo.com')
-      .eq('role', 'admin')
-      .single()
-    
-    if (adminUser) {
-      localStorage.setItem('admin_token', 'demo_admin_token')
-      localStorage.setItem('admin_user', JSON.stringify(adminUser))
-    } else {
-      localStorage.setItem('admin_token', 'demo_admin_token')
-      localStorage.setItem('admin_user', JSON.stringify({
-        id: 'admin-001',
-        email: 'admin@thairide.app',
-        name: 'Admin User',
-        role: 'admin'
-      }))
-    }
-    router.push('/admin')
-  } else if (email.value === 'admin@demo.com' && password.value === 'password123') {
-    // Alternative demo credentials matching database
-    const { data: adminUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', 'admin@demo.com')
-      .single()
-    
-    if (adminUser) {
-      localStorage.setItem('admin_token', 'demo_admin_token')
-      localStorage.setItem('admin_user', JSON.stringify(adminUser))
-      router.push('/admin')
-    } else {
-      error.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
-    }
-  } else {
-    error.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
-  }
-  
-  loading.value = false
 }
 
 const goToUserApp = () => router.push('/login')
@@ -131,8 +100,9 @@ const goToUserApp = () => router.push('/login')
       </form>
 
       <div class="demo-info">
-        <p>Demo Credentials:</p>
-        <code>admin@thairide.app / admin123</code>
+        <p>Demo Admin Account:</p>
+        <code>{{ demoAdmin.email }} / {{ demoAdmin.password }}</code>
+        <button @click="fillDemoCredentials" class="fill-btn">กรอกอัตโนมัติ</button>
       </div>
 
       <button class="link-btn" @click="goToUserApp">
@@ -286,6 +256,24 @@ const goToUserApp = () => router.push('/login')
   color: #fff;
   font-size: 14px;
   font-family: monospace;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.fill-btn {
+  padding: 8px 16px;
+  background: #fff;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.fill-btn:hover {
+  background: #f0f0f0;
 }
 
 .link-btn {

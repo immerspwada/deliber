@@ -307,6 +307,15 @@ export function useAdmin() {
     } catch { return null }
   }
 
+  // Update promo code
+  const updatePromoCode = async (id: string, updates: Record<string, any>) => {
+    try {
+      // @ts-ignore - Supabase types not fully configured
+      const { data } = await supabase.from('promo_codes').update(updates).eq('id', id).select().single()
+      return data
+    } catch { return null }
+  }
+
   // Mock data generators for demo
   const generateMockOrders = () => [
     { id: '1', type: 'ride', status: 'completed', estimated_fare: 85, pickup_address: 'สยามพารากอน', destination_address: 'อโศก', created_at: new Date().toISOString(), users: { name: 'สมชาย ใจดี' } },
@@ -937,7 +946,7 @@ export function useAdmin() {
     loading, error, stats, recentOrders, recentUsers, recentPayments,
     fetchDashboardStats, fetchRecentOrders, fetchUsers, fetchProviders,
     fetchPayments, fetchSupportTickets, fetchPromoCodes,
-    updateUserStatus, updateProviderStatus, updateTicketStatus, createPromoCode,
+    updateUserStatus, updateProviderStatus, updateTicketStatus, createPromoCode, updatePromoCode,
     getRevenueChartData, getOrdersChartData,
     // Advanced features
     fetchSubscriptions, fetchSubscriptionPlans, updateSubscriptionPlan,

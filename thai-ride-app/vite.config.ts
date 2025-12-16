@@ -130,8 +130,10 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: false
-      }
+        enabled: false,
+        suppressWarnings: true
+      },
+      selfDestroying: true
     })
   ],
   server: {
