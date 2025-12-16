@@ -111,18 +111,12 @@ const pendingLocationConfirm = ref<{
 // Bottom sheet swipe state with snap points
 type SheetSnapPoint = 'collapsed' | 'half' | 'full'
 const sheetSnapPoint = ref<SheetSnapPoint>('collapsed')
-const sheetRef = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
 const startY = ref(0)
 const currentY = ref(0)
 const sheetTranslateY = ref(0)
 
-// Snap point heights (vh)
-const SNAP_HEIGHTS = {
-  collapsed: 35,
-  half: 55,
-  full: 85
-} as const
+
 
 // Advanced features
 const { initiateVoiceCall, createFareSplit } = useAdvancedFeatures()
@@ -191,18 +185,17 @@ const handleSheetTouchStart = (e: TouchEvent) => {
   if (!target.closest('.sheet-handle')) return
 
   isDragging.value = true
-  startY.value = e.touches[0].clientY
-  currentY.value = e.touches[0].clientY
+  startY.value = e.touches[0]?.clientY ?? 0
+  currentY.value = e.touches[0]?.clientY ?? 0
 }
 
 const handleSheetTouchMove = (e: TouchEvent) => {
   if (!isDragging.value) return
 
-  currentY.value = e.touches[0].clientY
+  currentY.value = e.touches[0]?.clientY ?? 0
   const deltaY = currentY.value - startY.value
 
   // Allow dragging in both directions with resistance at edges
-  const currentHeight = SNAP_HEIGHTS[sheetSnapPoint.value]
   const maxDrag = window.innerHeight * 0.3
 
   if (sheetSnapPoint.value === 'full' && deltaY > 0) {
@@ -253,7 +246,7 @@ const toggleSheetExpand = () => {
   const snapOrder: SheetSnapPoint[] = ['collapsed', 'half', 'full']
   const currentIndex = snapOrder.indexOf(sheetSnapPoint.value)
   const nextIndex = (currentIndex + 1) % snapOrder.length
-  sheetSnapPoint.value = snapOrder[nextIndex]
+  sheetSnapPoint.value = snapOrder[nextIndex] ?? 'collapsed'
   triggerHaptic('light')
 }
 
