@@ -2,12 +2,42 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRideHistory } from '../composables/useRideHistory'
+import { useServiceRatings } from '../composables/useServiceRatings'
+import PullToRefresh from '../components/PullToRefresh.vue'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
+import DeliveryRatingModal from '../components/delivery/DeliveryRatingModal.vue'
+import ShoppingRatingModal from '../components/shopping/ShoppingRatingModal.vue'
 
 const router = useRouter()
 const { history, loading, fetchHistory, rebookRide } = useRideHistory()
+const { getDeliveryRating, getShoppingRating } = useServiceRatings()
+
+// Rating modal state
+const showDeliveryRating = ref(false)
+const showShoppingRating = ref(false)
+const selectedItem = ref<any>(null)
+
+const openRatingModal = (item: any) => {
+  selectedItem.value = item
+  if (item.type === 'delivery') {
+    showDeliveryRating.value = true
+  } else if (item.type === 'shopping') {
+    showShoppingRating.value = true
+  }
+}
+
+const handleRatingSubmit = async (success: boolean) => {
+  showDeliveryRating.value = false
+  showShoppingRating.value = false
+  if (success) {
+    await fetchHistory(activeFilter.value)
+  }
+  selectedItem.value = null
+}
 
 type ServiceType = 'all' | 'ride' | 'delivery' | 'shopping'
 const activeFilter = ref<ServiceType>('all')
+const isRefreshing = ref(false)
 
 const filters: { id: ServiceType; label: string }[] = [
   { id: 'all', label: 'ทั้งหมด' },
@@ -39,6 +69,12 @@ const viewReceipt = (id: string) => {
   router.push(`/receipt/${id}`)
 }
 
+const handleRefresh = async () => {
+  isRefreshing.value = true
+  await fetchHistory(activeFilter.value)
+  isRefreshing.value = false
+}
+
 onMounted(() => {
   fetchHistory()
 })
@@ -46,13 +82,14 @@ onMounted(() => {
 
 <template>
   <div class="history-page">
-    <div class="content-container">
-      <div class="page-header">
-        <h1 class="page-title">ประวัติการใช้งาน</h1>
-      </div>
+    <PullToRefresh :loading="isRefreshing || loading" @refresh="handleRefresh">
+      <div class="content-container">
+        <div class="page-header">
+          <h1 class="page-title">ประวัติการใช้งาน</h1>
+        </div>
 
-      <!-- Filters -->
-      <div class="filters">
+        <!-- Filters -->
+        <div class="filters">
         <button
           v-for="filter in filters"
           :key="filter.id"
@@ -63,11 +100,8 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="loading-state">
-        <div class="spinner"></div>
-        <p>กำลังโหลด...</p>
-      </div>
+        <!-- Skeleton Loading -->
+        <SkeletonLoader v-if="loading && !isRefreshing" type="history" :count="3" />
 
       <!-- History List -->
       <div v-else class="history-list">
@@ -145,6 +179,13 @@ onMounted(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                   </svg>
                 </button>
+                <button 
+                  v-if="item.status === 'completed' && !item.rating && (item.type === 'delivery' || item.type === 'shopping')" 
+                  @click="openRatingModal(item)" 
+                  class="rate-btn"
+                >
+                  ให้คะแนน
+                </button>
                 <button v-if="item.status === 'completed'" @click="handleRebook(item)" class="rebook-btn">
                   จองอีกครั้ง
                 </button>
@@ -161,6 +202,29 @@ onMounted(() => {
         </div>
       </div>
     </div>
+    </PullToRefresh>
+
+    <!-- Delivery Rating Modal -->
+    <DeliveryRatingModal
+      v-if="selectedItem"
+      :show="showDeliveryRating"
+      :delivery-id="selectedItem?.id || ''"
+      :rider-name="selectedItem?.driver_name || 'ไรเดอร์'"
+      :final-price="selectedItem?.fare || 0"
+      @close="showDeliveryRating = false"
+      @submit="handleRatingSubmit"
+    />
+
+    <!-- Shopping Rating Modal -->
+    <ShoppingRatingModal
+      v-if="selectedItem"
+      :show="showShoppingRating"
+      :shopping-id="selectedItem?.id || ''"
+      :shopper-name="selectedItem?.driver_name || 'ผู้ช่วยซื้อของ'"
+      :service-fee="selectedItem?.fare || 0"
+      @close="showShoppingRating = false"
+      @submit="handleRatingSubmit"
+    />
   </div>
 </template>
 
@@ -199,7 +263,7 @@ onMounted(() => {
 .filters::-webkit-scrollbar { display: none; }
 
 .filter-btn {
-  padding: 10px 18px;
+  padding: 12px 20px;
   background-color: #fff;
   border: 1px solid #E5E5E5;
   border-radius: 24px;
@@ -208,10 +272,13 @@ onMounted(() => {
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
 }
 
 .filter-btn:hover { border-color: #000; }
-.filter-btn:active { transform: scale(0.97); }
+.filter-btn:active { transform: scale(0.95); }
 
 .filter-btn.active {
   background-color: #000;
@@ -446,8 +513,8 @@ onMounted(() => {
 }
 
 .receipt-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -455,6 +522,13 @@ onMounted(() => {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.receipt-btn:active {
+  transform: scale(0.92);
+  background: #E5E5E5;
 }
 
 .receipt-btn svg {
@@ -463,7 +537,7 @@ onMounted(() => {
 }
 
 .rebook-btn {
-  padding: 8px 16px;
+  padding: 10px 18px;
   background-color: #000;
   color: #fff;
   border: none;
@@ -472,10 +546,31 @@ onMounted(() => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 40px;
 }
 
 .rebook-btn:hover { opacity: 0.9; }
-.rebook-btn:active { transform: scale(0.97); }
+.rebook-btn:active { transform: scale(0.95); }
+
+.rate-btn {
+  padding: 10px 18px;
+  background-color: #F6F6F6;
+  color: #000;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 40px;
+}
+
+.rate-btn:hover { border-color: #000; }
+.rate-btn:active { transform: scale(0.95); }
 
 .empty-state {
   display: flex;

@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppShell from './components/AppShell.vue'
 import PWAInstallBanner from './components/PWAInstallBanner.vue'
+import ToastContainer from './components/ToastContainer.vue'
 import { useAuthStore } from './stores/auth'
 import { useRideStore } from './stores/ride'
 
@@ -33,6 +34,9 @@ onMounted(async () => {
     
     <!-- PWA Install Banner - only show on user app -->
     <PWAInstallBanner v-if="!isAdminRoute" />
+    
+    <!-- Global Toast Notifications -->
+    <ToastContainer />
   </div>
 </template>
 

@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePWA } from '../composables/usePWA'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const { 
@@ -13,6 +14,8 @@ const {
   requestNotificationPermission,
   checkForUpdates
 } = usePWA()
+
+const loading = ref(true)
 
 // Settings state
 const settings = ref({
@@ -51,6 +54,7 @@ onMounted(() => {
   if (saved) {
     settings.value = { ...settings.value, ...JSON.parse(saved) }
   }
+  setTimeout(() => { loading.value = false }, 500)
 })
 
 const goBack = () => router.back()
@@ -87,6 +91,14 @@ const handleCheckUpdates = async () => {
         <h1>ตั้งค่า</h1>
       </div>
 
+      <!-- Skeleton Loading -->
+      <template v-if="loading">
+        <SkeletonLoader type="settings" :count="4" />
+        <SkeletonLoader type="settings" :count="2" />
+        <SkeletonLoader type="settings" :count="2" />
+      </template>
+
+      <template v-else>
       <!-- Notifications Section -->
       <div class="settings-section">
         <h2 class="section-title">การแจ้งเตือน</h2>
@@ -273,6 +285,7 @@ const handleCheckUpdates = async () => {
           </svg>
         </button>
       </div>
+      </template>
 
       <p class="version-text">ThaiRide v1.0.0</p>
     </div>
@@ -328,6 +341,7 @@ const handleCheckUpdates = async () => {
   border-radius: 12px;
   margin-bottom: 8px;
   transition: all 0.2s ease;
+  min-height: 64px;
 }
 
 .setting-item:hover {
@@ -353,8 +367,9 @@ const handleCheckUpdates = async () => {
 .toggle {
   position: relative;
   display: inline-block;
-  width: 50px;
-  height: 28px;
+  width: 52px;
+  height: 32px;
+  flex-shrink: 0;
 }
 
 .toggle input {
@@ -375,13 +390,14 @@ const handleCheckUpdates = async () => {
 .toggle-slider:before {
   position: absolute;
   content: "";
-  height: 22px;
-  width: 22px;
+  height: 26px;
+  width: 26px;
   left: 3px;
   bottom: 3px;
   background-color: white;
   border-radius: 50%;
   transition: 0.3s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .toggle input:checked + .toggle-slider {
@@ -389,7 +405,7 @@ const handleCheckUpdates = async () => {
 }
 
 .toggle input:checked + .toggle-slider:before {
-  transform: translateX(22px);
+  transform: translateX(20px);
 }
 
 /* Select */
@@ -421,6 +437,9 @@ const handleCheckUpdates = async () => {
   cursor: pointer;
   text-align: left;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 56px;
 }
 
 .action-item:hover {
@@ -428,7 +447,8 @@ const handleCheckUpdates = async () => {
 }
 
 .action-item:active {
-  transform: scale(0.99);
+  transform: scale(0.98);
+  background: #EBEBEB;
 }
 
 .action-item svg {

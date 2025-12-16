@@ -16,6 +16,7 @@ import { useLocation, type GeoLocation } from '../composables/useLocation'
 import { useServices } from '../composables/useServices'
 import { useRideStore } from '../stores/ride'
 import { useAdvancedFeatures } from '../composables/useAdvancedFeatures'
+import { useToast } from '../composables/useToast'
 
 // Constants
 const LOCATION_FALLBACK_DELAY = 3000
@@ -60,7 +61,6 @@ const {
 const step = ref<RideStep>('input')
 const pickup = ref('')
 const destination = ref('')
-const selectedService = ref<'ride' | 'delivery' | 'shopping'>('ride')
 const selectedVehicle = ref('standard')
 const routeInfo = ref<{ distance: number; duration: number } | null>(null)
 const loading = ref(false)
@@ -94,31 +94,17 @@ const showRating = ref(false)
 // Advanced features
 const { initiateVoiceCall, createFareSplit } = useAdvancedFeatures()
 
-// Vehicle options based on service
-const vehicleOptions = computed(() => {
-  if (selectedService.value === 'ride') {
-    return [
-      { id: 'standard', name: 'ThaiRide', desc: '4 ที่นั่ง', price: 45, time: 3 },
-      { id: 'premium', name: 'Premium', desc: 'รถหรู', price: 85, time: 5 },
-      { id: 'moto', name: 'Moto', desc: '1 ที่นั่ง', price: 25, time: 2 },
-      { id: 'xl', name: 'ThaiRide XL', desc: '6 ที่นั่ง', price: 75, time: 4 }
-    ]
-  } else if (selectedService.value === 'delivery') {
-    return [
-      { id: 'express', name: 'ด่วน', desc: '30 นาที', price: 59, time: 2 },
-      { id: 'standard', name: 'ปกติ', desc: '1-2 ชม.', price: 35, time: 5 },
-      { id: 'scheduled', name: 'นัดเวลา', desc: 'เลือกเวลา', price: 45, time: 10 }
-    ]
-  }
-  return [
-    { id: 'mart', name: 'ซูเปอร์มาร์เก็ต', desc: '30-45 นาที', price: 20, time: 5 },
-    { id: 'food', name: 'อาหาร', desc: '20-30 นาที', price: 15, time: 3 }
-  ]
-})
+// Vehicle options for ride service
+const vehicleOptions = [
+  { id: 'standard', name: 'ThaiRide', desc: '4 ที่นั่ง', price: 45, time: 3 },
+  { id: 'premium', name: 'Premium', desc: 'รถหรู', price: 85, time: 5 },
+  { id: 'moto', name: 'Moto', desc: '1 ที่นั่ง', price: 25, time: 2 },
+  { id: 'xl', name: 'ThaiRide XL', desc: '6 ที่นั่ง', price: 75, time: 4 }
+]
 
 // Calculate price based on distance
 const estimatedPrice = computed(() => {
-  const base = vehicleOptions.value.find((v) => v.id === selectedVehicle.value)?.price || 45
+  const base = vehicleOptions.find((v) => v.id === selectedVehicle.value)?.price || 45
   const distance = routeInfo.value?.distance || 5
   return Math.round(base + distance * 8)
 })
@@ -231,10 +217,7 @@ onUnmounted(() => {
   cleanupSubscriptions()
 })
 
-// Reset vehicle when service changes
-watch(selectedService, () => {
-  selectedVehicle.value = vehicleOptions.value[0]?.id || 'standard'
-})
+
 
 // Handle location detected from map
 const onLocationDetected = async (location: { lat: number; lng: number }) => {
@@ -330,6 +313,12 @@ const selectSavedPlace = (type: 'home' | 'work') => {
       lng: place.lng,
       address: place.address
     }
+  } else {
+    // แสดง toast แจ้งผู้ใช้และไปหน้าเพิ่มสถานที่
+    const toast = useToast()
+    const label = type === 'home' ? 'บ้าน' : 'ที่ทำงาน'
+    toast.info(`กรุณาเพิ่มที่อยู่${label}ก่อน`)
+    router.push({ path: '/saved-places', query: { add: type } })
   }
 }
 
@@ -640,7 +629,6 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         v-if="step === 'input'"
         :pickup="pickup"
         :destination="destination"
-        :selected-service="selectedService"
         :home-place="homePlace || null"
         :work-place="workPlace || null"
         :recent-places="recentPlaces"
@@ -648,7 +636,6 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
         :current-lng="pickupLocation?.lng"
         @update:pickup="pickup = $event"
         @update:destination="destination = $event"
-        @update:selectedService="selectedService = $event"
         @update:multiStops="handleMultiStopsUpdate"
         @confirm="confirmDestination"
         @select-saved-place="selectSavedPlace"
@@ -807,8 +794,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   position: absolute;
   top: 16px;
   left: 16px;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   background: white;
   border: none;
   border-radius: 50%;
@@ -819,6 +806,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .map-back-btn:hover {
@@ -826,7 +815,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 }
 
 .map-back-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
+  background: #F6F6F6;
 }
 
 .map-back-btn svg {
@@ -839,8 +829,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   position: absolute;
   bottom: 24px;
   right: 16px;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   background: white;
   border: none;
   border-radius: 50%;
@@ -851,6 +841,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .gps-btn:hover:not(:disabled) {
@@ -858,7 +850,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 }
 
 .gps-btn:active:not(:disabled) {
-  transform: scale(0.95);
+  transform: scale(0.92);
+  background: #F6F6F6;
 }
 
 .gps-btn:disabled {
@@ -885,19 +878,23 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
 .bottom-sheet {
   background: white;
   border-radius: 28px 28px 0 0;
-  padding: 14px 24px 28px;
+  padding: 16px 20px 28px;
   padding-bottom: calc(28px + env(safe-area-inset-bottom));
   box-shadow: 0 -12px 40px rgba(0,0,0,0.12);
   transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
+  max-height: 70vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sheet-handle {
-  width: 44px;
+  width: 48px;
   height: 5px;
   background: #E0E0E0;
   border-radius: 3px;
   margin: 0 auto 20px;
   cursor: grab;
+  touch-action: none;
 }
 </style>

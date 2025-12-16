@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWallet } from '../composables/useWallet'
+import PullToRefresh from '../components/PullToRefresh.vue'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const { 
@@ -18,6 +20,7 @@ const {
 const showTopUpModal = ref(false)
 const selectedAmount = ref(100)
 const topUpLoading = ref(false)
+const isRefreshing = ref(false)
 
 const topUpAmounts = [100, 200, 500, 1000, 2000]
 
@@ -31,6 +34,12 @@ onMounted(async () => {
 onUnmounted(() => {
   subscription?.unsubscribe()
 })
+
+const handleRefresh = async () => {
+  isRefreshing.value = true
+  await Promise.all([fetchBalance(), fetchTransactions()])
+  isRefreshing.value = false
+}
 
 const handleTopUp = async () => {
   topUpLoading.value = true
@@ -53,20 +62,24 @@ const goBack = () => router.back()
 
 <template>
   <div class="page-container">
-    <div class="content-container">
-      <!-- Header -->
-      <div class="page-header">
-        <button @click="goBack" class="back-btn">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <h1>ThaiRide Wallet</h1>
-      </div>
+    <PullToRefresh :loading="isRefreshing || loading" @refresh="handleRefresh">
+      <div class="content-container">
+        <!-- Header -->
+        <div class="page-header">
+          <button @click="goBack" class="back-btn">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <h1>ThaiRide Wallet</h1>
+        </div>
 
-      <!-- Balance Card -->
-      <div class="balance-card">
-        <span class="balance-label">ยอดเงินคงเหลือ</span>
+        <!-- Balance Card Skeleton -->
+        <SkeletonLoader v-if="loading && !isRefreshing" type="balance" />
+
+        <!-- Balance Card -->
+        <div v-else class="balance-card">
+          <span class="balance-label">ยอดเงินคงเหลือ</span>
         <div class="balance-amount">
           <span class="currency">฿</span>
           <span class="amount">{{ balance.balance.toLocaleString() }}</span>
@@ -79,8 +92,8 @@ const goBack = () => router.back()
         </button>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="quick-actions">
+        <!-- Quick Actions -->
+        <div class="quick-actions">
         <button class="action-card">
           <div class="action-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,8 +120,8 @@ const goBack = () => router.back()
         </button>
       </div>
 
-      <!-- Stats -->
-      <div class="stats-row">
+        <!-- Stats -->
+        <div class="stats-row">
         <div class="stat-item">
           <span class="stat-label">รับเข้าทั้งหมด</span>
           <span class="stat-value">฿{{ balance.total_earned.toLocaleString() }}</span>
@@ -119,15 +132,14 @@ const goBack = () => router.back()
         </div>
       </div>
 
-      <!-- Transactions -->
-      <div class="transactions-section">
-        <h2 class="section-title">รายการล่าสุด</h2>
-        
-        <div v-if="loading" class="loading-state">
-          <div class="spinner"></div>
-        </div>
-        
-        <div v-else-if="transactions.length === 0" class="empty-state">
+        <!-- Transactions -->
+        <div class="transactions-section">
+          <h2 class="section-title">รายการล่าสุด</h2>
+          
+          <!-- Skeleton Loading -->
+          <SkeletonLoader v-if="loading && !isRefreshing" type="transaction" :count="4" />
+          
+          <div v-else-if="transactions.length === 0" class="empty-state">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
@@ -149,9 +161,10 @@ const goBack = () => router.back()
               {{ ['topup', 'refund', 'cashback', 'referral', 'promo'].includes(tx.type) ? '+' : '-' }}฿{{ Math.abs(tx.amount).toLocaleString() }}
             </span>
           </div>
+          </div>
         </div>
       </div>
-    </div>
+    </PullToRefresh>
 
     <!-- Top Up Modal -->
     <div v-if="showTopUpModal" class="modal-overlay" @click.self="showTopUpModal = false">
@@ -292,7 +305,7 @@ const goBack = () => router.back()
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 28px;
+  padding: 14px 32px;
   background: #fff;
   color: #000;
   border: none;
@@ -301,6 +314,9 @@ const goBack = () => router.back()
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 48px;
 }
 
 .topup-btn:hover {
@@ -309,7 +325,7 @@ const goBack = () => router.back()
 }
 
 .topup-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.95);
 }
 
 .topup-btn svg {
@@ -336,6 +352,9 @@ const goBack = () => router.back()
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 88px;
 }
 
 .action-card:hover {
@@ -343,7 +362,8 @@ const goBack = () => router.back()
 }
 
 .action-card:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
+  background: #EBEBEB;
 }
 
 .action-icon {
@@ -549,13 +569,21 @@ const goBack = () => router.back()
 }
 
 .amount-btn {
-  padding: 12px 20px;
+  padding: 14px 20px;
   background: #F6F6F6;
   border: 2px solid transparent;
   border-radius: 8px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 48px;
+  transition: all 0.2s ease;
+}
+
+.amount-btn:active {
+  transform: scale(0.95);
 }
 
 .amount-btn.active {

@@ -42,6 +42,8 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 body {
@@ -50,6 +52,16 @@ body {
   color: var(--color-text-primary);
   line-height: 1.5;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Mobile viewport fix */
+@supports (height: 100dvh) {
+  .page-container,
+  .app-shell {
+    min-height: 100dvh;
+  }
 }
 
 /* ===== GLOBAL TRANSITIONS ===== */
@@ -65,7 +77,7 @@ button, a, input, select, textarea {
   gap: 8px;
   background-color: var(--color-primary);
   color: white;
-  padding: 14px 24px;
+  padding: 16px 24px;
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 16px;
@@ -75,6 +87,10 @@ button, a, input, select, textarea {
   position: relative;
   overflow: hidden;
   transform: translateZ(0);
+  min-height: 52px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .btn-primary::before {
@@ -106,13 +122,17 @@ button, a, input, select, textarea {
   gap: 8px;
   background-color: var(--color-secondary);
   color: var(--color-text-primary);
-  padding: 14px 24px;
+  padding: 16px 24px;
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 16px;
   border: none;
   cursor: pointer;
   width: 100%;
+  min-height: 52px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -126,13 +146,16 @@ button, a, input, select, textarea {
 /* ===== INPUTS ===== */
 .input-field {
   width: 100%;
-  padding: 14px 16px;
+  padding: 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: 16px;
   font-family: inherit;
   background-color: var(--color-surface);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  min-height: 52px;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .input-field:focus {
@@ -245,12 +268,15 @@ button, a, input, select, textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-full);
   background-color: transparent;
   border: none;
   cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .icon-button:hover {
@@ -259,6 +285,7 @@ button, a, input, select, textarea {
 
 .icon-button:active {
   transform: scale(0.95);
+  background-color: var(--color-secondary-hover);
 }
 
 /* ===== LIST ITEM ===== */
@@ -269,6 +296,8 @@ button, a, input, select, textarea {
   background-color: var(--color-surface);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  min-height: 56px;
+  touch-action: manipulation;
 }
 
 .list-item:hover {
@@ -277,6 +306,7 @@ button, a, input, select, textarea {
 
 .list-item:active {
   transform: scale(0.99);
+  background-color: var(--color-secondary-hover);
 }
 
 /* ===== BADGES ===== */
@@ -554,6 +584,58 @@ button, a, input, select, textarea {
     opacity: 0.7;
     transform: scale(0.98);
   }
+  
+  /* Better touch targets on mobile */
+  button, a, .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ===== MOBILE OPTIMIZATIONS ===== */
+@media (max-width: 480px) {
+  .content-container {
+    padding: 0 16px;
+  }
+  
+  .card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    padding: 16px 20px;
+    font-size: 16px;
+  }
+  
+  .input-field {
+    padding: 14px 16px;
+    font-size: 16px;
+  }
+  
+  /* Prevent zoom on input focus */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ===== PULL TO REFRESH PREVENTION ===== */
+body.no-pull-refresh {
+  overscroll-behavior-y: contain;
+}
+
+/* ===== MOMENTUM SCROLLING ===== */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ===== SAFE AREA ===== */

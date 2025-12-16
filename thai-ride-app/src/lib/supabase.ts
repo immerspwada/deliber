@@ -10,6 +10,10 @@ export const isSupabaseConfigured = !!(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 )
 
+// Debug logging
+console.log('[Supabase] URL:', supabaseUrl?.substring(0, 30) + '...')
+console.log('[Supabase] Configured:', isSupabaseConfigured)
+
 if (!isSupabaseConfigured) {
   console.warn('[Supabase] Not configured - running in demo mode')
 }

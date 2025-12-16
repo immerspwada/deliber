@@ -19,6 +19,8 @@ const menuItems = [
   { path: '/admin/users', label: 'ผู้ใช้งาน', icon: 'users' },
   { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car' },
   { path: '/admin/orders', label: 'ออเดอร์', icon: 'orders' },
+  { path: '/admin/ratings', label: 'รีวิว', icon: 'ratings' },
+  { path: '/admin/notifications', label: 'Notifications', icon: 'notification' },
   { path: '/admin/payments', label: 'การเงิน', icon: 'payment' },
   { path: '/admin/support', label: 'ซัพพอร์ต', icon: 'support' },
   { path: '/admin/promos', label: 'โปรโมชั่น', icon: 'promo' },
@@ -131,6 +133,14 @@ const logout = () => {
           <!-- Corporate -->
           <svg v-else-if="item.icon === 'corporate'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/>
+          </svg>
+          <!-- Ratings -->
+          <svg v-else-if="item.icon === 'ratings'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <!-- Notification -->
+          <svg v-else-if="item.icon === 'notification'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
           </svg>
           <span>{{ item.label }}</span>
         </button>

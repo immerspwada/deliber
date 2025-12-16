@@ -2,12 +2,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const loading = ref(true)
 
 onMounted(async () => {
   await authStore.initialize()
+  setTimeout(() => { loading.value = false }, 500)
 })
 
 const user = computed(() => {
@@ -108,7 +111,10 @@ const getVerificationBadge = (status: string) => {
         <h1 class="page-title">โปรไฟล์</h1>
       </div>
 
-      <div class="profile-card">
+      <!-- Profile Card Skeleton -->
+      <SkeletonLoader v-if="loading" type="profile" />
+      
+      <div v-else class="profile-card">
         <div class="avatar">
           <img v-if="user.profileImage" :src="user.profileImage" alt="Profile" class="avatar-img" />
           <svg v-else class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,7 +163,10 @@ const getVerificationBadge = (status: string) => {
         </div>
       </div>
 
-      <div class="menu-section">
+      <!-- Menu Section Skeleton -->
+      <SkeletonLoader v-if="loading" type="menu-list" :count="8" />
+      
+      <div v-else class="menu-section">
         <button v-for="item in menuItems" :key="item.label" class="menu-item" @click="navigateToMenu(item.path)">
           <div class="menu-item-left">
             <div class="menu-icon-wrapper">
@@ -238,8 +247,8 @@ const getVerificationBadge = (status: string) => {
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,10 +257,12 @@ const getVerificationBadge = (status: string) => {
   cursor: pointer;
   border-radius: 50%;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .edit-btn:hover { background-color: #E5E5E5; }
-.edit-btn:active { transform: scale(0.95); }
+.edit-btn:active { transform: scale(0.92); background-color: #E0E0E0; }
 .edit-icon { width: 18px; height: 18px; color: #000000; }
 
 .menu-section {
@@ -274,11 +285,14 @@ const getVerificationBadge = (status: string) => {
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
+  min-height: 64px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .menu-item:last-child { border-bottom: none; }
 .menu-item:hover { background-color: #FAFAFA; }
-.menu-item:active { transform: scale(0.99); }
+.menu-item:active { transform: scale(0.99); background-color: #F6F6F6; }
 .menu-item-left { display: flex; align-items: center; gap: 12px; }
 
 .menu-icon-wrapper {

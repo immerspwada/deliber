@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -9,6 +10,7 @@ const authStore = useAuthStore()
 const greeting = ref('')
 const currentTime = ref('')
 const isLoaded = ref(false)
+const loading = ref(true)
 
 onMounted(() => {
   const hour = new Date().getHours()
@@ -24,6 +26,11 @@ onMounted(() => {
   setInterval(updateTime, 60000)
   
   setTimeout(() => isLoaded.value = true, 100)
+  
+  // Simulate loading data
+  setTimeout(() => {
+    loading.value = false
+  }, 800)
 })
 
 const navigateTo = (path: string) => {
@@ -75,7 +82,8 @@ const recentTrips = [
     <main class="main-content">
       <!-- Services Grid -->
       <section class="services-section">
-        <div class="services-grid">
+        <SkeletonLoader v-if="loading" type="services" />
+        <div v-else class="services-grid">
           <button class="service-card" @click="navigateTo('/services')">
             <div class="service-icon-wrapper">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +124,8 @@ const recentTrips = [
 
       <!-- Quick Access -->
       <section class="quick-section">
-        <div class="quick-row">
+        <SkeletonLoader v-if="loading" type="quick-actions" />
+        <div v-else class="quick-row">
           <button class="quick-item" @click="navigateTo('/scheduled-rides')">
             <div class="quick-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,7 +163,8 @@ const recentTrips = [
 
       <!-- More Features -->
       <section class="more-features">
-        <div class="features-row">
+        <SkeletonLoader v-if="loading" type="more-features" />
+        <div v-else class="features-row">
           <button class="feature-item" @click="navigateTo('/insurance')">
             <div class="feature-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -193,7 +203,8 @@ const recentTrips = [
 
       <!-- Promo Banner -->
       <section class="promo-section">
-        <button class="promo-card" @click="navigateTo('/promotions')">
+        <SkeletonLoader v-if="loading" type="promo" />
+        <button v-else class="promo-card" @click="navigateTo('/promotions')">
           <div class="promo-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
@@ -214,7 +225,8 @@ const recentTrips = [
           <button class="see-all-btn" @click="navigateTo('/history')">ดูทั้งหมด</button>
         </div>
 
-        <div class="trips-list">
+        <SkeletonLoader v-if="loading" type="recent-trips" :count="2" />
+        <div v-else class="trips-list">
           <button v-for="trip in recentTrips" :key="trip.id" class="trip-card" @click="navigateTo('/services')">
             <div class="trip-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -305,8 +317,8 @@ const recentTrips = [
 
 .notification-btn {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -315,6 +327,8 @@ const recentTrips = [
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .notification-btn:hover {
@@ -322,7 +336,8 @@ const recentTrips = [
 }
 
 .notification-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .notification-btn svg {
@@ -353,13 +368,16 @@ const recentTrips = [
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 16px;
   background: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
   text-align: left;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 64px;
 }
 
 .search-card:hover {
@@ -367,7 +385,8 @@ const recentTrips = [
 }
 
 .search-card:active {
-  transform: scale(0.99);
+  transform: scale(0.98);
+  background: #FAFAFA;
 }
 
 .search-icon {
@@ -439,6 +458,9 @@ const recentTrips = [
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 120px;
 }
 
 .service-card:hover {
@@ -446,7 +468,8 @@ const recentTrips = [
 }
 
 .service-card:active {
-  transform: scale(0.97);
+  transform: scale(0.95);
+  background: #F6F6F6;
 }
 
 .service-icon-wrapper {
@@ -516,6 +539,9 @@ const recentTrips = [
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 80px;
 }
 
 .quick-item:hover {
@@ -523,7 +549,8 @@ const recentTrips = [
 }
 
 .quick-item:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
+  background: #EBEBEB;
 }
 
 .quick-icon {
@@ -570,6 +597,9 @@ const recentTrips = [
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 80px;
 }
 
 .feature-item:hover {
@@ -577,7 +607,8 @@ const recentTrips = [
 }
 
 .feature-item:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
+  background: #EBEBEB;
 }
 
 .feature-icon {
@@ -725,6 +756,9 @@ const recentTrips = [
   text-align: left;
   width: 100%;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 72px;
 }
 
 .trip-card:hover {
@@ -732,7 +766,8 @@ const recentTrips = [
 }
 
 .trip-card:active {
-  transform: scale(0.99);
+  transform: scale(0.98);
+  background: #F6F6F6;
 }
 
 .trip-icon {

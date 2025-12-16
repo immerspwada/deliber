@@ -191,6 +191,15 @@ const goBack = () => router.back()
   border-radius: 12px;
   cursor: pointer;
   text-align: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100px;
+  transition: all 0.2s ease;
+}
+
+.support-card:active {
+  transform: scale(0.95);
+  background: #EBEBEB;
 }
 
 .support-icon {
@@ -240,13 +249,21 @@ const goBack = () => router.back()
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 14px 16px;
+  padding: 16px;
   background: none;
   border: none;
   font-size: 15px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 56px;
+  transition: background 0.2s ease;
+}
+
+.faq-question:active {
+  background: rgba(0,0,0,0.04);
 }
 
 .faq-arrow {
@@ -283,6 +300,15 @@ const goBack = () => router.back()
   border-radius: 12px;
   cursor: pointer;
   text-align: left;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 64px;
+  transition: all 0.2s ease;
+}
+
+.report-btn:active {
+  transform: scale(0.98);
+  background: #FECACA;
 }
 
 .report-btn > svg:first-child {

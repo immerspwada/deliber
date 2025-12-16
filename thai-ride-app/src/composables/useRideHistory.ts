@@ -48,11 +48,26 @@ const DEMO_HISTORY: RideHistoryItem[] = [
     time: '10:15',
     fare: 65,
     status: 'completed',
-    rating: 4,
+    rating: null,
+    driver_name: 'ไรเดอร์ A',
     driver_tracking_id: 'RDR-20251105-000018'
   },
   {
     id: '3',
+    tracking_id: 'SHP-20251213-000008',
+    type: 'shopping',
+    typeName: 'ซื้อของ',
+    from: 'Big C ลาดพร้าว',
+    to: 'คอนโดลุมพินี',
+    date: '13 ธ.ค. 2567',
+    time: '16:45',
+    fare: 120,
+    status: 'completed',
+    rating: null,
+    driver_name: 'ผู้ช่วย B'
+  },
+  {
+    id: '4',
     tracking_id: 'RID-20251212-000089',
     type: 'ride',
     typeName: 'เรียกรถ',
@@ -68,7 +83,7 @@ const DEMO_HISTORY: RideHistoryItem[] = [
     vehicle: 'Honda City'
   },
   {
-    id: '4',
+    id: '5',
     tracking_id: 'RID-20251210-000156',
     type: 'ride',
     typeName: 'เรียกรถ',

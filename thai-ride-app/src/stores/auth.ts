@@ -66,6 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
     name: string
     phone: string
     role?: string
+    nationalId?: string
   }) => {
     loading.value = true
     error.value = null
@@ -84,13 +85,19 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Create user profile in database
       if (data.user) {
-        const userProfile: UserInsert = {
+        // Parse name into first and last name
+        const nameParts = userData.name.trim().split(' ')
+        const firstName = nameParts[0] || ''
+        const lastName = nameParts.slice(1).join(' ') || ''
+        
+        const userProfile = {
           id: data.user.id,
           email: email,
-          phone: userData.phone,
-          name: userData.name,
-          role: userData.role || 'customer',
-          is_active: true
+          phone_number: userData.phone,
+          first_name: firstName,
+          last_name: lastName,
+          national_id: userData.nationalId || '0000000000000', // Placeholder if not provided
+          verification_status: 'pending'
         }
         
         const { error: profileError } = await supabase
@@ -101,6 +108,16 @@ export const useAuthStore = defineStore('auth', () => {
           console.error('Profile creation error:', profileError)
           // Don't fail registration if profile creation fails
           // User can update profile later
+        }
+        
+        // If role is driver/rider, create service_provider entry
+        if (userData.role && userData.role !== 'customer') {
+          const providerType = userData.role === 'driver' ? 'driver' : 'delivery'
+          await supabase.from('service_providers').insert({
+            user_id: data.user.id,
+            provider_type: providerType,
+            status: 'pending'
+          })
         }
       }
       

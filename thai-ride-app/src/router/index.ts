@@ -15,6 +15,18 @@ export const routes: RouteRecordRaw[] = [
     meta: { hideNavigation: true, public: true }
   },
   {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: () => import('../views/EmailVerificationView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  {
+    path: '/auth/callback',
+    name: 'AuthCallback',
+    component: () => import('../views/EmailVerificationView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  {
     path: '/onboarding',
     name: 'Onboarding',
     component: () => import('../views/OnboardingView.vue'),
@@ -68,6 +80,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider',
     name: 'Provider',
     component: () => import('../views/ProviderView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/provider/register',
+    name: 'ProviderRegister',
+    component: () => import('../views/ProviderRegisterView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -226,6 +244,18 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/corporate',
     name: 'AdminCorporate',
     component: () => import('../views/AdminCorporateView.vue'),
+    meta: { hideNavigation: true, requiresAdminAuth: true, isAdminRoute: true }
+  },
+  {
+    path: '/admin/ratings',
+    name: 'AdminRatings',
+    component: () => import('../views/AdminRatingsView.vue'),
+    meta: { hideNavigation: true, requiresAdminAuth: true, isAdminRoute: true }
+  },
+  {
+    path: '/admin/notifications',
+    name: 'AdminNotifications',
+    component: () => import('../views/AdminNotificationsView.vue'),
     meta: { hideNavigation: true, requiresAdminAuth: true, isAdminRoute: true }
   }
 ]

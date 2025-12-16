@@ -5,7 +5,7 @@ import { usePWA } from './usePWA'
 
 export interface UserNotification {
   id: string
-  type: 'promo' | 'ride' | 'delivery' | 'shopping' | 'payment' | 'system' | 'sos' | 'referral' | 'subscription'
+  type: 'promo' | 'ride' | 'delivery' | 'shopping' | 'payment' | 'system' | 'sos' | 'referral' | 'subscription' | 'rating'
   title: string
   message: string
   data?: any
@@ -130,12 +130,55 @@ export function useNotifications() {
       case 'ride': return '/history'
       case 'delivery': return '/history'
       case 'shopping': return '/history'
+      case 'rating': return '/history'
       case 'promo': return '/promotions'
       case 'payment': return '/wallet'
       case 'referral': return '/referral'
       case 'subscription': return '/subscription'
       case 'sos': return '/help'
       default: return '/notifications'
+    }
+  }
+
+  // Send rating reminder notification
+  const sendRatingReminder = async (params: {
+    serviceType: 'ride' | 'delivery' | 'shopping'
+    serviceId: string
+    providerName: string
+  }) => {
+    if (!authStore.user?.id) return null
+
+    const titles: Record<string, string> = {
+      ride: 'ให้คะแนนการเดินทาง',
+      delivery: 'ให้คะแนนการส่งของ',
+      shopping: 'ให้คะแนนบริการซื้อของ'
+    }
+
+    const messages: Record<string, string> = {
+      ride: `คุณพอใจกับบริการของ ${params.providerName} หรือไม่? แตะเพื่อให้คะแนน`,
+      delivery: `พัสดุถึงแล้ว! ให้คะแนน ${params.providerName} เพื่อช่วยปรับปรุงบริการ`,
+      shopping: `ของถึงแล้ว! ให้คะแนน ${params.providerName} เพื่อช่วยปรับปรุงบริการ`
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('send_notification', {
+        p_user_id: authStore.user.id,
+        p_type: 'rating',
+        p_title: titles[params.serviceType],
+        p_message: messages[params.serviceType],
+        p_data: { 
+          service_type: params.serviceType, 
+          service_id: params.serviceId,
+          provider_name: params.providerName
+        },
+        p_action_url: '/history'
+      })
+
+      if (error) throw error
+      return data
+    } catch (err) {
+      console.error('Error sending rating reminder:', err)
+      return null
     }
   }
 
@@ -154,6 +197,7 @@ export function useNotifications() {
       case 'payment': return 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'
       case 'referral': return 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'
       case 'sos': return 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+      case 'rating': return 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z'
       default: return 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'
     }
   }
@@ -168,6 +212,7 @@ export function useNotifications() {
     deleteNotification,
     subscribeToNotifications,
     enablePushNotifications,
+    sendRatingReminder,
     getNotificationUrl,
     getNotificationIcon
   }

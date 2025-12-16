@@ -37,7 +37,6 @@ interface Suggestion {
 const props = defineProps<{
   pickup: string
   destination: string
-  selectedService: 'ride' | 'delivery' | 'shopping'
   homePlace: SavedPlace | null
   workPlace: SavedPlace | null
   recentPlaces: RecentPlace[]
@@ -48,7 +47,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:pickup': [value: string]
   'update:destination': [value: string]
-  'update:selectedService': [value: 'ride' | 'delivery' | 'shopping']
   'confirm': []
   'select-saved-place': [type: 'home' | 'work']
   'select-recent-place': [place: RecentPlace]
@@ -64,12 +62,6 @@ const multiStops = ref<Stop[]>([])
 const showSuggestions = ref(false)
 const destinationInput = ref<HTMLInputElement | null>(null)
 const searchTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
-
-const services = [
-  { id: 'ride', name: 'เรียกรถ', icon: 'car' },
-  { id: 'delivery', name: 'ส่งพัสดุ', icon: 'package' },
-  { id: 'shopping', name: 'ซื้อของ', icon: 'shopping' }
-]
 
 const canConfirm = computed(() => props.pickup && props.destination)
 
@@ -122,10 +114,6 @@ const filteredSuggestions = computed(() => {
   return suggestions.slice(0, 8)
 })
 
-const selectService = (id: string) => {
-  emit('update:selectedService', id as 'ride' | 'delivery' | 'shopping')
-}
-
 const selectRecentPlace = (place: RecentPlace) => {
   emit('select-recent-place', place)
   showRecentPlaces.value = false
@@ -136,15 +124,8 @@ const handleMultiStopsUpdate = (stops: Stop[]) => {
   emit('update:multiStops', stops)
 }
 
-// Typewriter effect for placeholder
-const typewriterTexts = computed(() => {
-  if (props.selectedService === 'ride') {
-    return ['ไปไหนดี?', 'สนามบิน?', 'ห้างสรรพสินค้า?', 'ร้านอาหาร?', 'โรงพยาบาล?']
-  } else if (props.selectedService === 'delivery') {
-    return ['ส่งที่ไหน?', 'บ้านเพื่อน?', 'ออฟฟิศ?', 'คอนโด?']
-  }
-  return ['ซื้อจากไหน?', 'ตลาด?', 'ซูเปอร์มาร์เก็ต?', 'ร้านสะดวกซื้อ?']
-})
+// Typewriter effect for placeholder - ride service only
+const typewriterTexts = ['ไปไหนดี?', 'สนามบิน?', 'ห้างสรรพสินค้า?', 'ร้านอาหาร?', 'โรงพยาบาล?']
 
 const typewriterPlaceholder = ref('')
 const typewriterIndex = ref(0)
@@ -153,8 +134,7 @@ const isDeleting = ref(false)
 const typewriterTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const typewriterEffect = () => {
-  const texts = typewriterTexts.value
-  const currentText = texts[typewriterIndex.value] || texts[0] || 'ไปไหน?'
+  const currentText = typewriterTexts[typewriterIndex.value] || typewriterTexts[0] || 'ไปไหน?'
   
   if (isDeleting.value) {
     // Deleting
@@ -163,7 +143,7 @@ const typewriterEffect = () => {
     
     if (charIndex.value === 0) {
       isDeleting.value = false
-      typewriterIndex.value = (typewriterIndex.value + 1) % texts.length
+      typewriterIndex.value = (typewriterIndex.value + 1) % typewriterTexts.length
       typewriterTimer.value = setTimeout(typewriterEffect, 500)
     } else {
       typewriterTimer.value = setTimeout(typewriterEffect, 50)
@@ -195,18 +175,6 @@ onUnmounted(() => {
   if (typewriterTimer.value) {
     clearTimeout(typewriterTimer.value)
   }
-})
-
-// Reset typewriter when service changes
-watch(() => props.selectedService, () => {
-  if (typewriterTimer.value) {
-    clearTimeout(typewriterTimer.value)
-  }
-  typewriterIndex.value = 0
-  charIndex.value = 0
-  isDeleting.value = false
-  typewriterPlaceholder.value = ''
-  typewriterEffect()
 })
 
 // Handle destination input
@@ -264,29 +232,6 @@ watch(() => props.destination, (newVal) => {
 </script>
 
 <template>
-  <!-- Service tabs -->
-  <div class="service-tabs">
-    <button 
-      v-for="service in services" 
-      :key="service.id"
-      @click="selectService(service.id)"
-      :class="['service-tab', { active: selectedService === service.id }]"
-    >
-      <div class="tab-icon">
-        <svg v-if="service.icon === 'car'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"/>
-        </svg>
-        <svg v-else-if="service.icon === 'package'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-        <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
-        </svg>
-      </div>
-      <span>{{ service.name }}</span>
-    </button>
-  </div>
-
   <!-- Location inputs -->
   <div class="location-card">
     <div class="location-row">
@@ -364,7 +309,6 @@ watch(() => props.destination, (newVal) => {
 
   <!-- Multi-stop toggle -->
   <button 
-    v-if="selectedService === 'ride'" 
     @click="showMultiStop = !showMultiStop" 
     class="multi-stop-toggle"
   >
@@ -376,7 +320,7 @@ watch(() => props.destination, (newVal) => {
 
   <!-- Multi-stop input -->
   <MultiStopInput 
-    v-if="showMultiStop && selectedService === 'ride'"
+    v-if="showMultiStop"
     :model-value="multiStops"
     @update:model-value="handleMultiStopsUpdate"
     :max-stops="3"
@@ -449,59 +393,6 @@ watch(() => props.destination, (newVal) => {
 </template>
 
 <style scoped>
-/* Service Tabs */
-.service-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 24px;
-}
-
-.service-tab {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 12px;
-  background: #F6F6F6;
-  border: 2px solid transparent;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 80px;
-}
-
-.service-tab:hover {
-  background: #EBEBEB;
-}
-
-.service-tab:active {
-  transform: scale(0.97);
-}
-
-.service-tab.active {
-  background: white;
-  border-color: #000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.tab-icon {
-  width: 32px;
-  height: 32px;
-}
-
-.tab-icon svg {
-  width: 100%;
-  height: 100%;
-  stroke-width: 1.5;
-}
-
-.service-tab span {
-  font-size: 13px;
-  font-weight: 600;
-  color: #333;
-}
-
 /* Location Card */
 .location-card {
   background: #F6F6F6;

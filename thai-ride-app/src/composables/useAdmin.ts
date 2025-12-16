@@ -182,12 +182,22 @@ export function useAdmin() {
     try {
       let query = supabase.from('users').select('*', { count: 'exact' })
       
-      if (filter?.status === 'active') query = query.eq('is_active', true)
-      if (filter?.status === 'inactive') query = query.eq('is_active', false)
-      if (filter?.search) query = query.or(`name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,phone.ilike.%${filter.search}%`)
+      if (filter?.status === 'active') query = query.eq('verification_status', 'verified')
+      if (filter?.status === 'inactive') query = query.neq('verification_status', 'verified')
+      if (filter?.search) query = query.or(`first_name.ilike.%${filter.search}%,last_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,phone_number.ilike.%${filter.search}%`)
       
       const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
-      return { data: data || [], total: count || 0 }
+      
+      // Transform data to match expected format
+      const transformedData = (data || []).map((u: any) => ({
+        ...u,
+        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+        phone: u.phone_number,
+        is_active: u.verification_status === 'verified',
+        role: 'customer' // Default role, check service_providers for actual role
+      }))
+      
+      return { data: transformedData, total: count || 0 }
     } catch {
       return { data: generateMockUsers(), total: 50 }
     }
@@ -257,11 +267,12 @@ export function useAdmin() {
     }
   }
 
-  // Update user active status
+  // Update user verification status
   const updateUserStatus = async (userId: string, isActive: boolean) => {
     try {
+      const status = isActive ? 'verified' : 'rejected'
       // @ts-ignore - Supabase types not fully configured
-      await supabase.from('users').update({ is_active: isActive }).eq('id', userId)
+      await supabase.from('users').update({ verification_status: status }).eq('id', userId)
       return true
     } catch { return false }
   }
@@ -466,6 +477,462 @@ export function useAdmin() {
     }
   }
 
+  // =====================================================
+  // F26 - SERVICE RATINGS ADMIN FUNCTIONS
+  // =====================================================
+
+  // Fetch all delivery ratings
+  const fetchDeliveryRatings = async (page = 1, limit = 20, filter?: { minRating?: number; providerId?: string }) => {
+    try {
+      let query = supabase.from('delivery_ratings').select(`
+        *,
+        user:user_id (name, email),
+        provider:provider_id (vehicle_type, vehicle_plate, users(name)),
+        delivery:delivery_id (tracking_id, sender_address, recipient_address)
+      `, { count: 'exact' })
+      
+      if (filter?.minRating) query = query.gte('rating', filter.minRating)
+      if (filter?.providerId) query = query.eq('provider_id', filter.providerId)
+      
+      const { data, count } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: generateMockDeliveryRatings(), total: 50 }
+    }
+  }
+
+  // Fetch all shopping ratings
+  const fetchShoppingRatings = async (page = 1, limit = 20, filter?: { minRating?: number; providerId?: string }) => {
+    try {
+      let query = supabase.from('shopping_ratings').select(`
+        *,
+        user:user_id (name, email),
+        provider:provider_id (vehicle_type, vehicle_plate, users(name)),
+        shopping:shopping_id (tracking_id, store_name, delivery_address)
+      `, { count: 'exact' })
+      
+      if (filter?.minRating) query = query.gte('rating', filter.minRating)
+      if (filter?.providerId) query = query.eq('provider_id', filter.providerId)
+      
+      const { data, count } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: generateMockShoppingRatings(), total: 50 }
+    }
+  }
+
+  // Fetch all ride ratings
+  const fetchRideRatings = async (page = 1, limit = 20, filter?: { minRating?: number; providerId?: string }) => {
+    try {
+      let query = supabase.from('ride_ratings').select(`
+        *,
+        user:user_id (name, email),
+        provider:provider_id (vehicle_type, vehicle_plate, users(name)),
+        ride:ride_id (tracking_id, pickup_address, destination_address)
+      `, { count: 'exact' })
+      
+      if (filter?.minRating) query = query.gte('rating', filter.minRating)
+      if (filter?.providerId) query = query.eq('provider_id', filter.providerId)
+      
+      const { data, count } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: generateMockRideRatings(), total: 50 }
+    }
+  }
+
+  // Get ratings statistics
+  const fetchRatingsStats = async () => {
+    try {
+      const [rideStats, deliveryStats, shoppingStats] = await Promise.all([
+        supabase.from('ride_ratings').select('rating'),
+        supabase.from('delivery_ratings').select('rating'),
+        supabase.from('shopping_ratings').select('rating')
+      ])
+
+      const calcStats = (data: any[]) => {
+        if (!data || data.length === 0) return { count: 0, avg: 0, distribution: [0, 0, 0, 0, 0] }
+        const count = data.length
+        const avg = data.reduce((sum, r) => sum + r.rating, 0) / count
+        const distribution = [1, 2, 3, 4, 5].map(star => data.filter(r => r.rating === star).length)
+        return { count, avg: Math.round(avg * 10) / 10, distribution }
+      }
+
+      return {
+        ride: calcStats(rideStats.data || []),
+        delivery: calcStats(deliveryStats.data || []),
+        shopping: calcStats(shoppingStats.data || []),
+        total: {
+          count: (rideStats.data?.length || 0) + (deliveryStats.data?.length || 0) + (shoppingStats.data?.length || 0),
+          avg: 0
+        }
+      }
+    } catch {
+      return {
+        ride: { count: 523, avg: 4.7, distribution: [5, 12, 28, 156, 322] },
+        delivery: { count: 234, avg: 4.5, distribution: [3, 8, 18, 89, 116] },
+        shopping: { count: 156, avg: 4.6, distribution: [2, 5, 12, 62, 75] },
+        total: { count: 913, avg: 4.6 }
+      }
+    }
+  }
+
+  // Delete rating (admin only)
+  const deleteRating = async (type: 'ride' | 'delivery' | 'shopping', ratingId: string) => {
+    try {
+      const table = type === 'ride' ? 'ride_ratings' : type === 'delivery' ? 'delivery_ratings' : 'shopping_ratings'
+      await (supabase.from(table) as any).delete().eq('id', ratingId)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Mock data for ratings
+  const generateMockDeliveryRatings = () => [
+    { id: '1', rating: 5, speed_rating: 5, care_rating: 5, communication_rating: 5, comment: 'ส่งเร็วมาก ดูแลพัสดุดี', tip_amount: 20, tags: ['ส่งเร็วมาก', 'ดูแลพัสดุดี'], created_at: new Date().toISOString(), user: { name: 'สมชาย ใจดี' }, provider: { users: { name: 'วีระ ส่งไว' } }, delivery: { tracking_id: 'DEL-20251216-000001' } },
+    { id: '2', rating: 4, speed_rating: 4, care_rating: 5, communication_rating: 4, comment: 'บริการดี', tip_amount: 0, tags: ['สุภาพ'], created_at: new Date(Date.now() - 86400000).toISOString(), user: { name: 'สมหญิง รักดี' }, provider: { users: { name: 'สมศักดิ์ เร็วมาก' } }, delivery: { tracking_id: 'DEL-20251215-000023' } }
+  ]
+
+  const generateMockShoppingRatings = () => [
+    { id: '1', rating: 5, item_selection_rating: 5, freshness_rating: 5, communication_rating: 5, delivery_rating: 5, comment: 'เลือกของดีมาก ของสดทุกอย่าง', tip_amount: 30, tags: ['เลือกของดี', 'ของสด'], created_at: new Date().toISOString(), user: { name: 'นภา สวยงาม' }, provider: { users: { name: 'วีระ ส่งไว' } }, shopping: { tracking_id: 'SHP-20251216-000001', store_name: 'Big C' } },
+    { id: '2', rating: 4, item_selection_rating: 4, freshness_rating: 4, communication_rating: 5, delivery_rating: 4, comment: 'โอเค', tip_amount: 0, tags: ['ครบตามสั่ง'], created_at: new Date(Date.now() - 86400000).toISOString(), user: { name: 'วิชัย มั่งมี' }, provider: { users: { name: 'สมศักดิ์ เร็วมาก' } }, shopping: { tracking_id: 'SHP-20251215-000015', store_name: 'Lotus' } }
+  ]
+
+  const generateMockRideRatings = () => [
+    { id: '1', rating: 5, comment: 'ขับดี ปลอดภัย', tip_amount: 20, created_at: new Date().toISOString(), user: { name: 'สมชาย ใจดี' }, provider: { users: { name: 'ประยุทธ์ ขับดี' } }, ride: { tracking_id: 'RID-20251216-000001', pickup_address: 'สยามพารากอน' } },
+    { id: '2', rating: 4, comment: 'โอเค', tip_amount: 0, created_at: new Date(Date.now() - 86400000).toISOString(), user: { name: 'นภา สวยงาม' }, provider: { users: { name: 'สมศักดิ์ เร็วมาก' } }, ride: { tracking_id: 'RID-20251215-000089', pickup_address: 'เซ็นทรัลเวิลด์' } }
+  ]
+
+  // =====================================================
+  // NOTIFICATION MANAGEMENT (Admin)
+  // =====================================================
+
+  // Fetch all notifications (admin view)
+  const fetchAllNotifications = async (page = 1, limit = 50, filter?: { type?: string; userId?: string }) => {
+    try {
+      let query = supabase.from('user_notifications').select(`
+        *,
+        user:user_id (name, email)
+      `, { count: 'exact' })
+      
+      if (filter?.type) query = query.eq('type', filter.type)
+      if (filter?.userId) query = query.eq('user_id', filter.userId)
+      
+      const { data, count } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: [], total: 0 }
+    }
+  }
+
+  // Get notification stats
+  const fetchNotificationStats = async () => {
+    try {
+      const { count: totalCount } = await supabase.from('user_notifications').select('*', { count: 'exact', head: true })
+      const { count: unreadCount } = await supabase.from('user_notifications').select('*', { count: 'exact', head: true }).eq('is_read', false)
+      const { count: ratingCount } = await supabase.from('user_notifications').select('*', { count: 'exact', head: true }).eq('type', 'rating')
+      
+      return {
+        total: totalCount || 0,
+        unread: unreadCount || 0,
+        ratingReminders: ratingCount || 0
+      }
+    } catch {
+      return { total: 0, unread: 0, ratingReminders: 0 }
+    }
+  }
+
+  // Send bulk notification to users
+  const sendBulkNotification = async (params: {
+    userIds: string[]
+    type: string
+    title: string
+    message: string
+    actionUrl?: string
+  }) => {
+    try {
+      const notifications = params.userIds.map(userId => ({
+        user_id: userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        action_url: params.actionUrl,
+        is_read: false
+      }))
+      
+      await (supabase.from('user_notifications') as any).insert(notifications)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Delete notification
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      await supabase.from('user_notifications').delete().eq('id', notificationId)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // =====================================================
+  // NOTIFICATION TEMPLATES
+  // =====================================================
+
+  // Fetch all notification templates
+  const fetchNotificationTemplates = async () => {
+    try {
+      const { data } = await supabase
+        .from('notification_templates')
+        .select('*')
+        .order('usage_count', { ascending: false })
+      return data || generateMockTemplates()
+    } catch {
+      return generateMockTemplates()
+    }
+  }
+
+  // Create notification template
+  const createNotificationTemplate = async (template: {
+    name: string
+    type: string
+    title: string
+    message: string
+    actionUrl?: string
+  }) => {
+    try {
+      const { data, error } = await (supabase.from('notification_templates') as any).insert({
+        name: template.name,
+        type: template.type,
+        title: template.title,
+        message: template.message,
+        action_url: template.actionUrl
+      }).select().single()
+      
+      if (error) throw error
+      return data
+    } catch {
+      return null
+    }
+  }
+
+  // Update notification template
+  const updateNotificationTemplate = async (id: string, updates: {
+    name?: string
+    type?: string
+    title?: string
+    message?: string
+    actionUrl?: string
+    isActive?: boolean
+  }) => {
+    try {
+      const updateData: Record<string, any> = { updated_at: new Date().toISOString() }
+      if (updates.name) updateData.name = updates.name
+      if (updates.type) updateData.type = updates.type
+      if (updates.title) updateData.title = updates.title
+      if (updates.message) updateData.message = updates.message
+      if (updates.actionUrl !== undefined) updateData.action_url = updates.actionUrl
+      if (updates.isActive !== undefined) updateData.is_active = updates.isActive
+      
+      await (supabase.from('notification_templates') as any).update(updateData).eq('id', id)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Delete notification template
+  const deleteNotificationTemplate = async (id: string) => {
+    try {
+      await supabase.from('notification_templates').delete().eq('id', id)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Use template (increment usage count)
+  const useNotificationTemplate = async (templateId: string) => {
+    try {
+      const { data } = await (supabase.rpc as any)('use_notification_template', { p_template_id: templateId })
+      return data
+    } catch {
+      return null
+    }
+  }
+
+  // Mock templates for demo
+  const generateMockTemplates = () => [
+    { id: '1', name: 'โปรโมชั่นใหม่', type: 'promo', title: 'โปรโมชั่นพิเศษสำหรับ {{user_name}}!', message: 'รับส่วนลด {{discount}}% สำหรับการเดินทางครั้งต่อไป ใช้โค้ด {{promo_code}}', action_url: '/promotions', is_active: true, usage_count: 45 },
+    { id: '2', name: 'ยินดีต้อนรับ', type: 'system', title: 'ยินดีต้อนรับ {{user_name}} สู่ Thai Ride!', message: 'ขอบคุณที่เลือกใช้บริการ Thai Ride', action_url: '/', is_active: true, usage_count: 120 },
+    { id: '3', name: 'อัพเดทระบบ', type: 'system', title: 'อัพเดทระบบใหม่', message: 'เราได้ปรับปรุงระบบเพื่อประสบการณ์ที่ดีขึ้น', action_url: '/settings', is_active: true, usage_count: 15 },
+    { id: '4', name: 'แนะนำเพื่อน', type: 'referral', title: 'แนะนำเพื่อน รับเครดิต!', message: 'แนะนำเพื่อนมาใช้ Thai Ride รับเครดิตฟรี {{referral_bonus}} บาท', action_url: '/referral', is_active: true, usage_count: 30 },
+    { id: '5', name: 'เติมเงิน', type: 'payment', title: 'เติมเงินรับโบนัส', message: 'เติมเงินวันนี้ รับโบนัสเพิ่ม {{bonus_percent}}%', action_url: '/wallet', is_active: true, usage_count: 25 }
+  ]
+
+  // Available template variables
+  const TEMPLATE_VARIABLES = [
+    { key: 'user_name', label: 'ชื่อผู้ใช้', example: 'สมชาย' },
+    { key: 'promo_code', label: 'โค้ดโปรโมชั่น', example: 'SAVE50' },
+    { key: 'discount', label: 'ส่วนลด (%)', example: '20' },
+    { key: 'referral_bonus', label: 'โบนัสแนะนำเพื่อน', example: '50' },
+    { key: 'bonus_percent', label: 'โบนัส (%)', example: '10' },
+    { key: 'app_name', label: 'ชื่อแอพ', example: 'Thai Ride' },
+    { key: 'date', label: 'วันที่', example: '16 ธ.ค. 2567' },
+    { key: 'amount', label: 'จำนวนเงิน', example: '100' }
+  ]
+
+  // User segments for targeting
+  const USER_SEGMENTS = [
+    { key: 'all', label: 'ผู้ใช้ทั้งหมด', icon: 'users' },
+    { key: 'new_users', label: 'ผู้ใช้ใหม่ (30 วัน)', icon: 'user-plus', config: { registered_within_days: 30 } },
+    { key: 'inactive', label: 'ไม่ได้ใช้งาน 7 วัน', icon: 'user-clock', config: { inactive_days: 7 } },
+    { key: 'subscribers', label: 'สมาชิก Subscription', icon: 'crown' },
+    { key: 'non_subscribers', label: 'ยังไม่เป็นสมาชิก', icon: 'user' },
+    { key: 'high_value', label: 'ลูกค้าประจำ (10+ trips)', icon: 'star', config: { min_rides: 10 } }
+  ]
+
+  // =====================================================
+  // SCHEDULED NOTIFICATIONS
+  // =====================================================
+
+  // Fetch scheduled notifications
+  const fetchScheduledNotifications = async (page = 1, limit = 20, filter?: { status?: string }) => {
+    try {
+      let query = supabase.from('scheduled_notifications').select('*', { count: 'exact' })
+      if (filter?.status) query = query.eq('status', filter.status)
+      const { data, count } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('scheduled_at', { ascending: true })
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: generateMockScheduledNotifications(), total: 5 }
+    }
+  }
+
+  // Create scheduled notification
+  const createScheduledNotification = async (notification: {
+    title: string
+    message: string
+    type: string
+    actionUrl?: string
+    scheduledAt: string
+    segment: string
+    segmentConfig?: Record<string, any>
+    templateVariables?: Record<string, string>
+  }) => {
+    try {
+      const { data, error } = await (supabase.from('scheduled_notifications') as any).insert({
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        action_url: notification.actionUrl,
+        scheduled_at: notification.scheduledAt,
+        segment: notification.segment,
+        segment_config: notification.segmentConfig || {},
+        template_variables: notification.templateVariables || {},
+        status: 'scheduled'
+      }).select().single()
+      
+      if (error) throw error
+      return data
+    } catch {
+      return null
+    }
+  }
+
+  // Cancel scheduled notification
+  const cancelScheduledNotification = async (id: string) => {
+    try {
+      await (supabase.from('scheduled_notifications') as any)
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', id)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Get segment user count preview
+  const getSegmentUserCount = async (segment: string, config: Record<string, any> = {}) => {
+    try {
+      const { data } = await (supabase.rpc as any)('get_segment_user_count', {
+        p_segment: segment,
+        p_config: config
+      })
+      return data || 0
+    } catch {
+      // Return mock counts for demo
+      const mockCounts: Record<string, number> = {
+        all: 1247,
+        new_users: 156,
+        inactive: 234,
+        subscribers: 89,
+        non_subscribers: 1158,
+        high_value: 67
+      }
+      return mockCounts[segment] || 0
+    }
+  }
+
+  // Get users by segment (for preview)
+  const getUsersBySegment = async (segment: string, config: Record<string, any> = {}, limit = 10) => {
+    try {
+      // For custom segment, just return the user_ids from config
+      if (segment === 'custom' && config.user_ids) {
+        const { data } = await supabase.from('users').select('id, name, email').in('id', config.user_ids).limit(limit)
+        return data || []
+      }
+      
+      // For other segments, we'd need to call the DB function
+      // For now, return mock data
+      return generateMockUsers().slice(0, limit)
+    } catch {
+      return []
+    }
+  }
+
+  // Mock scheduled notifications
+  const generateMockScheduledNotifications = () => [
+    { id: '1', title: 'โปรโมชั่นวันหยุด', message: 'รับส่วนลด 20% ทุกเที่ยว', type: 'promo', scheduled_at: new Date(Date.now() + 86400000).toISOString(), segment: 'all', status: 'scheduled', sent_count: 0 },
+    { id: '2', title: 'คิดถึงคุณ!', message: 'กลับมาใช้บริการ รับส่วนลด 50 บาท', type: 'promo', scheduled_at: new Date(Date.now() + 172800000).toISOString(), segment: 'inactive', status: 'scheduled', sent_count: 0 },
+    { id: '3', title: 'ขอบคุณสมาชิก', message: 'สิทธิพิเศษสำหรับสมาชิก', type: 'system', scheduled_at: new Date(Date.now() - 86400000).toISOString(), segment: 'subscribers', status: 'sent', sent_count: 89 }
+  ]
+
+  // Replace template variables with actual values
+  const replaceTemplateVariables = (text: string, variables: Record<string, string>): string => {
+    let result = text
+    // Replace custom variables
+    Object.entries(variables).forEach(([key, value]) => {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+    })
+    // Replace default variables
+    result = result.replace(/\{\{app_name\}\}/g, 'Thai Ride')
+    result = result.replace(/\{\{date\}\}/g, new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }))
+    return result
+  }
+
+  // Extract variables from template text
+  const extractTemplateVariables = (text: string): string[] => {
+    const matches = text.match(/\{\{(\w+)\}\}/g) || []
+    return [...new Set(matches.map(m => m.replace(/\{\{|\}\}/g, '')))]
+  }
+
   return {
     loading, error, stats, recentOrders, recentUsers, recentPayments,
     fetchDashboardStats, fetchRecentOrders, fetchUsers, fetchProviders,
@@ -476,6 +943,22 @@ export function useAdmin() {
     fetchSubscriptions, fetchSubscriptionPlans, updateSubscriptionPlan,
     fetchInsuranceClaims, updateInsuranceClaim, fetchInsurancePlans,
     fetchCompanies, updateCompanyStatus, fetchCompanyEmployees,
-    fetchScheduledRides
+    fetchScheduledRides,
+    // F26 - Service Ratings
+    fetchDeliveryRatings, fetchShoppingRatings, fetchRideRatings,
+    fetchRatingsStats, deleteRating,
+    // Notifications Management
+    fetchAllNotifications, fetchNotificationStats, sendBulkNotification,
+    deleteNotification,
+    // Notification Templates
+    fetchNotificationTemplates, createNotificationTemplate,
+    updateNotificationTemplate, deleteNotificationTemplate, useNotificationTemplate,
+    // Template Variables
+    TEMPLATE_VARIABLES, replaceTemplateVariables, extractTemplateVariables,
+    // User Segments
+    USER_SEGMENTS,
+    // Scheduled Notifications
+    fetchScheduledNotifications, createScheduledNotification, cancelScheduledNotification,
+    getSegmentUserCount, getUsersBySegment
   }
 }

@@ -129,8 +129,8 @@ const goBack = () => {
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -140,6 +140,8 @@ const goBack = () => {
   border-radius: 50%;
   margin-left: -8px;
   transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .back-btn:hover {
@@ -147,7 +149,8 @@ const goBack = () => {
 }
 
 .back-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
+  background-color: var(--color-secondary);
 }
 
 .back-btn svg {
@@ -174,7 +177,8 @@ const goBack = () => {
 
 .main-content {
   flex: 1;
-  padding-bottom: 88px;
+  padding-bottom: 90px;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Bottom Navigation */
@@ -187,7 +191,7 @@ const goBack = () => {
   border-top: 1px solid var(--color-border);
   z-index: 100;
   backdrop-filter: blur(12px);
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: rgba(255, 255, 255, 0.98);
 }
 
 .nav-container {
@@ -195,29 +199,42 @@ const goBack = () => {
   justify-content: space-around;
   max-width: 480px;
   margin: 0 auto;
-  padding: 8px 0;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding: 6px 8px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
 }
 
 .nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 6px 20px;
+  justify-content: center;
+  padding: 8px 24px;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--color-text-muted);
   transition: all 0.2s ease;
   position: relative;
+  min-height: 56px;
+  min-width: 72px;
+  border-radius: 12px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
+  background-color: rgba(0, 0, 0, 0.04);
 }
 
 .nav-item-active {
   color: var(--color-text-primary);
+}
+
+.nav-item-active:active {
+  background-color: rgba(0, 0, 0, 0.06);
 }
 
 .nav-icon-wrapper {
@@ -225,8 +242,14 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.nav-item-active .nav-icon-wrapper {
+  background-color: rgba(0, 0, 0, 0.08);
 }
 
 .nav-icon {
@@ -236,16 +259,17 @@ const goBack = () => {
 }
 
 .nav-item-active .nav-icon {
-  transform: scale(1.1);
+  transform: scale(1.05);
+  stroke-width: 2.5;
 }
 
 .active-dot {
   position: absolute;
-  bottom: -4px;
+  bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   background-color: var(--color-primary);
   border-radius: 50%;
   animation: scaleIn 0.2s ease-out;
@@ -261,8 +285,9 @@ const goBack = () => {
 }
 
 .nav-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   margin-top: 4px;
+  letter-spacing: -0.2px;
 }
 </style>

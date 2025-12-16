@@ -99,12 +99,12 @@ const enterDemoMode = async () => {
     console.warn('Demo login failed, using local demo mode')
   }
   
-  // Fallback to local demo mode
+  // Fallback to local demo mode - use valid UUID from database
   localStorage.setItem('demo_mode', 'true')
   localStorage.setItem('demo_user', JSON.stringify({
-    id: 'demo-user-001',
+    id: '22222222-2222-2222-2222-222222222222',
     email: 'customer@demo.com',
-    name: 'Demo Customer',
+    name: 'Customer User',
     phone: '0812345678',
     role: 'customer',
     is_active: true

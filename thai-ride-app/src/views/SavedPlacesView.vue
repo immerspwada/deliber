@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useServices } from '../composables/useServices'
 import { useLocation } from '../composables/useLocation'
+import { useToast } from '../composables/useToast'
+import { useLeafletMap } from '../composables/useLeafletMap'
 import AddressSearchInput from '../components/AddressSearchInput.vue'
 import type { PlaceResult } from '../composables/usePlaceSearch'
 
 const router = useRouter()
-const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces, savePlace: savePlaceToDb } = useServices()
+const route = useRoute()
+const toast = useToast()
+const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces, savePlace: savePlaceToDb, deletePlace: deletePlaceFromDb, error: serviceError } = useServices()
 const { currentLocation } = useLocation()
 
 const loading = ref(true)
+const saving = ref(false)
 const activeTab = ref<'saved' | 'recent'>('saved')
 const showAddModal = ref(false)
 const editingPlace = ref<any>(null)
@@ -21,6 +26,19 @@ const newPlace = ref({
   type: 'other' as 'home' | 'work' | 'other',
   lat: 13.7563,
   lng: 100.5018
+})
+
+// Get modal title based on type and editing state
+const modalTitle = computed(() => {
+  if (editingPlace.value) return 'แก้ไขสถานที่'
+  if (newPlace.value.type === 'home') return 'เพิ่มที่อยู่บ้าน'
+  if (newPlace.value.type === 'work') return 'เพิ่มที่อยู่ที่ทำงาน'
+  return 'เพิ่มสถานที่'
+})
+
+// Check if form is valid
+const isFormValid = computed(() => {
+  return newPlace.value.name.trim() && newPlace.value.address.trim() && newPlace.value.lat && newPlace.value.lng
 })
 
 const placeTypes = [
@@ -36,11 +54,22 @@ const otherPlaces = computed(() => savedPlaces.value.filter(p => p.place_type ==
 onMounted(async () => {
   await Promise.all([fetchSavedPlaces(), fetchRecentPlaces()])
   loading.value = false
+  
+  // Check if we should open add modal from query param
+  const addType = route.query.add as 'home' | 'work' | undefined
+  if (addType && (addType === 'home' || addType === 'work')) {
+    openAddModal(addType)
+  }
 })
 
 const openAddModal = (type?: 'home' | 'work' | 'other') => {
+  // Set default name based on type
+  let defaultName = ''
+  if (type === 'home') defaultName = 'บ้าน'
+  else if (type === 'work') defaultName = 'ที่ทำงาน'
+  
   newPlace.value = {
-    name: '',
+    name: defaultName,
     address: '',
     type: type || 'other',
     lat: 13.7563,
@@ -57,23 +86,60 @@ const openEditModal = (place: any) => {
 }
 
 const savePlace = async () => {
-  if (!newPlace.value.name || !newPlace.value.address) return
+  if (!isFormValid.value) {
+    toast.warning('กรุณากรอกข้อมูลให้ครบถ้วน')
+    return
+  }
   
-  await savePlaceToDb({
-    name: newPlace.value.name,
-    address: newPlace.value.address,
-    lat: newPlace.value.lat,
-    lng: newPlace.value.lng,
-    place_type: newPlace.value.type
-  })
-  
-  await fetchSavedPlaces()
-  showAddModal.value = false
+  saving.value = true
+  try {
+    const result = await savePlaceToDb({
+      name: newPlace.value.name.trim(),
+      address: newPlace.value.address.trim(),
+      lat: newPlace.value.lat,
+      lng: newPlace.value.lng,
+      place_type: newPlace.value.type
+    })
+    
+    if (result) {
+      await fetchSavedPlaces()
+      showAddModal.value = false
+      
+      const typeLabel = newPlace.value.type === 'home' ? 'บ้าน' : newPlace.value.type === 'work' ? 'ที่ทำงาน' : 'สถานที่'
+      toast.success(`บันทึก${typeLabel}เรียบร้อยแล้ว`)
+      
+      // Clear query param after successful save
+      if (route.query.add) {
+        router.replace({ path: '/saved-places' })
+      }
+    } else {
+      // Show specific error message based on error type
+      let errorMsg = serviceError.value || 'ไม่สามารถบันทึกได้ กรุณาลองใหม่'
+      if (errorMsg.includes('เชื่อมต่อ') || errorMsg.includes('fetch')) {
+        errorMsg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'
+      }
+      toast.error(errorMsg)
+    }
+  } catch (err: any) {
+    console.error('Save place error:', err)
+    let errorMsg = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+      errorMsg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'
+    }
+    toast.error(errorMsg)
+  } finally {
+    saving.value = false
+  }
 }
 
 // Handle search result selection in modal
 const handleSearchSelect = (place: PlaceResult) => {
-  newPlace.value.name = place.name
+  // Keep existing name if it's a default (home/work), otherwise use place name
+  if (!newPlace.value.name || newPlace.value.name === 'บ้าน' || newPlace.value.name === 'ที่ทำงาน') {
+    // Keep the default name for home/work
+  } else {
+    newPlace.value.name = place.name
+  }
   newPlace.value.address = place.address
   newPlace.value.lat = place.lat
   newPlace.value.lng = place.lng
@@ -81,11 +147,55 @@ const handleSearchSelect = (place: PlaceResult) => {
 
 const deletePlace = async (id: string) => {
   if (confirm('ต้องการลบสถานที่นี้?')) {
-    console.log('Deleting place:', id)
+    saving.value = true
+    try {
+      const success = await deletePlaceFromDb(id)
+      if (success) {
+        await fetchSavedPlaces()
+        showAddModal.value = false
+        toast.success('ลบสถานที่เรียบร้อยแล้ว')
+      } else {
+        toast.error('ไม่สามารถลบได้ กรุณาลองใหม่')
+      }
+    } catch (err) {
+      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    } finally {
+      saving.value = false
+    }
   }
 }
 
 const goBack = () => router.back()
+
+// Map preview
+const mapContainer = ref<HTMLElement | null>(null)
+const { initMap, addMarker, clearMarkers, cleanup: cleanupMap } = useLeafletMap()
+
+// Watch for address changes to update map
+watch(() => [newPlace.value.lat, newPlace.value.lng, newPlace.value.address], async () => {
+  if (newPlace.value.address && newPlace.value.lat && newPlace.value.lng && mapContainer.value) {
+    await nextTick()
+    // Cleanup previous map first
+    cleanupMap()
+    await nextTick()
+    
+    initMap(mapContainer.value, {
+      center: { lat: newPlace.value.lat, lng: newPlace.value.lng },
+      zoom: 16
+    })
+    addMarker({
+      position: { lat: newPlace.value.lat, lng: newPlace.value.lng },
+      icon: 'destination'
+    })
+  }
+}, { deep: true })
+
+// Cleanup map when modal closes
+watch(showAddModal, (isOpen) => {
+  if (!isOpen) {
+    cleanupMap()
+  }
+})
 </script>
 
 <template>
@@ -229,8 +339,8 @@ const goBack = () => router.back()
     <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>{{ editingPlace ? 'แก้ไขสถานที่' : 'เพิ่มสถานที่' }}</h3>
-          <button @click="showAddModal = false" class="close-btn">
+          <h3>{{ modalTitle }}</h3>
+          <button @click="showAddModal = false" class="close-btn" :disabled="saving">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -271,12 +381,26 @@ const goBack = () => router.back()
           />
         </div>
 
+        <!-- Map Preview -->
+        <div v-if="newPlace.address && newPlace.lat && newPlace.lng" class="map-preview">
+          <div class="map-preview-header">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>ตำแหน่งที่เลือก</span>
+          </div>
+          <div ref="mapContainer" class="map-preview-container"></div>
+          <div class="map-preview-address">{{ newPlace.address }}</div>
+        </div>
+
         <div class="modal-actions">
-          <button v-if="editingPlace" @click="deletePlace(editingPlace.id)" class="btn-delete">
+          <button v-if="editingPlace" @click="deletePlace(editingPlace.id)" class="btn-delete" :disabled="saving">
             ลบสถานที่
           </button>
-          <button @click="savePlace" class="btn-primary">
-            บันทึก
+          <button @click="savePlace" class="btn-primary" :disabled="saving || !isFormValid">
+            <span v-if="saving">กำลังบันทึก...</span>
+            <span v-else>บันทึก</span>
           </button>
         </div>
       </div>
@@ -571,6 +695,12 @@ const goBack = () => router.back()
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.btn-primary:disabled {
+  background: #CCC;
+  cursor: not-allowed;
 }
 
 .btn-delete {
@@ -581,5 +711,50 @@ const goBack = () => router.back()
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Map Preview */
+.map-preview {
+  margin-bottom: 16px;
+  background: #F6F6F6;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.map-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B6B6B;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.map-preview-container {
+  height: 120px;
+  background: #E5E5E5;
+  overflow: hidden;
+}
+
+.map-preview-container :deep(.leaflet-container) {
+  height: 100%;
+  width: 100%;
+}
+
+.map-preview-address {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.4;
+  border-top: 1px solid #E5E5E5;
+  background: #fff;
 }
 </style>
