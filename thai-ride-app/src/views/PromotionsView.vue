@@ -23,21 +23,7 @@ const favoriteToast = ref<string | null>(null)
 const newPromoToast = ref<any>(null)
 let promoSubscription: any = null
 
-interface PromoCode {
-  id: string
-  code: string
-  discount_type: 'fixed' | 'percentage'
-  discount_value: number
-  min_order_amount?: number
-  max_discount?: number
-  valid_until: string
-  description?: string
-  used?: boolean
-  category?: 'ride' | 'delivery' | 'shopping' | 'all'
-  is_favorite?: boolean
-  used_count?: number
-  usage_limit?: number | null
-}
+
 
 // Track animating favorites
 const animatingFavId = ref<string | null>(null)
@@ -151,11 +137,11 @@ const toggleFavorite = async (promo: any) => {
   
   try {
     if (isFav) {
-      await supabase.from('favorite_promos').delete().eq('user_id', authStore.user.id).eq('promo_id', promo.id)
+      await (supabase.from('favorite_promos') as any).delete().eq('user_id', authStore.user.id).eq('promo_id', promo.id)
       favoriteIds.value.delete(promo.id)
       favoriteToast.value = 'ลบออกจากรายการโปรด'
     } else {
-      await supabase.from('favorite_promos').insert({ user_id: authStore.user.id, promo_id: promo.id })
+      await (supabase.from('favorite_promos') as any).insert({ user_id: authStore.user.id, promo_id: promo.id })
       favoriteIds.value.add(promo.id)
       favoriteToast.value = 'เพิ่มในรายการโปรดแล้ว'
     }

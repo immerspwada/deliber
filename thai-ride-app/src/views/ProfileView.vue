@@ -98,7 +98,7 @@ const logout = async () => {
   localStorage.removeItem('demo_mode')
   localStorage.removeItem('demo_user')
   
-  const success = await authStore.logout()
+  await authStore.logout()
   // Always redirect to login regardless of success
   router.push('/login')
 }

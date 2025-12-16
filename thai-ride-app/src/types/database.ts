@@ -511,6 +511,26 @@ export type Database = {
           user_id?: string | null
         }
       }
+      favorite_promos: {
+        Row: {
+          id: string
+          user_id: string
+          promo_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          promo_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          promo_id?: string
+          created_at?: string | null
+        }
+      }
       users: {
         Row: {
           avatar_url: string | null

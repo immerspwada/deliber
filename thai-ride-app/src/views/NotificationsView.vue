@@ -24,11 +24,11 @@ const groupedNotifications = computed(() => {
   yesterday.setDate(yesterday.getDate() - 1)
 
   notifications.value.forEach((notification) => {
-    const notifDate = new Date(notification.created_at)
+    const notifDate = new Date(notification.created_at || new Date())
     notifDate.setHours(0, 0, 0, 0)
 
-    let label: string
-    let dateKey: string
+    let label = ''
+    let dateKey = ''
 
     if (notifDate.getTime() === today.getTime()) {
       label = 'วันนี้'
@@ -42,7 +42,7 @@ const groupedNotifications = computed(() => {
         month: 'long',
         year: 'numeric'
       })
-      dateKey = notifDate.toISOString().split('T')[0]
+      dateKey = notifDate.toISOString().split('T')[0] || 'unknown'
     }
 
     const existingGroup = groups.find((g) => g.date === dateKey)
