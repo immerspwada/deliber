@@ -8,18 +8,6 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 // Get demo user info
-const userName = computed(() => {
-  const demoUser = localStorage.getItem('demo_user')
-  if (demoUser) {
-    try {
-      return JSON.parse(demoUser).name || 'ผู้ให้บริการ'
-    } catch {
-      return 'ผู้ให้บริการ'
-    }
-  }
-  return authStore.user?.name || 'ผู้ให้บริการ'
-})
-
 const userRole = computed(() => {
   const demoUser = localStorage.getItem('demo_user')
   if (demoUser) {

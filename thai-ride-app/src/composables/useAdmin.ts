@@ -933,7 +933,7 @@ export function useAdmin() {
       if (!subs || subs.length === 0) return { sent: 0, total: 0 }
       
       // Get unique user IDs
-      const userIds = [...new Set(subs.map(s => s.user_id))]
+      const userIds = [...new Set(subs.map((s: { user_id: string }) => s.user_id))]
       
       // Queue notifications for all users
       const notifications = userIds.map(userId => ({

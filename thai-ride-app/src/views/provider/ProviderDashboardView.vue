@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useLocation } from '../../composables/useLocation'
 import { useProvider } from '../../composables/useProvider'
 import ProviderLayout from '../../components/ProviderLayout.vue'
@@ -9,7 +8,6 @@ import RideRequestCard from '../../components/provider/RideRequestCard.vue'
 import ChatModal from '../../components/ChatModal.vue'
 import VoiceCallModal from '../../components/VoiceCallModal.vue'
 
-const router = useRouter()
 const { getCurrentPosition, currentLocation } = useLocation()
 const {
   loading,
