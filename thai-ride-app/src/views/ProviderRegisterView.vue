@@ -188,35 +188,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   })
 }
 
-// Upload file to Supabase Storage (with fallback to base64)
-const uploadFile = async (file: File, path: string): Promise<string | null> => {
-  try {
-    // Try uploading to storage first
-    const { data, error: uploadError } = await supabase.storage
-      .from('provider-documents')
-      .upload(path, file, { upsert: true })
-    
-    if (uploadError) {
-      console.warn('Storage upload failed, using base64:', uploadError.message)
-      // Fallback to base64 (stored in database)
-      return await fileToBase64(file)
-    }
-    
-    const { data: urlData } = supabase.storage
-      .from('provider-documents')
-      .getPublicUrl(data.path)
-    
-    return urlData.publicUrl
-  } catch (err) {
-    console.warn('Upload failed, using base64 fallback')
-    // Fallback to base64
-    try {
-      return await fileToBase64(file)
-    } catch {
-      return null
-    }
-  }
-}
+
 
 // Navigation
 const nextStep = () => {
@@ -264,8 +236,8 @@ const submitApplication = async () => {
     }
     
     // Create provider profile
-    const { error: insertError } = await supabase
-      .from('service_providers')
+    const { error: insertError } = await (supabase
+      .from('service_providers') as any)
       .insert({
         user_id: userId,
         provider_type: selectedType.value,

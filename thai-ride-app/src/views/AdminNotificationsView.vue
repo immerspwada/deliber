@@ -41,7 +41,6 @@ const templateForm = ref({ name: '', type: 'system', title: '', message: '', act
 
 // Scheduled notifications
 const scheduledNotifications = ref<any[]>([])
-const showScheduleModal = ref(false)
 
 // Broadcast form with scheduling and segmentation
 const broadcastForm = ref({
@@ -58,7 +57,6 @@ const broadcastForm = ref({
   segmentConfig: {} as Record<string, any>
 })
 const sendingBroadcast = ref(false)
-const allUsers = ref<any[]>([])
 const segmentUserCount = ref<number>(0)
 const loadingSegmentCount = ref(false)
 
@@ -118,6 +116,7 @@ const loadData = async () => {
 // Use template for broadcast
 const useTemplate = (template: any) => {
   broadcastForm.value = {
+    ...broadcastForm.value,
     type: template.type,
     title: template.title,
     message: template.message,
@@ -747,7 +746,7 @@ onMounted(loadData)
             </label>
             <div class="space-y-2">
               <div v-for="varName in detectedVariables" :key="varName" class="flex items-center gap-2">
-                <span class="text-xs bg-gray-100 px-2 py-1 rounded font-mono">{{ '{{' + varName + '}}' }}</span>
+                <span class="text-xs bg-gray-100 px-2 py-1 rounded font-mono">&#123;&#123;{{ varName }}&#125;&#125;</span>
                 <input
                   v-model="templateVariables[varName]"
                   type="text"
@@ -762,7 +761,7 @@ onMounted(loadData)
           <div class="text-xs text-gray-400">
             ตัวแปรที่ใช้ได้: 
             <span v-for="(v, i) in TEMPLATE_VARIABLES" :key="v.key">
-              <code class="bg-gray-100 px-1 rounded">{{ '{{' + v.key + '}}' }}</code>{{ i < TEMPLATE_VARIABLES.length - 1 ? ', ' : '' }}
+              <code class="bg-gray-100 px-1 rounded">&#123;&#123;{{ v.key }}&#125;&#125;</code><span v-if="i < TEMPLATE_VARIABLES.length - 1">, </span>
             </span>
           </div>
 
@@ -790,7 +789,6 @@ onMounted(loadData)
             <span v-else-if="broadcastForm.isScheduled">ตั้งเวลาส่ง</span>
             <span v-else>ส่งทันที ({{ segmentUserCount }} คน)</span>
           </button>
-        </div>
         </div>
       </div>
     </div>

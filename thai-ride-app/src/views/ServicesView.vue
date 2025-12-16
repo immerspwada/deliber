@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MapView from '../components/MapView.vue'
 import ChatModal from '../components/ChatModal.vue'
@@ -451,7 +451,7 @@ const requestRide = async () => {
       subscriptions.value.push(subscription)
 
       // Find driver
-      const foundDriver = await findDriver(pickupLocation.value.lat, pickupLocation.value.lng)
+      const foundDriver = await findDriver()
 
       if (foundDriver) {
         step.value = 'matched'

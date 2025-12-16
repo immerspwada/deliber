@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp } from '../lib/supabase'
-import type { User, UserInsert, UserUpdate } from '../types/database'
+import type { User, UserUpdate } from '../types/database'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -113,7 +113,7 @@ export const useAuthStore = defineStore('auth', () => {
         // If role is driver/rider, create service_provider entry
         if (userData.role && userData.role !== 'customer') {
           const providerType = userData.role === 'driver' ? 'driver' : 'delivery'
-          await supabase.from('service_providers').insert({
+          await (supabase.from('service_providers') as any).insert({
             user_id: data.user.id,
             provider_type: providerType,
             status: 'pending'

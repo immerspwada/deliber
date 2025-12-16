@@ -10,7 +10,7 @@ import ShoppingRatingModal from '../components/shopping/ShoppingRatingModal.vue'
 
 const router = useRouter()
 const { history, loading, fetchHistory, rebookRide } = useRideHistory()
-const { getDeliveryRating, getShoppingRating } = useServiceRatings()
+useServiceRatings()
 
 // Rating modal state
 const showDeliveryRating = ref(false)

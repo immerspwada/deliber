@@ -169,7 +169,7 @@ const goBack = () => router.back()
 
 // Map preview
 const mapContainer = ref<HTMLElement | null>(null)
-const { initMap, addMarker, clearMarkers, cleanup: cleanupMap } = useLeafletMap()
+const { initMap, addMarker, cleanup: cleanupMap } = useLeafletMap()
 
 // Watch for address changes to update map
 watch(() => [newPlace.value.lat, newPlace.value.lng, newPlace.value.address], async () => {

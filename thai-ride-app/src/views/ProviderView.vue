@@ -91,8 +91,9 @@ const checkApplicationStatus = async () => {
     return
   }
   
-  applicationStatus.value = data.status as any
-  rejectionReason.value = data.rejection_reason || ''
+  const providerData = data as { status: string; rejection_reason: string | null }
+  applicationStatus.value = providerData.status as any
+  rejectionReason.value = providerData.rejection_reason || ''
 }
 
 // Initialize

@@ -172,7 +172,7 @@ export function useNotifications() {
           provider_name: params.providerName
         },
         p_action_url: '/history'
-      })
+      } as any)
 
       if (error) throw error
       return data

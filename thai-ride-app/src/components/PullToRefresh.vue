@@ -28,14 +28,14 @@ const onTouchStart = (e: TouchEvent) => {
   const scrollTop = container.value.scrollTop
   if (scrollTop > 0) return
   
-  startY = e.touches[0].clientY
+  startY = e.touches[0]?.clientY ?? 0
   isPulling.value = true
 }
 
 const onTouchMove = (e: TouchEvent) => {
   if (!isPulling.value || props.loading || isRefreshing.value) return
   
-  currentY = e.touches[0].clientY
+  currentY = e.touches[0]?.clientY ?? 0
   const diff = currentY - startY
   
   if (diff > 0) {

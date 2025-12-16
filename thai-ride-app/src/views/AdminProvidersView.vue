@@ -56,7 +56,7 @@ const sendProviderNotification = async (userId: string, type: 'approved' | 'reje
 
   const notif = notifications[type]
   
-  await supabase.from('user_notifications').insert({
+  await (supabase.from('user_notifications') as any).insert({
     user_id: userId,
     type: 'system',
     title: notif.title,
@@ -71,8 +71,8 @@ const approveProvider = async (id: string) => {
   const provider = providers.value.find(p => p.id === id) || selectedProvider.value
   actionLoading.value = true
   
-  await supabase
-    .from('service_providers')
+  await (supabase
+    .from('service_providers') as any)
     .update({ status: 'approved', is_verified: true })
     .eq('id', id)
   
@@ -98,8 +98,8 @@ const rejectProvider = async () => {
   if (!selectedProvider.value || !rejectionReason.value.trim()) return
   actionLoading.value = true
   
-  await supabase
-    .from('service_providers')
+  await (supabase
+    .from('service_providers') as any)
     .update({ 
       status: 'rejected', 
       is_verified: false,
@@ -123,8 +123,8 @@ const suspendProvider = async (id: string) => {
   const provider = providers.value.find(p => p.id === id)
   actionLoading.value = true
   
-  await supabase
-    .from('service_providers')
+  await (supabase
+    .from('service_providers') as any)
     .update({ status: 'suspended', is_available: false })
     .eq('id', id)
   
@@ -140,8 +140,8 @@ const suspendProvider = async (id: string) => {
 // Reactivate provider
 const reactivateProvider = async (id: string) => {
   actionLoading.value = true
-  await supabase
-    .from('service_providers')
+  await (supabase
+    .from('service_providers') as any)
     .update({ status: 'approved', is_verified: true })
     .eq('id', id)
   actionLoading.value = false

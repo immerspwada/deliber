@@ -50,7 +50,7 @@ const acceptTerms = ref(false)
 const isFirstNameValid = computed(() => firstName.value.length === 0 || validateThaiName(firstName.value))
 const isLastNameValid = computed(() => lastName.value.length === 0 || validateThaiName(lastName.value))
 const isNationalIdValid = computed(() => nationalId.value.length === 0 || validateThaiNationalId(nationalId.value))
-const isPhoneValid = computed(() => phone.value.length === 0 || validateThaiPhoneNumber(phone.value))
+
 const isEmailValid = computed(() => email.value.length === 0 || validateEmail(email.value))
 const passwordValidation = computed(() => validatePassword(password.value))
 const isPasswordMatch = computed(() => password.value === confirmPassword.value)
@@ -197,11 +197,7 @@ const verifyOtp = async () => {
   }
 }
 
-const resendOtp = () => {
-  if (otpCountdown.value > 0) return
-  otpCode.value = ''
-  sendOtp()
-}
+
 
 // Navigation
 const nextStep = () => {
