@@ -22,7 +22,7 @@
 | **F04** | Shopping Service | `useShopping.ts` | `shopping_requests` | 001, 007 |
 | **F05** | Wallet/Balance | `useWallet.ts` | `user_wallets`, `wallet_transactions` | 007 |
 | **F06** | Referral System | `useReferral.ts` | `referral_codes`, `referrals` | 007 |
-| **F07** | Notifications | `useNotifications.ts` | `user_notifications` | 007 |
+| **F07** | Notifications & Push | `useNotifications.ts`, `usePushNotifications.ts` | `user_notifications`, `push_subscriptions`, `push_notification_queue` | 007, 015 |
 | **F08** | Payment Methods | `usePaymentMethods.ts` | `payment_methods` | 002 |
 | **F09** | Saved Places | `useServices.ts` | `saved_places`, `recent_places` | 002 |
 | **F10** | Promo Codes | `useServices.ts` | `promo_codes`, `user_promo_usage` | 002 |
@@ -178,6 +178,11 @@ shopping_ratings        → F26 (Service Ratings)
 | `notify_new_promo()` | Trigger for new promo notifications | F10 |
 | `check_favorite_promo_alerts()` | Check and send favorite promo alerts | F10 |
 | `notify_promo_low_stock()` | Trigger for low stock promo alerts | F10 |
+| `save_push_subscription()` | Save push subscription | F07 |
+| `remove_push_subscription()` | Remove push subscription | F07 |
+| `get_user_push_subscriptions()` | Get user's push subscriptions | F07 |
+| `queue_push_notification()` | Queue push notification | F07 |
+| `auto_queue_push_notification()` | Auto-queue on notification insert | F07 |
 
 ---
 
@@ -244,6 +249,8 @@ shopping_ratings        → F26 (Service Ratings)
 
 ## 📊 Migration Files
 
+### Legacy Files (Supabase CLI Compatible)
+
 | ไฟล์ | รายละเอียด | ฟีเจอร์ที่เกี่ยวข้อง |
 |------|------------|---------------------|
 | `001_initial_schema.sql` | Core tables | F01, F02, F03, F04, F08 |
@@ -260,3 +267,79 @@ shopping_ratings        → F26 (Service Ratings)
 | `012_provider_documents_storage.sql` | Provider Documents Storage | F14 |
 | `013_promo_favorites_and_category.sql` | Promo Favorites & Categories | F10 |
 | `014_promo_alerts.sql` | Promo Alerts for Favorites | F10 |
+| `015_push_notifications.sql` | Push Subscriptions & Queue | F07 |
+
+---
+
+## 📁 Modular Migration Structure (NEW)
+
+### Core Module (`core/`)
+| ไฟล์ | รายละเอียด | ฟีเจอร์ |
+|------|------------|---------|
+| `001_users_auth.sql` | Users & Authentication | F01 |
+
+### Provider Module (`provider/`)
+| ไฟล์ | รายละเอียด | ฟีเจอร์ |
+|------|------------|---------|
+| `001_service_providers.sql` | Service providers, find nearby | F14 |
+| `002_earnings.sql` | Earnings & stats | F14 |
+
+### Customer Module (`customer/`)
+| ไฟล์ | รายละเอียด | ฟีเจอร์ |
+|------|------------|---------|
+| `001_rides.sql` | Ride requests | F02 |
+| `002_delivery.sql` | Delivery service | F03 |
+| `003_shopping.sql` | Shopping service | F04 |
+| `004_ratings.sql` | All ratings (ride/delivery/shopping) | F11, F26 |
+| `005_saved_places.sql` | Saved & recent places | F09 |
+| `006_safety.sql` | Emergency, SOS, trip share | F13 |
+| `007_chat.sql` | Chat/messaging | F12 |
+
+### Shared Module (`shared/`)
+| ไฟล์ | รายละเอียด | ฟีเจอร์ |
+|------|------------|---------|
+| `001_notifications.sql` | Notifications & push | F07 |
+| `002_payments.sql` | Payments & methods | F08 |
+| `003_wallet.sql` | Wallet system | F05 |
+| `004_promos.sql` | Promo codes | F10 |
+| `005_referral.sql` | Referral system | F06 |
+| `006_tracking.sql` | Tracking system | F25 |
+| `007_advanced_features.sql` | F15-F22 features | F15-F22 |
+
+### Admin Module (`admin/`)
+| ไฟล์ | รายละเอียด | ฟีเจอร์ |
+|------|------------|---------|
+| `001_admin_features.sql` | Support, complaints, refunds, activity log | F23, F24 |
+
+---
+
+## 🔗 Module Dependencies
+
+```
+core/001_users_auth
+    ├── provider/001_service_providers
+    │       └── provider/002_earnings
+    │
+    ├── customer/001_rides ─────────┐
+    │       ├── customer/004_ratings│
+    │       ├── customer/006_safety │
+    │       └── customer/007_chat   │
+    │                               │
+    ├── customer/002_delivery ──────┤
+    │       └── customer/004_ratings│
+    │                               │
+    ├── customer/003_shopping ──────┤
+    │       └── customer/004_ratings│
+    │                               │
+    ├── customer/005_saved_places   │
+    │                               │
+    ├── shared/001_notifications    │
+    ├── shared/002_payments         │
+    ├── shared/003_wallet ──────────┤
+    │       └── shared/005_referral │
+    ├── shared/004_promos           │
+    ├── shared/006_tracking         │
+    ├── shared/007_advanced_features┘
+    │
+    └── admin/001_admin_features
+```

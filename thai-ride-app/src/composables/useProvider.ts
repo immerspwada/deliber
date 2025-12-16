@@ -110,11 +110,36 @@ export function useProvider() {
   let rideSubscription: any = null
   let locationInterval: number | null = null
 
+  // Check if demo mode
+  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+
   // Fetch provider profile
   const fetchProfile = async () => {
     loading.value = true
-    
+
     try {
+      // Demo mode - return mock profile immediately
+      if (isDemoMode()) {
+        const demoUser = JSON.parse(localStorage.getItem('demo_user') || '{}')
+        profile.value = {
+          id: `demo-provider-${demoUser.role}`,
+          user_id: demoUser.id || 'demo-user',
+          provider_type: demoUser.role === 'driver' ? 'driver' : 'delivery',
+          license_number: 'กข 1234',
+          vehicle_type: demoUser.role === 'driver' ? 'รถยนต์' : 'มอเตอร์ไซค์',
+          vehicle_plate: 'กข 1234 กรุงเทพ',
+          vehicle_color: 'สีดำ',
+          is_verified: true,
+          is_available: false,
+          rating: 4.8,
+          total_trips: 156,
+          current_lat: 13.7563,
+          current_lng: 100.5018
+        }
+        isOnline.value = false
+        return profile.value
+      }
+
       // Try to get real provider profile from database
       if (authStore.user?.id) {
         const { data, error: fetchError } = await (supabase
@@ -126,46 +151,15 @@ export function useProvider() {
         if (!fetchError && data) {
           profile.value = data as ProviderProfile
           isOnline.value = data.is_available || false
-          
+
           // Check for active ride assigned to this provider
           await checkActiveRide(data.id)
-          
+
           return data
         }
       }
-      
-      // Try to find provider by email (for demo users)
-      const demoUserStr = localStorage.getItem('demo_user')
-      const userEmail = authStore.user?.email || (demoUserStr ? JSON.parse(demoUserStr).email : null)
-      
-      if (userEmail) {
-        // First get user by email
-        const { data: userData } = await (supabase
-          .from('users') as any)
-          .select('id')
-          .eq('email', userEmail)
-          .single()
-        
-        if (userData) {
-          const { data: providerData } = await (supabase
-            .from('service_providers') as any)
-            .select('*')
-            .eq('user_id', userData.id)
-            .single()
-          
-          if (providerData) {
-            profile.value = providerData as ProviderProfile
-            isOnline.value = providerData.is_available || false
-            
-            // Check for active ride assigned to this provider
-            await checkActiveRide(providerData.id)
-            
-            return providerData
-          }
-        }
-      }
-      
-      // No provider found - return null (no demo fallback)
+
+      // No provider found - return null
       profile.value = null
       return null
     } catch (e: any) {
@@ -711,6 +705,33 @@ export function useProvider() {
       return earnings.value
     }
 
+    // Demo mode - return mock earnings
+    if (isDemoMode()) {
+      const days: string[] = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+      const today = new Date()
+      weeklyEarnings.value = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(today)
+        date.setDate(date.getDate() - 6 + i)
+        const dayName = days[date.getDay()] ?? 'อา'
+        return {
+          date: date.toISOString().slice(0, 10),
+          day: dayName,
+          earnings: Math.floor(Math.random() * 800) + 200,
+          trips: Math.floor(Math.random() * 8) + 2,
+          hours_online: Math.floor(Math.random() * 6) + 2
+        }
+      })
+      earnings.value = {
+        today: 850,
+        thisWeek: 4250,
+        thisMonth: 18500,
+        todayTrips: 8,
+        weekTrips: 42,
+        monthTrips: 156
+      }
+      return earnings.value
+    }
+
     try {
       const today = new Date()
       const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -785,9 +806,10 @@ export function useProvider() {
         date.setDate(date.getDate() + i)
         const dateStr = date.toISOString().slice(0, 10)
         const dayIndex = date.getDay()
+        const dayName = days[dayIndex] ?? 'อา'
         return {
           date: dateStr,
-          day: days[dayIndex] || 'อา',
+          day: dayName,
           earnings: dailyData[dateStr]?.earnings || 0,
           trips: dailyData[dateStr]?.trips || 0,
           hours_online: 0 // Would need separate tracking

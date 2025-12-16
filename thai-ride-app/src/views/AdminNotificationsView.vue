@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
  * Feature: F07 - Notifications (Admin)
- * Tables: user_notifications, notification_templates, scheduled_notifications
- * Migration: 007_complete_system.sql, 009_rating_notifications.sql, 010_notification_templates.sql, 011_scheduled_notifications.sql
+ * Tables: user_notifications, notification_templates, scheduled_notifications, push_subscriptions, push_notification_queue
+ * Migration: 007_complete_system.sql, 009_rating_notifications.sql, 010_notification_templates.sql, 011_scheduled_notifications.sql, 015_push_notifications.sql
  */
 import { ref, onMounted, computed, watch } from 'vue'
+import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
 
 const {
@@ -25,14 +26,29 @@ const {
   fetchScheduledNotifications,
   createScheduledNotification,
   cancelScheduledNotification,
-  getSegmentUserCount
+  getSegmentUserCount,
+  // Push Notifications
+  fetchPushSubscriptions,
+  fetchPushQueue,
+  fetchPushStats,
+  sendBroadcastPush,
+  processPushQueue
 } = useAdmin()
 
 const notifications = ref<any[]>([])
 const stats = ref<any>(null)
 const filterType = ref<string | null>(null)
 const showBroadcastModal = ref(false)
-const activeTab = ref<'notifications' | 'templates' | 'scheduled'>('notifications')
+const activeTab = ref<'notifications' | 'templates' | 'scheduled' | 'push'>('notifications')
+
+// Push Notifications
+const pushStats = ref<any>(null)
+const pushSubscriptions = ref<any[]>([])
+const pushQueue = ref<any[]>([])
+const showPushBroadcastModal = ref(false)
+const pushBroadcastForm = ref({ title: '', body: '', url: '' })
+const sendingPush = ref(false)
+const processingQueue = ref(false)
 
 // Templates
 const templates = ref<any[]>([])
@@ -99,18 +115,77 @@ const filteredNotifications = computed(() => {
 })
 
 const loadData = async () => {
-  const [notifData, statsData, templatesData, scheduledData, segmentCount] = await Promise.all([
+  const [notifData, statsData, templatesData, scheduledData, segmentCount, pushStatsData, pushSubsData, pushQueueData] = await Promise.all([
     fetchAllNotifications(1, 100),
     fetchNotificationStats(),
     fetchNotificationTemplates(),
     fetchScheduledNotifications(1, 50),
-    getSegmentUserCount('all')
+    getSegmentUserCount('all'),
+    fetchPushStats(),
+    fetchPushSubscriptions(1, 50),
+    fetchPushQueue(1, 50)
   ])
   notifications.value = notifData.data
   stats.value = statsData
   templates.value = templatesData
   scheduledNotifications.value = scheduledData.data
   segmentUserCount.value = segmentCount
+  pushStats.value = pushStatsData
+  pushSubscriptions.value = pushSubsData.data
+  pushQueue.value = pushQueueData.data
+}
+
+// Push Notifications handlers
+const handleSendPushBroadcast = async () => {
+  if (!pushBroadcastForm.value.title || !pushBroadcastForm.value.body) {
+    alert('กรุณากรอกหัวข้อและข้อความ')
+    return
+  }
+  sendingPush.value = true
+  const result = await sendBroadcastPush({
+    title: pushBroadcastForm.value.title,
+    body: pushBroadcastForm.value.body,
+    url: pushBroadcastForm.value.url || undefined
+  })
+  sendingPush.value = false
+  if (result.total > 0) {
+    alert(`ส่ง Push Notification ไปยัง ${result.sent}/${result.total} คนสำเร็จ`)
+    showPushBroadcastModal.value = false
+    pushBroadcastForm.value = { title: '', body: '', url: '' }
+    await loadData()
+  } else {
+    alert('ไม่มีผู้ใช้ที่เปิดรับ Push Notification')
+  }
+}
+
+const handleProcessQueue = async () => {
+  processingQueue.value = true
+  const result = await processPushQueue()
+  processingQueue.value = false
+  if (result) {
+    alert(`ประมวลผล Queue สำเร็จ: ส่งแล้ว ${result.processed}, ล้มเหลว ${result.failed}`)
+    await loadData()
+  } else {
+    alert('เกิดข้อผิดพลาด')
+  }
+}
+
+const getPushStatusClass = (status: string) => {
+  switch (status) {
+    case 'pending': return 'bg-yellow-100 text-yellow-800'
+    case 'sent': return 'bg-green-100 text-green-800'
+    case 'failed': return 'bg-red-100 text-red-800'
+    default: return 'bg-gray-100'
+  }
+}
+
+const getPushStatusLabel = (status: string) => {
+  switch (status) {
+    case 'pending': return 'รอส่ง'
+    case 'sent': return 'ส่งแล้ว'
+    case 'failed': return 'ล้มเหลว'
+    default: return status
+  }
 }
 
 // Use template for broadcast
@@ -333,6 +408,7 @@ onMounted(loadData)
 </script>
 
 <template>
+  <AdminLayout>
   <div class="p-6">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
@@ -362,25 +438,145 @@ onMounted(loadData)
     </div>
 
     <!-- Tabs -->
-    <div class="flex gap-2 mb-6">
+    <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
       <button
         @click="activeTab = 'notifications'"
-        :class="['px-4 py-2 rounded-lg text-sm font-medium', activeTab === 'notifications' ? 'bg-black text-white' : 'bg-gray-100']"
+        :class="['px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap', activeTab === 'notifications' ? 'bg-black text-white' : 'bg-gray-100']"
       >
-        Notifications
+        In-App
+      </button>
+      <button
+        @click="activeTab = 'push'"
+        :class="['px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap', activeTab === 'push' ? 'bg-black text-white' : 'bg-gray-100']"
+      >
+        Push ({{ pushStats?.activeSubscriptions || 0 }})
       </button>
       <button
         @click="activeTab = 'scheduled'"
-        :class="['px-4 py-2 rounded-lg text-sm font-medium', activeTab === 'scheduled' ? 'bg-black text-white' : 'bg-gray-100']"
+        :class="['px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap', activeTab === 'scheduled' ? 'bg-black text-white' : 'bg-gray-100']"
       >
         ตั้งเวลา ({{ scheduledNotifications.filter(n => n.status === 'scheduled').length }})
       </button>
       <button
         @click="activeTab = 'templates'"
-        :class="['px-4 py-2 rounded-lg text-sm font-medium', activeTab === 'templates' ? 'bg-black text-white' : 'bg-gray-100']"
+        :class="['px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap', activeTab === 'templates' ? 'bg-black text-white' : 'bg-gray-100']"
       >
         Templates ({{ templates.length }})
       </button>
+    </div>
+
+    <!-- Push Tab -->
+    <div v-if="activeTab === 'push'" class="space-y-6">
+      <!-- Push Stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl p-4 border border-gray-100">
+          <div class="text-sm text-gray-500">Subscribers</div>
+          <div class="text-2xl font-bold">{{ pushStats?.activeSubscriptions || 0 }}</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-gray-100">
+          <div class="text-sm text-gray-500">รอส่ง</div>
+          <div class="text-2xl font-bold text-yellow-500">{{ pushStats?.pendingQueue || 0 }}</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-gray-100">
+          <div class="text-sm text-gray-500">ส่งแล้ว</div>
+          <div class="text-2xl font-bold text-green-500">{{ pushStats?.sentToday || 0 }}</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 border border-gray-100">
+          <div class="text-sm text-gray-500">ล้มเหลว</div>
+          <div class="text-2xl font-bold text-red-500">{{ pushStats?.failedToday || 0 }}</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3">
+        <button
+          @click="showPushBroadcastModal = true"
+          class="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          ส่ง Push Broadcast
+        </button>
+        <button
+          @click="handleProcessQueue"
+          :disabled="processingQueue || (pushStats?.pendingQueue || 0) === 0"
+          class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+        >
+          <svg v-if="processingQueue" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Process Queue
+        </button>
+      </div>
+
+      <!-- Subscriptions -->
+      <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h3 class="font-medium">Push Subscribers</h3>
+          <span class="text-sm text-gray-500">{{ pushSubscriptions.length }} devices</span>
+        </div>
+        <div class="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+          <div v-for="sub in pushSubscriptions" :key="sub.id" class="px-4 py-3 flex items-center justify-between">
+            <div>
+              <div class="font-medium text-sm">{{ sub.users?.name || 'Unknown' }}</div>
+              <div class="text-xs text-gray-400">{{ sub.users?.email }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs text-gray-500">{{ sub.device_info || 'Unknown device' }}</div>
+              <div class="text-xs text-gray-400">{{ formatDate(sub.created_at) }}</div>
+            </div>
+          </div>
+          <div v-if="pushSubscriptions.length === 0" class="px-4 py-8 text-center text-gray-500">
+            ยังไม่มีผู้ใช้ subscribe Push Notifications
+          </div>
+        </div>
+      </div>
+
+      <!-- Queue -->
+      <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-100">
+          <h3 class="font-medium">Push Queue</h3>
+        </div>
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th class="text-left px-4 py-2 text-xs font-medium text-gray-500">ผู้รับ</th>
+              <th class="text-left px-4 py-2 text-xs font-medium text-gray-500">หัวข้อ</th>
+              <th class="text-left px-4 py-2 text-xs font-medium text-gray-500">สถานะ</th>
+              <th class="text-left px-4 py-2 text-xs font-medium text-gray-500">วันที่</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="item in pushQueue.slice(0, 20)" :key="item.id" class="hover:bg-gray-50">
+              <td class="px-4 py-2">
+                <div class="text-sm font-medium">{{ item.users?.name || '-' }}</div>
+              </td>
+              <td class="px-4 py-2">
+                <div class="text-sm">{{ item.title }}</div>
+                <div class="text-xs text-gray-400 truncate max-w-xs">{{ item.body }}</div>
+              </td>
+              <td class="px-4 py-2">
+                <span :class="['px-2 py-1 rounded text-xs font-medium', getPushStatusClass(item.status)]">
+                  {{ getPushStatusLabel(item.status) }}
+                </span>
+              </td>
+              <td class="px-4 py-2 text-xs text-gray-500">
+                {{ formatDate(item.created_at) }}
+              </td>
+            </tr>
+            <tr v-if="pushQueue.length === 0">
+              <td colspan="4" class="px-4 py-8 text-center text-gray-500">
+                Queue ว่าง
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Scheduled Tab -->
@@ -792,5 +988,94 @@ onMounted(loadData)
         </div>
       </div>
     </div>
+    <!-- Push Broadcast Modal -->
+    <div v-if="showPushBroadcastModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl w-full max-w-md mx-4 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold">ส่ง Push Notification</h3>
+          <button @click="showPushBroadcastModal = false" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span class="font-medium">Push Notification</span>
+            </div>
+            จะส่งไปยังผู้ใช้ที่เปิดรับ Push ทั้งหมด ({{ pushStats?.activeSubscriptions || 0 }} คน)
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">หัวข้อ</label>
+            <input
+              v-model="pushBroadcastForm.title"
+              type="text"
+              placeholder="หัวข้อ notification"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ข้อความ</label>
+            <textarea
+              v-model="pushBroadcastForm.body"
+              rows="3"
+              placeholder="ข้อความที่ต้องการส่ง"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none"
+            ></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">URL (เมื่อกด notification)</label>
+            <input
+              v-model="pushBroadcastForm.url"
+              type="text"
+              placeholder="/promotions"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg"
+            />
+          </div>
+
+          <!-- Preview -->
+          <div class="bg-gray-900 text-white rounded-lg p-3">
+            <div class="text-xs text-gray-400 mb-2">Preview</div>
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm">{{ pushBroadcastForm.title || 'หัวข้อ' }}</div>
+                <div class="text-xs text-gray-300 line-clamp-2">{{ pushBroadcastForm.body || 'ข้อความ' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex gap-3 mt-6">
+          <button
+            @click="showPushBroadcastModal = false"
+            class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50"
+          >
+            ยกเลิก
+          </button>
+          <button
+            @click="handleSendPushBroadcast"
+            :disabled="sendingPush"
+            class="flex-1 px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:bg-gray-300"
+          >
+            <span v-if="sendingPush">กำลังส่ง...</span>
+            <span v-else>ส่ง Push</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
+  </AdminLayout>
 </template>

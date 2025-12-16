@@ -51,7 +51,7 @@ const handleLogin = async () => {
       if ((userData as any)?.role === 'admin') {
         localStorage.setItem('admin_token', authData.session?.access_token || 'admin_token')
         localStorage.setItem('admin_user', JSON.stringify(userData))
-        router.push('/admin')
+        router.push('/dashboard')
       } else {
         error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin'
         await supabase.auth.signOut()

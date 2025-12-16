@@ -1,27 +1,42 @@
 {
+  "id": "/thai-ride-app",
   "name": "Thai Ride App - ระบบเรียกรถไทย",
   "short_name": "ThaiRide",
   "description": "ระบบเรียกรถ ส่งของ และซื้อของ ในประเทศไทย",
   "theme_color": "#000000",
   "background_color": "#ffffff",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "scope": "/",
   "start_url": "/",
   "lang": "th",
   "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/pwa-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/pwa-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": ["transportation", "lifestyle", "utilities"],
@@ -37,17 +52,36 @@
       "name": "ส่งของ",
       "short_name": "ส่งของ",
       "description": "บริการส่งของรวดเร็ว",
-      "url": "/services?type=delivery",
+      "url": "/delivery",
       "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     },
     {
       "name": "ซื้อของ",
       "short_name": "ซื้อของ",
       "description": "บริการซื้อของให้",
-      "url": "/services?type=shopping",
+      "url": "/shopping",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "กระเป๋าเงิน",
+      "short_name": "กระเป๋า",
+      "description": "ดูยอดเงินและประวัติ",
+      "url": "/wallet",
       "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": [],
-  "prefer_related_applications": false
+  "screenshots": [
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "หน้าหลัก ThaiRide"
+    }
+  ],
+  "related_applications": [],
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  }
 }

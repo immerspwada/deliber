@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ออฟไลน์ - ThaiRide</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      color: #000000;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 24px;
+      opacity: 0.6;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    p {
+      font-size: 16px;
+      color: #6B6B6B;
+      margin-bottom: 32px;
+      max-width: 300px;
+      line-height: 1.5;
+    }
+    .retry-btn {
+      background: #000000;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .retry-btn:hover {
+      opacity: 0.8;
+    }
+    .retry-btn:active {
+      transform: scale(0.98);
+    }
+    .status {
+      margin-top: 24px;
+      font-size: 14px;
+      color: #6B6B6B;
+    }
+    .online-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #E11900;
+      margin-right: 8px;
+    }
+    .online-indicator.online {
+      background: #276EF1;
+    }
+  </style>
+</head>
+<body>
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+  </svg>
+  
+  <h1>ไม่มีการเชื่อมต่อ</h1>
+  <p>กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตของคุณแล้วลองอีกครั้ง</p>
+  
+  <button class="retry-btn" onclick="retry()">ลองอีกครั้ง</button>
+  
+  <div class="status">
+    <span class="online-indicator" id="indicator"></span>
+    <span id="status-text">ออฟไลน์</span>
+  </div>
+
+  <script>
+    function updateStatus() {
+      const indicator = document.getElementById('indicator');
+      const statusText = document.getElementById('status-text');
+      if (navigator.onLine) {
+        indicator.classList.add('online');
+        statusText.textContent = 'ออนไลน์';
+        // Auto reload when back online
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        indicator.classList.remove('online');
+        statusText.textContent = 'ออฟไลน์';
+      }
+    }
+    
+    function retry() {
+      window.location.reload();
+    }
+    
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+  </script>
+</body>
+</html>

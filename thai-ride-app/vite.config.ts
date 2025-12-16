@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
@@ -11,8 +12,9 @@ export default defineConfig({
         'favicon.ico', 
         'pwa-192x192.png', 
         'pwa-512x512.png',
-        'pwa-192x192.svg',
-        'pwa-512x512.svg'
+        'pwa-maskable-192x192.png',
+        'pwa-maskable-512x512.png',
+        'offline.html'
       ],
       manifest: {
         id: '/thai-ride-app',
@@ -39,7 +41,7 @@ export default defineConfig({
             purpose: 'any'
           },
           {
-            src: 'pwa-192x192.png',
+            src: 'pwa-maskable-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
@@ -51,7 +53,7 @@ export default defineConfig({
             purpose: 'any'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
@@ -103,7 +105,7 @@ export default defineConfig({
         }
       },
       workbox: {
-        // Pre-cache app shell
+        // Pre-cache app shell and critical assets
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         globIgnores: ['**/node_modules/**/*', 'sw.js', 'workbox-*.js'],
         cleanupOutdatedCaches: true,
@@ -112,10 +114,13 @@ export default defineConfig({
         
         // Navigation fallback for SPA
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/admin/],
+        navigateFallbackDenylist: [/^\/api/, /^\/admin/, /^\/supabase/],
+        
+        // Offline fallback
+        offlineGoogleAnalytics: false,
         
         runtimeCaching: [
-          // App Shell - StaleWhileRevalidate for fast loads
+          // App Shell - NetworkFirst with fast fallback
           {
             urlPattern: /^https?:\/\/[^/]+\/?$/,
             handler: 'NetworkFirst',
@@ -126,6 +131,19 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 // 1 day
               },
               networkTimeoutSeconds: 3
+            }
+          },
+          
+          // Static JS/CSS - StaleWhileRevalidate for instant loads
+          {
+            urlPattern: /\.(?:js|css)$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'static-resources',
+              expiration: {
+                maxEntries: 60,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              }
             }
           },
           
@@ -288,6 +306,34 @@ export default defineConfig({
                 statuses: [0, 200]
               }
             }
+          },
+          
+          // HTML pages - NetworkFirst for fresh content
+          {
+            urlPattern: /\.html$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 // 1 day
+              },
+              networkTimeoutSeconds: 3
+            }
+          },
+          
+          // JSON data - NetworkFirst
+          {
+            urlPattern: /\.json$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'json-cache',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 // 1 hour
+              },
+              networkTimeoutSeconds: 5
+            }
           }
         ]
       },
@@ -307,6 +353,10 @@ export default defineConfig({
     minify: 'terser',
     sourcemap: false,
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        admin: resolve(__dirname, 'admin.html')
+      },
       output: {
         manualChunks: {
           'vue-vendor': ['vue', 'vue-router', 'pinia'],

@@ -5,11 +5,16 @@ import { useRouter, useRoute } from 'vue-router'
 const router = useRouter()
 const route = useRoute()
 
-const navigationItems = [
-  { name: 'หน้าหลัก', path: '/', icon: 'home' },
-  { name: 'บริการ', path: '/services', icon: 'services' },
-  { name: 'โปรไฟล์', path: '/profile', icon: 'user' }
+
+
+// Navigation items for customer only (provider uses ProviderLayout)
+const customerNavItems = [
+  { name: 'หน้าหลัก', path: '/customer', icon: 'home' },
+  { name: 'บริการ', path: '/customer/services', icon: 'services' },
+  { name: 'โปรไฟล์', path: '/customer/profile', icon: 'user' }
 ]
+
+const navigationItems = computed(() => customerNavItems)
 
 const activeIndex = ref(0)
 
@@ -19,33 +24,36 @@ const navigateTo = (path: string, index: number) => {
 }
 
 const isActive = (path: string) => {
-  if (path === '/services') {
-    return ['/services', '/ride', '/delivery', '/shopping'].includes(route.path)
+  if (path === '/customer/services') {
+    return ['/customer/services', '/customer/ride', '/customer/delivery', '/customer/shopping'].includes(route.path)
   }
   return route.path === path
 }
 
 const showHeader = computed(() => {
-  return !['/', '/login', '/register'].includes(route.path)
+  return !['/customer', '/login', '/register'].includes(route.path)
 })
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
-    '/services': 'บริการ',
-    '/ride': 'เรียกรถ',
-    '/delivery': 'ส่งของ',
-    '/shopping': 'ซื้อของ',
-    '/profile': 'โปรไฟล์',
-    '/provider': 'ผู้ให้บริการ',
-    '/history': 'ประวัติการใช้งาน',
-    '/payment-methods': 'วิธีการชำระเงิน',
-    '/notifications': 'การแจ้งเตือน'
+    '/customer/services': 'บริการ',
+    '/customer/ride': 'เรียกรถ',
+    '/customer/delivery': 'ส่งของ',
+    '/customer/shopping': 'ซื้อของ',
+    '/customer/profile': 'โปรไฟล์',
+    '/customer/history': 'ประวัติการใช้งาน',
+    '/customer/payment-methods': 'วิธีการชำระเงิน',
+    '/customer/notifications': 'การแจ้งเตือน',
+    '/customer/wallet': 'กระเป๋าเงิน',
+    '/customer/promotions': 'โปรโมชั่น',
+    '/customer/settings': 'ตั้งค่า',
+    '/customer/help': 'ช่วยเหลือ'
   }
   return titles[route.path] || 'ThaiRide'
 })
 
 const canGoBack = computed(() => {
-  return route.path !== '/' && window.history.length > 1
+  return route.path !== '/customer' && window.history.length > 1
 })
 
 const goBack = () => {
@@ -88,6 +96,12 @@ const goBack = () => {
             </svg>
             <svg v-else-if="item.icon === 'services'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+            </svg>
+            <svg v-else-if="item.icon === 'work'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+            </svg>
+            <svg v-else-if="item.icon === 'history'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <svg v-else class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>

@@ -817,6 +817,147 @@ export function useAdmin() {
   ]
 
   // =====================================================
+  // PUSH NOTIFICATIONS MANAGEMENT (Admin)
+  // =====================================================
+
+  // Fetch push subscriptions
+  const fetchPushSubscriptions = async (page = 1, limit = 20) => {
+    try {
+      const { data, count } = await supabase
+        .from('push_subscriptions')
+        .select('*, users(name, email)', { count: 'exact' })
+        .eq('is_active', true)
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: [], total: 0 }
+    }
+  }
+
+  // Fetch push notification queue
+  const fetchPushQueue = async (page = 1, limit = 50, filter?: { status?: string }) => {
+    try {
+      let query = supabase.from('push_notification_queue').select('*, users(name, email)', { count: 'exact' })
+      if (filter?.status) query = query.eq('status', filter.status)
+      const { data, count } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      return { data: data || [], total: count || 0 }
+    } catch {
+      return { data: [], total: 0 }
+    }
+  }
+
+  // Get push notification stats
+  const fetchPushStats = async () => {
+    try {
+      const [subsCount, pendingCount, sentCount, failedCount] = await Promise.all([
+        supabase.from('push_subscriptions').select('*', { count: 'exact', head: true }).eq('is_active', true),
+        supabase.from('push_notification_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('push_notification_queue').select('*', { count: 'exact', head: true }).eq('status', 'sent'),
+        supabase.from('push_notification_queue').select('*', { count: 'exact', head: true }).eq('status', 'failed')
+      ])
+      return {
+        activeSubscriptions: subsCount.count || 0,
+        pendingQueue: pendingCount.count || 0,
+        sentToday: sentCount.count || 0,
+        failedToday: failedCount.count || 0
+      }
+    } catch {
+      return { activeSubscriptions: 0, pendingQueue: 0, sentToday: 0, failedToday: 0 }
+    }
+  }
+
+  // Send push notification to user via Edge Function
+  const sendPushToUser = async (userId: string, payload: { title: string; body: string; icon?: string; url?: string }) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-push', {
+        body: { action: 'send_to_user', userId, payload }
+      })
+      if (error) throw error
+      return data
+    } catch {
+      return null
+    }
+  }
+
+  // Process push queue via Edge Function
+  const processPushQueue = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-push', {
+        body: { action: 'process_queue' }
+      })
+      if (error) throw error
+      return data
+    } catch {
+      return null
+    }
+  }
+
+  // Queue push notification for user
+  const queuePushNotification = async (params: {
+    userId: string
+    title: string
+    body: string
+    icon?: string
+    url?: string
+    scheduledFor?: string
+  }) => {
+    try {
+      const { data, error } = await (supabase.from('push_notification_queue') as any).insert({
+        user_id: params.userId,
+        title: params.title,
+        body: params.body,
+        icon: params.icon || '/pwa-192x192.png',
+        url: params.url,
+        scheduled_for: params.scheduledFor || new Date().toISOString(),
+        status: 'pending'
+      }).select().single()
+      if (error) throw error
+      return data
+    } catch {
+      return null
+    }
+  }
+
+  // Send broadcast push to all subscribers
+  const sendBroadcastPush = async (payload: { title: string; body: string; icon?: string; url?: string }) => {
+    try {
+      // Get all active subscriptions
+      const { data: subs } = await supabase
+        .from('push_subscriptions')
+        .select('user_id')
+        .eq('is_active', true)
+      
+      if (!subs || subs.length === 0) return { sent: 0, total: 0 }
+      
+      // Get unique user IDs
+      const userIds = [...new Set(subs.map(s => s.user_id))]
+      
+      // Queue notifications for all users
+      const notifications = userIds.map(userId => ({
+        user_id: userId,
+        title: payload.title,
+        body: payload.body,
+        icon: payload.icon || '/pwa-192x192.png',
+        url: payload.url,
+        scheduled_for: new Date().toISOString(),
+        status: 'pending'
+      }))
+      
+      await (supabase.from('push_notification_queue') as any).insert(notifications)
+      
+      // Process queue immediately
+      const result = await processPushQueue()
+      
+      return { sent: result?.processed || 0, total: userIds.length }
+    } catch {
+      return { sent: 0, total: 0 }
+    }
+  }
+
+  // =====================================================
   // SCHEDULED NOTIFICATIONS
   // =====================================================
 
@@ -968,6 +1109,9 @@ export function useAdmin() {
     USER_SEGMENTS,
     // Scheduled Notifications
     fetchScheduledNotifications, createScheduledNotification, cancelScheduledNotification,
-    getSegmentUserCount, getUsersBySegment
+    getSegmentUserCount, getUsersBySegment,
+    // Push Notifications
+    fetchPushSubscriptions, fetchPushQueue, fetchPushStats,
+    sendPushToUser, processPushQueue, queuePushNotification, sendBroadcastPush
   }
 }

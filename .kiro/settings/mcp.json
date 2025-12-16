@@ -18,7 +18,9 @@
         "apply_migration",
         "get_project_url",
         "get_publishable_keys",
-        "get_logs"
+        "get_logs",
+        "deploy_edge_function",
+        "list_migrations"
       ]
     }
   }

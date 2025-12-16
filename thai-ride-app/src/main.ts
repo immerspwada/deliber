@@ -14,9 +14,14 @@ const router = createRouter({
   routes
 })
 
-// Helper to get user role
-const getUserRole = async (): Promise<string | null> => {
-  // Check demo user first
+// Cache for session to avoid repeated checks
+let cachedSession: any = null
+let sessionCacheTime = 0
+const SESSION_CACHE_TTL = 30000 // 30 seconds
+
+// Helper to get user role (sync for demo, async for real auth)
+const getUserRole = (): string | null => {
+  // Check demo user first (sync)
   const demoUser = localStorage.getItem('demo_user')
   if (demoUser) {
     try {
@@ -26,19 +31,36 @@ const getUserRole = async (): Promise<string | null> => {
       return 'customer'
     }
   }
-  
-  // Check Supabase session
-  const { data: { session } } = await supabase.auth.getSession()
-  if (session?.user) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-    return (userData as any)?.role || 'customer'
+  return null
+}
+
+// Helper to get session with caching and timeout
+const getSessionWithTimeout = async (timeoutMs: number = 2000) => {
+  // Demo mode - skip Supabase entirely
+  const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+  if (isDemoMode) {
+    return null // Demo mode doesn't need real session
   }
   
-  return null
+  // Return cached session if still valid
+  const now = Date.now()
+  if (cachedSession !== null && (now - sessionCacheTime) < SESSION_CACHE_TTL) {
+    return cachedSession
+  }
+  
+  try {
+    const sessionPromise = supabase.auth.getSession()
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Session timeout')), timeoutMs)
+    )
+    const result = await Promise.race([sessionPromise, timeoutPromise]) as any
+    cachedSession = result?.data?.session || null
+    sessionCacheTime = now
+    return cachedSession
+  } catch {
+    console.warn('[Auth] Session check timeout')
+    return cachedSession // Return cached even if expired on timeout
+  }
 }
 
 // Navigation guard - ตรวจสอบ authentication
@@ -61,22 +83,42 @@ router.beforeEach(async (to, _from, next) => {
 
   // User routes - ใช้ user auth
   const isDemoMode = localStorage.getItem('demo_mode') === 'true'
-  const { data: { session } } = await supabase.auth.getSession()
-
-  const isAuthenticated = !!session || isDemoMode
+  
+  // Fast path for demo mode - no async needed
+  if (isDemoMode) {
+    const role = getUserRole()
+    const isPublicRoute = to.meta.public
+    
+    if (isPublicRoute && (to.path === '/login' || to.path === '/register')) {
+      if (role === 'rider' || role === 'driver') {
+        next('/provider')
+      } else {
+        next('/customer')
+      }
+    } else if (to.path === '/') {
+      if (role === 'rider' || role === 'driver') {
+        next('/provider')
+      } else {
+        next('/customer')
+      }
+    } else {
+      next()
+    }
+    return
+  }
+  
+  // Real auth path
+  const session = await getSessionWithTimeout()
+  const isAuthenticated = !!session
   const requiresAuth = to.meta.requiresAuth
   const isPublicRoute = to.meta.public
 
   if (requiresAuth && !isAuthenticated) {
     next('/login')
   } else if (isPublicRoute && isAuthenticated && (to.path === '/login' || to.path === '/register')) {
-    // Redirect based on role after login
-    const role = await getUserRole()
-    if (role === 'rider' || role === 'driver') {
-      next('/provider')
-    } else {
-      next('/')
-    }
+    next('/customer')
+  } else if (to.path === '/' && isAuthenticated) {
+    next('/customer')
   } else {
     next()
   }

@@ -10,27 +10,27 @@ const sidebarOpen = ref(false)
 onMounted(() => {
   const adminToken = localStorage.getItem('admin_token')
   if (!adminToken) {
-    router.push('/admin/login')
+    router.push('/login')
   }
 })
 
 const menuItems = [
-  { path: '/admin', label: 'แดชบอร์ด', icon: 'dashboard' },
-  { path: '/admin/users', label: 'ผู้ใช้งาน', icon: 'users' },
-  { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car' },
-  { path: '/admin/orders', label: 'ออเดอร์', icon: 'orders' },
-  { path: '/admin/ratings', label: 'รีวิว', icon: 'ratings' },
-  { path: '/admin/notifications', label: 'Notifications', icon: 'notification' },
-  { path: '/admin/payments', label: 'การเงิน', icon: 'payment' },
-  { path: '/admin/support', label: 'ซัพพอร์ต', icon: 'support' },
-  { path: '/admin/promos', label: 'โปรโมชั่น', icon: 'promo' },
-  { path: '/admin/subscriptions', label: 'แพ็คเกจสมาชิก', icon: 'subscription' },
-  { path: '/admin/insurance', label: 'ประกันภัย', icon: 'insurance' },
-  { path: '/admin/corporate', label: 'บัญชีองค์กร', icon: 'corporate' }
+  { path: '/dashboard', label: 'แดชบอร์ด', icon: 'dashboard' },
+  { path: '/users', label: 'ผู้ใช้งาน', icon: 'users' },
+  { path: '/providers', label: 'ผู้ให้บริการ', icon: 'car' },
+  { path: '/orders', label: 'ออเดอร์', icon: 'orders' },
+  { path: '/ratings', label: 'รีวิว', icon: 'ratings' },
+  { path: '/notifications', label: 'Notifications', icon: 'notification' },
+  { path: '/payments', label: 'การเงิน', icon: 'payment' },
+  { path: '/support', label: 'ซัพพอร์ต', icon: 'support' },
+  { path: '/promos', label: 'โปรโมชั่น', icon: 'promo' },
+  { path: '/subscriptions', label: 'แพ็คเกจสมาชิก', icon: 'subscription' },
+  { path: '/insurance', label: 'ประกันภัย', icon: 'insurance' },
+  { path: '/corporate', label: 'บัญชีองค์กร', icon: 'corporate' }
 ]
 
 const isActive = (path: string) => {
-  if (path === '/admin') return route.path === '/admin'
+  if (path === '/dashboard') return route.path === '/dashboard'
   return route.path.startsWith(path)
 }
 
@@ -42,7 +42,7 @@ const navigate = (path: string) => {
 const logout = () => {
   localStorage.removeItem('admin_token')
   localStorage.removeItem('admin_user')
-  router.push('/admin/login')
+  router.push('/login')
 }
 </script>
 

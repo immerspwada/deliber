@@ -5,6 +5,7 @@
  * Migration: 008_service_ratings.sql
  */
 import { ref, onMounted, computed } from 'vue'
+import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
 
 const { 
@@ -98,6 +99,7 @@ onMounted(loadData)
 </script>
 
 <template>
+  <AdminLayout>
   <div class="p-6">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
@@ -243,4 +245,5 @@ onMounted(loadData)
       </table>
     </div>
   </div>
+  </AdminLayout>
 </template>

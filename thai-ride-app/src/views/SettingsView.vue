@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePWA } from '../composables/usePWA'
+import { usePushNotifications } from '../composables/usePushNotifications'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
@@ -12,10 +13,26 @@ const {
   isOnline,
   notificationPermission,
   requestNotificationPermission,
-  checkForUpdates
+  checkForUpdates,
+  getCacheSize,
+  clearAllCaches
 } = usePWA()
 
+const {
+  isSupported: pushSupported,
+  isSubscribed: pushSubscribed,
+  isLoading: pushLoading,
+  statusText: pushStatusText,
+  subscribe: subscribePush,
+  unsubscribe: unsubscribePush,
+  sendTestNotification,
+  initialize: initPush
+} = usePushNotifications()
+
 const loading = ref(true)
+const cacheInfo = ref({ used: 0, quota: 0, percent: 0 })
+const clearingCache = ref(false)
+const testingPush = ref(false)
 
 // Settings state
 const settings = ref({
@@ -49,11 +66,18 @@ const saveSettings = () => {
   localStorage.setItem('thairide_settings', JSON.stringify(settings.value))
 }
 
-onMounted(() => {
+onMounted(async () => {
   const saved = localStorage.getItem('thairide_settings')
   if (saved) {
     settings.value = { ...settings.value, ...JSON.parse(saved) }
   }
+  
+  // Initialize push notifications
+  await initPush()
+  
+  // Get cache size
+  cacheInfo.value = await getCacheSize()
+  
   setTimeout(() => { loading.value = false }, 500)
 })
 
@@ -75,6 +99,45 @@ const handleEnableNotifications = async () => {
 const handleCheckUpdates = async () => {
   await checkForUpdates()
   alert('ตรวจสอบอัพเดทเรียบร้อย')
+}
+
+// Push notification functions
+const handleTogglePush = async () => {
+  if (pushSubscribed.value) {
+    await unsubscribePush()
+  } else {
+    await subscribePush()
+  }
+}
+
+const handleTestPush = async () => {
+  testingPush.value = true
+  const success = await sendTestNotification()
+  testingPush.value = false
+  if (success) {
+    alert('ส่งการแจ้งเตือนทดสอบแล้ว')
+  } else {
+    alert('ไม่สามารถส่งการแจ้งเตือนได้')
+  }
+}
+
+// Cache management
+const handleClearCache = async () => {
+  if (!confirm('ต้องการล้างแคชทั้งหมดหรือไม่?')) return
+  
+  clearingCache.value = true
+  await clearAllCaches()
+  cacheInfo.value = await getCacheSize()
+  clearingCache.value = false
+  alert('ล้างแคชเรียบร้อยแล้ว')
+}
+
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 </script>
 
@@ -202,6 +265,35 @@ const handleCheckUpdates = async () => {
         </div>
       </div>
 
+      <!-- Push Notifications Section -->
+      <div class="settings-section" v-if="pushSupported">
+        <h2 class="section-title">Push Notifications</h2>
+        
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">สถานะ Push</span>
+            <span class="setting-desc">{{ pushStatusText }}</span>
+          </div>
+          <button 
+            @click="handleTogglePush" 
+            :class="['toggle-btn', pushSubscribed ? 'active' : '']"
+            :disabled="pushLoading"
+          >
+            {{ pushLoading ? 'กำลังดำเนินการ...' : (pushSubscribed ? 'ปิด' : 'เปิด') }}
+          </button>
+        </div>
+
+        <div v-if="pushSubscribed" class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">ทดสอบการแจ้งเตือน</span>
+            <span class="setting-desc">ส่ง Push notification ทดสอบ</span>
+          </div>
+          <button @click="handleTestPush" class="test-btn" :disabled="testingPush">
+            {{ testingPush ? 'กำลังส่ง...' : 'ทดสอบ' }}
+          </button>
+        </div>
+      </div>
+
       <!-- PWA Section -->
       <div class="settings-section">
         <h2 class="section-title">แอปพลิเคชัน</h2>
@@ -238,6 +330,17 @@ const handleCheckUpdates = async () => {
             <span class="setting-desc">รับการแจ้งเตือนแบบ Push</span>
           </div>
           <button @click="handleEnableNotifications" class="enable-btn">เปิด</button>
+        </div>
+
+        <!-- Cache Info -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">พื้นที่แคช</span>
+            <span class="setting-desc">{{ formatBytes(cacheInfo.used) }} / {{ formatBytes(cacheInfo.quota) }} ({{ cacheInfo.percent }}%)</span>
+          </div>
+          <button @click="handleClearCache" class="clear-btn" :disabled="clearingCache">
+            {{ clearingCache ? 'กำลังล้าง...' : 'ล้างแคช' }}
+          </button>
         </div>
 
         <button @click="handleCheckUpdates" class="action-item">
@@ -503,5 +606,49 @@ const handleCheckUpdates = async () => {
 .install-btn:hover,
 .enable-btn:hover {
   background: #333;
+}
+
+.toggle-btn {
+  padding: 8px 16px;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.toggle-btn.active {
+  background: #E5E5E5;
+  color: #000;
+}
+
+.toggle-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.test-btn,
+.clear-btn {
+  padding: 8px 16px;
+  background: #F6F6F6;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.test-btn:hover,
+.clear-btn:hover {
+  background: #E5E5E5;
+}
+
+.test-btn:disabled,
+.clear-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

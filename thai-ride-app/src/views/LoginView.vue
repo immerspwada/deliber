@@ -20,11 +20,12 @@ const error = ref('')
 const showFillToast = ref(false)
 const filledAccount = ref('')
 
-// Demo accounts - login จริงผ่าน Supabase
+// Demo accounts - ใช้ demo mode ไม่ต้องผ่าน Supabase
 const demoAccounts = [
-  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer' },
-  { label: 'คนขับ', email: 'driver1@demo.com', password: 'driver1234', role: 'rider' },
-  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin' }
+  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer', name: 'สมชาย ลูกค้า' },
+  { label: 'คนขับรถ', email: 'driver@demo.com', password: 'demo1234', role: 'driver', name: 'สมศักดิ์ คนขับ' },
+  { label: 'ไรเดอร์', email: 'rider@demo.com', password: 'demo1234', role: 'rider', name: 'สมหญิง ไรเดอร์' },
+  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin', name: 'ผู้ดูแลระบบ' }
 ]
 
 const selectDemoAccount = (account: typeof demoAccounts[0]) => {
@@ -87,7 +88,42 @@ const loginWithEmail = async () => {
   }
   isLoading.value = true
   error.value = ''
+  
   try {
+    // Check if it's a demo account - use demo mode
+    const demoAccount = demoAccounts.find(a => a.email === email.value && a.password === password.value)
+    
+    if (demoAccount) {
+      // Demo mode - skip Supabase auth
+      localStorage.setItem('demo_mode', 'true')
+      localStorage.setItem('demo_user', JSON.stringify({
+        id: `demo-${demoAccount.role}`,
+        email: demoAccount.email,
+        name: demoAccount.name,
+        first_name: demoAccount.name.split(' ')[0],
+        last_name: demoAccount.name.split(' ')[1] || '',
+        role: demoAccount.role,
+        phone_number: '0812345678',
+        is_active: true,
+        avatar_url: null,
+        created_at: new Date().toISOString()
+      }))
+      
+      // Re-initialize auth store with demo user
+      await authStore.initialize()
+      
+      // Redirect based on role
+      if (demoAccount.role === 'rider' || demoAccount.role === 'driver') {
+        router.push('/provider')
+      } else if (demoAccount.role === 'admin') {
+        router.push('/admin')
+      } else {
+        router.push('/')
+      }
+      return
+    }
+    
+    // Real Supabase login
     const success = await authStore.login(email.value, password.value)
     if (success) {
       // Redirect based on user role
