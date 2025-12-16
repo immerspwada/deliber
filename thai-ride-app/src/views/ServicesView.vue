@@ -19,7 +19,6 @@ import { useAdvancedFeatures } from '../composables/useAdvancedFeatures'
 import { useToast } from '../composables/useToast'
 
 // Constants
-const LOCATION_FALLBACK_DELAY = 3000
 const DRIVER_SEARCH_TIMEOUT = 2500
 const DEFAULT_LOCATION = { lat: 13.7563, lng: 100.5018, address: 'กรุงเทพฯ' }
 
@@ -145,70 +144,79 @@ const cleanupSubscriptions = () => {
 
 // Initialize on mount
 onMounted(async () => {
-  try {
-    await Promise.all([
-      fetchSavedPlaces(),
-      fetchRecentPlaces()
-    ])
-  } catch (e) {
-    console.warn('Error fetching places:', e)
+  // Set default location immediately for stability
+  if (!pickupLocation.value) {
+    pickupLocation.value = DEFAULT_LOCATION
+    pickup.value = DEFAULT_LOCATION.address
   }
+
+  // Fetch places in background (non-blocking)
+  Promise.all([
+    fetchSavedPlaces().catch(() => []),
+    fetchRecentPlaces().catch(() => [])
+  ]).catch(() => {
+    console.warn('Error fetching places - continuing with defaults')
+  })
 
   // Restore active ride from database if exists
   if (rideStore.currentRide) {
-    const ride = rideStore.currentRide
-    currentRideId.value = ride.id
-    pickup.value = ride.pickup_address || ''
-    destination.value = ride.destination_address || ''
-    pickupLocation.value = {
-      lat: ride.pickup_lat,
-      lng: ride.pickup_lng,
-      address: ride.pickup_address || ''
-    }
-    destinationLocation.value = {
-      lat: ride.destination_lat,
-      lng: ride.destination_lng,
-      address: ride.destination_address || ''
-    }
-
-    // Set step based on ride status
-    const status = ride.status
-    if (status === 'pending') {
-      step.value = 'searching'
-    } else if (status === 'matched' || status === 'pickup') {
-      step.value = 'matched'
-    } else if (status === 'in_progress') {
-      step.value = 'riding'
-    }
-
-    // Subscribe to ride updates
-    const subscription = subscribeToRide(ride.id, (newStatus) => {
-      if (newStatus === 'matched') {
-        step.value = 'matched'
-      } else if (newStatus === 'in_progress') {
-        step.value = 'riding'
-      } else if (newStatus === 'completed') {
-        showRating.value = true
-      } else if (newStatus === 'cancelled') {
-        resetRideState()
+    try {
+      const ride = rideStore.currentRide
+      currentRideId.value = ride.id
+      pickup.value = ride.pickup_address || DEFAULT_LOCATION.address
+      destination.value = ride.destination_address || ''
+      pickupLocation.value = {
+        lat: ride.pickup_lat || DEFAULT_LOCATION.lat,
+        lng: ride.pickup_lng || DEFAULT_LOCATION.lng,
+        address: ride.pickup_address || DEFAULT_LOCATION.address
       }
-    })
-    subscriptions.value.push(subscription)
+      if (ride.destination_lat && ride.destination_lng) {
+        destinationLocation.value = {
+          lat: ride.destination_lat,
+          lng: ride.destination_lng,
+          address: ride.destination_address || ''
+        }
+      }
+
+      // Set step based on ride status
+      const status = ride.status
+      if (status === 'pending') {
+        step.value = 'searching'
+      } else if (status === 'matched' || status === 'pickup') {
+        step.value = 'matched'
+      } else if (status === 'in_progress') {
+        step.value = 'riding'
+      }
+
+      // Subscribe to ride updates with error handling
+      try {
+        const subscription = subscribeToRide(ride.id, (newStatus) => {
+          if (newStatus === 'matched') {
+            step.value = 'matched'
+          } else if (newStatus === 'in_progress') {
+            step.value = 'riding'
+          } else if (newStatus === 'completed') {
+            showRating.value = true
+          } else if (newStatus === 'cancelled') {
+            resetRideState()
+          }
+        })
+        subscriptions.value.push(subscription)
+      } catch (subError) {
+        console.warn('Error subscribing to ride:', subError)
+      }
+    } catch (restoreError) {
+      console.warn('Error restoring ride state:', restoreError)
+      resetRideState()
+    }
   }
 
-  // Get current location on mount
+  // Get current location in background (non-blocking)
   if (!rideStore.currentRide) {
-    try {
-      await centerOnCurrentLocation()
-    } catch {
-      // Fallback to default location if geolocation fails
-      setTimeout(() => {
-        if (!pickupLocation.value) {
-          pickupLocation.value = DEFAULT_LOCATION
-          pickup.value = DEFAULT_LOCATION.address
-        }
-      }, LOCATION_FALLBACK_DELAY)
-    }
+    centerOnCurrentLocation().catch(() => {
+      // Already have default location set above
+      console.warn('Using default location')
+    })
   }
 })
 
@@ -405,7 +413,7 @@ const getScheduledDateTime = (): string => {
   return now.toISOString()
 }
 
-// Request ride
+// Request ride with timeout protection
 const requestRide = async () => {
   if (!pickupLocation.value || !destinationLocation.value) {
     errorMessage.value = 'กรุณาระบุจุดรับและจุดหมาย'
@@ -416,6 +424,15 @@ const requestRide = async () => {
   step.value = 'searching'
   loading.value = true
   errorMessage.value = null
+
+  // Timeout protection - auto fallback after 10 seconds
+  const timeoutId = setTimeout(() => {
+    if (step.value === 'searching') {
+      console.warn('Ride request timeout - using demo mode')
+      step.value = 'matched'
+      loading.value = false
+    }
+  }, 10000)
 
   try {
     const rideType = selectedVehicle.value === 'premium' ? 'premium' : 'standard'
@@ -435,31 +452,44 @@ const requestRide = async () => {
       promoCode: promoApplied.value ? promoCode.value : undefined
     })
 
+    clearTimeout(timeoutId)
+
     if (ride) {
       currentRideId.value = ride.id
 
-      // Subscribe to ride updates
-      const subscription = subscribeToRide(ride.id, (status) => {
-        if (status === 'matched') {
+      // Subscribe to ride updates with error handling
+      try {
+        const subscription = subscribeToRide(ride.id, (status) => {
+          if (status === 'matched') {
+            step.value = 'matched'
+          } else if (status === 'in_progress') {
+            step.value = 'riding'
+          } else if (status === 'completed') {
+            showRating.value = true
+          }
+        })
+        subscriptions.value.push(subscription)
+      } catch (subError) {
+        console.warn('Subscription error:', subError)
+      }
+
+      // Find driver with timeout
+      const driverTimeout = setTimeout(() => {
+        if (step.value === 'searching') {
           step.value = 'matched'
-        } else if (status === 'in_progress') {
-          step.value = 'riding'
-        } else if (status === 'completed') {
-          showRating.value = true
         }
-      })
-      subscriptions.value.push(subscription)
+      }, DRIVER_SEARCH_TIMEOUT)
 
-      // Find driver
-      const foundDriver = await findDriver()
-
-      if (foundDriver) {
-        step.value = 'matched'
-      } else {
-        // Fallback for demo
-        setTimeout(() => {
+      try {
+        const foundDriver = await findDriver()
+        clearTimeout(driverTimeout)
+        if (foundDriver) {
           step.value = 'matched'
-        }, DRIVER_SEARCH_TIMEOUT)
+        }
+      } catch (driverError) {
+        clearTimeout(driverTimeout)
+        console.warn('Driver search error:', driverError)
+        step.value = 'matched' // Fallback to demo
       }
     } else {
       // Fallback for demo without auth
@@ -468,6 +498,7 @@ const requestRide = async () => {
       }, DRIVER_SEARCH_TIMEOUT)
     }
   } catch (e: any) {
+    clearTimeout(timeoutId)
     console.error('Error requesting ride:', e)
     errorMessage.value = e.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
     step.value = 'select'

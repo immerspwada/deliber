@@ -7,31 +7,54 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: [
+        'favicon.ico', 
+        'pwa-192x192.png', 
+        'pwa-512x512.png',
+        'pwa-192x192.svg',
+        'pwa-512x512.svg'
+      ],
       manifest: {
+        id: '/thai-ride-app',
         name: 'Thai Ride App - ระบบเรียกรถไทย',
         short_name: 'ThaiRide',
         description: 'ระบบเรียกรถ ส่งของ และซื้อของ ในประเทศไทย',
         theme_color: '#000000',
         background_color: '#ffffff',
         display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
         lang: 'th',
+        dir: 'ltr',
         categories: ['transportation', 'lifestyle', 'utilities'],
+        iarc_rating_id: '',
+        prefer_related_applications: false,
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ],
         shortcuts: [
@@ -46,30 +69,203 @@ export default defineConfig({
             name: 'ส่งของ',
             short_name: 'ส่งของ',
             description: 'บริการส่งของรวดเร็ว',
-            url: '/services?type=delivery',
+            url: '/delivery',
             icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
           },
           {
             name: 'ซื้อของ',
             short_name: 'ซื้อของ',
             description: 'บริการซื้อของให้',
-            url: '/services?type=shopping',
+            url: '/shopping',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
+          },
+          {
+            name: 'กระเป๋าเงิน',
+            short_name: 'กระเป๋า',
+            description: 'ดูยอดเงินและประวัติ',
+            url: '/wallet',
             icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
           }
-        ]
+        ],
+        screenshots: [
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'หน้าหลัก ThaiRide'
+          }
+        ],
+        related_applications: [],
+        handle_links: 'preferred',
+        launch_handler: {
+          client_mode: ['navigate-existing', 'auto']
+        }
       },
       workbox: {
+        // Pre-cache app shell
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: ['**/node_modules/**/*', 'sw.js', 'workbox-*.js'],
         cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: false, // ให้ user เลือก update เอง
+        
+        // Navigation fallback for SPA
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/, /^\/admin/],
+        
         runtimeCaching: [
-          // CartoDB Map Tiles
+          // App Shell - StaleWhileRevalidate for fast loads
+          {
+            urlPattern: /^https?:\/\/[^/]+\/?$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 60 * 60 * 24 // 1 day
+              },
+              networkTimeoutSeconds: 3
+            }
+          },
+          
+          // CartoDB Map Tiles - CacheFirst (maps don't change often)
           {
             urlPattern: /^https:\/\/[abc]\.basemaps\.cartocdn\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'map-tiles-cache',
               expiration: {
-                maxEntries: 500,
+                maxEntries: 300, // ลดลงเพื่อ balance storage
+                maxAgeSeconds: 60 * 60 * 24 * 14 // 14 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          
+          // OpenStreetMap Tiles (backup)
+          {
+            urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'osm-tiles-cache',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 14 // 14 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          
+          // Nominatim Geocoding API - NetworkFirst (need fresh data)
+          {
+            urlPattern: /^https:\/\/nominatim\.openstreetmap\.org\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'geocoding-cache',
+              expiration: {
+                maxEntries: 50, // ลดลง
+                maxAgeSeconds: 60 * 60 * 24 * 3 // 3 days
+              },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          
+          // OSRM Routing API - NetworkFirst (routes change)
+          {
+            urlPattern: /^https:\/\/router\.project-osrm\.org\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'routing-cache',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 30 // 30 minutes
+              },
+              networkTimeoutSeconds: 10,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          
+          // Supabase API - NetworkOnly (always need fresh data)
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
+            handler: 'NetworkOnly'
+          },
+          
+          // Supabase Auth - NetworkOnly
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/auth\/.*/i,
+            handler: 'NetworkOnly'
+          },
+          
+          // Supabase Realtime - NetworkOnly
+          {
+            urlPattern: /^wss?:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkOnly'
+          },
+          
+          // Supabase Storage - CacheFirst for images
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'supabase-storage-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          
+          // Google Fonts Stylesheets
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'google-fonts-stylesheets',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          },
+          
+          // Google Fonts Webfonts
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          
+          // CDN Assets (Leaflet, etc.)
+          {
+            urlPattern: /^https:\/\/unpkg\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'cdn-cache',
+              expiration: {
+                maxEntries: 30,
                 maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
               },
               cacheableResponse: {
@@ -77,53 +273,19 @@ export default defineConfig({
               }
             }
           },
-          // Nominatim Geocoding API
+          
+          // Images - CacheFirst
           {
-            urlPattern: /^https:\/\/nominatim\.openstreetmap\.org\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'geocoding-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              networkTimeoutSeconds: 5
-            }
-          },
-          // OSRM Routing API
-          {
-            urlPattern: /^https:\/\/router\.project-osrm\.org\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'routing-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1 hour
-              },
-              networkTimeoutSeconds: 10
-            }
-          },
-          // Supabase API - Network only
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkOnly'
-          },
-          // Google Fonts
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'google-fonts-stylesheets'
-            }
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'google-fonts-webfonts',
+              cacheName: 'images-cache',
               expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+                maxEntries: 60,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
               }
             }
           }
@@ -131,9 +293,9 @@ export default defineConfig({
       },
       devOptions: {
         enabled: false,
-        suppressWarnings: true
-      },
-      selfDestroying: true
+        suppressWarnings: true,
+        type: 'module'
+      }
     })
   ],
   server: {

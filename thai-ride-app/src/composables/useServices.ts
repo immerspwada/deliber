@@ -80,49 +80,66 @@ export function useServices() {
     }
   }
 
-  // Fetch saved places with network error handling
+  // Fetch saved places with network error handling and timeout
   const fetchSavedPlaces = async () => {
     if (!authStore.user?.id) return []
 
     try {
+      // Add timeout protection
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
       const { data, error: fetchError } = await (supabase
         .from('saved_places') as any)
         .select('*')
         .eq('user_id', authStore.user.id)
         .order('place_type', { ascending: true })
+        .abortSignal(controller.signal)
+
+      clearTimeout(timeoutId)
 
       if (fetchError) throw fetchError
       savedPlaces.value = data || []
       return data || []
     } catch (err: any) {
-      if (err.message?.includes('Failed to fetch')) {
-        console.warn('Network error fetching saved places')
-        error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'
+      if (err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('aborted')) {
+        console.warn('Network error or timeout fetching saved places')
+        // Don't set error - just return empty silently
       } else {
-        error.value = err.message
+        console.warn('Error fetching saved places:', err.message)
       }
-      return []
+      return savedPlaces.value // Return cached value if available
     }
   }
 
-  // Fetch recent places
+  // Fetch recent places with timeout protection
   const fetchRecentPlaces = async (limit = 10) => {
     if (!authStore.user?.id) return []
 
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
       const { data, error: fetchError } = await (supabase
         .from('recent_places') as any)
         .select('*')
         .eq('user_id', authStore.user.id)
         .order('last_used_at', { ascending: false })
         .limit(limit)
+        .abortSignal(controller.signal)
+
+      clearTimeout(timeoutId)
 
       if (fetchError) throw fetchError
       recentPlaces.value = data || []
       return data || []
     } catch (err: any) {
-      error.value = err.message
-      return []
+      if (err.name === 'AbortError' || err.message?.includes('Failed to fetch')) {
+        console.warn('Network error or timeout fetching recent places')
+      } else {
+        console.warn('Error fetching recent places:', err.message)
+      }
+      return recentPlaces.value // Return cached value
     }
   }
 
