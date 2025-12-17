@@ -48,7 +48,7 @@ class CachedTileLayer extends L.TileLayer {
     const tile = document.createElement('img')
     
     // Ensure URL template is available
-    if (!this._url) {
+    if (!(this as any)._url) {
       done(new Error('Tile URL not set'), tile)
       return tile
     }
