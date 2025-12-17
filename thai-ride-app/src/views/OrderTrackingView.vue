@@ -175,10 +175,7 @@ const destinationLocation = computed(() => {
   }
 })
 
-const providerLocation = computed(() => {
-  if (!orderData.value?.provider?.current_lat) return null
-  return { lat: orderData.value.provider.current_lat, lng: orderData.value.provider.current_lng }
-})
+
 </script>
 
 <template>

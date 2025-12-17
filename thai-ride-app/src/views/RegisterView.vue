@@ -5,8 +5,7 @@ import {
   validateThaiPhoneNumber, 
   validateEmail,
   validatePassword,
-  formatThaiPhoneNumber,
-  generateMemberUid
+  formatThaiPhoneNumber
 } from '../utils/validation'
 import { useAuthStore } from '../stores/auth'
 
@@ -35,132 +34,72 @@ const passwordValidation = computed(() => validatePassword(password.value))
 const isPasswordMatch = computed(() => password.value === confirmPassword.value)
 const formattedPhone = computed(() => formatThaiPhoneNumber(phone.value))
 
-// Email is optional - only validate if provided
+// Email is REQUIRED for real registration
 const canSubmit = computed(() => 
   firstName.value.trim().length >= 2 &&
   lastName.value.trim().length >= 2 &&
   validateThaiPhoneNumber(phone.value) &&
-  (email.value.length === 0 || validateEmail(email.value)) && // Email optional
+  validateEmail(email.value) && // Email required for Supabase auth
   passwordValidation.value.valid && 
   isPasswordMatch.value && 
   acceptTerms.value
 )
 
-// Submit Registration with timeout
+// Submit Registration - Real Supabase registration
 const submitRegistration = async () => {
   if (!canSubmit.value) return
   
   isLoading.value = true
   error.value = ''
-  
-  // Timeout after 10 seconds
-  const timeoutId = setTimeout(() => {
-    if (isLoading.value) {
-      isLoading.value = false
-      error.value = 'การสมัครใช้เวลานานเกินไป กรุณาลองใหม่'
-    }
-  }, 10000)
+  successMessage.value = ''
   
   try {
     const fullName = `${firstName.value} ${lastName.value}`.trim()
     const cleanPhone = phone.value.replace(/[-\s]/g, '')
     
-    // Create demo user for instant access (skip Supabase for now)
-    const demoUserId = 'user-' + Date.now()
-    const memberUid = generateMemberUid()
+    // Clear any existing demo mode
+    localStorage.removeItem('demo_mode')
+    localStorage.removeItem('demo_user')
     
-    // Helper to create demo user data
-    const createDemoUser = (uid: string, mUid: string) => ({
-      id: uid,
-      member_uid: mUid,
-      email: email.value || null, // Email is optional
+    console.log('Starting Supabase registration for:', email.value)
+    
+    // Register with Supabase
+    const success = await authStore.register(email.value, password.value, {
       name: fullName,
-      first_name: firstName.value,
-      last_name: lastName.value,
-      role: 'customer',
-      phone_number: cleanPhone,
-      is_active: true,
-      created_at: new Date().toISOString()
+      phone: cleanPhone,
+      role: 'customer'
     })
     
-    // If email provided, try Supabase registration
-    if (email.value) {
-      const registerPromise = authStore.register(email.value, password.value, {
-        name: fullName,
-        phone: cleanPhone,
-        role: 'customer'
-      })
-      
-      const timeoutPromise = new Promise<boolean>((resolve) => 
-        setTimeout(() => resolve(false), 8000)
-      )
-      
-      const success = await Promise.race([registerPromise, timeoutPromise])
-      
-      clearTimeout(timeoutId)
-      
-      if (success) {
-        successMessage.value = 'สมัครสมาชิกสำเร็จ!'
-        
-        // Try auto login with timeout
-        const loginPromise = authStore.login(email.value, password.value)
-        const loginTimeout = new Promise<boolean>((resolve) => 
-          setTimeout(() => resolve(false), 5000)
-        )
-        
-        const loginSuccess = await Promise.race([loginPromise, loginTimeout])
-        
-        if (loginSuccess) {
-          router.push('/customer/saved-places?setup=true')
-        } else {
-          // Fallback: use demo mode
-          localStorage.setItem('demo_mode', 'true')
-          localStorage.setItem('demo_user', JSON.stringify(createDemoUser(demoUserId, memberUid)))
-          await authStore.initialize()
-          router.push('/customer/saved-places?setup=true')
-        }
-      } else {
-        // Supabase failed or timeout - use demo mode
-        localStorage.setItem('demo_mode', 'true')
-        localStorage.setItem('demo_user', JSON.stringify(createDemoUser(demoUserId, memberUid)))
-        await authStore.initialize()
-        successMessage.value = 'สมัครสมาชิกสำเร็จ!'
+    if (!success) {
+      // Show the actual error from authStore
+      error.value = authStore.error || 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่'
+      console.error('Registration failed:', authStore.error)
+      return
+    }
+    
+    console.log('Registration successful, attempting login...')
+    successMessage.value = 'สมัครสมาชิกสำเร็จ!'
+    
+    // Auto login after registration
+    const loginSuccess = await authStore.login(email.value, password.value)
+    
+    if (loginSuccess) {
+      console.log('Login successful, user ID:', authStore.user?.id)
+      // Navigate to saved places setup
+      setTimeout(() => {
         router.push('/customer/saved-places?setup=true')
-      }
+      }, 500)
     } else {
-      // No email - use demo mode directly (email is optional)
-      clearTimeout(timeoutId)
-      localStorage.setItem('demo_mode', 'true')
-      localStorage.setItem('demo_user', JSON.stringify(createDemoUser(demoUserId, memberUid)))
-      await authStore.initialize()
-      successMessage.value = 'สมัครสมาชิกสำเร็จ!'
-      router.push('/customer/saved-places?setup=true')
+      // Registration succeeded but login failed - redirect to login page
+      console.warn('Auto-login failed, redirecting to login page')
+      error.value = 'สมัครสำเร็จ! กรุณาเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่สมัคร'
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
     }
   } catch (err: any) {
-    clearTimeout(timeoutId)
     console.error('Registration error:', err)
-    
-    // Fallback to demo mode on any error
-    const fullName = `${firstName.value} ${lastName.value}`.trim()
-    const cleanPhone = phone.value.replace(/[-\s]/g, '')
-    const errorMemberUid = generateMemberUid()
-    
-    localStorage.setItem('demo_mode', 'true')
-    localStorage.setItem('demo_user', JSON.stringify({
-      id: 'user-' + Date.now(),
-      member_uid: errorMemberUid,
-      email: email.value || null,
-      name: fullName,
-      first_name: firstName.value,
-      last_name: lastName.value,
-      role: 'customer',
-      phone_number: cleanPhone,
-      is_active: true,
-      created_at: new Date().toISOString()
-    }))
-    await authStore.initialize()
-    successMessage.value = 'สมัครสมาชิกสำเร็จ!'
-    router.push('/customer/saved-places?setup=true')
+    error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
   } finally {
     isLoading.value = false
   }
@@ -249,9 +188,9 @@ watch(phone, (val) => {
           <p v-if="phone && !isPhoneValid" class="error-text">เบอร์โทรศัพท์ไม่ถูกต้อง</p>
         </div>
 
-        <!-- Email (Optional) -->
+        <!-- Email (Required) -->
         <div class="form-group">
-          <label class="label">อีเมล <span class="optional">(ไม่บังคับ)</span></label>
+          <label class="label">อีเมล <span class="required">*</span></label>
           <input 
             v-model="email" 
             type="email" 
@@ -264,7 +203,7 @@ watch(phone, (val) => {
             }"
           />
           <p v-if="email && !isEmailValid" class="error-text">อีเมลไม่ถูกต้อง</p>
-          <p class="hint-text">ระบบจะใช้ Member UID ในการติดตามข้อมูลของคุณ</p>
+          <p class="hint-text">ใช้สำหรับเข้าสู่ระบบและรับการแจ้งเตือน</p>
         </div>
 
         <!-- Password -->

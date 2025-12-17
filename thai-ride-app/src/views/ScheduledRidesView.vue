@@ -75,36 +75,97 @@ const upcomingRides = computed(() => {
 
 onMounted(async () => {
   loadingPlaces.value = true
+  
+  // Timeout protection - stop loading after 3 seconds max
+  const timeoutId = setTimeout(() => {
+    if (loadingPlaces.value) {
+      console.warn('Loading timeout - stopping spinner')
+      loadingPlaces.value = false
+    }
+  }, 3000)
+  
   try {
-    await Promise.all([
+    // Wait for auth store to initialize if loading
+    let waitCount = 0
+    while (authStore.loading && waitCount < 10) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+      waitCount++
+    }
+    
+    console.log('ScheduledRidesView: Auth state:', {
+      userId: authStore.user?.id,
+      isAuthenticated: authStore.isAuthenticated,
+      loading: authStore.loading
+    })
+    
+    // Fetch data in parallel with individual error handling
+    const results = await Promise.allSettled([
       fetchScheduledRides(),
       fetchRecentPlaces(),
       fetchSavedPlaces()
     ])
+    
+    results.forEach((result, index) => {
+      const names = ['scheduledRides', 'recentPlaces', 'savedPlaces']
+      if (result.status === 'rejected') {
+        console.warn(`${names[index]} fetch failed:`, result.reason)
+      }
+    })
   } catch (e) {
     console.error('Error loading data:', e)
   } finally {
+    clearTimeout(timeoutId)
     loadingPlaces.value = false
   }
 })
 
 const fetchRecentPlaces = async () => {
-  if (!authStore.user?.id) return
+  if (!authStore.user?.id) {
+    console.log('fetchRecentPlaces: No user ID, skipping')
+    return
+  }
+  
+  // Check if user ID is a valid UUID (not demo user)
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authStore.user.id)
+  if (!isValidUUID) {
+    console.log('fetchRecentPlaces: Invalid UUID format, skipping DB query')
+    recentPlaces.value = []
+    return
+  }
+  
   try {
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('recent_places')
       .select('*')
       .eq('user_id', authStore.user.id)
       .order('last_used_at', { ascending: false })
       .limit(5)
+    
+    if (err) {
+      console.error('fetchRecentPlaces error:', err.message)
+      return
+    }
     recentPlaces.value = data || []
+    console.log('Recent places loaded:', recentPlaces.value.length)
   } catch (e) {
-    console.error(e)
+    console.error('fetchRecentPlaces exception:', e)
   }
 }
 
 const fetchSavedPlaces = async () => {
-  if (!authStore.user?.id) return
+  if (!authStore.user?.id) {
+    console.log('fetchSavedPlaces: No user ID, skipping')
+    return
+  }
+  
+  // Check if user ID is a valid UUID (not demo user)
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authStore.user.id)
+  if (!isValidUUID) {
+    console.log('fetchSavedPlaces: Invalid UUID format, skipping DB query')
+    savedPlaces.value = []
+    return
+  }
+  
   try {
     const { data, error: err } = await supabase
       .from('saved_places')
@@ -113,14 +174,14 @@ const fetchSavedPlaces = async () => {
       .limit(10)
     
     if (err) {
-      console.error('Error fetching saved places:', err)
+      console.error('fetchSavedPlaces error:', err.message)
       return
     }
     
     savedPlaces.value = data || []
     console.log('Saved places loaded:', savedPlaces.value.length)
   } catch (e) {
-    console.error('Exception fetching saved places:', e)
+    console.error('fetchSavedPlaces exception:', e)
   }
 }
 
@@ -175,6 +236,7 @@ const saveNewPlace = async () => {
   
   savingPlace.value = true
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: err } = await supabase
       .from('saved_places')
       .insert({
@@ -184,7 +246,7 @@ const saveNewPlace = async () => {
         type: newPlace.value.type,
         lat: 13.7563,
         lng: 100.5018
-      })
+      } as any)
     
     if (!err) {
       await fetchSavedPlaces()
@@ -264,30 +326,7 @@ const getPlaceIcon = (type: string) => {
   return icons[type] || icons.default
 }
 
-// Pull to refresh touch handlers
-let touchStartY = 0
-let touchCurrentY = 0
 
-const handleTouchStart = (e: TouchEvent) => {
-  if (window.scrollY === 0) {
-    touchStartY = e.touches[0].clientY
-  }
-}
-
-const handleTouchMove = (e: TouchEvent) => {
-  if (touchStartY > 0) {
-    touchCurrentY = e.touches[0].clientY
-  }
-}
-
-const handleTouchEnd = () => {
-  const pullDistance = touchCurrentY - touchStartY
-  if (pullDistance > 80 && window.scrollY === 0 && !isRefreshing.value) {
-    handleRefresh()
-  }
-  touchStartY = 0
-  touchCurrentY = 0
-}
 </script>
 
 <template>
@@ -308,6 +347,11 @@ const handleTouchEnd = () => {
 
     <!-- Hero Section - Clear Purpose -->
     <section class="hero-section">
+      <button class="refresh-btn" @click="handleRefresh" :disabled="isRefreshing">
+        <svg :class="{ spinning: isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+      </button>
       <div class="hero-icon">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -676,6 +720,34 @@ const handleTouchEnd = () => {
   background: #fff;
   padding: 24px 20px;
   text-align: center;
+  position: relative;
+}
+
+.refresh-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  background: #f6f6f6;
+  border: none;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
 }
 
 .hero-icon {

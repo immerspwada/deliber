@@ -125,7 +125,7 @@ export const useAuthStore = defineStore('auth', () => {
           p_national_id: userData.nationalId || null,
           p_phone_number: userData.phone,
           p_role: role
-        })
+        } as any)
         
         if (rpcError) {
           console.error('Registration completion error:', rpcError)

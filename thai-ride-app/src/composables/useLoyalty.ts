@@ -125,16 +125,17 @@ export function useLoyalty() {
       // Handle array response from RPC (returns TABLE)
       const result = Array.isArray(data) ? data[0] : data
       if (result) {
+        const r = result as any
         summary.value = {
-          current_points: result.current_points,
-          lifetime_points: result.lifetime_points,
-          tier: result.tier as LoyaltyTier,
-          next_tier: result.next_tier ? {
-            id: result.next_tier.id,
-            name: result.next_tier.name,
-            name_th: result.next_tier.name_th,
-            min_points: result.next_tier.min_points,
-            points_needed: result.next_tier.points_needed
+          current_points: r.current_points,
+          lifetime_points: r.lifetime_points,
+          tier: r.tier as LoyaltyTier,
+          next_tier: r.next_tier ? {
+            id: r.next_tier.id,
+            name: r.next_tier.name,
+            name_th: r.next_tier.name_th,
+            min_points: r.next_tier.min_points,
+            points_needed: r.next_tier.points_needed
           } : undefined
         }
       }
@@ -296,9 +297,10 @@ export function useLoyalty() {
       
       // Handle array response from RPC (returns TABLE)
       const result = Array.isArray(data) ? data[0] : data
+      const r = result as any
       
-      if (result && !result.success) {
-        error.value = result.message || 'ไม่สามารถแลกรางวัลได้'
+      if (r && !r.success) {
+        error.value = r.message || 'ไม่สามารถแลกรางวัลได้'
         return null
       }
       

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MapView from '../components/MapView.vue'
 import LocationPermissionModal from '../components/LocationPermissionModal.vue'
@@ -11,15 +11,13 @@ import { useToast } from '../composables/useToast'
 const router = useRouter()
 const rideStore = useRideStore()
 const toast = useToast()
-const { reverseGeocode, getCurrentPosition, shouldShowPermissionModal } = useLocation()
+const { getCurrentPosition, shouldShowPermissionModal } = useLocation()
 const { homePlace, workPlace, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
 
 // State
 const loading = ref(false)
 const pickupLocation = ref<GeoLocation | null>(null)
 const showLocationPermission = ref(false)
-const searchQuery = ref('')
-const showSearch = ref(false)
 
 // Default location (Bangkok)
 const DEFAULT_LOCATION = { lat: 13.7563, lng: 100.5018, address: 'กรุงเทพฯ' }

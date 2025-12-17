@@ -100,16 +100,7 @@ const getRoleText = (role: string) => {
   return roles[role] || role
 }
 
-const getRoleIcon = (role: string) => {
-  const icons: Record<string, string> = {
-    admin: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
-    customer: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-    rider: 'M13 10V3L4 14h7v7l9-11h-7z',
-    driver: 'M8 17h8M8 17v4h8v-4M8 17H5a2 2 0 01-2-2V9a2 2 0 012-2h14a2 2 0 012 2v6a2 2 0 01-2 2h-3M12 3v4',
-    restaurant: 'M3 3h18v18H3V3zm3 6h12M6 12h12M6 15h12'
-  }
-  return icons[role] || icons.customer
-}
+
 
 const formatDate = (d: string) => {
   if (!d) return '-'
