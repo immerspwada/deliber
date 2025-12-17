@@ -7,6 +7,7 @@ import App from './App.vue'
 // Import routes
 import { routes } from './router/index'
 import { supabase } from './lib/supabase'
+import { initSentry, setUser as setSentryUser } from './lib/sentry'
 
 // Create router
 const router = createRouter({
@@ -194,9 +195,26 @@ const pinia = createPinia()
 
 // Create and mount app
 const app = createApp(App)
+
+// Initialize Sentry for error monitoring
+initSentry(app, router)
+
 app.use(pinia)
 app.use(router)
 app.mount('#app')
+
+// Set Sentry user context when auth changes
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session?.user) {
+    setSentryUser({
+      id: session.user.id,
+      email: session.user.email,
+      role: session.user.user_metadata?.role
+    })
+  } else {
+    setSentryUser(null)
+  }
+})
 
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {

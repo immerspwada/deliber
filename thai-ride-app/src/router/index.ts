@@ -40,6 +40,12 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/TripTrackView.vue'),
     meta: { hideNavigation: true, public: true }
   },
+  {
+    path: '/tracking/:trackingId',
+    name: 'OrderTracking',
+    component: () => import('../views/OrderTrackingView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
 
   // ========================================
   // Root redirect based on role
@@ -47,6 +53,14 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/',
     redirect: '/customer'
+  },
+  // Legacy/shortcut redirects
+  {
+    path: '/saved-places',
+    redirect: (to) => ({
+      path: '/customer/saved-places',
+      query: to.query
+    })
   },
 
   // ========================================
@@ -170,6 +184,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/customer/favorite-drivers',
     name: 'CustomerFavoriteDrivers',
     component: () => import('../views/FavoriteDriversView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/loyalty',
+    name: 'CustomerLoyalty',
+    component: () => import('../views/LoyaltyView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
 
@@ -338,6 +358,90 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/audit-log',
     name: 'AdminAuditLog',
     component: () => import('../views/AdminAuditLogView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/analytics',
+    name: 'AdminAnalytics',
+    component: () => import('../views/AdminAnalyticsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/surge',
+    name: 'AdminSurge',
+    component: () => import('../views/AdminSurgeView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/settings',
+    name: 'AdminSettings',
+    component: () => import('../views/AdminSettingsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/feedback',
+    name: 'AdminFeedback',
+    component: () => import('../views/AdminFeedbackView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/service-areas',
+    name: 'AdminServiceAreas',
+    component: () => import('../views/AdminServiceAreaView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/live-map',
+    name: 'AdminLiveMap',
+    component: () => import('../views/AdminLiveMapView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/cancellations',
+    name: 'AdminCancellations',
+    component: () => import('../views/AdminCancellationsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/tips',
+    name: 'AdminTips',
+    component: () => import('../views/AdminTipsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/reports',
+    name: 'AdminReports',
+    component: () => import('../views/AdminReportsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/components',
+    name: 'AdminComponents',
+    component: () => import('../views/AdminComponentsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/loyalty',
+    name: 'AdminLoyalty',
+    component: () => import('../views/AdminLoyaltyView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/wallets',
+    name: 'AdminWallets',
+    component: () => import('../views/AdminWalletsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/scheduled-rides',
+    name: 'AdminScheduledRides',
+    component: () => import('../views/AdminScheduledRidesView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/referrals',
+    name: 'AdminReferrals',
+    component: () => import('../views/AdminReferralsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   }
 ]

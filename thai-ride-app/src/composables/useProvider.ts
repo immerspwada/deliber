@@ -68,6 +68,77 @@ export interface DailyEarning {
   date: string; day: string; earnings: number; trips: number; hours_online: number
 }
 
+// Delivery Request Interface
+export interface DeliveryRequest {
+  id: string
+  tracking_id?: string
+  user_id: string
+  type: 'delivery'
+  sender_name: string
+  sender_phone: string
+  sender_address: string
+  sender_lat: number
+  sender_lng: number
+  recipient_name: string
+  recipient_address: string
+  recipient_lat: number
+  recipient_lng: number
+  package_type: string
+  package_description?: string
+  estimated_fee: number
+  distance_km?: number
+  status: string
+  created_at: string
+  customer_name?: string
+}
+
+// Shopping Request Interface
+export interface ShoppingRequest {
+  id: string
+  tracking_id?: string
+  user_id: string
+  type: 'shopping'
+  store_name?: string
+  store_address?: string
+  store_lat?: number
+  store_lng?: number
+  delivery_address: string
+  delivery_lat: number
+  delivery_lng: number
+  items: any[]
+  item_list?: string
+  budget_limit: number
+  service_fee: number
+  special_instructions?: string
+  status: string
+  created_at: string
+  customer_name?: string
+}
+
+// Active Job (can be ride, delivery, or shopping)
+export interface ActiveJob {
+  id: string
+  tracking_id: string
+  type: 'ride' | 'delivery' | 'shopping'
+  customer: { id: string; name: string; phone: string; rating?: number }
+  pickup: { lat: number; lng: number; address: string }
+  destination: { lat: number; lng: number; address: string }
+  fare: number
+  status: string
+  distance?: number
+  created_at: string
+  // Delivery specific
+  package_type?: string
+  package_description?: string
+  recipient_name?: string
+  recipient_phone?: string
+  // Shopping specific
+  store_name?: string
+  items?: any[]
+  item_list?: string
+  budget_limit?: number
+}
+
 export function useProvider() {
   const authStore = useAuthStore()
   const { startOnlineSession, endOnlineSession } = useProviderEarnings()
@@ -77,18 +148,23 @@ export function useProvider() {
   const profile = ref<ProviderProfile | null>(null)
   const isOnline = ref(false)
   const pendingRequests = ref<RideRequest[]>([])
+  const pendingDeliveries = ref<DeliveryRequest[]>([])
+  const pendingShopping = ref<ShoppingRequest[]>([])
   const activeRide = ref<ActiveRide | null>(null)
+  const activeJob = ref<ActiveJob | null>(null)
   const earnings = ref<EarningsSummary>({ today: 0, thisWeek: 0, thisMonth: 0, todayTrips: 0, weekTrips: 0, monthTrips: 0 })
   const weeklyEarnings = ref<DailyEarning[]>([])
   
   let requestsSubscription: any = null
   let rideSubscription: any = null
+  let jobSubscription: any = null
   let locationInterval: number | null = null
   let reconnectTimeout: number | null = null
   let fetchInterval: number | null = null
 
   const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
   const hasActiveRide = () => activeRide.value !== null
+  const hasActiveJob = () => activeJob.value !== null
 
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const R = 6371
@@ -367,6 +443,173 @@ export function useProvider() {
 
   const completeRide = () => updateRideStatus('completed')
 
+  // =====================================================
+  // DELIVERY FUNCTIONS
+  // =====================================================
+  const fetchPendingDeliveries = async () => {
+    if (!profile.value?.id) return
+    try {
+      const { data } = await (supabase.rpc as any)('get_available_deliveries_for_provider', { p_provider_id: profile.value.id, p_radius_km: 10 })
+      if (data?.length > 0) {
+        pendingDeliveries.value = data.map((d: any) => ({
+          id: d.delivery_id, tracking_id: d.tracking_id, user_id: d.user_id, type: 'delivery' as const,
+          sender_name: d.sender_name, sender_phone: d.sender_phone, sender_address: d.sender_address,
+          sender_lat: d.sender_lat, sender_lng: d.sender_lng,
+          recipient_name: d.recipient_name, recipient_address: d.recipient_address,
+          recipient_lat: d.recipient_lat, recipient_lng: d.recipient_lng,
+          package_type: d.package_type, package_description: d.package_description,
+          estimated_fee: d.estimated_fee || 0, distance_km: d.distance_km,
+          status: 'pending', created_at: d.created_at, customer_name: d.customer_name
+        }))
+      } else { pendingDeliveries.value = [] }
+    } catch (e) { console.warn('Error fetching deliveries:', e) }
+  }
+
+  const acceptDelivery = async (deliveryId: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
+      const { data, error: acceptError } = await (supabase.rpc as any)('accept_delivery_request', { p_delivery_id: deliveryId, p_provider_id: profile.value.id })
+      if (acceptError) throw acceptError
+      const result = data?.[0]
+      if (!result?.success) {
+        pendingDeliveries.value = pendingDeliveries.value.filter(d => d.id !== deliveryId)
+        throw new Error(result?.message || 'ไม่สามารถรับงานได้')
+      }
+      const deliveryData = result.delivery_data
+      activeJob.value = {
+        id: deliveryData.id, tracking_id: deliveryData.tracking_id, type: 'delivery',
+        customer: { id: deliveryData.customer?.id, name: deliveryData.customer?.name || 'ลูกค้า', phone: deliveryData.customer?.phone || '' },
+        pickup: { lat: deliveryData.sender_lat, lng: deliveryData.sender_lng, address: deliveryData.sender_address },
+        destination: { lat: deliveryData.recipient_lat, lng: deliveryData.recipient_lng, address: deliveryData.recipient_address },
+        fare: deliveryData.estimated_fee, status: 'matched', created_at: new Date().toISOString(),
+        package_type: deliveryData.package_type, package_description: deliveryData.package_description,
+        recipient_name: deliveryData.recipient_name, recipient_phone: deliveryData.recipient_phone
+      }
+      pendingDeliveries.value = pendingDeliveries.value.filter(d => d.id !== deliveryId)
+      subscribeToJob(deliveryId, 'delivery')
+      return true
+    } catch (e: any) { error.value = e.message; return false }
+    finally { loading.value = false }
+  }
+
+  const updateDeliveryStatus = async (status: 'pickup' | 'in_transit' | 'delivered') => {
+    if (!activeJob.value || activeJob.value.type !== 'delivery') return false
+    loading.value = true
+    try {
+      const { data, error: updateError } = await (supabase.rpc as any)('update_delivery_status', {
+        p_delivery_id: activeJob.value.id, p_provider_id: profile.value?.id, p_new_status: status
+      })
+      if (updateError) throw updateError
+      if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
+      activeJob.value.status = status
+      if (status === 'delivered') {
+        earnings.value.today += activeJob.value.fare
+        earnings.value.todayTrips += 1
+        setTimeout(() => { activeJob.value = null; unsubscribeFromJob() }, 3000)
+      }
+      return true
+    } catch (e: any) { error.value = e.message; return false }
+    finally { loading.value = false }
+  }
+
+  // =====================================================
+  // SHOPPING FUNCTIONS
+  // =====================================================
+  const fetchPendingShopping = async () => {
+    if (!profile.value?.id) return
+    try {
+      const { data } = await (supabase.rpc as any)('get_available_shopping_for_provider', { p_provider_id: profile.value.id, p_radius_km: 10 })
+      if (data?.length > 0) {
+        pendingShopping.value = data.map((s: any) => ({
+          id: s.shopping_id, tracking_id: s.tracking_id, user_id: s.user_id, type: 'shopping' as const,
+          store_name: s.store_name, store_address: s.store_address, store_lat: s.store_lat, store_lng: s.store_lng,
+          delivery_address: s.delivery_address, delivery_lat: s.delivery_lat, delivery_lng: s.delivery_lng,
+          items: s.items || [], item_list: s.item_list, budget_limit: s.budget_limit, service_fee: s.service_fee || 0,
+          special_instructions: s.special_instructions, status: 'pending', created_at: s.created_at, customer_name: s.customer_name
+        }))
+      } else { pendingShopping.value = [] }
+    } catch (e) { console.warn('Error fetching shopping:', e) }
+  }
+
+  const acceptShopping = async (shoppingId: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
+      const { data, error: acceptError } = await (supabase.rpc as any)('accept_shopping_request', { p_shopping_id: shoppingId, p_provider_id: profile.value.id })
+      if (acceptError) throw acceptError
+      const result = data?.[0]
+      if (!result?.success) {
+        pendingShopping.value = pendingShopping.value.filter(s => s.id !== shoppingId)
+        throw new Error(result?.message || 'ไม่สามารถรับงานได้')
+      }
+      const shoppingData = result.shopping_data
+      activeJob.value = {
+        id: shoppingData.id, tracking_id: shoppingData.tracking_id, type: 'shopping',
+        customer: { id: shoppingData.customer?.id, name: shoppingData.customer?.name || 'ลูกค้า', phone: shoppingData.customer?.phone || '' },
+        pickup: { lat: shoppingData.store_lat || 0, lng: shoppingData.store_lng || 0, address: shoppingData.store_address || 'ร้านค้า' },
+        destination: { lat: shoppingData.delivery_lat, lng: shoppingData.delivery_lng, address: shoppingData.delivery_address },
+        fare: shoppingData.service_fee, status: 'matched', created_at: new Date().toISOString(),
+        store_name: shoppingData.store_name, items: shoppingData.items, item_list: shoppingData.item_list, budget_limit: shoppingData.budget_limit
+      }
+      pendingShopping.value = pendingShopping.value.filter(s => s.id !== shoppingId)
+      subscribeToJob(shoppingId, 'shopping')
+      return true
+    } catch (e: any) { error.value = e.message; return false }
+    finally { loading.value = false }
+  }
+
+  const updateShoppingStatus = async (status: 'shopping' | 'delivering' | 'completed', itemsCost?: number) => {
+    if (!activeJob.value || activeJob.value.type !== 'shopping') return false
+    loading.value = true
+    try {
+      const { data, error: updateError } = await (supabase.rpc as any)('update_shopping_status', {
+        p_shopping_id: activeJob.value.id, p_provider_id: profile.value?.id, p_new_status: status,
+        p_items_cost: itemsCost || null
+      })
+      if (updateError) throw updateError
+      if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
+      activeJob.value.status = status
+      if (status === 'completed') {
+        earnings.value.today += activeJob.value.fare
+        earnings.value.todayTrips += 1
+        setTimeout(() => { activeJob.value = null; unsubscribeFromJob() }, 3000)
+      }
+      return true
+    } catch (e: any) { error.value = e.message; return false }
+    finally { loading.value = false }
+  }
+
+  // =====================================================
+  // JOB SUBSCRIPTION (for delivery/shopping)
+  // =====================================================
+  const subscribeToJob = (jobId: string, type: 'delivery' | 'shopping') => {
+    if (jobSubscription) jobSubscription.unsubscribe()
+    const table = type === 'delivery' ? 'delivery_requests' : 'shopping_requests'
+    jobSubscription = supabase.channel(`job_${type}_${jobId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `id=eq.${jobId}` }, (payload) => {
+        const updated = payload.new as any
+        if (activeJob.value?.id === jobId) {
+          if (updated.status === 'cancelled') { activeJob.value = null; unsubscribeFromJob() }
+          else { activeJob.value.status = updated.status }
+        }
+      })
+      .subscribe()
+  }
+
+  const unsubscribeFromJob = () => {
+    if (jobSubscription) { jobSubscription.unsubscribe(); jobSubscription = null }
+  }
+
+  // =====================================================
+  // FETCH ALL PENDING JOBS
+  // =====================================================
+  const fetchAllPendingJobs = async () => {
+    await Promise.all([fetchPendingRequests(), fetchPendingDeliveries(), fetchPendingShopping()])
+  }
+
   const subscribeToRide = (rideId: string) => {
     if (rideSubscription) rideSubscription.unsubscribe()
     rideSubscription = supabase.channel('ride_' + rideId)
@@ -407,13 +650,29 @@ export function useProvider() {
   onUnmounted(() => {
     unsubscribeFromRequests()
     unsubscribeFromRide()
+    unsubscribeFromJob()
     stopLocationUpdates()
     if (reconnectTimeout) clearTimeout(reconnectTimeout)
   })
 
   return {
-    loading, error, profile, isOnline, pendingRequests, activeRide, earnings, weeklyEarnings,
-    hasActiveRide, fetchProfile, updateProfile, fetchEarnings, toggleOnline, fetchPendingRequests,
-    acceptRide, declineRide, updateRideStatus, cancelActiveRide, completeRide
+    // State
+    loading, error, profile, isOnline, earnings, weeklyEarnings,
+    // Ride state
+    pendingRequests, activeRide,
+    // Delivery/Shopping state
+    pendingDeliveries, pendingShopping, activeJob,
+    // Computed
+    hasActiveRide, hasActiveJob,
+    // Profile
+    fetchProfile, updateProfile, fetchEarnings, toggleOnline,
+    // Ride functions
+    fetchPendingRequests, acceptRide, declineRide, updateRideStatus, cancelActiveRide, completeRide,
+    // Delivery functions
+    fetchPendingDeliveries, acceptDelivery, updateDeliveryStatus,
+    // Shopping functions
+    fetchPendingShopping, acceptShopping, updateShoppingStatus,
+    // All jobs
+    fetchAllPendingJobs
   }
 }

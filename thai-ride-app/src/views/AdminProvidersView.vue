@@ -393,6 +393,13 @@ const confirmRejectDocument = async () => {
             <div class="online-status" :class="{ online: p.is_available }">
               {{ p.is_available ? 'พร้อมรับงาน' : 'ไม่พร้อม' }}
             </div>
+            <div v-if="p.is_available && p.current_lat && p.current_lng" class="gps-status">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              GPS
+            </div>
             <div class="provider-actions">
               <button class="action-btn view" @click="viewDetails(p)">ดูรายละเอียด</button>
               <button v-if="p.status === 'pending'" class="action-btn approve" @click="approveProvider(p.id)">อนุมัติ</button>
@@ -445,6 +452,15 @@ const confirmRejectDocument = async () => {
                 <div><span>เลขที่:</span> {{ selectedProvider.license_number || '-' }}</div>
                 <div><span>หมดอายุ:</span> {{ selectedProvider.license_expiry || '-' }}</div>
               </div>
+            </div>
+
+            <div class="detail-section">
+              <h3>ตำแหน่ง GPS</h3>
+              <div v-if="selectedProvider.current_lat && selectedProvider.current_lng" class="detail-grid">
+                <div><span>พิกัด:</span> {{ selectedProvider.current_lat?.toFixed(5) }}, {{ selectedProvider.current_lng?.toFixed(5) }}</div>
+                <div><span>อัพเดทล่าสุด:</span> {{ selectedProvider.last_location_update ? new Date(selectedProvider.last_location_update).toLocaleString('th-TH') : '-' }}</div>
+              </div>
+              <p v-else class="no-docs">ยังไม่มีข้อมูลตำแหน่ง</p>
             </div>
 
             <div class="detail-section">
@@ -632,6 +648,8 @@ const confirmRejectDocument = async () => {
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
 .online-status { font-size: 12px; color: #999; }
 .online-status.online { color: #05944f; }
+.gps-status { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #05944f; background: #e8f5e9; padding: 2px 8px; border-radius: 10px; }
+.gps-status svg { color: #05944f; }
 
 .provider-actions { display: flex; gap: 8px; margin-left: auto; }
 .action-btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }

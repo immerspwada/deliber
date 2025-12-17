@@ -556,6 +556,22 @@ export const useRideStore = defineStore('ride', () => {
     rideHistory.value = []
     nearbyDrivers.value = []
     error.value = null
+    pendingDestination.value = null
+  }
+
+  // Pending destination (for pre-setting from services page)
+  const pendingDestination = ref<Location | null>(null)
+
+  // Set destination before navigating to ride page
+  const setDestination = (destination: Location) => {
+    pendingDestination.value = destination
+  }
+
+  // Get and clear pending destination
+  const consumeDestination = (): Location | null => {
+    const dest = pendingDestination.value
+    pendingDestination.value = null
+    return dest
   }
 
   return {
@@ -579,6 +595,9 @@ export const useRideStore = defineStore('ride', () => {
     subscribeToRideUpdates,
     subscribeToDriverLocation,
     unsubscribeAll,
-    reset
+    reset,
+    pendingDestination,
+    setDestination,
+    consumeDestination
   }
 })

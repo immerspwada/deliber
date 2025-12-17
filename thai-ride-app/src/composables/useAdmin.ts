@@ -229,27 +229,44 @@ export function useAdmin() {
   }
 
   // Fetch users list
-  const fetchUsers = async (page = 1, limit = 20, filter?: { status?: string; search?: string }) => {
+  const fetchUsers = async (page = 1, limit = 20, filter?: { 
+    status?: string
+    search?: string
+    role?: string
+    verification_status?: string 
+  }) => {
     try {
       let query = supabase.from('users').select('*', { count: 'exact' })
       
-      if (filter?.status === 'active') query = query.eq('verification_status', 'verified')
-      if (filter?.status === 'inactive') query = query.neq('verification_status', 'verified')
-      if (filter?.search) query = query.or(`first_name.ilike.%${filter.search}%,last_name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,phone_number.ilike.%${filter.search}%`)
+      // Status filter (is_active)
+      if (filter?.status === 'active') query = query.eq('is_active', true)
+      if (filter?.status === 'inactive') query = query.eq('is_active', false)
+      
+      // Verification status filter
+      if (filter?.verification_status) query = query.eq('verification_status', filter.verification_status)
+      
+      // Role filter
+      if (filter?.role) query = query.eq('role', filter.role)
+      
+      // Search filter
+      if (filter?.search) {
+        query = query.or(`name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,phone.ilike.%${filter.search}%,first_name.ilike.%${filter.search}%,last_name.ilike.%${filter.search}%,phone_number.ilike.%${filter.search}%`)
+      }
       
       const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
       
       // Transform data to match expected format
       const transformedData = (data || []).map((u: any) => ({
         ...u,
-        name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
-        phone: u.phone_number,
-        is_active: u.verification_status === 'verified',
-        role: 'customer' // Default role, check service_providers for actual role
+        name: u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email?.split('@')[0],
+        phone: u.phone || u.phone_number,
+        is_active: u.is_active !== false,
+        verification_status: u.verification_status || 'pending'
       }))
       
       return { data: transformedData, total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('Fetch users error:', err)
       return { data: generateMockUsers(), total: 50 }
     }
   }
@@ -323,9 +340,52 @@ export function useAdmin() {
     try {
       const status = isActive ? 'verified' : 'rejected'
       // @ts-ignore - Supabase types not fully configured
-      await supabase.from('users').update({ verification_status: status }).eq('id', userId)
+      await supabase.from('users').update({ 
+        verification_status: status,
+        is_active: isActive,
+        verified_at: isActive ? new Date().toISOString() : null
+      }).eq('id', userId)
       return true
     } catch { return false }
+  }
+
+  // Verify user identity (F01 - Registration System)
+  const verifyUser = async (userId: string, status: 'verified' | 'rejected', reason?: string) => {
+    try {
+      const updates: Record<string, any> = {
+        verification_status: status,
+        is_active: status === 'verified'
+      }
+      
+      if (status === 'verified') {
+        updates.verified_at = new Date().toISOString()
+      }
+      
+      // @ts-ignore - Supabase types not fully configured
+      await supabase.from('users').update(updates).eq('id', userId)
+      
+      // Send notification to user
+      const notificationTitle = status === 'verified' 
+        ? 'ยืนยันตัวตนสำเร็จ' 
+        : 'การยืนยันตัวตนถูกปฏิเสธ'
+      const notificationMessage = status === 'verified'
+        ? 'บัญชีของคุณได้รับการยืนยันแล้ว สามารถใช้งานได้เต็มรูปแบบ'
+        : reason || 'กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง'
+      
+      // @ts-ignore
+      await supabase.from('user_notifications').insert({
+        user_id: userId,
+        type: 'system',
+        title: notificationTitle,
+        message: notificationMessage,
+        data: { verification_status: status }
+      })
+      
+      return true
+    } catch (err) {
+      console.error('Verify user error:', err)
+      return false
+    }
   }
 
   // Update provider verification status
@@ -1139,6 +1199,7 @@ export function useAdmin() {
     fetchDashboardStats, fetchRecentOrders, fetchUsers, fetchProviders,
     fetchPayments, fetchSupportTickets, fetchPromoCodes,
     updateUserStatus, updateProviderStatus, updateTicketStatus, createPromoCode, updatePromoCode,
+    verifyUser,
     getRevenueChartData, getOrdersChartData,
     // Advanced features
     fetchSubscriptions, fetchSubscriptionPlans, updateSubscriptionPlan,

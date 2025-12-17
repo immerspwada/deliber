@@ -26,6 +26,7 @@ const user = computed(() => {
       fullName: name || 'ผู้ใช้',
       phone: authStore.user.phone || '',
       email: authStore.user.email || '',
+      memberUid: (authStore.user as any).member_uid || null,
       profileImage: authStore.user.avatar_url || null,
       verificationStatus: authStore.user.is_active ? 'verified' : 'pending'
     }
@@ -33,7 +34,7 @@ const user = computed(() => {
   return {
     firstName: 'Demo', lastName: 'User', fullName: 'Demo User',
     phone: '081-234-5678', email: 'demo@thairide.app',
-    profileImage: null, verificationStatus: 'verified'
+    memberUid: null, profileImage: null, verificationStatus: 'verified'
   }
 })
 
@@ -86,6 +87,7 @@ const menuItems = [
   { icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', label: 'วิธีการชำระเงิน', path: '/customer/payment-methods' },
   { icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', label: 'การแจ้งเตือน', path: '/customer/notifications' },
   { icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'กระเป๋าเงิน', path: '/customer/wallet' },
+  { icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z', label: 'แต้มสะสม', path: '/customer/loyalty' },
   { icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z', label: 'แพ็กเกจสมาชิก', path: '/customer/subscription' },
   { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: 'ประกันการเดินทาง', path: '/customer/insurance' },
   { icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z', label: 'โปรโมชั่น', path: '/customer/promotions' },
@@ -96,14 +98,28 @@ const menuItems = [
 
 const navigateToMenu = (path: string) => router.push(path)
 const goToLogin = () => router.push('/login')
+
+const loggingOut = ref(false)
 const logout = async () => {
+  if (loggingOut.value) return // Prevent double-click
+  
+  loggingOut.value = true
+  
   // Clear demo mode first
   localStorage.removeItem('demo_mode')
   localStorage.removeItem('demo_user')
   
-  await authStore.logout()
-  // Always redirect to login regardless of success
+  // Redirect immediately for better UX
   router.push('/login')
+  
+  // Then do the actual logout in background
+  try {
+    await authStore.logout()
+  } catch (e) {
+    console.error('Logout error:', e)
+  } finally {
+    loggingOut.value = false
+  }
 }
 const getVerificationBadge = (status: string) => {
   switch (status) {
@@ -140,8 +156,14 @@ const getVerificationBadge = (status: string) => {
             </span>
           </div>
           <p class="profile-phone">{{ user.phone || 'ไม่ได้ระบุเบอร์โทร' }}</p>
-          <p class="profile-email">{{ user.email }}</p>
-          <p v-if="isDemoMode" class="demo-badge">Demo Mode</p>
+          <p v-if="user.email" class="profile-email">{{ user.email }}</p>
+          <p v-if="user.memberUid" class="member-uid">
+            <svg class="uid-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/>
+            </svg>
+            {{ user.memberUid }}
+          </p>
+          <!-- Demo Mode badge hidden - not needed for users -->
         </div>
         <button @click="openEditModal" class="edit-btn">
           <svg class="edit-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,11 +217,11 @@ const getVerificationBadge = (status: string) => {
 
       <div class="action-section">
         <button v-if="!isLoggedIn" @click="goToLogin" class="btn-secondary">เข้าสู่ระบบ</button>
-        <button v-if="isLoggedIn" @click="logout" class="logout-btn" :disabled="authStore.loading">
+        <button v-if="isLoggedIn" @click="logout" class="logout-btn" :disabled="loggingOut">
           <svg class="logout-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
           </svg>
-          {{ authStore.loading ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ' }}
+          {{ loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ' }}
         </button>
       </div>
       <p class="version-text">ThaiRide v1.0.0</p>
@@ -252,6 +274,27 @@ const getVerificationBadge = (status: string) => {
 .badge-rejected { background-color: rgba(225, 25, 0, 0.1); color: #E11900; }
 .profile-phone { font-size: 14px; color: #6B6B6B; margin-top: 4px; }
 .profile-email { font-size: 13px; color: #6B6B6B; margin-top: 2px; }
+
+.member-uid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #000 0%, #333 100%);
+  color: #FFFFFF;
+  border-radius: 6px;
+  margin-top: 8px;
+  letter-spacing: 0.5px;
+}
+
+.uid-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+}
+
 .demo-badge { display: inline-block; font-size: 11px; padding: 2px 8px; background-color: #F6F6F6; color: #6B6B6B; border-radius: 4px; margin-top: 6px; }
 
 .edit-btn {

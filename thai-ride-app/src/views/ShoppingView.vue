@@ -129,7 +129,7 @@ const handleCreateShopping = async () => {
   })
   
   if (result) {
-    router.push(`/track/${result.tracking_id}`)
+    router.push(`/tracking/${result.tracking_id}`)
   }
 }
 </script>

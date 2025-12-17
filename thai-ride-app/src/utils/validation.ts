@@ -181,3 +181,40 @@ export const formatThaiDateTime = (date: Date | string): string => {
     minute: '2-digit'
   })
 }
+
+/**
+ * Generate Member UID
+ * Format: TRD-XXXXXXXX (8 random alphanumeric characters)
+ * Used for tracking user activities across the system
+ */
+export const generateMemberUid = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let uid = 'TRD-'
+  
+  for (let i = 0; i < 8; i++) {
+    uid += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  
+  return uid
+}
+
+/**
+ * Validate Member UID format
+ * Format: TRD-XXXXXXXX
+ */
+export const validateMemberUid = (uid: string): boolean => {
+  const pattern = /^TRD-[A-Z0-9]{8}$/
+  return pattern.test(uid)
+}
+
+/**
+ * Format Member UID for display
+ * Input: TRD-ABCD1234
+ * Output: TRD-ABCD-1234
+ */
+export const formatMemberUid = (uid: string): string => {
+  if (!validateMemberUid(uid)) return uid
+  
+  const code = uid.slice(4) // Remove 'TRD-'
+  return `TRD-${code.slice(0, 4)}-${code.slice(4)}`
+}

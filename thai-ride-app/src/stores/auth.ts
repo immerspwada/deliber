@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp } from '../lib/supabase'
+import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp, signInWithEmailOtp, verifyEmailOtp as verifyEmailOtpApi } from '../lib/supabase'
 import type { User, UserUpdate } from '../types/database'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -90,58 +90,82 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     
     try {
-      // Sign up with Supabase Auth
+      // Parse name into first and last name
+      const nameParts = userData.name.trim().split(' ')
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+      const role = userData.role || 'customer'
+      
+      // Sign up with Supabase Auth (trigger will auto-create user profile)
       const { data, error: signUpError } = await signUp(email, password, {
         name: userData.name,
-        phone: userData.phone
+        phone: userData.phone,
+        role: role
       })
       
       if (signUpError) {
-        error.value = signUpError.message
+        // Handle specific error messages
+        if (signUpError.message.includes('already registered')) {
+          error.value = 'อีเมลนี้ถูกใช้งานแล้ว'
+        } else if (signUpError.message.includes('password')) {
+          error.value = 'รหัสผ่านไม่ถูกต้อง (ต้องมีอย่างน้อย 6 ตัวอักษร)'
+        } else {
+          error.value = signUpError.message
+        }
         return false
       }
       
-      // Create user profile in database
+      // Complete registration with additional data
       if (data.user) {
-        // Parse name into first and last name
-        const nameParts = userData.name.trim().split(' ')
-        const firstName = nameParts[0] || ''
-        const lastName = nameParts.slice(1).join(' ') || ''
+        // Use RPC function to complete registration
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('complete_user_registration', {
+          p_user_id: data.user.id,
+          p_first_name: firstName,
+          p_last_name: lastName,
+          p_national_id: userData.nationalId || null,
+          p_phone_number: userData.phone,
+          p_role: role
+        })
         
-        const userProfile = {
-          id: data.user.id,
-          email: email,
-          phone_number: userData.phone,
-          first_name: firstName,
-          last_name: lastName,
-          national_id: userData.nationalId || '0000000000000', // Placeholder if not provided
-          verification_status: 'pending'
-        }
-        
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert(userProfile as any)
-        
-        if (profileError) {
-          console.error('Profile creation error:', profileError)
-          // Don't fail registration if profile creation fails
-          // User can update profile later
+        if (rpcError) {
+          console.error('Registration completion error:', rpcError)
+          // Fallback: direct update if RPC fails
+          await supabase
+            .from('users')
+            .upsert({
+              id: data.user.id,
+              email: email,
+              name: userData.name,
+              phone: userData.phone,
+              role: role,
+              is_active: true
+            } as any, { onConflict: 'id' })
+        } else if (rpcResult && !(rpcResult as any).success) {
+          error.value = (rpcResult as any).error || 'ไม่สามารถสมัครสมาชิกได้'
+          return false
         }
         
         // If role is driver/rider, create service_provider entry
-        if (userData.role && userData.role !== 'customer') {
-          const providerType = userData.role === 'driver' ? 'driver' : 'delivery'
-          await (supabase.from('service_providers') as any).insert({
+        if (role === 'driver' || role === 'rider') {
+          const providerType = role === 'driver' ? 'driver' : 'delivery'
+          const { error: providerError } = await (supabase.from('service_providers') as any).insert({
             user_id: data.user.id,
             provider_type: providerType,
-            status: 'pending'
+            is_available: false,
+            is_verified: false,
+            rating: 5.0,
+            total_trips: 0
           })
+          
+          if (providerError && providerError.code !== '23505') {
+            console.error('Provider creation error:', providerError)
+          }
         }
       }
       
       return true
     } catch (err: any) {
-      error.value = err.message
+      error.value = err.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก'
       return false
     } finally {
       loading.value = false
@@ -197,7 +221,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Verify OTP
+  // Verify Phone OTP
   const verifyPhoneOtp = async (phone: string, token: string) => {
     loading.value = true
     error.value = null
@@ -224,30 +248,83 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Login with Email OTP
+  const loginWithEmailOtp = async (email: string) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { error: otpError } = await signInWithEmailOtp(email)
+      
+      if (otpError) {
+        error.value = otpError.message
+        return false
+      }
+      
+      return true
+    } catch (err: any) {
+      error.value = err.message
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Verify Email OTP
+  const verifyEmailOtp = async (email: string, token: string) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { data, error: verifyError } = await verifyEmailOtpApi(email, token)
+      
+      if (verifyError) {
+        error.value = verifyError.message
+        return false
+      }
+      
+      session.value = data.session
+      if (data.user) {
+        await fetchUserProfile(data.user.id)
+      }
+      
+      return true
+    } catch (err: any) {
+      error.value = err.message
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   // Logout
   const logout = async () => {
     loading.value = true
     error.value = null
     
     try {
-      // Clear demo mode
+      // Clear local state immediately for instant feedback
       localStorage.removeItem('demo_mode')
       localStorage.removeItem('demo_user')
       
-      const { error: logoutError } = await signOut()
-      
-      if (logoutError && !isDemoMode.value) {
-        error.value = logoutError.message
-        return false
-      }
-      
+      // Clear user state immediately
       user.value = null
       session.value = null
       
+      // Sign out from Supabase (don't wait too long)
+      // Use Promise.race with timeout to prevent hanging
+      const signOutPromise = signOut()
+      const timeoutPromise = new Promise<{ error: null }>((resolve) => 
+        setTimeout(() => resolve({ error: null }), 2000)
+      )
+      
+      await Promise.race([signOutPromise, timeoutPromise])
+      
       return true
     } catch (err: any) {
-      error.value = err.message
-      return false
+      // Even on error, we've already cleared local state
+      console.error('Logout error:', err)
+      return true // Return true anyway since local state is cleared
     } finally {
       loading.value = false
     }
@@ -308,6 +385,8 @@ export const useAuthStore = defineStore('auth', () => {
     loginWithEmail,
     loginWithPhone,
     verifyPhoneOtp,
+    loginWithEmailOtp,
+    verifyEmailOtp,
     logout,
     updateProfile
   }

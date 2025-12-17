@@ -433,8 +433,10 @@ export function useLeafletMap() {
   const mapInstance: Ref<L.Map | null> = ref(null)
   const markers: Ref<L.Marker[]> = ref([])
   const routeLine: Ref<L.Polyline | null> = ref(null)
+  const animatedRouteLine: Ref<L.Polyline | null> = ref(null)
   const isMapReady = ref(false)
   const mapError = ref<string | null>(null)
+  let routeAnimationFrame: number | null = null
 
   const initMap = (element: HTMLElement, options: MapOptions = {}): L.Map => {
     const center = options.center || { lat: 13.7563, lng: 100.5018 }
@@ -550,6 +552,111 @@ export function useLeafletMap() {
       routeLine.value.remove()
       routeLine.value = null
     }
+    if (animatedRouteLine.value) {
+      animatedRouteLine.value.remove()
+      animatedRouteLine.value = null
+    }
+    if (routeAnimationFrame) {
+      cancelAnimationFrame(routeAnimationFrame)
+      routeAnimationFrame = null
+    }
+  }
+
+  // Animate route drawing from driver to destination
+  const animateRoute = (
+    coordinates: Array<[number, number]>,
+    options: { color?: string; duration?: number; onComplete?: () => void } = {}
+  ) => {
+    if (!mapInstance.value || coordinates.length < 2) return
+
+    const { color = '#000000', duration = 2000, onComplete } = options
+
+    // Clear existing animated route
+    if (animatedRouteLine.value) {
+      animatedRouteLine.value.remove()
+    }
+    if (routeAnimationFrame) {
+      cancelAnimationFrame(routeAnimationFrame)
+    }
+
+    // Create empty polyline
+    animatedRouteLine.value = L.polyline([], {
+      color,
+      weight: 5,
+      opacity: 0.9,
+      dashArray: '10, 10',
+      className: 'animated-route'
+    }).addTo(mapInstance.value)
+
+    const totalPoints = coordinates.length
+    const startTime = performance.now()
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      
+      // Calculate how many points to show
+      const pointsToShow = Math.floor(progress * totalPoints)
+      const currentCoords = coordinates.slice(0, pointsToShow + 1)
+      
+      if (animatedRouteLine.value && currentCoords.length > 0) {
+        animatedRouteLine.value.setLatLngs(currentCoords)
+      }
+
+      if (progress < 1) {
+        routeAnimationFrame = requestAnimationFrame(animate)
+      } else {
+        // Animation complete - make line solid
+        if (animatedRouteLine.value) {
+          animatedRouteLine.value.setStyle({ dashArray: undefined })
+        }
+        onComplete?.()
+      }
+    }
+
+    routeAnimationFrame = requestAnimationFrame(animate)
+  }
+
+  // Draw driver path (trail of where driver has been)
+  const drawDriverPath = (
+    pathCoordinates: Array<{ lat: number; lng: number }>,
+    options: { color?: string; fadeOut?: boolean } = {}
+  ) => {
+    if (!mapInstance.value || pathCoordinates.length < 2) return null
+
+    const { color = '#22C55E', fadeOut = true } = options
+    const coords = pathCoordinates.map(p => [p.lat, p.lng] as [number, number])
+
+    // Create gradient effect by drawing multiple lines with decreasing opacity
+    if (fadeOut && coords.length > 5) {
+      const segments: L.Polyline[] = []
+      const segmentSize = Math.ceil(coords.length / 5)
+      
+      for (let i = 0; i < 5; i++) {
+        const start = i * segmentSize
+        const end = Math.min((i + 1) * segmentSize + 1, coords.length)
+        const segmentCoords = coords.slice(start, end)
+        
+        if (segmentCoords.length > 1) {
+          const opacity = 0.2 + (i * 0.16) // 0.2 to 1.0
+          const segment = L.polyline(segmentCoords, {
+            color,
+            weight: 3,
+            opacity
+          }).addTo(mapInstance.value!)
+          segments.push(segment)
+        }
+      }
+      
+      return segments
+    }
+
+    // Simple solid line
+    return L.polyline(coords, {
+      color,
+      weight: 3,
+      opacity: 0.8
+    }).addTo(mapInstance.value)
   }
 
   const cleanup = () => {
@@ -578,6 +685,8 @@ export function useLeafletMap() {
     fitBounds,
     getDirections,
     clearDirections,
+    animateRoute,
+    drawDriverPath,
     cleanup
   }
 }

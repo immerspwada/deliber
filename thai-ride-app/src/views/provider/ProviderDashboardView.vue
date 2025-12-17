@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useLocation } from '../../composables/useLocation'
 import { useProvider } from '../../composables/useProvider'
+import { useProviderTracking } from '../../composables/useProviderTracking'
 import ProviderLayout from '../../components/ProviderLayout.vue'
 import ActiveRideView from '../../components/provider/ActiveRideView.vue'
 import RideRequestCard from '../../components/provider/RideRequestCard.vue'
@@ -40,6 +41,44 @@ let demoRequestInterval: number | null = null
 
 // Check if demo mode
 const isDemoMode = computed(() => localStorage.getItem('demo_mode') === 'true')
+
+// GPS Tracking for provider - initialized after profile loads
+let trackingInstance: ReturnType<typeof useProviderTracking> | null = null
+const trackingInitialized = ref(false)
+
+// Computed tracking values
+const isTracking = computed(() => trackingInstance?.isTracking.value ?? false)
+const trackingPosition = computed(() => trackingInstance?.currentPosition.value ?? null)
+const trackingError = computed(() => trackingInstance?.trackingError.value ?? null)
+const trackingUpdateCount = computed(() => trackingInstance?.updateCount.value ?? 0)
+const batteryLevel = computed(() => trackingInstance?.batteryLevel.value ?? null)
+const isInsideServiceArea = computed(() => trackingInstance?.isInsideServiceArea.value ?? true)
+const distanceFromCenter = computed(() => trackingInstance?.distanceFromCenter.value ?? 0)
+
+// Initialize tracking when profile is ready
+const initializeTracking = () => {
+  if (profile.value?.id && !trackingInstance) {
+    trackingInstance = useProviderTracking(profile.value.id)
+    trackingInitialized.value = true
+  }
+}
+
+// Watch online status to start/stop tracking
+watch(isOnline, async (online) => {
+  if (!trackingInstance) return
+  
+  if (online) {
+    await trackingInstance.startTracking()
+  } else {
+    trackingInstance.stopTracking()
+  }
+})
+
+// Watch active ride to adjust tracking frequency
+watch(activeRide, (ride) => {
+  if (!trackingInstance) return
+  trackingInstance.setActiveRide(!!ride)
+})
 
 // Demo locations in Bangkok
 const demoLocations = [
@@ -267,6 +306,18 @@ onMounted(async () => {
   // Always await fetchProfile to ensure profile is ready before toggle
   await fetchProfile()
   fetchEarnings() // Can run in background
+  
+  // Initialize GPS tracking after profile is loaded
+  initializeTracking()
+  
+  // Start tracking if already online
+  if (isOnline.value && trackingInstance) {
+    trackingInstance.startTracking()
+    if (activeRide.value) {
+      trackingInstance.setActiveRide(true)
+    }
+  }
+  
   isInitialized.value = true
   
   // Start demo simulation if already online (restored from localStorage)
@@ -278,6 +329,10 @@ onMounted(async () => {
 // Cleanup
 onUnmounted(() => {
   stopDemoSimulation()
+  // Stop GPS tracking
+  if (trackingInstance) {
+    trackingInstance.stopTracking()
+  }
 })
 </script>
 
@@ -321,6 +376,42 @@ onUnmounted(() => {
             <span v-if="isLoadingLocation || loading" class="toggle-loading"></span>
             <span v-else class="toggle-knob"></span>
           </button>
+        </div>
+
+        <!-- GPS Tracking Status (when online) -->
+        <div v-if="isOnline" class="tracking-status-card">
+          <div class="tracking-info">
+            <div class="tracking-icon" :class="{ active: isTracking, error: trackingError }">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </div>
+            <div class="tracking-details">
+              <span class="tracking-label">{{ isTracking ? 'GPS ทำงานอยู่' : 'GPS ไม่ทำงาน' }}</span>
+              <span v-if="trackingError" class="tracking-error">{{ trackingError }}</span>
+              <span v-else-if="isTracking" class="tracking-meta">
+                อัพเดท {{ trackingUpdateCount }} ครั้ง
+                <span v-if="batteryLevel !== null"> · แบต {{ batteryLevel }}%</span>
+              </span>
+            </div>
+          </div>
+          <div v-if="trackingPosition" class="tracking-coords">
+            {{ trackingPosition.lat.toFixed(5) }}, {{ trackingPosition.lng.toFixed(5) }}
+          </div>
+        </div>
+
+        <!-- Geofencing Alert (when outside service area) -->
+        <div v-if="isOnline && !isInsideServiceArea" class="geofence-alert">
+          <div class="geofence-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+          </div>
+          <div class="geofence-text">
+            <span class="geofence-title">นอกพื้นที่ให้บริการ</span>
+            <span class="geofence-desc">ห่างจากศูนย์กลาง {{ distanceFromCenter.toFixed(1) }} กม.</span>
+          </div>
         </div>
 
         <!-- Quick Stats -->
@@ -569,6 +660,132 @@ onUnmounted(() => {
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+/* GPS Tracking Status Card */
+.tracking-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #F6F6F6;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.tracking-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tracking-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #E5E5E5;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.tracking-icon svg {
+  width: 18px;
+  height: 18px;
+  color: #6B6B6B;
+}
+
+.tracking-icon.active {
+  background-color: #22C55E;
+}
+
+.tracking-icon.active svg {
+  color: white;
+}
+
+.tracking-icon.error {
+  background-color: #FEE2E2;
+}
+
+.tracking-icon.error svg {
+  color: #E11900;
+}
+
+.tracking-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.tracking-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tracking-meta {
+  font-size: 11px;
+  color: #6B6B6B;
+}
+
+.tracking-error {
+  font-size: 11px;
+  color: #E11900;
+}
+
+.tracking-coords {
+  font-size: 10px;
+  color: #6B6B6B;
+  font-family: monospace;
+}
+
+/* Geofence Alert */
+.geofence-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.geofence-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F59E0B;
+  border-radius: 8px;
+}
+
+.geofence-icon svg {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+.geofence-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.geofence-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400E;
+}
+
+.geofence-desc {
+  font-size: 12px;
+  color: #B45309;
+}
+
+.tracking-coords {
+  font-size: 10px;
+  color: #6B6B6B;
+  font-family: monospace;
 }
 
 /* Stats Row */

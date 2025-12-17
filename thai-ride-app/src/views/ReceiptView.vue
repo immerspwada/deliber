@@ -1,45 +1,237 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useRideHistory } from '../composables/useRideHistory'
 
-const receipt = ref({
-  id: 'TH-2024121501',
-  type: 'ride',
-  typeName: 'เรียกรถ',
-  status: 'completed',
-  date: '15 ธันวาคม 2567',
-  time: '14:30',
-  from: { name: 'สยามพารากอน', address: 'ถนนพระราม 1 ปทุมวัน กรุงเทพฯ' },
-  to: { name: 'สถานีรถไฟฟ้าอโศก', address: 'ถนนสุขุมวิท คลองเตย กรุงเทพฯ' },
-  distance: '5.2 กม.',
-  duration: '18 นาที',
-  driver: { name: 'สมชาย ใจดี', rating: 4.9, vehicle: 'Toyota Vios สีขาว', plate: 'กข 1234' },
-  payment: { method: 'พร้อมเพย์', last4: '678' },
-  breakdown: [
-    { label: 'ค่าโดยสารพื้นฐาน', amount: 35 },
-    { label: 'ค่าระยะทาง (5.2 กม.)', amount: 42 },
-    { label: 'ค่าเวลา (18 นาที)', amount: 18 },
-    { label: 'ส่วนลดโปรโมชั่น', amount: -10 }
-  ],
-  total: 85
+const route = useRoute()
+const router = useRouter()
+const { getOrderDetails } = useRideHistory()
+
+const loading = ref(true)
+const error = ref('')
+const orderData = ref<any>(null)
+const orderType = ref<'ride' | 'delivery' | 'shopping'>('ride')
+
+// Computed receipt data from order
+const receipt = computed(() => {
+  if (!orderData.value) {
+    return {
+      id: '',
+      type: 'ride',
+      typeName: 'เรียกรถ',
+      status: 'completed',
+      date: '',
+      time: '',
+      from: { name: '', address: '' },
+      to: { name: '', address: '' },
+      distance: '0 กม.',
+      duration: '0 นาที',
+      driver: { name: 'คนขับ', rating: 5.0, vehicle: '', plate: '' },
+      payment: { method: 'เงินสด', last4: '' },
+      breakdown: [] as { label: string; amount: number }[],
+      total: 0
+    }
+  }
+
+  const data = orderData.value
+  const type = orderType.value
+
+  // Format date/time
+  const createdAt = new Date(data.created_at)
+  const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
+  const date = `${createdAt.getDate()} ${months[createdAt.getMonth()]} ${createdAt.getFullYear() + 543}`
+  const time = createdAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+
+  // Build receipt based on order type
+  if (type === 'ride') {
+    const baseFare = 35
+    const distanceKm = data.distance_km || 5
+    const distanceFare = Math.round(distanceKm * 10)
+    const total = data.final_fare || data.estimated_fare || baseFare + distanceFare
+
+    return {
+      id: data.tracking_id || data.id?.slice(0, 8),
+      type: 'ride',
+      typeName: 'เรียกรถ',
+      status: data.status,
+      date,
+      time,
+      from: { 
+        name: data.pickup_address?.split(',')[0] || 'จุดรับ', 
+        address: data.pickup_address || '' 
+      },
+      to: { 
+        name: data.destination_address?.split(',')[0] || 'จุดหมาย', 
+        address: data.destination_address || '' 
+      },
+      distance: `${distanceKm.toFixed(1)} กม.`,
+      duration: `${Math.round(distanceKm * 3)} นาที`,
+      driver: {
+        name: data.provider?.users?.name || 'คนขับ',
+        rating: data.provider?.rating || 5.0,
+        vehicle: `${data.provider?.vehicle_type || 'รถยนต์'} ${data.provider?.vehicle_color || ''}`.trim(),
+        plate: data.provider?.vehicle_plate || ''
+      },
+      payment: { method: data.payment_method || 'เงินสด', last4: '' },
+      breakdown: [
+        { label: 'ค่าโดยสารพื้นฐาน', amount: baseFare },
+        { label: `ค่าระยะทาง (${distanceKm.toFixed(1)} กม.)`, amount: distanceFare },
+        ...(data.discount_amount ? [{ label: 'ส่วนลด', amount: -data.discount_amount }] : [])
+      ],
+      total
+    }
+  } else if (type === 'delivery') {
+    const baseFee = 35
+    const distanceKm = data.distance_km || 3
+    const distanceFee = Math.round(distanceKm * 8)
+    const total = data.final_fee || data.estimated_fee || baseFee + distanceFee
+
+    return {
+      id: data.tracking_id || data.id?.slice(0, 8),
+      type: 'delivery',
+      typeName: 'ส่งของ',
+      status: data.status,
+      date,
+      time,
+      from: { 
+        name: data.sender_name || 'ผู้ส่ง', 
+        address: data.sender_address || '' 
+      },
+      to: { 
+        name: data.recipient_name || 'ผู้รับ', 
+        address: data.recipient_address || '' 
+      },
+      distance: `${distanceKm.toFixed(1)} กม.`,
+      duration: `${Math.round(distanceKm * 4)} นาที`,
+      driver: {
+        name: data.provider?.users?.name || 'ไรเดอร์',
+        rating: data.provider?.rating || 5.0,
+        vehicle: data.provider?.vehicle_type || 'มอเตอร์ไซค์',
+        plate: data.provider?.vehicle_plate || ''
+      },
+      payment: { method: data.payment_method || 'เงินสด', last4: '' },
+      breakdown: [
+        { label: 'ค่าบริการพื้นฐาน', amount: baseFee },
+        { label: `ค่าระยะทาง (${distanceKm.toFixed(1)} กม.)`, amount: distanceFee }
+      ],
+      total
+    }
+  } else {
+    // Shopping
+    const serviceFee = data.service_fee || 50
+    const itemsCost = data.items_cost || 0
+    const total = data.total_cost || serviceFee + itemsCost
+
+    return {
+      id: data.tracking_id || data.id?.slice(0, 8),
+      type: 'shopping',
+      typeName: 'ซื้อของ',
+      status: data.status,
+      date,
+      time,
+      from: { 
+        name: data.store_name || 'ร้านค้า', 
+        address: data.store_address || '' 
+      },
+      to: { 
+        name: 'ที่อยู่จัดส่ง', 
+        address: data.delivery_address || '' 
+      },
+      distance: '-',
+      duration: '-',
+      driver: {
+        name: data.provider?.users?.name || 'ผู้ช่วยซื้อของ',
+        rating: data.provider?.rating || 5.0,
+        vehicle: data.provider?.vehicle_type || 'มอเตอร์ไซค์',
+        plate: data.provider?.vehicle_plate || ''
+      },
+      payment: { method: data.payment_method || 'เงินสด', last4: '' },
+      breakdown: [
+        { label: 'ค่าบริการ', amount: serviceFee },
+        ...(itemsCost > 0 ? [{ label: 'ค่าสินค้า', amount: itemsCost }] : [])
+      ],
+      total
+    }
+  }
+})
+
+const fetchReceipt = async () => {
+  const orderId = route.params.id as string
+  if (!orderId) {
+    error.value = 'ไม่พบรหัสออเดอร์'
+    loading.value = false
+    return
+  }
+
+  try {
+    // Try to determine type from ID or fetch from all tables
+    const data = await getOrderDetails(orderId)
+    
+    if (!data) {
+      error.value = 'ไม่พบข้อมูลออเดอร์'
+      loading.value = false
+      return
+    }
+
+    orderData.value = data
+    orderType.value = data.orderType || 'ride'
+  } catch (err) {
+    console.error('Error fetching receipt:', err)
+    error.value = 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchReceipt()
 })
 
 const shareReceipt = () => {
   if (navigator.share) {
     navigator.share({
       title: 'ใบเสร็จ ThaiRide',
-      text: `การเดินทาง ${receipt.value.from.name} → ${receipt.value.to.name}\nราคา: ฿${receipt.value.total}`
+      text: `${receipt.value.typeName}: ${receipt.value.from.name} → ${receipt.value.to.name}\nราคา: ฿${receipt.value.total}`
     })
   }
 }
 
 const downloadReceipt = () => {
+  // In a real app, this would generate a PDF
   alert('กำลังดาวน์โหลดใบเสร็จ...')
+}
+
+const goBack = () => {
+  router.back()
 }
 </script>
 
 <template>
   <div class="receipt-page">
-    <div class="content-container">
+    <!-- Back Button -->
+    <button @click="goBack" class="back-btn">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </button>
+
+    <!-- Loading -->
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>กำลังโหลด...</p>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="error-state">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <h2>{{ error }}</h2>
+      <button @click="goBack" class="btn-primary">กลับ</button>
+    </div>
+
+    <div v-else class="content-container">
       <!-- Receipt Card -->
       <div class="receipt-card">
         <div class="receipt-header">
@@ -163,6 +355,67 @@ const downloadReceipt = () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.back-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+.back-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.loading-state,
+.error-state {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E5E5E5;
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-state svg {
+  width: 64px;
+  height: 64px;
+  color: #E11900;
+  margin-bottom: 16px;
+}
+
+.error-state h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+</style>
 
 <style scoped>
 .receipt-page {

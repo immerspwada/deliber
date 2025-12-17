@@ -1,3 +1,14 @@
+/**
+ * useRideHistory - Order History Composable
+ * 
+ * Feature: F11 - Ride History
+ * Tables: ride_requests, delivery_requests, shopping_requests, ride_ratings, delivery_ratings, shopping_ratings
+ * 
+ * @description
+ * Fetches and manages order history for all service types (ride, delivery, shopping)
+ * from the database with real-time data.
+ */
+
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
@@ -17,208 +28,380 @@ export interface RideHistoryItem {
   driver_name?: string
   driver_tracking_id?: string  // Driver tracking ID
   vehicle?: string
+  created_at?: string  // For sorting
 }
-
-// Demo data with tracking IDs
-const DEMO_HISTORY: RideHistoryItem[] = [
-  {
-    id: '1',
-    tracking_id: 'RID-20251215-000001',
-    type: 'ride',
-    typeName: 'เรียกรถ',
-    from: 'สยามพารากอน',
-    to: 'สถานีรถไฟฟ้าอโศก',
-    date: '15 ธ.ค. 2567',
-    time: '14:30',
-    fare: 85,
-    status: 'completed',
-    rating: 5,
-    driver_name: 'สมชาย ใจดี',
-    driver_tracking_id: 'DRV-20251101-000042',
-    vehicle: 'Toyota Camry'
-  },
-  {
-    id: '2',
-    tracking_id: 'DEL-20251214-000015',
-    type: 'delivery',
-    typeName: 'ส่งของ',
-    from: 'ลาดพร้าว 71',
-    to: 'รามคำแหง 24',
-    date: '14 ธ.ค. 2567',
-    time: '10:15',
-    fare: 65,
-    status: 'completed',
-    rating: null,
-    driver_name: 'ไรเดอร์ A',
-    driver_tracking_id: 'RDR-20251105-000018'
-  },
-  {
-    id: '3',
-    tracking_id: 'SHP-20251213-000008',
-    type: 'shopping',
-    typeName: 'ซื้อของ',
-    from: 'Big C ลาดพร้าว',
-    to: 'คอนโดลุมพินี',
-    date: '13 ธ.ค. 2567',
-    time: '16:45',
-    fare: 120,
-    status: 'completed',
-    rating: null,
-    driver_name: 'ผู้ช่วย B'
-  },
-  {
-    id: '4',
-    tracking_id: 'RID-20251212-000089',
-    type: 'ride',
-    typeName: 'เรียกรถ',
-    from: 'เซ็นทรัลเวิลด์',
-    to: 'สนามบินดอนเมือง',
-    date: '12 ธ.ค. 2567',
-    time: '06:00',
-    fare: 350,
-    status: 'completed',
-    rating: 5,
-    driver_name: 'วิชัย ขับรถ',
-    driver_tracking_id: 'DRV-20251020-000007',
-    vehicle: 'Honda City'
-  },
-  {
-    id: '5',
-    tracking_id: 'RID-20251210-000156',
-    type: 'ride',
-    typeName: 'เรียกรถ',
-    from: 'MBK Center',
-    to: 'สีลม',
-    date: '10 ธ.ค. 2567',
-    time: '19:30',
-    fare: 95,
-    status: 'cancelled',
-    rating: null
-  }
-]
 
 export function useRideHistory() {
   const authStore = useAuthStore()
   const history = ref<RideHistoryItem[]>([])
   const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  // Fetch ride history
+  // Fetch all order history (ride, delivery, shopping)
   const fetchHistory = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping') => {
     loading.value = true
+    error.value = null
 
     try {
       if (!authStore.user?.id) {
-        // Return demo data
-        history.value = filter && filter !== 'all'
-          ? DEMO_HISTORY.filter(h => h.type === filter)
-          : DEMO_HISTORY
+        history.value = []
         return history.value
       }
 
-      let query = (supabase
-        .from('ride_requests') as any)
-        .select(`
-          id,
-          pickup_address,
-          destination_address,
-          ride_type,
-          estimated_fare,
-          final_fare,
-          status,
-          created_at,
-          completed_at,
-          provider:provider_id (
-            vehicle_type,
-            users:user_id (name)
-          ),
-          rating:ride_ratings (rating)
-        `)
-        .eq('user_id', authStore.user.id)
-        .order('created_at', { ascending: false })
-        .limit(50)
+      const userId = authStore.user.id
+      const allItems: RideHistoryItem[] = []
 
-      if (filter && filter !== 'all') {
-        query = query.eq('ride_type', filter)
+      // Fetch rides if filter is 'all' or 'ride'
+      if (!filter || filter === 'all' || filter === 'ride') {
+        const { data: rides, error: ridesError } = await (supabase
+          .from('ride_requests') as any)
+          .select(`
+            id,
+            tracking_id,
+            pickup_address,
+            destination_address,
+            ride_type,
+            estimated_fare,
+            final_fare,
+            status,
+            created_at,
+            completed_at,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              users:user_id (name)
+            ),
+            rating:ride_ratings (rating)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['completed', 'cancelled'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+
+        if (!ridesError && rides) {
+          rides.forEach((item: any) => {
+            allItems.push({
+              id: item.id,
+              tracking_id: item.tracking_id || `RID-${formatDateForId(item.created_at)}-000000`,
+              type: 'ride',
+              typeName: 'เรียกรถ',
+              from: item.pickup_address?.split(',')[0] || 'ไม่ระบุ',
+              to: item.destination_address?.split(',')[0] || 'ไม่ระบุ',
+              date: formatDate(item.created_at),
+              time: formatTime(item.created_at),
+              fare: item.final_fare || item.estimated_fare || 0,
+              status: item.status === 'completed' ? 'completed' : 'cancelled',
+              rating: item.rating?.[0]?.rating || null,
+              driver_name: item.provider?.users?.name,
+              driver_tracking_id: item.provider?.tracking_id,
+              vehicle: item.provider?.vehicle_type,
+              created_at: item.created_at
+            })
+          })
+        }
       }
 
-      const { data, error } = await query
+      // Fetch deliveries if filter is 'all' or 'delivery'
+      if (!filter || filter === 'all' || filter === 'delivery') {
+        const { data: deliveries, error: deliveriesError } = await (supabase
+          .from('delivery_requests') as any)
+          .select(`
+            id,
+            tracking_id,
+            sender_address,
+            recipient_address,
+            estimated_fee,
+            final_fee,
+            status,
+            created_at,
+            delivered_at,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              users:user_id (name)
+            ),
+            rating:delivery_ratings (rating)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['delivered', 'completed', 'cancelled', 'failed'])
+          .order('created_at', { ascending: false })
+          .limit(30)
 
-      if (!error && data) {
-        history.value = data.map((item: any) => ({
-          id: item.id,
-          tracking_id: item.tracking_id || `RID-${formatDateForId(item.created_at)}-${String(Math.floor(Math.random() * 999999)).padStart(6, '0')}`,
-          type: 'ride',
-          typeName: 'เรียกรถ',
-          from: item.pickup_address?.split(',')[0] || 'ไม่ระบุ',
-          to: item.destination_address?.split(',')[0] || 'ไม่ระบุ',
-          date: formatDate(item.created_at),
-          time: formatTime(item.created_at),
-          fare: item.final_fare || item.estimated_fare,
-          status: item.status === 'completed' ? 'completed' : 'cancelled',
-          rating: item.rating?.[0]?.rating || null,
-          driver_name: item.provider?.users?.name,
-          driver_tracking_id: item.provider?.tracking_id,
-          vehicle: item.provider?.vehicle_type
-        }))
+        if (!deliveriesError && deliveries) {
+          deliveries.forEach((item: any) => {
+            allItems.push({
+              id: item.id,
+              tracking_id: item.tracking_id || `DEL-${formatDateForId(item.created_at)}-000000`,
+              type: 'delivery',
+              typeName: 'ส่งของ',
+              from: item.sender_address?.split(',')[0] || 'ไม่ระบุ',
+              to: item.recipient_address?.split(',')[0] || 'ไม่ระบุ',
+              date: formatDate(item.created_at),
+              time: formatTime(item.created_at),
+              fare: item.final_fee || item.estimated_fee || 0,
+              status: ['delivered', 'completed'].includes(item.status) ? 'completed' : 'cancelled',
+              rating: item.rating?.[0]?.rating || null,
+              driver_name: item.provider?.users?.name,
+              driver_tracking_id: item.provider?.tracking_id,
+              vehicle: item.provider?.vehicle_type,
+              created_at: item.created_at
+            })
+          })
+        }
       }
 
-      // If no real data, use demo
-      if (history.value.length === 0) {
-        history.value = filter && filter !== 'all'
-          ? DEMO_HISTORY.filter(h => h.type === filter)
-          : DEMO_HISTORY
+      // Fetch shopping if filter is 'all' or 'shopping'
+      if (!filter || filter === 'all' || filter === 'shopping') {
+        const { data: shopping, error: shoppingError } = await (supabase
+          .from('shopping_requests') as any)
+          .select(`
+            id,
+            tracking_id,
+            store_name,
+            store_address,
+            delivery_address,
+            service_fee,
+            total_cost,
+            status,
+            created_at,
+            delivered_at,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              users:user_id (name)
+            ),
+            rating:shopping_ratings (rating)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['completed', 'cancelled'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+
+        if (!shoppingError && shopping) {
+          shopping.forEach((item: any) => {
+            allItems.push({
+              id: item.id,
+              tracking_id: item.tracking_id || `SHP-${formatDateForId(item.created_at)}-000000`,
+              type: 'shopping',
+              typeName: 'ซื้อของ',
+              from: item.store_name || item.store_address?.split(',')[0] || 'ร้านค้า',
+              to: item.delivery_address?.split(',')[0] || 'ไม่ระบุ',
+              date: formatDate(item.created_at),
+              time: formatTime(item.created_at),
+              fare: item.total_cost || item.service_fee || 0,
+              status: item.status === 'completed' ? 'completed' : 'cancelled',
+              rating: item.rating?.[0]?.rating || null,
+              driver_name: item.provider?.users?.name,
+              driver_tracking_id: item.provider?.tracking_id,
+              vehicle: item.provider?.vehicle_type,
+              created_at: item.created_at
+            })
+          })
+        }
       }
 
+      // Sort all items by created_at descending
+      allItems.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime()
+        const dateB = new Date(b.created_at || 0).getTime()
+        return dateB - dateA
+      })
+
+      history.value = allItems
       return history.value
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching history:', err)
-      history.value = DEMO_HISTORY
+      error.value = err.message || 'เกิดข้อผิดพลาดในการโหลดประวัติ'
+      history.value = []
       return history.value
     } finally {
       loading.value = false
     }
   }
 
-  // Get single ride details
-  const getRideDetails = async (rideId: string) => {
+  // Get single order details by ID and type
+  const getOrderDetails = async (orderId: string, orderType?: 'ride' | 'delivery' | 'shopping') => {
     try {
-      const { data } = await (supabase
-        .from('ride_requests') as any)
-        .select(`
-          *,
-          provider:provider_id (
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            users:user_id (name, avatar_url)
-          ),
-          rating:ride_ratings (rating, comment, tip_amount)
-        `)
-        .eq('id', rideId)
-        .single()
+      // If type is known, query directly
+      if (orderType === 'ride') {
+        const { data } = await (supabase
+          .from('ride_requests') as any)
+          .select(`
+            *,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              rating,
+              users:user_id (name, avatar_url, phone)
+            ),
+            rating:ride_ratings (rating, comment, tip_amount)
+          `)
+          .eq('id', orderId)
+          .single()
+        return data ? { ...data, orderType: 'ride' } : null
+      }
 
-      return data
+      if (orderType === 'delivery') {
+        const { data } = await (supabase
+          .from('delivery_requests') as any)
+          .select(`
+            *,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              rating,
+              users:user_id (name, avatar_url, phone)
+            ),
+            rating:delivery_ratings (rating, comment, tip_amount)
+          `)
+          .eq('id', orderId)
+          .single()
+        return data ? { ...data, orderType: 'delivery' } : null
+      }
+
+      if (orderType === 'shopping') {
+        const { data } = await (supabase
+          .from('shopping_requests') as any)
+          .select(`
+            *,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              rating,
+              users:user_id (name, avatar_url, phone)
+            ),
+            rating:shopping_ratings (rating, comment, tip_amount)
+          `)
+          .eq('id', orderId)
+          .single()
+        return data ? { ...data, orderType: 'shopping' } : null
+      }
+
+      // If type is unknown, try all tables
+      const { data: ride } = await (supabase
+        .from('ride_requests') as any)
+        .select('*')
+        .eq('id', orderId)
+        .single()
+      if (ride) return { ...ride, orderType: 'ride' }
+
+      const { data: delivery } = await (supabase
+        .from('delivery_requests') as any)
+        .select('*')
+        .eq('id', orderId)
+        .single()
+      if (delivery) return { ...delivery, orderType: 'delivery' }
+
+      const { data: shopping } = await (supabase
+        .from('shopping_requests') as any)
+        .select('*')
+        .eq('id', orderId)
+        .single()
+      if (shopping) return { ...shopping, orderType: 'shopping' }
+
+      return null
     } catch (err) {
-      console.error('Error fetching ride details:', err)
+      console.error('Error fetching order details:', err)
       return null
     }
   }
 
-  // Rebook a ride
+  // Get order by tracking ID
+  const getOrderByTrackingId = async (trackingId: string) => {
+    try {
+      // Determine type from tracking ID prefix
+      if (trackingId.startsWith('RID-')) {
+        const { data } = await (supabase
+          .from('ride_requests') as any)
+          .select(`
+            *,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              vehicle_color,
+              rating,
+              current_lat,
+              current_lng,
+              users:user_id (name, avatar_url, phone)
+            )
+          `)
+          .eq('tracking_id', trackingId)
+          .single()
+        return data ? { ...data, orderType: 'ride' } : null
+      }
+
+      if (trackingId.startsWith('DEL-')) {
+        const { data } = await (supabase
+          .from('delivery_requests') as any)
+          .select(`
+            *,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              rating,
+              current_lat,
+              current_lng,
+              users:user_id (name, avatar_url, phone)
+            )
+          `)
+          .eq('tracking_id', trackingId)
+          .single()
+        return data ? { ...data, orderType: 'delivery' } : null
+      }
+
+      if (trackingId.startsWith('SHP-')) {
+        const { data } = await (supabase
+          .from('shopping_requests') as any)
+          .select(`
+            *,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              vehicle_plate,
+              rating,
+              current_lat,
+              current_lng,
+              users:user_id (name, avatar_url, phone)
+            )
+          `)
+          .eq('tracking_id', trackingId)
+          .single()
+        return data ? { ...data, orderType: 'shopping' } : null
+      }
+
+      return null
+    } catch (err) {
+      console.error('Error fetching order by tracking ID:', err)
+      return null
+    }
+  }
+
+  // Rebook a ride/delivery/shopping
   const rebookRide = (item: RideHistoryItem) => {
-    // Return data needed to pre-fill a new ride request
+    // Return data needed to pre-fill a new request
     return {
       from: item.from,
       to: item.to,
-      type: item.type
+      type: item.type,
+      tracking_id: item.tracking_id
     }
   }
 
   return {
     history,
     loading,
+    error,
     fetchHistory,
-    getRideDetails,
+    getOrderDetails,
+    getOrderByTrackingId,
     rebookRide
   }
 }

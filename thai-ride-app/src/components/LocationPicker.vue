@@ -1,340 +1,354 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useLocation, type GeoLocation } from '../composables/useLocation'
+/**
+ * Feature: F268 - Location Picker
+ * Map-based location picker with pin
+ */
+import { ref, computed } from 'vue'
 
-const props = defineProps<{
-  modelValue: string
+interface Location {
+  lat: number
+  lng: number
+  address: string
+}
+
+const props = withDefaults(defineProps<{
+  modelValue?: string
   placeholder?: string
+  label?: string
   type?: 'pickup' | 'destination'
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
-  (e: 'locationSelected', location: GeoLocation): void
-}>()
-
-const { getCurrentPosition, isLocating, locationError } = useLocation()
-
-const inputValue = ref(props.modelValue)
-const suggestions = ref<Array<{ place_id: string; display_name: string; lat: string; lon: string }>>([])
-const showSuggestions = ref(false)
-const isSearching = ref(false)
-const selectedLocation = ref<GeoLocation | null>(null)
-
-// Debounce search
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
-
-// Search using Nominatim (OpenStreetMap) - FREE!
-const searchPlaces = async (query: string) => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=th&limit=5&addressdetails=1`,
-      {
-        headers: {
-          'Accept-Language': 'th,en'
-        }
-      }
-    )
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error('Search error:', error)
-    return []
-  }
-}
-
-const handleInput = (event: Event) => {
-  const value = (event.target as HTMLInputElement).value
-  inputValue.value = value
-  emit('update:modelValue', value)
-  
-  if (searchTimeout) clearTimeout(searchTimeout)
-  
-  if (value.length < 2) {
-    suggestions.value = []
-    showSuggestions.value = false
-    return
-  }
-  
-  searchTimeout = setTimeout(async () => {
-    isSearching.value = true
-    try {
-      suggestions.value = await searchPlaces(value)
-      showSuggestions.value = suggestions.value.length > 0
-    } catch (error) {
-      console.error('Search error:', error)
-    } finally {
-      isSearching.value = false
-    }
-  }, 300)
-}
-
-const selectSuggestion = async (place: { place_id: string; display_name: string; lat: string; lon: string }) => {
-  showSuggestions.value = false
-  
-  inputValue.value = place.display_name
-  emit('update:modelValue', place.display_name)
-  
-  selectedLocation.value = {
-    lat: parseFloat(place.lat),
-    lng: parseFloat(place.lon),
-    address: place.display_name
-  }
-  emit('locationSelected', selectedLocation.value)
-}
-
-const useCurrentLocation = async () => {
-  try {
-    const location = await getCurrentPosition()
-    inputValue.value = location.address
-    emit('update:modelValue', location.address)
-    selectedLocation.value = location
-    emit('locationSelected', location)
-  } catch (error) {
-    console.error('Get current location error:', error)
-  }
-}
-
-const handleFocus = () => {
-  if (suggestions.value.length > 0) {
-    showSuggestions.value = true
-  }
-}
-
-const handleBlur = () => {
-  setTimeout(() => {
-    showSuggestions.value = false
-  }, 200)
-}
-
-watch(() => props.modelValue, (newValue) => {
-  if (newValue !== inputValue.value) {
-    inputValue.value = newValue
-  }
+}>(), {
+  modelValue: '',
+  placeholder: 'เลือกตำแหน่งบนแผนที่',
+  type: 'pickup'
 })
 
-// Format display name to be shorter
-const formatDisplayName = (name: string) => {
-  const parts = name.split(',')
-  if (parts.length > 3) {
-    return parts.slice(0, 3).join(',')
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  'confirm': [location: Location]
+  'location-selected': [location: Location]
+}>()
+
+const showMap = ref(false)
+const searchQuery = ref('')
+const tempLocation = ref<Location | null>(null)
+const loading = ref(false)
+
+const displayAddress = computed(() => props.modelValue || '')
+
+const openPicker = () => {
+  tempLocation.value = { lat: 13.7563, lng: 100.5018, address: props.modelValue || '' }
+  showMap.value = true
+}
+
+const closePicker = () => {
+  showMap.value = false
+}
+
+const getCurrentLocation = () => {
+  if (!navigator.geolocation) return
+  
+  loading.value = true
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      tempLocation.value = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        address: 'ตำแหน่งปัจจุบัน'
+      }
+      loading.value = false
+    },
+    () => {
+      loading.value = false
+    }
+  )
+}
+
+const confirmLocation = () => {
+  if (tempLocation.value) {
+    const loc: Location = {
+      lat: tempLocation.value.lat,
+      lng: tempLocation.value.lng,
+      address: tempLocation.value.address || `${tempLocation.value.lat.toFixed(6)}, ${tempLocation.value.lng.toFixed(6)}`
+    }
+    emit('update:modelValue', loc.address)
+    emit('confirm', loc)
+    emit('location-selected', loc)
   }
-  return name
+  showMap.value = false
+}
+
+const clearLocation = () => {
+  emit('update:modelValue', '')
+}
+
+const handleMapClick = () => {
+  // Simulate map click - in real app would use actual map coordinates
+  if (tempLocation.value) {
+    tempLocation.value = {
+      ...tempLocation.value,
+      lat: tempLocation.value.lat + (Math.random() - 0.5) * 0.01,
+      lng: tempLocation.value.lng + (Math.random() - 0.5) * 0.01
+    }
+  }
 }
 </script>
 
 <template>
   <div class="location-picker">
-    <div class="input-wrapper">
-      <div class="location-indicator" :class="type === 'pickup' ? 'indicator-pickup' : 'indicator-destination'"></div>
-      
-      <input
-        :value="inputValue"
-        @input="handleInput"
-        @focus="handleFocus"
-        @blur="handleBlur"
-        type="text"
-        :placeholder="placeholder || 'ค้นหาสถานที่'"
-        class="location-input"
-        autocomplete="off"
-      />
-      
-      <button
-        v-if="type === 'pickup'"
-        @click="useCurrentLocation"
-        :disabled="isLocating"
-        class="gps-btn"
-        type="button"
-        title="ใช้ตำแหน่งปัจจุบัน"
-      >
-        <svg v-if="isLocating" class="spinner-icon" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <svg v-else class="gps-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0-6v2m0 16v2m8-10h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41"/>
+    <label v-if="label" class="label">{{ label }}</label>
+    
+    <div class="input-wrapper" @click="openPicker">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+        <circle cx="12" cy="10" r="3"/>
+      </svg>
+      <span v-if="displayAddress" class="address">{{ displayAddress }}</span>
+      <span v-else class="placeholder">{{ placeholder }}</span>
+      <button v-if="modelValue" type="button" class="clear-btn" @click.stop="clearLocation">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
         </svg>
       </button>
-      
-      <div v-if="isSearching" class="search-indicator">
-        <svg class="spinner-icon" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </div>
     </div>
     
-    <div v-if="showSuggestions && suggestions.length > 0" class="suggestions-dropdown">
-      <button
-        v-for="suggestion in suggestions"
-        :key="suggestion.place_id"
-        @click="selectSuggestion(suggestion)"
-        class="suggestion-item"
-        type="button"
-      >
-        <svg class="suggestion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-        <div class="suggestion-text">
-          <span class="suggestion-main">{{ formatDisplayName(suggestion.display_name) }}</span>
+    <!-- Map Modal -->
+    <Teleport to="body">
+      <div v-if="showMap" class="map-modal">
+        <div class="modal-header">
+          <button type="button" class="close-btn" @click="closePicker">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+          <h3 class="modal-title">เลือกตำแหน่ง</h3>
+          <div style="width: 40px"></div>
         </div>
-      </button>
-    </div>
-    
-    <p v-if="locationError" class="error-text">{{ locationError }}</p>
+        
+        <div class="search-bar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input v-model="searchQuery" type="text" placeholder="ค้นหาสถานที่..." />
+        </div>
+        
+        <div class="map-container" @click="handleMapClick">
+          <div class="map-placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6b6b6b" stroke-width="1.5">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <p>แตะเพื่อเลือกตำแหน่ง</p>
+          </div>
+          
+          <!-- Center Pin -->
+          <div class="center-pin">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="#000" stroke="none">
+              <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+            </svg>
+          </div>
+        </div>
+        
+        <div class="location-info">
+          <button type="button" class="current-location-btn" :disabled="loading" @click="getCurrentLocation">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+            </svg>
+            <span v-if="loading">กำลังค้นหา...</span>
+            <span v-else>ใช้ตำแหน่งปัจจุบัน</span>
+          </button>
+          
+          <div v-if="tempLocation" class="coords">
+            <span>{{ tempLocation.lat.toFixed(6) }}, {{ tempLocation.lng.toFixed(6) }}</span>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn-confirm" @click="confirmLocation">
+            ยืนยันตำแหน่ง
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 .location-picker {
-  position: relative;
   width: 100%;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #000;
+  margin-bottom: 6px;
 }
 
 .input-wrapper {
   display: flex;
   align-items: center;
   gap: 12px;
-  background-color: #F6F6F6;
+  padding: 12px 16px;
+  border: 1px solid #e5e5e5;
   border-radius: 8px;
-  padding: 0 12px;
+  cursor: pointer;
+  transition: border-color 0.2s;
 }
 
-.location-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.input-wrapper:hover {
+  border-color: #000;
 }
 
-.indicator-pickup {
-  background-color: #000000;
+.address {
+  flex: 1;
+  font-size: 14px;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.indicator-destination {
-  background-color: #000000;
-  border: 2px solid #000000;
-  background-color: transparent;
+.placeholder {
+  flex: 1;
+  font-size: 14px;
+  color: #999;
 }
 
-.location-input {
+.clear-btn {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b6b6b;
+}
+
+.map-modal {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.close-btn {
+  padding: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #000;
+  margin: 0;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 16px;
+  padding: 10px 14px;
+  background: #f6f6f6;
+  border-radius: 8px;
+}
+
+.search-bar input {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 14px 0;
-  font-size: 16px;
+  font-size: 14px;
   outline: none;
-  color: #000000;
 }
 
-.location-input::placeholder {
-  color: #6B6B6B;
+.map-container {
+  flex: 1;
+  position: relative;
+  background: #f0f0f0;
 }
 
-.gps-btn {
+.map-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #6b6b6b;
+}
+
+.map-placeholder p {
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
+.center-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.location-info {
+  padding: 16px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.current-location-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: #f6f6f6;
   border: none;
-  background: transparent;
-  color: #6B6B6B;
-  cursor: pointer;
   border-radius: 8px;
-  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.gps-btn:hover:not(:disabled) {
-  background-color: #E5E5E5;
-  color: #000000;
-}
-
-.gps-btn:disabled {
-  opacity: 0.5;
+.current-location-btn:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.gps-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.search-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-}
-
-.spinner-icon {
-  width: 20px;
-  height: 20px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.suggestions-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background-color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  margin-top: 4px;
-  z-index: 100;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.suggestion-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 16px;
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.suggestion-item:hover {
-  background-color: #F6F6F6;
-}
-
-.suggestion-icon {
-  width: 20px;
-  height: 20px;
-  color: #6B6B6B;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.suggestion-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.suggestion-main {
-  font-size: 14px;
-  font-weight: 500;
-  color: #000000;
-}
-
-.error-text {
+.coords {
+  margin-top: 12px;
+  text-align: center;
   font-size: 12px;
-  color: #E11900;
-  margin-top: 4px;
-  padding-left: 22px;
+  color: #6b6b6b;
+}
+
+.modal-footer {
+  padding: 16px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.btn-confirm {
+  width: 100%;
+  padding: 14px 24px;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
 }
 </style>

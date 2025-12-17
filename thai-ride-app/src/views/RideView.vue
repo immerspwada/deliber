@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import LocationPicker from '../components/LocationPicker.vue'
 import MapView from '../components/MapView.vue'
 import RideTracker from '../components/RideTracker.vue'
@@ -11,6 +11,15 @@ import type { RideRequest, ServiceProvider } from '../types/database'
 const rideStore = useRideStore()
 const authStore = useAuthStore()
 const { calculateDistance, calculateTravelTime } = useLocation()
+
+// Check for pre-set destination from services page
+onMounted(() => {
+  const pendingDest = rideStore.consumeDestination()
+  if (pendingDest) {
+    destinationLocation.value = pendingDest
+    destinationAddress.value = pendingDest.address
+  }
+})
 
 // Form state
 const pickupAddress = ref('')

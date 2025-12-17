@@ -33,19 +33,33 @@ onMounted(() => {
 
 const menuItems = [
   { path: '/admin/dashboard', label: 'แดชบอร์ด', icon: 'dashboard' },
+  { path: '/admin/analytics', label: 'Analytics', icon: 'analytics' },
+  { path: '/admin/live-map', label: 'Live Map', icon: 'live' },
   { path: '/admin/users', label: 'ผู้ใช้งาน', icon: 'users' },
   { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car' },
   { path: '/admin/orders', label: 'ออเดอร์', icon: 'orders' },
+  { path: '/admin/scheduled-rides', label: 'การจองล่วงหน้า', icon: 'schedule' },
+  { path: '/admin/cancellations', label: 'การยกเลิก', icon: 'cancel' },
+  { path: '/admin/tips', label: 'ทิป', icon: 'tip' },
   { path: '/admin/ratings', label: 'รีวิว', icon: 'ratings' },
+  { path: '/admin/feedback', label: 'Feedback', icon: 'feedback' },
   { path: '/admin/notifications', label: 'Notifications', icon: 'notification' },
   { path: '/admin/payments', label: 'การเงิน', icon: 'payment' },
+  { path: '/admin/wallets', label: 'กระเป๋าเงิน', icon: 'wallet' },
   { path: '/admin/withdrawals', label: 'การถอนเงิน', icon: 'withdrawal' },
+  { path: '/admin/referrals', label: 'ระบบแนะนำ', icon: 'referral' },
   { path: '/admin/support', label: 'ซัพพอร์ต', icon: 'support' },
   { path: '/admin/promos', label: 'โปรโมชั่น', icon: 'promo' },
+  { path: '/admin/loyalty', label: 'Loyalty Program', icon: 'loyalty' },
   { path: '/admin/subscriptions', label: 'แพ็คเกจสมาชิก', icon: 'subscription' },
   { path: '/admin/insurance', label: 'ประกันภัย', icon: 'insurance' },
   { path: '/admin/corporate', label: 'บัญชีองค์กร', icon: 'corporate' },
-  { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' }
+  { path: '/admin/surge', label: 'Surge Pricing', icon: 'surge' },
+  { path: '/admin/service-areas', label: 'พื้นที่บริการ', icon: 'map' },
+  { path: '/admin/settings', label: 'ตั้งค่าระบบ', icon: 'gear' },
+  { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' },
+  { path: '/admin/reports', label: 'รายงาน', icon: 'report' },
+  { path: '/admin/components', label: 'Components', icon: 'components' }
 ]
 
 const isActive = (path: string) => {
@@ -117,6 +131,10 @@ const logout = () => {
             <rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/>
             <rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>
           </svg>
+          <!-- Analytics -->
+          <svg v-else-if="item.icon === 'analytics'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
           <!-- Users -->
           <svg v-else-if="item.icon === 'users'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -131,9 +149,25 @@ const logout = () => {
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
             <rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h6"/>
           </svg>
+          <!-- Schedule -->
+          <svg v-else-if="item.icon === 'schedule'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <!-- Cancel -->
+          <svg v-else-if="item.icon === 'cancel'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <!-- Tip -->
+          <svg v-else-if="item.icon === 'tip'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
           <!-- Payment -->
           <svg v-else-if="item.icon === 'payment'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/>
+          </svg>
+          <!-- Wallet -->
+          <svg v-else-if="item.icon === 'wallet'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 100 4h4v-4h-4z"/>
           </svg>
           <!-- Support -->
           <svg v-else-if="item.icon === 'support'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -169,10 +203,52 @@ const logout = () => {
             <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
             <path d="M17 3l4 4-4 4M21 7H9"/>
           </svg>
+          <!-- Referral -->
+          <svg v-else-if="item.icon === 'referral'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
+            <path d="M20 8v6M23 11h-6"/>
+          </svg>
+          <!-- Surge -->
+          <svg v-else-if="item.icon === 'surge'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          <!-- Gear/Settings -->
+          <svg v-else-if="item.icon === 'gear'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <!-- Feedback -->
+          <svg v-else-if="item.icon === 'feedback'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            <path d="M8 10h.01M12 10h.01M16 10h.01"/>
+          </svg>
+          <!-- Live -->
+          <svg v-else-if="item.icon === 'live'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <!-- Map -->
+          <svg v-else-if="item.icon === 'map'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+          </svg>
           <!-- Audit -->
           <svg v-else-if="item.icon === 'audit'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
             <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+          </svg>
+          <!-- Report -->
+          <svg v-else-if="item.icon === 'report'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <!-- Loyalty -->
+          <svg v-else-if="item.icon === 'loyalty'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 15l-2 5l9-9l-5 2l2-5l-9 9l5-2z"/>
+            <circle cx="12" cy="12" r="10"/>
+          </svg>
+          <!-- Components -->
+          <svg v-else-if="item.icon === 'components'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
           <span>{{ item.label }}</span>
         </button>

@@ -57,18 +57,28 @@ export function useAdvancedFeatures() {
     estimatedFare?: number
     notes?: string
   }) => {
-    if (!authStore.user?.id) return null
+    if (!authStore.user?.id) {
+      error.value = 'กรุณาเข้าสู่ระบบก่อนจองล่วงหน้า'
+      return null
+    }
     loading.value = true
+    error.value = null
     try {
+      // Use default Bangkok coordinates if not provided
+      const pickupLat = params.pickup.lat || 13.7563
+      const pickupLng = params.pickup.lng || 100.5018
+      const destLat = params.destination.lat || 13.7563
+      const destLng = params.destination.lng || 100.5018
+
       const { data, error: err } = await (supabase
         .from('scheduled_rides') as any)
         .insert({
           user_id: authStore.user.id,
-          pickup_lat: params.pickup.lat,
-          pickup_lng: params.pickup.lng,
+          pickup_lat: pickupLat,
+          pickup_lng: pickupLng,
           pickup_address: params.pickup.address,
-          destination_lat: params.destination.lat,
-          destination_lng: params.destination.lng,
+          destination_lat: destLat,
+          destination_lng: destLng,
           destination_address: params.destination.address,
           scheduled_datetime: params.scheduledDatetime,
           ride_type: params.rideType || 'standard',
@@ -78,11 +88,15 @@ export function useAdvancedFeatures() {
         .select()
         .single()
 
-      if (err) throw err
+      if (err) {
+        console.error('Scheduled ride error:', err)
+        throw err
+      }
       await fetchScheduledRides()
       return data
     } catch (e: any) {
-      error.value = e.message
+      error.value = e.message || 'ไม่สามารถจองได้ กรุณาลองใหม่'
+      console.error('Create scheduled ride failed:', e)
       return null
     } finally {
       loading.value = false

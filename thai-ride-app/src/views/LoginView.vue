@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { validateThaiPhoneNumber, formatThaiPhoneNumber } from '../utils/validation'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const loginMethod = ref<'phone' | 'email'>('email')
-const phone = ref('')
+const loginMethod = ref<'otp' | 'password'>('password')
 const email = ref('')
 const password = ref('')
 const otp = ref('')
@@ -17,24 +15,24 @@ const isLoading = ref(false)
 
 const rememberMe = ref(true)
 const error = ref('')
+const successMessage = ref('')
 const showFillToast = ref(false)
 const filledAccount = ref('')
 
-// Demo accounts - ใช้ demo mode ไม่ต้องผ่าน Supabase
+// Demo accounts
 const demoAccounts = [
-  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer', name: 'สมชาย ลูกค้า' },
-  { label: 'คนขับรถ', email: 'driver@demo.com', password: 'demo1234', role: 'driver', name: 'สมศักดิ์ คนขับ' },
-  { label: 'ไรเดอร์', email: 'rider@demo.com', password: 'demo1234', role: 'rider', name: 'สมหญิง ไรเดอร์' },
-  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin', name: 'ผู้ดูแลระบบ' }
+  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer', name: 'Customer Demo', id: '22222222-2222-2222-2222-222222222222' },
+  { label: 'คนขับรถ', email: 'driver1@demo.com', password: 'demo1234', role: 'driver', name: 'สมชาย ใจดี', id: 'd1111111-1111-1111-1111-111111111111' },
+  { label: 'ไรเดอร์', email: 'rider@demo.com', password: 'demo1234', role: 'rider', name: 'Rider User', id: '44444444-4444-4444-4444-444444444444' },
+  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin', name: 'Admin Demo', id: '11111111-1111-1111-1111-111111111111' }
 ]
 
 const selectDemoAccount = (account: typeof demoAccounts[0]) => {
   email.value = account.email
   password.value = account.password
-  loginMethod.value = 'email'
+  loginMethod.value = 'password'
   error.value = ''
   
-  // Show toast feedback
   filledAccount.value = account.label
   showFillToast.value = true
   setTimeout(() => {
@@ -42,46 +40,62 @@ const selectDemoAccount = (account: typeof demoAccounts[0]) => {
   }, 2000)
 }
 
+const isEmailValid = computed(() => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email.value)
+})
 
-
-const formattedPhone = computed(() => formatThaiPhoneNumber(phone.value))
-const isPhoneValid = computed(() => validateThaiPhoneNumber(phone.value))
-
-const sendOtp = async () => {
-  if (!isPhoneValid.value) {
-    error.value = 'กรุณาใส่เบอร์โทรศัพท์ที่ถูกต้อง'
+// ส่ง Email OTP (Magic Link)
+const sendEmailOtp = async () => {
+  if (!isEmailValid.value) {
+    error.value = 'กรุณาใส่อีเมลที่ถูกต้อง'
     return
   }
   isLoading.value = true
   error.value = ''
+  successMessage.value = ''
+  
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    isOtpSent.value = true
-  } catch {
-    error.value = 'ไม่สามารถส่ง OTP ได้ กรุณาลองใหม่'
+    const success = await authStore.loginWithEmailOtp(email.value)
+    
+    if (success) {
+      isOtpSent.value = true
+      successMessage.value = `ส่งรหัส OTP ไปที่ ${email.value} แล้ว กรุณาตรวจสอบอีเมล`
+    } else {
+      error.value = authStore.error || 'ไม่สามารถส่ง OTP ได้'
+    }
+  } catch (err: any) {
+    error.value = err.message || 'เกิดข้อผิดพลาด'
   } finally {
     isLoading.value = false
   }
 }
 
-const verifyOtp = async () => {
+// ยืนยัน Email OTP
+const verifyEmailOtp = async () => {
   if (otp.value.length !== 6) {
     error.value = 'กรุณาใส่รหัส OTP 6 หลัก'
     return
   }
   isLoading.value = true
   error.value = ''
+  
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    router.push('/')
-  } catch {
-    error.value = 'รหัส OTP ไม่ถูกต้อง'
+    const success = await authStore.verifyEmailOtp(email.value, otp.value)
+    if (success) {
+      await router.replace('/')
+    } else {
+      error.value = authStore.error || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ'
+    }
+  } catch (err: any) {
+    error.value = err.message || 'รหัส OTP ไม่ถูกต้อง'
   } finally {
     isLoading.value = false
   }
 }
 
-const loginWithEmail = async () => {
+// Login ด้วย Email + Password
+const loginWithPassword = async () => {
   if (!email.value || !password.value) {
     error.value = 'กรุณากรอกอีเมลและรหัสผ่าน'
     return
@@ -90,14 +104,13 @@ const loginWithEmail = async () => {
   error.value = ''
   
   try {
-    // Check if it's a demo account - use demo mode
+    // Check demo account
     const demoAccount = demoAccounts.find(a => a.email === email.value && a.password === password.value)
     
     if (demoAccount) {
-      // Demo mode - skip Supabase auth
       localStorage.setItem('demo_mode', 'true')
       localStorage.setItem('demo_user', JSON.stringify({
-        id: `demo-${demoAccount.role}`,
+        id: demoAccount.id,
         email: demoAccount.email,
         name: demoAccount.name,
         first_name: demoAccount.name.split(' ')[0],
@@ -109,13 +122,9 @@ const loginWithEmail = async () => {
         created_at: new Date().toISOString()
       }))
       
-      // Re-initialize auth store with demo user and wait for completion
       await authStore.initialize()
-      
-      // Small delay to ensure state is fully updated
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      // Redirect based on role - use replace to prevent back navigation to login
       const targetRoute = demoAccount.role === 'rider' || demoAccount.role === 'driver' 
         ? '/provider' 
         : demoAccount.role === 'admin' 
@@ -129,10 +138,8 @@ const loginWithEmail = async () => {
     // Real Supabase login
     const success = await authStore.login(email.value, password.value)
     if (success) {
-      // Small delay to ensure state is fully updated
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      // Redirect based on user role - use replace to prevent back navigation
       const userRole = authStore.user?.role
       const targetRoute = userRole === 'rider' || userRole === 'driver' 
         ? '/provider' 
@@ -151,9 +158,14 @@ const loginWithEmail = async () => {
   }
 }
 
+const resetOtpState = () => {
+  isOtpSent.value = false
+  otp.value = ''
+  error.value = ''
+  successMessage.value = ''
+}
+
 const goToRegister = () => router.push('/register')
-
-
 </script>
 
 <template>
@@ -166,47 +178,65 @@ const goToRegister = () => router.push('/register')
     <div class="auth-content">
       <div class="method-toggle">
         <button
-          @click="loginMethod = 'phone'"
-          :class="['toggle-option', { active: loginMethod === 'phone' }]"
+          @click="loginMethod = 'otp'; resetOtpState()"
+          :class="['toggle-option', { active: loginMethod === 'otp' }]"
         >
-          เบอร์โทรศัพท์
+          Email OTP
         </button>
         <button
-          @click="loginMethod = 'email'"
-          :class="['toggle-option', { active: loginMethod === 'email' }]"
+          @click="loginMethod = 'password'; resetOtpState()"
+          :class="['toggle-option', { active: loginMethod === 'password' }]"
         >
-          อีเมล
+          รหัสผ่าน
         </button>
       </div>
 
       <div v-if="error" class="error-message">{{ error }}</div>
+      <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
 
-      <div v-if="loginMethod === 'phone'">
+      <!-- Email OTP Login -->
+      <div v-if="loginMethod === 'otp'">
         <div v-if="!isOtpSent">
           <div class="form-group">
-            <label class="label">เบอร์โทรศัพท์</label>
-            <input v-model="phone" type="tel" placeholder="081-234-5678" class="input-field" />
-            <p v-if="phone && !isPhoneValid" class="error-text">เบอร์โทรศัพท์ไม่ถูกต้อง</p>
+            <label class="label">อีเมล</label>
+            <input 
+              v-model="email" 
+              type="email" 
+              placeholder="email@example.com" 
+              class="input-field"
+              @keyup.enter="sendEmailOtp"
+            />
+            <p v-if="email && !isEmailValid" class="error-text">รูปแบบอีเมลไม่ถูกต้อง</p>
           </div>
-          <button @click="sendOtp" :disabled="!isPhoneValid || isLoading" class="btn-primary">
+          <button @click="sendEmailOtp" :disabled="!isEmailValid || isLoading" class="btn-primary">
             <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังส่ง OTP</span>
-            <span v-else>ส่งรหัส OTP</span>
+            <span v-else>ส่งรหัส OTP ทางอีเมล</span>
           </button>
+          <p class="otp-hint">รหัส OTP จะถูกส่งไปยังอีเมลของคุณ</p>
         </div>
         <div v-else>
           <div class="form-group">
             <label class="label">รหัส OTP</label>
-            <p class="helper-text">ส่งไปยัง {{ formattedPhone }}</p>
-            <input v-model="otp" type="text" maxlength="6" placeholder="123456" class="input-field otp-input" />
+            <p class="helper-text">ส่งไปยัง {{ email }}</p>
+            <input 
+              v-model="otp" 
+              type="text" 
+              maxlength="6" 
+              placeholder="123456" 
+              class="input-field otp-input"
+              @keyup.enter="verifyEmailOtp"
+            />
           </div>
-          <button @click="verifyOtp" :disabled="otp.length !== 6 || isLoading" class="btn-primary">
+          <button @click="verifyEmailOtp" :disabled="otp.length !== 6 || isLoading" class="btn-primary">
             <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังตรวจสอบ</span>
             <span v-else>ยืนยัน OTP</span>
           </button>
-          <button @click="isOtpSent = false" class="btn-secondary change-btn">เปลี่ยนเบอร์โทรศัพท์</button>
+          <button @click="resetOtpState" class="btn-secondary change-btn">เปลี่ยนอีเมล</button>
+          <button @click="sendEmailOtp" :disabled="isLoading" class="resend-btn">ส่ง OTP อีกครั้ง</button>
         </div>
       </div>
 
+      <!-- Password Login -->
       <div v-else>
         <div class="form-group">
           <label class="label">อีเมล</label>
@@ -214,13 +244,19 @@ const goToRegister = () => router.push('/register')
         </div>
         <div class="form-group">
           <label class="label">รหัสผ่าน</label>
-          <input v-model="password" type="password" placeholder="รหัสผ่าน" class="input-field" />
+          <input 
+            v-model="password" 
+            type="password" 
+            placeholder="รหัสผ่าน" 
+            class="input-field"
+            @keyup.enter="loginWithPassword"
+          />
         </div>
         <label class="remember-me">
           <input type="checkbox" v-model="rememberMe" class="checkbox" />
           <span>จดจำการเข้าสู่ระบบ</span>
         </label>
-        <button @click="loginWithEmail" :disabled="!email || !password || isLoading" class="btn-primary">
+        <button @click="loginWithPassword" :disabled="!email || !password || isLoading" class="btn-primary">
           <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังเข้าสู่ระบบ</span>
           <span v-else>เข้าสู่ระบบ</span>
         </button>
@@ -292,121 +328,6 @@ const goToRegister = () => router.push('/register')
   margin: 0 auto;
 }
 
-/* Demo Fill Section */
-.demo-fill-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #E5E5E5;
-}
-
-.demo-hint {
-  font-size: 12px;
-  color: #6B6B6B;
-  text-align: center;
-  margin-bottom: 8px;
-}
-
-.demo-fill-btns {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-
-.demo-fill-btn {
-  padding: 8px 16px;
-  background-color: #F6F6F6;
-  border: 1px solid #E5E5E5;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #000000;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.demo-fill-btn:hover {
-  background-color: #000000;
-  color: #FFFFFF;
-  border-color: #000000;
-}
-
-.demo-fill-btn:active {
-  transform: scale(0.95);
-}
-
-/* Fill Toast */
-.fill-toast {
-  position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  background-color: #000000;
-  color: #FFFFFF;
-  border-radius: 24px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 1000;
-}
-
-.fill-toast svg {
-  width: 18px;
-  height: 18px;
-  color: #4ADE80;
-}
-
-.toast-enter-active {
-  animation: toastIn 0.3s ease;
-}
-
-.toast-leave-active {
-  animation: toastOut 0.3s ease;
-}
-
-@keyframes toastIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes toastOut {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-}
-
-/* Remember Me */
-.remember-me {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #000000;
-}
-
-.checkbox {
-  width: 20px;
-  height: 20px;
-  accent-color: #000000;
-  cursor: pointer;
-}
-
-/* Method Toggle */
 .method-toggle {
   display: flex;
   background-color: #F6F6F6;
@@ -437,6 +358,15 @@ const goToRegister = () => router.push('/register')
 .error-message {
   background-color: rgba(225, 25, 0, 0.1);
   color: #E11900;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.success-message {
+  background-color: rgba(39, 110, 241, 0.1);
+  color: #276EF1;
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
@@ -484,6 +414,13 @@ const goToRegister = () => router.push('/register')
   font-size: 14px;
   color: #6B6B6B;
   margin-bottom: 8px;
+}
+
+.otp-hint {
+  font-size: 13px;
+  color: #6B6B6B;
+  text-align: center;
+  margin-top: 12px;
 }
 
 .error-text {
@@ -557,6 +494,142 @@ const goToRegister = () => router.push('/register')
 
 .change-btn {
   margin-top: 12px;
+}
+
+.resend-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: none;
+  border: none;
+  color: #000000;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: opacity 0.2s ease;
+}
+
+.resend-btn:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.resend-btn:disabled {
+  color: #CCCCCC;
+  cursor: not-allowed;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #000000;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: #000000;
+  cursor: pointer;
+}
+
+.demo-fill-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #E5E5E5;
+}
+
+.demo-hint {
+  font-size: 12px;
+  color: #6B6B6B;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.demo-fill-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.demo-fill-btn {
+  padding: 8px 16px;
+  background-color: #F6F6F6;
+  border: 1px solid #E5E5E5;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.demo-fill-btn:hover {
+  background-color: #000000;
+  color: #FFFFFF;
+  border-color: #000000;
+}
+
+.demo-fill-btn:active {
+  transform: scale(0.95);
+}
+
+.fill-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background-color: #000000;
+  color: #FFFFFF;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+}
+
+.fill-toast svg {
+  width: 18px;
+  height: 18px;
+  color: #4ADE80;
+}
+
+.toast-enter-active {
+  animation: toastIn 0.3s ease;
+}
+
+.toast-leave-active {
+  animation: toastOut 0.3s ease;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
 }
 
 .forgot-btn {

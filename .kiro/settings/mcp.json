@@ -22,7 +22,8 @@
         "deploy_edge_function",
         "list_migrations",
         "get_advisors",
-        "list_edge_functions"
+        "list_edge_functions",
+        "search_docs"
       ]
     }
   }

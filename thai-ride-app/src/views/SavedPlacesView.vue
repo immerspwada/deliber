@@ -19,6 +19,7 @@ const saving = ref(false)
 const activeTab = ref<'saved' | 'recent'>('saved')
 const showAddModal = ref(false)
 const editingPlace = ref<any>(null)
+const isSetupMode = ref(false)
 
 const newPlace = ref({
   name: '',
@@ -52,8 +53,36 @@ const workPlace = computed(() => savedPlaces.value.find(p => p.place_type === 'w
 const otherPlaces = computed(() => savedPlaces.value.filter(p => p.place_type === 'other'))
 
 onMounted(async () => {
-  await Promise.all([fetchSavedPlaces(), fetchRecentPlaces()])
-  loading.value = false
+  // Check if this is setup mode (first time after registration)
+  isSetupMode.value = route.query.setup === 'true'
+  
+  // Force loading to false after 3 seconds max
+  const forceStopLoading = setTimeout(() => {
+    if (loading.value) {
+      console.warn('SavedPlacesView: Force stop loading after timeout')
+      loading.value = false
+    }
+  }, 3000)
+  
+  try {
+    // Use Promise.race with timeout for each fetch
+    const fetchWithTimeout = async (fetchFn: () => Promise<any>, timeoutMs = 2500) => {
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => resolve([]), timeoutMs)
+      })
+      return Promise.race([fetchFn(), timeoutPromise])
+    }
+    
+    await Promise.all([
+      fetchWithTimeout(() => fetchSavedPlaces()),
+      fetchWithTimeout(() => fetchRecentPlaces())
+    ])
+  } catch (err) {
+    console.error('Error loading places:', err)
+  } finally {
+    clearTimeout(forceStopLoading)
+    loading.value = false
+  }
   
   // Check if we should open add modal from query param
   const addType = route.query.add as 'home' | 'work' | undefined
@@ -92,8 +121,14 @@ const savePlace = async () => {
   }
   
   saving.value = true
+  
+  // Timeout protection - 10 seconds max
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timeout')), 10000)
+  })
+  
   try {
-    const result = await savePlaceToDb({
+    const savePromise = savePlaceToDb({
       name: newPlace.value.name.trim(),
       address: newPlace.value.address.trim(),
       lat: newPlace.value.lat,
@@ -101,8 +136,14 @@ const savePlace = async () => {
       place_type: newPlace.value.type
     })
     
+    const result = await Promise.race([savePromise, timeoutPromise])
+    
     if (result) {
-      await fetchSavedPlaces()
+      // Fetch with timeout too
+      await Promise.race([
+        fetchSavedPlaces().catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ])
       showAddModal.value = false
       
       const typeLabel = newPlace.value.type === 'home' ? 'บ้าน' : newPlace.value.type === 'work' ? 'ที่ทำงาน' : 'สถานที่'
@@ -110,7 +151,7 @@ const savePlace = async () => {
       
       // Clear query param after successful save
       if (route.query.add) {
-        router.replace({ path: '/saved-places' })
+        router.replace({ path: '/customer/saved-places' })
       }
     } else {
       // Show specific error message based on error type
@@ -123,7 +164,9 @@ const savePlace = async () => {
   } catch (err: any) {
     console.error('Save place error:', err)
     let errorMsg = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+    if (errorMsg === 'Request timeout') {
+      errorMsg = 'การบันทึกใช้เวลานานเกินไป กรุณาลองใหม่'
+    } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
       errorMsg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'
     }
     toast.error(errorMsg)
@@ -165,7 +208,18 @@ const deletePlace = async (id: string) => {
   }
 }
 
-const goBack = () => router.back()
+const goBack = () => {
+  if (isSetupMode.value) {
+    // In setup mode, go to home instead of back
+    router.push('/customer')
+  } else {
+    router.back()
+  }
+}
+
+const skipSetup = () => {
+  router.push('/customer')
+}
 
 // Map preview
 const mapContainer = ref<HTMLElement | null>(null)
@@ -209,6 +263,20 @@ watch(showAddModal, (isOpen) => {
           </svg>
         </button>
         <h1>สถานที่ของฉัน</h1>
+      </div>
+
+      <!-- Setup Mode Welcome Banner -->
+      <div v-if="isSetupMode" class="setup-banner">
+        <div class="setup-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+          </svg>
+        </div>
+        <div class="setup-content">
+          <h3>ยินดีต้อนรับสู่ ThaiRide!</h3>
+          <p>เพิ่มที่อยู่บ้านและที่ทำงานเพื่อการจองที่รวดเร็วขึ้น</p>
+        </div>
+        <button @click="skipSetup" class="skip-btn">ข้าม</button>
       </div>
 
       <!-- Tabs -->
@@ -409,6 +477,83 @@ watch(showAddModal, (isOpen) => {
 </template>
 
 <style scoped>
+/* Page Container */
+.page-container {
+  min-height: 100vh;
+  background-color: #FFFFFF;
+}
+
+.content-container {
+  padding: 0 16px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.tab-content {
+  padding-bottom: 100px;
+}
+
+/* Setup Banner */
+.setup-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #000 0%, #333 100%);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  color: #fff;
+}
+
+.setup-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.setup-icon svg {
+  width: 24px;
+  height: 24px;
+  color: #fff;
+}
+
+.setup-content {
+  flex: 1;
+}
+
+.setup-content h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.setup-content p {
+  font-size: 13px;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+.skip-btn {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 20px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.skip-btn:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .page-header {
   display: flex;
   align-items: center;

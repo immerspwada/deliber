@@ -3,7 +3,6 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
 import { useRideStore } from '../stores/ride'
 import { useOfflineCache } from './useOfflineCache'
-import { useGlobalRequestDedup, RequestKeys } from './useRequestDedup'
 
 export interface SavedPlace {
   id: string
@@ -44,11 +43,47 @@ export interface DriverInfo {
   lng: number
 }
 
+// Helper function to save place to localStorage (for demo mode)
+const savePlaceToLocalStorage = (place: Omit<SavedPlace, 'id'>): SavedPlace => {
+  const STORAGE_KEY = 'demo_saved_places'
+  const existingPlaces: SavedPlace[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+  
+  // Remove existing place of same type (home/work)
+  const filteredPlaces = existingPlaces.filter(p => 
+    place.place_type === 'other' || p.place_type !== place.place_type
+  )
+  
+  const newPlace: SavedPlace = {
+    ...place,
+    id: 'demo-place-' + Date.now()
+  }
+  
+  filteredPlaces.push(newPlace)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredPlaces))
+  
+  console.log('savePlaceToLocalStorage: Saved', newPlace)
+  return newPlace
+}
+
+// Helper function to get places from localStorage (for demo mode)
+const getPlacesFromLocalStorage = (): SavedPlace[] => {
+  const STORAGE_KEY = 'demo_saved_places'
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+}
+
+// Helper function to delete place from localStorage (for demo mode)
+const deletePlaceFromLocalStorage = (id: string): boolean => {
+  const STORAGE_KEY = 'demo_saved_places'
+  const existingPlaces: SavedPlace[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+  const filteredPlaces = existingPlaces.filter(p => p.id !== id)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filteredPlaces))
+  return true
+}
+
 export function useServices() {
   const authStore = useAuthStore()
   const rideStore = useRideStore()
   const { cacheSavedPlaces, getCachedSavedPlaces, cacheRecentPlaces, getCachedRecentPlaces, isOnline, updateLastSync } = useOfflineCache()
-  const { dedupRequest } = useGlobalRequestDedup()
 
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -88,7 +123,14 @@ export function useServices() {
   const fetchSavedPlaces = async (forceRefresh = false) => {
     if (!authStore.user?.id) return []
 
-    const requestKey = RequestKeys.savedPlaces(authStore.user.id)
+    // Check if demo mode - get from localStorage
+    const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+    if (isDemoMode || authStore.user.id.startsWith('user-')) {
+      console.log('fetchSavedPlaces: Demo mode - loading from localStorage')
+      const demoPlaces = getPlacesFromLocalStorage()
+      savedPlaces.value = demoPlaces
+      return demoPlaces
+    }
 
     // Try offline cache first (always check cache first for speed)
     const cached = getCachedSavedPlaces()
@@ -101,29 +143,23 @@ export function useServices() {
       return cached
     }
 
-    // No cache or force refresh - fetch from server
+    // No cache or force refresh - fetch from server with simple timeout
     try {
-      const result = await dedupRequest(
-        requestKey,
-        async () => {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 3000) // Reduced to 3s
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 2500) // 2.5s timeout
 
-          const { data, error: fetchError } = await (supabase
-            .from('saved_places') as any)
-            .select('*')
-            .eq('user_id', authStore.user!.id)
-            .order('place_type', { ascending: true })
-            .abortSignal(controller.signal)
+      const { data, error: fetchError } = await (supabase
+        .from('saved_places') as any)
+        .select('*')
+        .eq('user_id', authStore.user!.id)
+        .order('place_type', { ascending: true })
+        .abortSignal(controller.signal)
 
-          clearTimeout(timeoutId)
+      clearTimeout(timeoutId)
 
-          if (fetchError) throw fetchError
-          return data || []
-        },
-        { ttl: 120000, forceRefresh } // 2 minute TTL
-      )
-
+      if (fetchError) throw fetchError
+      
+      const result = data || []
       savedPlaces.value = result
       cacheSavedPlaces(result)
       updateLastSync()
@@ -157,11 +193,9 @@ export function useServices() {
     }
   }
 
-  // Fetch recent places with timeout protection, caching and deduplication
+  // Fetch recent places with timeout protection and caching
   const fetchRecentPlaces = async (limit = 10, forceRefresh = false) => {
     if (!authStore.user?.id) return []
-
-    const requestKey = RequestKeys.recentPlaces(authStore.user.id)
 
     // Try cache first for speed
     const cached = getCachedRecentPlaces()
@@ -175,28 +209,22 @@ export function useServices() {
     }
 
     try {
-      const result = await dedupRequest(
-        requestKey,
-        async () => {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 3000) // Reduced to 3s
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 2500) // 2.5s timeout
 
-          const { data, error: fetchError } = await (supabase
-            .from('recent_places') as any)
-            .select('*')
-            .eq('user_id', authStore.user!.id)
-            .order('last_used_at', { ascending: false })
-            .limit(limit)
-            .abortSignal(controller.signal)
+      const { data, error: fetchError } = await (supabase
+        .from('recent_places') as any)
+        .select('*')
+        .eq('user_id', authStore.user!.id)
+        .order('last_used_at', { ascending: false })
+        .limit(limit)
+        .abortSignal(controller.signal)
 
-          clearTimeout(timeoutId)
+      clearTimeout(timeoutId)
 
-          if (fetchError) throw fetchError
-          return data || []
-        },
-        { ttl: 60000, forceRefresh } // 1 minute TTL
-      )
-
+      if (fetchError) throw fetchError
+      
+      const result = data || []
       recentPlaces.value = result
       cacheRecentPlaces(result)
       return result
@@ -266,13 +294,6 @@ export function useServices() {
   const savePlace = async (place: Omit<SavedPlace, 'id'>, retryCount = 0): Promise<any> => {
     const MAX_RETRIES = 2
     
-    // Check Supabase configuration
-    if (!isSupabaseConfigured) {
-      console.error('savePlace: Supabase not configured')
-      error.value = 'ระบบยังไม่ได้ตั้งค่า กรุณาติดต่อผู้ดูแล'
-      return null
-    }
-    
     if (!authStore.user?.id) {
       console.warn('savePlace: No user logged in')
       error.value = 'กรุณาเข้าสู่ระบบก่อน'
@@ -281,6 +302,20 @@ export function useServices() {
 
     console.log('savePlace: Starting with user_id:', authStore.user.id)
     console.log('savePlace: Place data:', place)
+    
+    // Check if demo mode - save to localStorage instead
+    const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+    if (isDemoMode || authStore.user.id.startsWith('user-')) {
+      console.log('savePlace: Demo mode - saving to localStorage')
+      return savePlaceToLocalStorage(place)
+    }
+    
+    // Check Supabase configuration
+    if (!isSupabaseConfigured) {
+      console.error('savePlace: Supabase not configured')
+      error.value = 'ระบบยังไม่ได้ตั้งค่า กรุณาติดต่อผู้ดูแล'
+      return null
+    }
 
     try {
       // Delete existing home/work place first
@@ -308,6 +343,8 @@ export function useServices() {
 
       console.log('savePlace: Inserting data:', insertData)
 
+      console.log('savePlace: About to insert with user_id type:', typeof insertData.user_id, 'value:', insertData.user_id)
+      
       const { data, error: insertError } = await (supabase
         .from('saved_places') as any)
         .insert(insertData)
@@ -316,6 +353,9 @@ export function useServices() {
 
       if (insertError) {
         console.error('Insert place error:', insertError)
+        console.error('Insert error code:', insertError.code)
+        console.error('Insert error details:', insertError.details)
+        console.error('Insert error hint:', insertError.hint)
         throw insertError
       }
       
@@ -345,6 +385,15 @@ export function useServices() {
   // Delete a saved place
   const deletePlace = async (placeId: string): Promise<boolean> => {
     if (!authStore.user?.id) return false
+
+    // Check if demo mode - delete from localStorage
+    const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+    if (isDemoMode || authStore.user.id.startsWith('user-')) {
+      console.log('deletePlace: Demo mode - deleting from localStorage')
+      deletePlaceFromLocalStorage(placeId)
+      await fetchSavedPlaces()
+      return true
+    }
 
     try {
       const { error: deleteError } = await (supabase

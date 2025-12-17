@@ -7,6 +7,7 @@ import type { GeoLocation } from '../composables/useLocation'
 const props = defineProps<{
   pickup?: GeoLocation | null
   destination?: GeoLocation | null
+  driverLocation?: { lat: number; lng: number; heading?: number } | null
   showRoute?: boolean
   height?: string
   draggable?: boolean
@@ -33,6 +34,7 @@ const {
 
 const routeInfo = ref<{ distance: number; duration: number } | null>(null)
 const currentLocation = ref<{ lat: number; lng: number } | null>(null)
+const driverMarker = ref<L.Marker | null>(null)
 
 // Haptic feedback for mobile devices
 const triggerHapticFeedback = () => {
@@ -154,6 +156,70 @@ const updateMarkers = async () => {
 watch([() => props.pickup, () => props.destination], () => {
   updateMarkers()
 }, { deep: true })
+
+// Watch driver location for realtime updates
+watch(() => props.driverLocation, (newLocation) => {
+  if (!isMapReady.value || !mapInstance.value) return
+  
+  if (newLocation) {
+    updateDriverMarker(newLocation)
+  } else if (driverMarker.value) {
+    mapInstance.value.removeLayer(driverMarker.value as unknown as L.Layer)
+    driverMarker.value = null
+  }
+}, { deep: true })
+
+// Update or create driver marker with smooth animation
+const updateDriverMarker = (location: { lat: number; lng: number; heading?: number }) => {
+  if (!mapInstance.value) return
+
+  // Create driver icon
+  const rotation = location.heading || 0
+  const driverIcon = L.divIcon({
+    className: 'driver-marker',
+    html: `
+      <div class="driver-marker-inner" style="transform: rotate(${rotation}deg)">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="18" fill="#000" stroke="#fff" stroke-width="3"/>
+          <path d="M20 10L26 26H14L20 10Z" fill="#fff"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  })
+
+  if (driverMarker.value) {
+    // Smooth animation to new position
+    const currentLatLng = driverMarker.value.getLatLng()
+    const newLatLng = L.latLng(location.lat, location.lng)
+    
+    // Animate marker movement
+    const steps = 20
+    const latStep = (newLatLng.lat - currentLatLng.lat) / steps
+    const lngStep = (newLatLng.lng - currentLatLng.lng) / steps
+    let step = 0
+    
+    const animate = () => {
+      if (step < steps && driverMarker.value) {
+        step++
+        const lat = currentLatLng.lat + (latStep * step)
+        const lng = currentLatLng.lng + (lngStep * step)
+        driverMarker.value.setLatLng([lat, lng])
+        requestAnimationFrame(animate)
+      }
+    }
+    
+    animate()
+    driverMarker.value.setIcon(driverIcon)
+  } else {
+    // Create new marker
+    driverMarker.value = L.marker([location.lat, location.lng], {
+      icon: driverIcon,
+      zIndexOffset: 1000
+    }).addTo(mapInstance.value)
+  }
+}
 
 onMounted(async () => {
   if (!mapContainer.value) return
@@ -290,6 +356,26 @@ onMounted(async () => {
 :deep(.custom-marker) {
   background: transparent;
   border: none;
+}
+
+/* Driver marker styles */
+:deep(.driver-marker) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.driver-marker-inner) {
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+:deep(.driver-marker-inner svg) {
+  animation: driver-pulse 2s ease-in-out infinite;
+}
+
+@keyframes driver-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 /* Loading skeleton - Uber style */

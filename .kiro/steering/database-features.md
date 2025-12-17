@@ -10,13 +10,66 @@
 
 ---
 
+## 🆔 Member UID System (กฎสำคัญ)
+
+### หลักการใช้ Member UID
+**ระบบใช้ Member UID เป็นตัวระบุหลักสำหรับลูกค้าทุกคน แทนการใช้อีเมล**
+
+### รูปแบบ Member UID
+- **Format**: `TRD-XXXXXXXX` (TRD = ThaiRide, X = ตัวอักษร/ตัวเลขสุ่ม 8 ตัว)
+- **ตัวอย่าง**: `TRD-A1B2C3D4`, `TRD-XYZ12345`
+- **Column**: `users.member_uid`
+- **Migration**: 027_user_member_uid.sql
+
+### กฎการใช้งาน Member UID
+
+#### 1. การสมัครสมาชิก
+- ✅ **อีเมลไม่บังคับ** - ลูกค้าสามารถสมัครโดยไม่ต้องมีอีเมล
+- ✅ **UID สร้างอัตโนมัติ** - ทุกคนได้รับ Member UID ทันทีหลังสมัคร
+- ✅ **UID ไม่ซ้ำกัน** - ระบบรับประกันความไม่ซ้ำกัน
+
+#### 2. การติดตามข้อมูลลูกค้า
+ใช้ Member UID ในการติดตามทุกอย่าง:
+- 📦 ประวัติการสั่งอาหาร/เรียกรถ/ส่งของ
+- 💰 ประวัติการเติมเงิน/ใช้จ่าย Wallet
+- 🎁 แต้มสะสม Loyalty Points
+- 🎫 การใช้โปรโมชั่น
+- 📞 Support Tickets
+- ⭐ การให้คะแนน/รีวิว
+
+#### 3. Admin Dashboard
+- ✅ ค้นหาลูกค้าด้วย Member UID
+- ✅ แสดง Member UID ในรายการผู้ใช้
+- ✅ ใช้ UID อ้างอิงในทุก transaction
+
+#### 4. การแสดงผล
+- แสดง Member UID ในหน้า Profile
+- ใช้ monospace font สำหรับ UID
+- มีปุ่ม Copy สำหรับคัดลอก UID
+
+### Functions ที่เกี่ยวข้อง
+| Function | รายละเอียด |
+|----------|------------|
+| `generate_member_uid()` | สร้าง UID ใหม่ (Database trigger) |
+| `get_user_by_member_uid()` | ค้นหาผู้ใช้จาก UID |
+| `generateMemberUid()` | สร้าง UID (Frontend - validation.ts) |
+| `validateMemberUid()` | ตรวจสอบรูปแบบ UID |
+| `formatMemberUid()` | จัดรูปแบบ UID |
+
+### ⚠️ ข้อห้าม
+- ❌ **ห้ามใช้อีเมลเป็นตัวระบุหลัก** - ใช้ Member UID แทน
+- ❌ **ห้ามบังคับอีเมลในการสมัคร** - อีเมลเป็น optional
+- ❌ **ห้ามแก้ไข Member UID** - เมื่อสร้างแล้วห้ามเปลี่ยน
+
+---
+
 ## 📋 Feature Registry
 
 ### Core Features (F01-F10)
 
 | รหัส | ฟีเจอร์ | Composable | ตาราง DB | Migration |
 |------|---------|------------|----------|-----------|
-| **F01** | User Authentication | `stores/auth.ts` | `users` | 001 |
+| **F01** | User Authentication & Registration | `stores/auth.ts`, `useAdmin.ts` | `users` (first_name, last_name, national_id, phone_number, verification_status, verified_at, member_uid) | 001, 026, 027 |
 | **F02** | Ride Booking | `useServices.ts`, `stores/ride.ts` | `ride_requests`, `service_providers` | 001, 006 |
 | **F03** | Delivery Service | `useDelivery.ts` | `delivery_requests` | 001, 007 |
 | **F04** | Shopping Service | `useShopping.ts` | `shopping_requests` | 001, 007 |
@@ -71,6 +124,133 @@
 |------|---------|------------|----------|-----------|
 | **F29** | Internationalization (i18n) | `useI18n.ts` | - | - |
 | **F30** | Status Change Audit Log | `useAuditLog.ts` | `status_audit_log` | 018 |
+| **F31** | Real GPS Tracking for Provider | `useProviderTracking.ts` | `service_providers` (current_lat, current_lng) | - |
+| **F32** | Error Monitoring (Sentry) | `lib/sentry.ts` | - | - |
+| **F33** | Realtime Driver Location for Customer | `useDriverTracking.ts` | `service_providers` (realtime) | - |
+| **F34** | Geofencing Alert for Provider | `useGeofencing.ts` | - | - |
+| **F35** | Analytics Dashboard | `useAnalytics.ts` | `ride_requests`, `delivery_requests`, `shopping_requests` | - |
+| **F36** | Surge Pricing System | `useSurgePricing.ts` | `app_settings` | - |
+| **F37** | Provider Performance Score | `useProviderPerformance.ts` | `service_providers`, `ride_ratings` | - |
+| **F38** | App Settings Management | `useAppSettings.ts` | `app_settings` | - |
+| **F39** | Customer Feedback System | `useCustomerFeedback.ts` | `customer_feedback` | 021 |
+| **F40** | Customer Feedback Widget | `FeedbackModal.vue`, `QuickRatingSheet.vue` | `customer_feedback` | 021 |
+| **F41** | Quick Rating Component | `QuickRatingSheet.vue` | `ride_ratings` | - |
+| **F42** | Service Area Management | `useServiceArea.ts` | `service_areas` | 022 |
+| **F43** | Provider Heat Map | `useProviderHeatmap.ts` | `service_providers` | - |
+| **F44** | Admin Live Map | `AdminLiveMapView.vue` | `service_providers` | - |
+| **F45** | ETA Calculator | `useETA.ts` | - | - |
+| **F46** | ETA Display Component | `ETADisplay.vue` | - | - |
+| **F47** | Fare Estimator | `useFareEstimator.ts` | - | - |
+| **F48** | Fare Estimate Display | `FareEstimateCard.vue` | - | - |
+| **F49** | Ride Type Selector | `RideTypeSelector.vue` | - | - |
+| **F50** | Trip Summary Component | `TripSummary.vue` | - | - |
+| **F51** | Receipt Generator | `useReceipt.ts` | `ride_requests` | - |
+| **F52** | Receipt Card Component | `ReceiptCard.vue` | - | - |
+| **F53** | Cancellation System | `useCancellation.ts` | `ride_requests`, `delivery_requests`, `shopping_requests` | - |
+| **F54** | Cancellation Modal | `CancellationModal.vue` | - | - |
+| **F55** | Admin Cancellations View | `AdminCancellationsView.vue` | - | - |
+| **F56** | Tip System | `useTip.ts` | `ride_requests`, `delivery_requests`, `shopping_requests` | - |
+| **F57** | Tip Modal Component | `TipModal.vue` | - | - |
+| **F58** | Ride Status Tracker | `RideStatusTracker.vue` | - | - |
+| **F59** | Driver Info Card | `DriverInfoCard.vue` | - | - |
+| **F60** | Admin Tips View | `AdminTipsView.vue` | - | - |
+| **F61** | Booking Confirmation | `BookingConfirmation.vue` | - | - |
+| **F62** | Search History | `useSearchHistory.ts` | `recent_places` | - |
+| **F63** | Search History List | `SearchHistoryList.vue` | - | - |
+| **F64** | Favorite Places | `FavoritePlaces.vue` | `saved_places` | - |
+| **F65** | Loading States | `LoadingStates.vue` | - | - |
+| **F66** | Empty State | `EmptyState.vue` | - | - |
+| **F67** | Toast Notifications | `useToast.ts`, `ToastContainer.vue` | - | - |
+| **F68** | Confirm Dialog | `ConfirmDialog.vue` | - | - |
+| **F69** | Bottom Sheet | `BottomSheet.vue` | - | - |
+| **F70** | Action Sheet | `ActionSheet.vue` | - | - |
+| **F71** | Rating Stars | `RatingStars.vue` | - | - |
+| **F72** | Price Display | `PriceDisplay.vue` | - | - |
+| **F73** | Badge Component | `Badge.vue` | - | - |
+| **F74** | Avatar Component | `Avatar.vue` | - | - |
+| **F75** | Admin Reports View | `AdminReportsView.vue` | - | - |
+| **F76** | Skeleton Loader | `SkeletonLoader.vue` | - | - |
+| **F77** | Divider Component | `Divider.vue` | - | - |
+| **F78** | Input Field | `InputField.vue` | - | - |
+| **F79** | Select Field | `SelectField.vue` | - | - |
+| **F80** | Switch Toggle | `SwitchToggle.vue` | - | - |
+| **F81** | Checkbox | `Checkbox.vue` | - | - |
+| **F82** | Radio Group | `RadioGroup.vue` | - | - |
+| **F83** | Progress Bar | `ProgressBar.vue` | - | - |
+| **F84** | Tabs Component | `TabsComponent.vue`, `TabPanel.vue` | - | - |
+| **F85** | Accordion | `Accordion.vue` | - | - |
+| **F86** | Tooltip | `Tooltip.vue` | - | - |
+| **F87** | Popover | `Popover.vue` | - | - |
+| **F88** | Card Component | `Card.vue` | - | - |
+| **F89** | List Item | `ListItem.vue` | - | - |
+| **F90** | Button Component | `Button.vue` | - | - |
+| **F91** | Icon Button | `IconButton.vue` | - | - |
+| **F92** | Modal Component | `Modal.vue` | - | - |
+| **F93** | Notification Badge | `NotificationBadge.vue` | - | - |
+| **F94** | Chip/Tag | `Chip.vue` | - | - |
+| **F95** | Search Bar | `SearchBar.vue` | - | - |
+| **F96** | Date Picker | `DatePicker.vue` | - | - |
+| **F97** | Time Picker | `TimePicker.vue` | - | - |
+| **F98** | Stepper | `Stepper.vue` | - | - |
+| **F99** | Counter Input | `CounterInput.vue` | - | - |
+| **F100** | Image Gallery | `ImageGallery.vue` | - | - |
+| **F101** | File Upload | `FileUpload.vue` | - | - |
+| **F102** | TextArea | `TextArea.vue` | - | - |
+| **F103** | Pagination | `Pagination.vue` | - | - |
+| **F104** | Data Table | `DataTable.vue` | - | - |
+| **F105** | Alert Component | `Alert.vue` | - | - |
+| **F106** | Stat Card | `StatCard.vue` | - | - |
+| **F107** | Timeline | `Timeline.vue` | - | - |
+| **F108** | Breadcrumb | `Breadcrumb.vue` | - | - |
+| **F109** | Dropdown Menu | `DropdownMenu.vue` | - | - |
+| **F110** | Floating Action Button | `FloatingActionButton.vue` | - | - |
+| **F111** | Collapsible Section | `CollapsibleSection.vue` | - | - |
+| **F112** | Info Row | `InfoRow.vue` | - | - |
+| **F113** | Section Header | `SectionHeader.vue` | - | - |
+| **F114** | Status Indicator | `StatusIndicator.vue` | - | - |
+| **F115** | Phone Input | `PhoneInput.vue` | - | - |
+| **F116** | OTP Input | `OTPInput.vue` | - | - |
+| **F117** | Currency Input | `CurrencyInput.vue` | - | - |
+| **F118** | Slider | `Slider.vue` | - | - |
+| **F119** | Map Marker | `MapMarker.vue` | - | - |
+| **F120** | Location Card | `LocationCard.vue` | - | - |
+| **F121** | Notification Item | `NotificationItem.vue` | - | - |
+| **F122** | Chat Bubble | `ChatBubble.vue` | - | - |
+| **F123** | Vehicle Type Selector | `VehicleTypeSelector.vue` | - | - |
+| **F124** | Route Line | `RouteLine.vue` | - | - |
+| **F125** | Payment Method Card | `PaymentMethodCard.vue` | - | - |
+| **F126** | Service Card | `ServiceCard.vue` | - | - |
+| **F127** | Driver Card | `DriverCard.vue` | - | - |
+| **F128** | Promo Card | `PromoCard.vue` | - | - |
+| **F129** | Wallet Card | `WalletCard.vue` | - | - |
+| **F130** | Transaction Item | `TransactionItem.vue` | - | - |
+| **F131** | Address Input | `AddressInput.vue` | - | - |
+| **F132** | Ride History Item | `RideHistoryItem.vue` | - | - |
+| **F133** | Rating Input | `RatingInput.vue` | - | - |
+| **F134** | Safety Button (SOS) | `SafetyButton.vue` | - | - |
+| **F135** | Share Trip Card | `ShareTripCard.vue` | - | - |
+| **F136** | Emergency Contact Card | `EmergencyContactCard.vue` | - | - |
+| **F137** | Schedule Ride Card | `ScheduleRideCard.vue` | - | - |
+| **F138** | Fare Split Card | `FareSplitCard.vue` | - | - |
+| **F139** | Subscription Card | `SubscriptionCard.vue` | - | - |
+| **F140** | Insurance Card | `InsuranceCard.vue` | - | - |
+| **F141** | Corporate Account Card | `CorporateAccountCard.vue` | - | - |
+| **F142** | Voice Call Card | `VoiceCallCard.vue` | - | - |
+| **F143** | Support Ticket Card | `SupportTicketCard.vue` | - | - |
+| **F144** | Referral Card | `ReferralCard.vue` | - | - |
+| **F145** | Language Selector | `LanguageSelector.vue` | - | - |
+| **F146** | Notification Settings | `NotificationSettings.vue` | - | - |
+| **F147** | Privacy Settings | `PrivacySettings.vue` | - | - |
+| **F148** | Profile Header | `ProfileHeader.vue` | - | - |
+| **F149** | Menu List | `MenuList.vue` | - | - |
+| **F150** | App Version | `AppVersion.vue` | - | - |
+| **F151** | Admin Components View | `AdminComponentsView.vue` | - | - |
+| **F152** | Provider Earnings Card | `provider/EarningsCard.vue` | - | - |
+| **F153** | Provider Online Toggle | `provider/OnlineToggle.vue` | - | - |
+| **F154** | Ride Request Card | `provider/RideRequestCard.vue` | - | - |
+| **F155** | Trip Progress Card | `provider/TripProgressCard.vue` | - | - |
+| **F156** | Customer Loyalty Program | `useLoyalty.ts`, `LoyaltyView.vue`, `AdminLoyaltyView.vue` | `user_loyalty`, `points_transactions`, `loyalty_rewards`, `user_rewards`, `loyalty_tiers`, `points_rules` | 023 |
+| **F157** | Offline Mode | `useOfflineStorage.ts` | - (IndexedDB) | - |
 
 ---
 
@@ -160,6 +340,16 @@ delivery_ratings        → F26 (Service Ratings)
 shopping_ratings        → F26 (Service Ratings)
 ```
 
+### ตาราง Loyalty Program (F156)
+```
+loyalty_tiers           → F156 (Loyalty Tiers)
+user_loyalty            → F156 (User Loyalty Status)
+points_transactions     → F156 (Points History)
+loyalty_rewards         → F156 (Available Rewards)
+user_rewards            → F156 (Redeemed Rewards)
+points_rules            → F156 (Points Earning Rules)
+```
+
 ---
 
 ## 🔧 Database Functions Reference
@@ -220,6 +410,16 @@ shopping_ratings        → F26 (Service Ratings)
 | `request_withdrawal()` | Request withdrawal | F27 |
 | `get_provider_earnings_summary()` | Get earnings summary | F27, F28 |
 | `get_provider_weekly_hours()` | Get weekly online hours | F28 |
+| `get_feedback_stats()` | Get customer feedback statistics | F39 |
+| `request_feedback_after_service()` | Auto-request feedback trigger | F39 |
+| `get_loyalty_summary()` | Get user loyalty summary with tier | F156 |
+| `add_loyalty_points()` | Add/deduct loyalty points | F156 |
+| `redeem_reward()` | Redeem loyalty reward | F156 |
+| `calculate_points_for_ride()` | Calculate points earned from ride | F156 |
+| `auto_award_points()` | Auto-award points on service completion | F156 |
+| `check_tier_upgrade()` | Check and upgrade user tier | F156 |
+| `generate_member_uid()` | Auto-generate Member UID on user creation | F01 |
+| `get_user_by_member_uid()` | Lookup user by Member UID | F01 |
 
 ---
 
@@ -310,6 +510,13 @@ shopping_ratings        → F26 (Service Ratings)
 | `018_status_audit_log.sql` | Status Change Audit Log | F30 |
 | `019_production_provider_system.sql` | Atomic ride acceptance, Provider functions | F14 |
 | `020_provider_push_and_cancellation.sql` | Provider push notifications, Cancellation tracking | F14, F07 |
+| `021_customer_feedback.sql` | Customer Feedback System, NPS | F39, F40 |
+| `022_service_areas.sql` | Service Area Management | F42 |
+| `023_loyalty_program.sql` | Loyalty Program, Points, Rewards, Tiers | F156 |
+| `024_fix_scheduled_rides_rls.sql` | Fix Scheduled Rides RLS policies | F15 |
+| `025_fix_loyalty_functions.sql` | Fix Loyalty Functions (get_loyalty_summary, redeem_reward) | F156 |
+| `026_registration_system_enhancement.sql` | Registration system enhancement | F01 |
+| `027_user_member_uid.sql` | Member UID system for customer tracking | F01 |
 
 ---
 

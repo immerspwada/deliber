@@ -1,154 +1,380 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+/**
+ * Feature: F21 - Admin Subscription Plans Management
+ * Tables: subscription_plans, user_subscriptions
+ */
+import { ref, onMounted, computed } from 'vue'
+import { supabase } from '../lib/supabase'
 import AdminLayout from '../components/AdminLayout.vue'
 
-// Mock data
-const subscriptions = ref([
-  { id: '1', user_name: 'สมชาย ใจดี', plan: 'Premium', status: 'active', started_at: '2024-12-01', expires_at: '2025-01-01', amount: 599 },
-  { id: '2', user_name: 'สมหญิง รักดี', plan: 'Plus', status: 'active', started_at: '2024-11-15', expires_at: '2024-12-15', amount: 299 },
-  { id: '3', user_name: 'วิชัย มั่งมี', plan: 'Basic', status: 'cancelled', started_at: '2024-10-01', expires_at: '2024-11-01', amount: 99 },
-])
-
-const plans = ref([
-  { id: '1', name: 'Basic', name_th: 'เบสิค', price: 99, subscribers: 150, revenue: 14850 },
-  { id: '2', name: 'Plus', name_th: 'พลัส', price: 299, subscribers: 89, revenue: 26611 },
-  { id: '3', name: 'Premium', name_th: 'พรีเมียม', price: 599, subscribers: 45, revenue: 26955 },
-  { id: '4', name: 'Unlimited', name_th: 'ไม่จำกัด', price: 1299, subscribers: 12, revenue: 15588 },
-])
-
-const activeTab = ref<'subscriptions' | 'plans'>('subscriptions')
-const searchQuery = ref('')
-const statusFilter = ref('all')
-
-const filteredSubscriptions = computed(() => {
-  return subscriptions.value.filter(s => {
-    const matchSearch = s.user_name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    const matchStatus = statusFilter.value === 'all' || s.status === statusFilter.value
-    return matchSearch && matchStatus
-  })
-})
-
-const totalRevenue = computed(() => plans.value.reduce((sum, p) => sum + p.revenue, 0))
-const totalSubscribers = computed(() => plans.value.reduce((sum, p) => sum + p.subscribers, 0))
-
-const getStatusClass = (status: string) => {
-  return {
-    'active': 'status-active',
-    'cancelled': 'status-cancelled',
-    'expired': 'status-expired'
-  }[status] || ''
+interface SubscriptionPlan {
+  id: string
+  name_th: string
+  name_en: string
+  description_th: string
+  plan_type: string
+  billing_cycle: string
+  price: number
+  original_price: number | null
+  discount_percentage: number
+  features: string[]
+  is_active: boolean
+  sort_order: number
+  created_at: string
 }
 
-const getStatusText = (status: string) => {
-  return {
-    'active': 'ใช้งาน',
-    'cancelled': 'ยกเลิก',
-    'expired': 'หมดอายุ'
-  }[status] || status
+interface UserSubscription {
+  id: string
+  user_id: string
+  plan_id: string
+  status: string
+  current_period_end: string
+  auto_renew: boolean
+  cancelled_at: string | null
+  cancel_reason: string | null
+  created_at: string
+  user?: { full_name: string; phone: string }
+  plan?: SubscriptionPlan
+}
+
+const loading = ref(false)
+const plans = ref<SubscriptionPlan[]>([])
+const subscriptions = ref<UserSubscription[]>([])
+const activeTab = ref<'plans' | 'subscriptions'>('plans')
+const searchQuery = ref('')
+const statusFilter = ref('all')
+const showPlanModal = ref(false)
+const editingPlan = ref<SubscriptionPlan | null>(null)
+
+const planForm = ref({
+  name_th: '',
+  name_en: '',
+  description_th: '',
+  plan_type: 'basic',
+  billing_cycle: 'monthly',
+  price: 0,
+  original_price: null as number | null,
+  discount_percentage: 0,
+  features: [] as string[],
+  is_active: true,
+  sort_order: 0
+})
+const newFeature = ref('')
+
+const stats = computed(() => ({
+  totalPlans: plans.value.length,
+  activePlans: plans.value.filter(p => p.is_active).length,
+  totalSubscribers: subscriptions.value.length,
+  activeSubscribers: subscriptions.value.filter(s => s.status === 'active').length,
+  monthlyRevenue: subscriptions.value
+    .filter(s => s.status === 'active')
+    .reduce((sum, s) => sum + (s.plan?.price || 0), 0)
+}))
+
+const filteredSubscriptions = computed(() => {
+  let result = subscriptions.value
+  if (statusFilter.value !== 'all') {
+    result = result.filter(s => s.status === statusFilter.value)
+  }
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(s => 
+      s.user?.full_name?.toLowerCase().includes(q) ||
+      s.user?.phone?.includes(q) ||
+      s.plan?.name_th?.toLowerCase().includes(q)
+    )
+  }
+  return result
+})
+
+onMounted(() => {
+  fetchPlans()
+  fetchSubscriptions()
+})
+
+const fetchPlans = async () => {
+  loading.value = true
+  const { data } = await (supabase.from('subscription_plans') as any)
+    .select('*')
+    .order('sort_order', { ascending: true })
+  plans.value = data || []
+  loading.value = false
+}
+
+const fetchSubscriptions = async () => {
+  const { data } = await (supabase.from('user_subscriptions') as any)
+    .select(`*, user:users(full_name, phone), plan:subscription_plans(*)`)
+    .order('created_at', { ascending: false })
+  subscriptions.value = data || []
+}
+
+const openPlanModal = (plan?: SubscriptionPlan) => {
+  if (plan) {
+    editingPlan.value = plan
+    planForm.value = { ...plan, features: [...plan.features] }
+  } else {
+    editingPlan.value = null
+    planForm.value = {
+      name_th: '', name_en: '', description_th: '', plan_type: 'basic',
+      billing_cycle: 'monthly', price: 0, original_price: null,
+      discount_percentage: 0, features: [], is_active: true, sort_order: plans.value.length
+    }
+  }
+  showPlanModal.value = true
+}
+
+const addFeature = () => {
+  if (newFeature.value.trim()) {
+    planForm.value.features.push(newFeature.value.trim())
+    newFeature.value = ''
+  }
+}
+
+const removeFeature = (idx: number) => {
+  planForm.value.features.splice(idx, 1)
+}
+
+const savePlan = async () => {
+  loading.value = true
+  if (editingPlan.value) {
+    await (supabase.from('subscription_plans') as any)
+      .update(planForm.value)
+      .eq('id', editingPlan.value.id)
+  } else {
+    await (supabase.from('subscription_plans') as any).insert(planForm.value)
+  }
+  showPlanModal.value = false
+  await fetchPlans()
+  loading.value = false
+}
+
+const togglePlanStatus = async (plan: SubscriptionPlan) => {
+  await (supabase.from('subscription_plans') as any)
+    .update({ is_active: !plan.is_active })
+    .eq('id', plan.id)
+  await fetchPlans()
+}
+
+const cancelUserSubscription = async (sub: UserSubscription) => {
+  if (!confirm('ยืนยันยกเลิกแพ็คเกจของผู้ใช้นี้?')) return
+  await (supabase.from('user_subscriptions') as any)
+    .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+    .eq('id', sub.id)
+  await fetchSubscriptions()
+}
+
+const formatPrice = (n: number) => new Intl.NumberFormat('th-TH').format(n)
+const formatDate = (d: string) => new Date(d).toLocaleDateString('th-TH')
+
+const getBillingLabel = (cycle: string) => {
+  const labels: Record<string, string> = {
+    weekly: 'รายสัปดาห์', monthly: 'รายเดือน', quarterly: 'รายไตรมาส', yearly: 'รายปี'
+  }
+  return labels[cycle] || cycle
+}
+
+const getStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    active: '#22c55e', cancelled: '#ef4444', expired: '#6b7280', paused: '#f59e0b'
+  }
+  return colors[status] || '#6b7280'
 }
 </script>
 
 <template>
   <AdminLayout>
-    <div class="admin-page">
-      <div class="page-header">
+    <div class="admin-subscriptions">
+      <header class="page-header">
         <h1>จัดการแพ็คเกจสมาชิก</h1>
-      </div>
+        <button v-if="activeTab === 'plans'" @click="openPlanModal()" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          เพิ่มแพ็คเกจ
+        </button>
+      </header>
 
       <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value">{{ totalSubscribers }}</span>
-            <span class="stat-label">สมาชิกทั้งหมด</span>
-          </div>
+          <span class="stat-value">{{ stats.totalPlans }}</span>
+          <span class="stat-label">แพ็คเกจทั้งหมด</span>
         </div>
         <div class="stat-card">
-          <div class="stat-icon revenue">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value">฿{{ totalRevenue.toLocaleString() }}</span>
-            <span class="stat-label">รายได้รายเดือน</span>
-          </div>
+          <span class="stat-value">{{ stats.activeSubscribers }}</span>
+          <span class="stat-label">สมาชิกปัจจุบัน</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">฿{{ formatPrice(stats.monthlyRevenue) }}</span>
+          <span class="stat-label">รายได้/เดือน</span>
         </div>
       </div>
 
       <!-- Tabs -->
       <div class="tabs">
-        <button :class="['tab', { active: activeTab === 'subscriptions' }]" @click="activeTab = 'subscriptions'">
-          รายการสมาชิก
-        </button>
         <button :class="['tab', { active: activeTab === 'plans' }]" @click="activeTab = 'plans'">
-          แพ็คเกจ
+          แพ็คเกจ ({{ plans.length }})
+        </button>
+        <button :class="['tab', { active: activeTab === 'subscriptions' }]" @click="activeTab = 'subscriptions'">
+          สมาชิก ({{ subscriptions.length }})
         </button>
       </div>
 
+      <!-- Plans Tab -->
+      <div v-if="activeTab === 'plans'" class="plans-grid">
+        <div v-for="plan in plans" :key="plan.id" :class="['plan-card', { inactive: !plan.is_active }]">
+          <div class="plan-header">
+            <span class="plan-type">{{ plan.plan_type }}</span>
+            <span :class="['status-badge', plan.is_active ? 'active' : 'inactive']">
+              {{ plan.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน' }}
+            </span>
+          </div>
+          <h3>{{ plan.name_th }}</h3>
+          <p class="plan-desc">{{ plan.description_th }}</p>
+          <div class="plan-price">
+            <span v-if="plan.original_price" class="original">฿{{ formatPrice(plan.original_price) }}</span>
+            <span class="current">฿{{ formatPrice(plan.price) }}</span>
+            <span class="cycle">/{{ getBillingLabel(plan.billing_cycle) }}</span>
+          </div>
+          <ul class="features-list">
+            <li v-for="(f, i) in plan.features" :key="i">{{ f }}</li>
+          </ul>
+          <div class="plan-actions">
+            <button @click="openPlanModal(plan)" class="btn-edit">แก้ไข</button>
+            <button @click="togglePlanStatus(plan)" :class="plan.is_active ? 'btn-disable' : 'btn-enable'">
+              {{ plan.is_active ? 'ปิด' : 'เปิด' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Subscriptions Tab -->
-      <div v-if="activeTab === 'subscriptions'" class="tab-content">
+      <div v-if="activeTab === 'subscriptions'" class="subscriptions-section">
         <div class="filters">
-          <input v-model="searchQuery" type="text" placeholder="ค้นหาชื่อ..." class="search-input" />
+          <input v-model="searchQuery" type="text" placeholder="ค้นหาชื่อ, เบอร์โทร..." class="search-input"/>
           <select v-model="statusFilter" class="filter-select">
             <option value="all">ทุกสถานะ</option>
-            <option value="active">ใช้งาน</option>
-            <option value="cancelled">ยกเลิก</option>
-            <option value="expired">หมดอายุ</option>
+            <option value="active">Active</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="expired">Expired</option>
           </select>
         </div>
-
         <div class="table-container">
           <table class="data-table">
             <thead>
               <tr>
                 <th>ผู้ใช้</th>
                 <th>แพ็คเกจ</th>
-                <th>สถานะ</th>
-                <th>เริ่มต้น</th>
-                <th>หมดอายุ</th>
                 <th>ราคา</th>
+                <th>สถานะ</th>
+                <th>หมดอายุ</th>
+                <th>จัดการ</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="sub in filteredSubscriptions" :key="sub.id">
-                <td>{{ sub.user_name }}</td>
-                <td>{{ sub.plan }}</td>
-                <td><span :class="['status-badge', getStatusClass(sub.status)]">{{ getStatusText(sub.status) }}</span></td>
-                <td>{{ new Date(sub.started_at).toLocaleDateString('th-TH') }}</td>
-                <td>{{ new Date(sub.expires_at).toLocaleDateString('th-TH') }}</td>
-                <td>฿{{ sub.amount }}</td>
+                <td>
+                  <div class="user-info">
+                    <span class="name">{{ sub.user?.full_name || '-' }}</span>
+                    <span class="phone">{{ sub.user?.phone || '-' }}</span>
+                  </div>
+                </td>
+                <td>{{ sub.plan?.name_th || '-' }}</td>
+                <td>฿{{ formatPrice(sub.plan?.price || 0) }}</td>
+                <td>
+                  <span class="status-dot" :style="{ background: getStatusColor(sub.status) }"></span>
+                  {{ sub.status }}
+                </td>
+                <td>{{ formatDate(sub.current_period_end) }}</td>
+                <td>
+                  <button v-if="sub.status === 'active'" @click="cancelUserSubscription(sub)" class="btn-cancel">
+                    ยกเลิก
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Plans Tab -->
-      <div v-if="activeTab === 'plans'" class="tab-content">
-        <div class="plans-grid">
-          <div v-for="plan in plans" :key="plan.id" class="plan-card">
-            <div class="plan-header">
-              <h3>{{ plan.name_th }}</h3>
-              <span class="plan-price">฿{{ plan.price }}/เดือน</span>
-            </div>
-            <div class="plan-stats">
-              <div class="plan-stat">
-                <span class="stat-value">{{ plan.subscribers }}</span>
-                <span class="stat-label">สมาชิก</span>
+      <!-- Plan Modal -->
+      <div v-if="showPlanModal" class="modal-overlay" @click="showPlanModal = false">
+        <div class="modal-content" @click.stop>
+          <h2>{{ editingPlan ? 'แก้ไขแพ็คเกจ' : 'เพิ่มแพ็คเกจใหม่' }}</h2>
+          <form @submit.prevent="savePlan" class="plan-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>ชื่อ (ไทย)</label>
+                <input v-model="planForm.name_th" required/>
               </div>
-              <div class="plan-stat">
-                <span class="stat-value">฿{{ plan.revenue.toLocaleString() }}</span>
-                <span class="stat-label">รายได้</span>
+              <div class="form-group">
+                <label>ชื่อ (EN)</label>
+                <input v-model="planForm.name_en"/>
               </div>
             </div>
-            <button class="edit-btn">แก้ไข</button>
-          </div>
+            <div class="form-group">
+              <label>รายละเอียด</label>
+              <textarea v-model="planForm.description_th" rows="2"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>ประเภท</label>
+                <select v-model="planForm.plan_type">
+                  <option value="basic">Basic</option>
+                  <option value="plus">Plus</option>
+                  <option value="premium">Premium</option>
+                  <option value="unlimited">Unlimited</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>รอบบิล</label>
+                <select v-model="planForm.billing_cycle">
+                  <option value="weekly">รายสัปดาห์</option>
+                  <option value="monthly">รายเดือน</option>
+                  <option value="quarterly">รายไตรมาส</option>
+                  <option value="yearly">รายปี</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>ราคา (บาท)</label>
+                <input v-model.number="planForm.price" type="number" min="0" required/>
+              </div>
+              <div class="form-group">
+                <label>ราคาเดิม</label>
+                <input v-model.number="planForm.original_price" type="number" min="0"/>
+              </div>
+              <div class="form-group">
+                <label>ส่วนลด %</label>
+                <input v-model.number="planForm.discount_percentage" type="number" min="0" max="100"/>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>สิทธิประโยชน์</label>
+              <div class="features-input">
+                <input v-model="newFeature" @keyup.enter.prevent="addFeature" placeholder="เพิ่มสิทธิประโยชน์"/>
+                <button type="button" @click="addFeature" class="btn-add">+</button>
+              </div>
+              <div class="features-tags">
+                <span v-for="(f, i) in planForm.features" :key="i" class="feature-tag">
+                  {{ f }}
+                  <button type="button" @click="removeFeature(i)">&times;</button>
+                </span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="planForm.is_active"/>
+                <span>เปิดใช้งาน</span>
+              </label>
+            </div>
+            <div class="modal-actions">
+              <button type="button" @click="showPlanModal = false" class="btn-secondary">ยกเลิก</button>
+              <button type="submit" class="btn-primary" :disabled="loading">บันทึก</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -156,220 +382,69 @@ const getStatusText = (status: string) => {
 </template>
 
 <style scoped>
-.admin-page {
-  padding: 24px;
-}
+.admin-subscriptions { padding: 20px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.page-header h1 { font-size: 24px; font-weight: 600; }
+.btn-primary { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #000; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: #fff; padding: 20px; border-radius: 12px; text-align: center; }
+.stat-value { display: block; font-size: 28px; font-weight: 700; }
+.stat-label { font-size: 14px; color: #6b6b6b; }
+.tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.tab { padding: 10px 20px; background: #f6f6f6; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.tab.active { background: #000; color: #fff; }
 
-.page-header {
-  margin-bottom: 24px;
-}
+.plans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.plan-card { background: #fff; border-radius: 12px; padding: 20px; border: 2px solid #e5e5e5; }
+.plan-card.inactive { opacity: 0.6; }
+.plan-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.plan-type { font-size: 12px; font-weight: 600; text-transform: uppercase; padding: 4px 8px; background: #f0f0f0; border-radius: 4px; }
+.status-badge { font-size: 12px; padding: 4px 8px; border-radius: 4px; }
+.status-badge.active { background: #dcfce7; color: #166534; }
+.status-badge.inactive { background: #fee2e2; color: #991b1b; }
+.plan-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.plan-desc { font-size: 14px; color: #6b6b6b; margin-bottom: 12px; }
+.plan-price { margin-bottom: 16px; }
+.plan-price .original { font-size: 14px; color: #999; text-decoration: line-through; margin-right: 8px; }
+.plan-price .current { font-size: 24px; font-weight: 700; }
+.plan-price .cycle { font-size: 14px; color: #6b6b6b; }
+.features-list { list-style: none; padding: 0; margin: 0 0 16px; }
+.features-list li { padding: 6px 0; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+.features-list li::before { content: "✓ "; color: #22c55e; }
+.plan-actions { display: flex; gap: 8px; }
+.btn-edit, .btn-disable, .btn-enable { flex: 1; padding: 10px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; cursor: pointer; background: #fff; }
+.btn-disable { color: #ef4444; }
+.btn-enable { color: #22c55e; }
+.subscriptions-section { background: #fff; border-radius: 12px; padding: 20px; }
+.filters { display: flex; gap: 12px; margin-bottom: 16px; }
+.search-input { flex: 1; padding: 10px 16px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; }
+.filter-select { padding: 10px 16px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; }
+.table-container { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+.data-table th { font-weight: 600; font-size: 12px; color: #6b6b6b; text-transform: uppercase; }
+.user-info { display: flex; flex-direction: column; }
+.user-info .name { font-weight: 500; }
+.user-info .phone { font-size: 12px; color: #6b6b6b; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.btn-cancel { padding: 6px 12px; background: #fee2e2; color: #991b1b; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
 
-.page-header h1 {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  background: #f0f0f0;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stat-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.stat-icon.revenue {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.stat-value {
-  display: block;
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #6b6b6b;
-}
-
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.tab {
-  padding: 12px 24px;
-  border: none;
-  background: #f0f0f0;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.tab.active {
-  background: #000;
-  color: #fff;
-}
-
-.tab-content {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.filters {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.search-input {
-  flex: 1;
-  padding: 10px 16px;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.filter-select {
-  padding: 10px 16px;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #fff;
-}
-
-.table-container {
-  overflow-x: auto;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.data-table th,
-.data-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.data-table th {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b6b6b;
-  text-transform: uppercase;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-active {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-cancelled {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.status-expired {
-  background: #f0f0f0;
-  color: #6b6b6b;
-}
-
-.plans-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-}
-
-.plan-card {
-  border: 1px solid #e5e5e5;
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.plan-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.plan-header h3 {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.plan-price {
-  font-size: 14px;
-  color: #6b6b6b;
-}
-
-.plan-stats {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
-}
-
-.plan-stat {
-  display: flex;
-  flex-direction: column;
-}
-
-.plan-stat .stat-value {
-  font-size: 20px;
-}
-
-.plan-stat .stat-label {
-  font-size: 12px;
-}
-
-.edit-btn {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.edit-btn:hover {
-  background: #f6f6f6;
-}
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+.modal-content { background: #fff; border-radius: 16px; padding: 24px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+.modal-content h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
+.plan-form { display: flex; flex-direction: column; gap: 16px; }
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 14px; font-weight: 500; }
+.form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; }
+.features-input { display: flex; gap: 8px; }
+.features-input input { flex: 1; }
+.btn-add { width: 40px; background: #000; color: #fff; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+.features-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.feature-tag { display: flex; align-items: center; gap: 4px; padding: 4px 10px; background: #f0f0f0; border-radius: 16px; font-size: 13px; }
+.feature-tag button { background: none; border: none; font-size: 16px; cursor: pointer; color: #666; }
+.checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.modal-actions { display: flex; gap: 12px; margin-top: 8px; }
+.btn-secondary { flex: 1; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; }
+.modal-actions .btn-primary { flex: 1; justify-content: center; }
 </style>

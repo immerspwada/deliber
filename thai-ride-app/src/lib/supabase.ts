@@ -47,16 +47,55 @@ export const signIn = async (email: string, password: string) => {
   return { data, error }
 }
 
-export const signInWithPhone = async (phone: string) => {
+// Email OTP (Magic Link alternative with 6-digit code)
+export const signInWithEmailOtp = async (email: string) => {
+  console.log('[Email OTP] Sending to:', email)
+  
   const { data, error } = await supabase.auth.signInWithOtp({
-    phone
+    email: email,
+    options: {
+      shouldCreateUser: true // สร้าง user ใหม่ถ้ายังไม่มี
+    }
   })
   return { data, error }
 }
 
-export const verifyOtp = async (phone: string, token: string) => {
+export const verifyEmailOtp = async (email: string, token: string) => {
   const { data, error } = await supabase.auth.verifyOtp({
-    phone,
+    email: email,
+    token,
+    type: 'email'
+  })
+  return { data, error }
+}
+
+// Legacy phone functions (kept for compatibility)
+export const signInWithPhone = async (phone: string) => {
+  let formattedPhone = phone.replace(/[\s\-\(\)]/g, '')
+  
+  if (formattedPhone.startsWith('0')) {
+    formattedPhone = '+66' + formattedPhone.substring(1)
+  } else if (!formattedPhone.startsWith('+')) {
+    formattedPhone = '+66' + formattedPhone
+  }
+  
+  const { data, error } = await supabase.auth.signInWithOtp({
+    phone: formattedPhone
+  })
+  return { data, error, formattedPhone }
+}
+
+export const verifyOtp = async (phone: string, token: string) => {
+  let formattedPhone = phone.replace(/[\s\-\(\)]/g, '')
+  
+  if (formattedPhone.startsWith('0')) {
+    formattedPhone = '+66' + formattedPhone.substring(1)
+  } else if (!formattedPhone.startsWith('+')) {
+    formattedPhone = '+66' + formattedPhone
+  }
+  
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone: formattedPhone,
     token,
     type: 'sms'
   })
@@ -64,8 +103,14 @@ export const verifyOtp = async (phone: string, token: string) => {
 }
 
 export const signOut = async () => {
-  const { error } = await supabase.auth.signOut()
-  return { error }
+  // Add timeout to prevent hanging on slow network
+  const timeoutPromise = new Promise<{ error: Error }>((resolve) => 
+    setTimeout(() => resolve({ error: new Error('Logout timeout') }), 3000)
+  )
+  
+  const signOutPromise = supabase.auth.signOut().then(({ error }) => ({ error }))
+  
+  return Promise.race([signOutPromise, timeoutPromise])
 }
 
 export const getCurrentUser = async () => {

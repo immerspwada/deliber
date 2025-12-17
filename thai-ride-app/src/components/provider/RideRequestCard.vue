@@ -1,326 +1,314 @@
 <script setup lang="ts">
+/**
+ * Feature: F154 - Ride Request Card (Provider)
+ * Display incoming ride request for provider to accept/decline
+ */
 import { ref, onMounted, onUnmounted } from 'vue'
 
 interface RideRequest {
   id: string
   tracking_id?: string
+  user_id: string
+  pickup_lat: number
+  pickup_lng: number
   pickup_address: string
+  destination_lat: number
+  destination_lng: number
   destination_address: string
-  ride_type: string
   estimated_fare: number
-  distance?: number
-  duration?: number
+  estimated_distance?: number
+  estimated_duration?: number
+  status: string
+  payment_method?: string
   passenger_name?: string
   passenger_rating?: number
-  created_at: string
 }
 
-const props = defineProps<{
+interface Props {
   request: RideRequest
   autoDeclineSeconds?: number
-}>()
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  autoDeclineSeconds: 30
+})
 
 const emit = defineEmits<{
-  'accept': []
-  'decline': []
+  accept: []
+  decline: []
 }>()
 
-const countdown = ref(props.autoDeclineSeconds || 30)
-let countdownInterval: number | null = null
+const timeLeft = ref(props.autoDeclineSeconds)
+let timer: number | undefined
 
 onMounted(() => {
-  if (props.autoDeclineSeconds) {
-    countdownInterval = window.setInterval(() => {
-      countdown.value--
-      if (countdown.value <= 0) {
-        emit('decline')
-      }
-    }, 1000)
-  }
+  timer = window.setInterval(() => {
+    timeLeft.value--
+    if (timeLeft.value <= 0) {
+      emit('decline')
+    }
+  }, 1000)
 })
 
 onUnmounted(() => {
-  if (countdownInterval) {
-    clearInterval(countdownInterval)
-  }
+  if (timer) clearInterval(timer)
 })
 
-const rideTypeLabel = (type: string) => {
-  switch (type) {
-    case 'premium': return 'Premium'
-    case 'shared': return 'Shared'
-    default: return 'Standard'
-  }
+
+const progressPercent = () => {
+  return (timeLeft.value / props.autoDeclineSeconds) * 100
+}
+
+const formatDistance = (meters?: number) => {
+  if (!meters) return '-'
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} กม.` : `${meters} ม.`
 }
 </script>
 
 <template>
-  <div class="request-card">
-    <!-- Countdown -->
-    <div v-if="autoDeclineSeconds" class="countdown-bar">
-      <div 
-        class="countdown-fill" 
-        :style="{ width: `${(countdown / autoDeclineSeconds) * 100}%` }"
-      ></div>
+  <div class="ride-request-card">
+    <div class="timer-bar">
+      <div class="timer-fill" :style="{ width: `${progressPercent()}%` }" />
     </div>
-
-    <!-- Header -->
-    <div class="request-header">
-      <div class="request-type">
-        <span class="type-badge" :class="request.ride_type">
-          {{ rideTypeLabel(request.ride_type) }}
+    
+    <div class="card-header">
+      <span class="request-label">คำขอเรียกรถใหม่</span>
+      <span class="timer-text">{{ timeLeft }}s</span>
+    </div>
+    
+    <div class="customer-info">
+      <div class="customer-avatar">{{ (request.passenger_name || 'U')[0] }}</div>
+      <div class="customer-details">
+        <span class="customer-name">{{ request.passenger_name || 'ผู้โดยสาร' }}</span>
+        <span v-if="request.passenger_rating" class="customer-rating">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          {{ request.passenger_rating.toFixed(1) }}
         </span>
-        <span v-if="autoDeclineSeconds" class="countdown-text">{{ countdown }}s</span>
       </div>
-      <div class="request-fare">฿{{ request.estimated_fare }}</div>
+      <span class="payment-badge">{{ request.payment_method || 'เงินสด' }}</span>
     </div>
-
-    <!-- Passenger Info -->
-    <div v-if="request.passenger_name" class="passenger-row">
-      <div class="passenger-avatar">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-        </svg>
+    
+    <div class="route-section">
+      <div class="route-point pickup">
+        <div class="point-dot" />
+        <div class="point-info">
+          <span class="point-label">รับ</span>
+          <span class="point-address">{{ request.pickup_address }}</span>
+        </div>
       </div>
-      <span class="passenger-name">{{ request.passenger_name }}</span>
-      <div v-if="request.passenger_rating" class="passenger-rating">
-        <svg fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-        </svg>
-        <span>{{ request.passenger_rating }}</span>
-      </div>
-    </div>
-
-    <!-- Route -->
-    <div class="route-info">
-      <div class="route-point">
-        <div class="route-dot pickup"></div>
-        <span>{{ request.pickup_address }}</span>
-      </div>
-      <div class="route-line"></div>
-      <div class="route-point">
-        <div class="route-dot destination"></div>
-        <span>{{ request.destination_address }}</span>
+      <div class="route-line" />
+      <div class="route-point destination">
+        <div class="point-dot" />
+        <div class="point-info">
+          <span class="point-label">ส่ง</span>
+          <span class="point-address">{{ request.destination_address }}</span>
+        </div>
       </div>
     </div>
-
-    <!-- Meta -->
-    <div class="request-meta">
-      <span v-if="request.distance" class="meta-item">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-        </svg>
-        {{ request.distance }} กม.
-      </span>
-      <span v-if="request.duration" class="meta-item">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        {{ request.duration }} นาที
-      </span>
+    
+    <div class="trip-info">
+      <div class="info-item">
+        <span class="info-label">ระยะทาง</span>
+        <span class="info-value">{{ formatDistance(request.estimated_distance) }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">ค่าโดยสาร</span>
+        <span class="info-value fare">฿{{ request.estimated_fare?.toLocaleString() || '-' }}</span>
+      </div>
     </div>
-
-    <!-- Actions -->
-    <div class="request-actions">
-      <button @click="$emit('decline')" class="btn-decline">
-        ปฏิเสธ
-      </button>
-      <button @click="$emit('accept')" class="btn-accept">
-        รับงาน
-      </button>
+    
+    <div class="card-actions">
+      <button type="button" class="decline-btn" @click="emit('decline')">ปฏิเสธ</button>
+      <button type="button" class="accept-btn" @click="emit('accept')">รับงาน</button>
     </div>
   </div>
 </template>
 
+
 <style scoped>
-.request-card {
-  background: white;
-  border-radius: 16px;
+.ride-request-card {
+  background: #fff;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
-/* Countdown */
-.countdown-bar {
+.timer-bar {
   height: 4px;
-  background: #E5E5E5;
+  background: #e5e5e5;
 }
 
-.countdown-fill {
+.timer-fill {
   height: 100%;
-  background: #000;
+  background: #2e7d32;
   transition: width 1s linear;
 }
 
-/* Header */
-.request-header {
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 16px 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.request-type {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.type-badge {
-  padding: 4px 10px;
-  background: #F6F6F6;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.type-badge.premium {
-  background: #000;
-  color: white;
-}
-
-.countdown-text {
-  font-size: 13px;
-  color: #E11900;
+.request-label {
+  font-size: 14px;
   font-weight: 600;
+  color: #2e7d32;
 }
 
-.request-fare {
-  font-size: 24px;
+.timer-text {
+  font-size: 16px;
   font-weight: 700;
-  color: #000000;
+  color: #000;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Passenger */
-.passenger-row {
+.customer-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px 12px;
+  gap: 12px;
+  padding: 16px 20px;
 }
 
-.passenger-avatar {
-  width: 32px;
-  height: 32px;
-  background: #F6F6F6;
-  border-radius: 50%;
+.customer-avatar {
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.passenger-avatar svg {
-  width: 18px;
-  height: 18px;
-  color: #666;
-}
-
-.passenger-name {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.passenger-rating {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-  font-size: 13px;
-  color: #666;
-}
-
-.passenger-rating svg {
-  width: 14px;
-  height: 14px;
-  color: #F59E0B;
-}
-
-/* Route */
-.route-info {
-  padding: 0 16px 12px;
-}
-
-.route-point {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-}
-
-.route-dot {
-  width: 10px;
-  height: 10px;
+  background: #f6f6f6;
   border-radius: 50%;
-  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #000;
 }
 
-.route-dot.pickup {
-  background: #22C55E;
+.customer-details { flex: 1; }
+
+.customer-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  display: block;
 }
 
-.route-dot.destination {
-  background: #000;
-}
-
-.route-line {
-  width: 2px;
-  height: 16px;
-  background: #E5E5E5;
-  margin-left: 4px;
-}
-
-/* Meta */
-.request-meta {
-  display: flex;
-  gap: 16px;
-  padding: 0 16px 16px;
-}
-
-.meta-item {
+.customer-rating {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  color: #666;
+  color: #6b6b6b;
 }
 
-.meta-item svg {
-  width: 16px;
-  height: 16px;
+.customer-rating svg { color: #ffc107; }
+
+.payment-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  background: #f6f6f6;
+  border-radius: 6px;
+  color: #6b6b6b;
 }
 
-/* Actions */
-.request-actions {
+.route-section {
+  padding: 0 20px 16px;
+  position: relative;
+}
+
+.route-point {
   display: flex;
-  border-top: 1px solid #E5E5E5;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.btn-decline,
-.btn-accept {
+.route-point.pickup { margin-bottom: 12px; }
+
+.point-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.pickup .point-dot { background: #2e7d32; }
+.destination .point-dot { border: 3px solid #000; }
+
+.route-line {
+  position: absolute;
+  left: 25px;
+  top: 20px;
+  bottom: 24px;
+  width: 2px;
+  background: #e5e5e5;
+}
+
+.point-label {
+  font-size: 11px;
+  color: #6b6b6b;
+  text-transform: uppercase;
+  display: block;
+}
+
+.point-address {
+  font-size: 14px;
+  font-weight: 500;
+  color: #000;
+}
+
+.trip-info {
+  display: flex;
+  padding: 16px 20px;
+  background: #f6f6f6;
+  gap: 24px;
+}
+
+.info-item { flex: 1; }
+
+.info-label {
+  font-size: 12px;
+  color: #6b6b6b;
+  display: block;
+}
+
+.info-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+}
+
+.info-value.fare { color: #2e7d32; }
+
+.card-actions {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.decline-btn, .accept-btn {
   flex: 1;
   padding: 16px;
   border: none;
-  font-size: 15px;
+  border-radius: 12px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.btn-decline {
-  background: white;
-  color: #666;
+.decline-btn {
+  background: #f6f6f6;
+  color: #6b6b6b;
 }
 
-.btn-decline:hover {
-  background: #F6F6F6;
+.accept-btn {
+  background: #2e7d32;
+  color: #fff;
 }
 
-.btn-accept {
-  background: #000;
-  color: white;
-}
-
-.btn-accept:hover {
-  opacity: 0.9;
-}
+.accept-btn:hover { background: #1b5e20; }
 </style>

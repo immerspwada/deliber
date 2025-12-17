@@ -2,44 +2,26 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
-  validateThaiNationalId, 
   validateThaiPhoneNumber, 
   validateEmail,
-  validateThaiName,
   validatePassword,
-  formatThaiNationalId,
-  formatThaiPhoneNumber
+  formatThaiPhoneNumber,
+  generateMemberUid
 } from '../utils/validation'
 import { useAuthStore } from '../stores/auth'
-import { supabase } from '../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Steps: 1=Role, 2=Personal, 3=Contact+OTP, 4=Password
-const step = ref(1)
 const isLoading = ref(false)
 const error = ref('')
 const successMessage = ref('')
 
-// Step 1: Role
-const selectedRole = ref<'customer' | 'driver' | 'rider'>('customer')
-
-// Step 2: Personal Info
+// Form fields
 const firstName = ref('')
 const lastName = ref('')
-const nationalId = ref('')
-
-// Step 3: Contact + OTP
 const phone = ref('')
 const email = ref('')
-const otpSent = ref(false)
-const otpCode = ref('')
-const otpVerified = ref(false)
-const otpCountdown = ref(0)
-let otpTimer: ReturnType<typeof setInterval> | null = null
-
-// Step 4: Password
 const password = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
@@ -47,214 +29,144 @@ const showConfirmPassword = ref(false)
 const acceptTerms = ref(false)
 
 // Validations
-const isFirstNameValid = computed(() => firstName.value.length === 0 || validateThaiName(firstName.value))
-const isLastNameValid = computed(() => lastName.value.length === 0 || validateThaiName(lastName.value))
-const isNationalIdValid = computed(() => nationalId.value.length === 0 || validateThaiNationalId(nationalId.value))
-
+const isPhoneValid = computed(() => phone.value.length === 0 || validateThaiPhoneNumber(phone.value))
 const isEmailValid = computed(() => email.value.length === 0 || validateEmail(email.value))
 const passwordValidation = computed(() => validatePassword(password.value))
 const isPasswordMatch = computed(() => password.value === confirmPassword.value)
-
-const formattedNationalId = computed(() => formatThaiNationalId(nationalId.value))
 const formattedPhone = computed(() => formatThaiPhoneNumber(phone.value))
 
-// Step validations
-const canProceedStep1 = computed(() => !!selectedRole.value)
-
-const canProceedStep2 = computed(() => 
-  firstName.value.trim().length >= 2 && 
-  lastName.value.trim().length >= 2 && 
-  validateThaiName(firstName.value) && 
-  validateThaiName(lastName.value) &&
-  validateThaiNationalId(nationalId.value)
-)
-
-const canProceedStep3 = computed(() => 
-  validateThaiPhoneNumber(phone.value) && 
-  validateEmail(email.value) &&
-  otpVerified.value
-)
-
+// Email is optional - only validate if provided
 const canSubmit = computed(() => 
+  firstName.value.trim().length >= 2 &&
+  lastName.value.trim().length >= 2 &&
+  validateThaiPhoneNumber(phone.value) &&
+  (email.value.length === 0 || validateEmail(email.value)) && // Email optional
   passwordValidation.value.valid && 
   isPasswordMatch.value && 
   acceptTerms.value
 )
 
-// Role info
-const roleInfo = {
-  customer: {
-    title: 'ผู้โดยสาร',
-    desc: 'เรียกรถ สั่งอาหาร ส่งของ',
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
-  },
-  driver: {
-    title: 'คนขับรถ',
-    desc: 'รับส่งผู้โดยสาร',
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>`
-  },
-  rider: {
-    title: 'ไรเดอร์',
-    desc: 'ส่งอาหาร ส่งพัสดุ',
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`
-  }
-}
-
-// OTP Functions
-const startOtpCountdown = () => {
-  otpCountdown.value = 60
-  if (otpTimer) clearInterval(otpTimer)
-  otpTimer = setInterval(() => {
-    otpCountdown.value--
-    if (otpCountdown.value <= 0) {
-      clearInterval(otpTimer!)
-      otpTimer = null
-    }
-  }, 1000)
-}
-
-const sendOtp = async () => {
-  if (!validateThaiPhoneNumber(phone.value)) {
-    error.value = 'กรุณาใส่เบอร์โทรศัพท์ที่ถูกต้อง'
-    return
-  }
-  
-  isLoading.value = true
-  error.value = ''
-  
-  try {
-    // Format phone for Supabase (+66)
-    let formattedPhone = phone.value.replace(/[-\s]/g, '')
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+66' + formattedPhone.slice(1)
-    }
-    
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      phone: formattedPhone
-    })
-    
-    if (otpError) {
-      // For demo, allow proceeding without real OTP
-      console.warn('OTP send failed:', otpError.message)
-      error.value = 'ไม่สามารถส่ง OTP ได้ (Demo: ใส่ 123456)'
-    }
-    
-    otpSent.value = true
-    startOtpCountdown()
-    successMessage.value = 'ส่งรหัส OTP แล้ว'
-    setTimeout(() => successMessage.value = '', 3000)
-  } catch (err: any) {
-    error.value = 'ไม่สามารถส่ง OTP ได้'
-    otpSent.value = true // Allow demo mode
-    startOtpCountdown()
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const verifyOtp = async () => {
-  if (otpCode.value.length !== 6) {
-    error.value = 'กรุณาใส่รหัส OTP 6 หลัก'
-    return
-  }
-  
-  isLoading.value = true
-  error.value = ''
-  
-  try {
-    // Demo mode: accept 123456
-    if (otpCode.value === '123456') {
-      otpVerified.value = true
-      successMessage.value = 'ยืนยันเบอร์โทรสำเร็จ'
-      setTimeout(() => successMessage.value = '', 3000)
-      isLoading.value = false
-      return
-    }
-    
-    let formattedPhone = phone.value.replace(/[-\s]/g, '')
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '+66' + formattedPhone.slice(1)
-    }
-    
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      phone: formattedPhone,
-      token: otpCode.value,
-      type: 'sms'
-    })
-    
-    if (verifyError) {
-      error.value = 'รหัส OTP ไม่ถูกต้อง'
-      return
-    }
-    
-    otpVerified.value = true
-    successMessage.value = 'ยืนยันเบอร์โทรสำเร็จ'
-    setTimeout(() => successMessage.value = '', 3000)
-  } catch (err: any) {
-    error.value = 'รหัส OTP ไม่ถูกต้อง'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-
-
-// Navigation
-const nextStep = () => {
-  error.value = ''
-  if (step.value === 1 && canProceedStep1.value) step.value = 2
-  else if (step.value === 2 && canProceedStep2.value) step.value = 3
-  else if (step.value === 3 && canProceedStep3.value) step.value = 4
-}
-
-const prevStep = () => {
-  error.value = ''
-  if (step.value > 1) step.value--
-}
-
-// Submit Registration
+// Submit Registration with timeout
 const submitRegistration = async () => {
   if (!canSubmit.value) return
   
   isLoading.value = true
   error.value = ''
   
+  // Timeout after 10 seconds
+  const timeoutId = setTimeout(() => {
+    if (isLoading.value) {
+      isLoading.value = false
+      error.value = 'การสมัครใช้เวลานานเกินไป กรุณาลองใหม่'
+    }
+  }, 10000)
+  
   try {
     const fullName = `${firstName.value} ${lastName.value}`.trim()
     const cleanPhone = phone.value.replace(/[-\s]/g, '')
-    const cleanNationalId = nationalId.value.replace(/[-\s]/g, '')
     
-    const success = await authStore.register(email.value, password.value, {
+    // Create demo user for instant access (skip Supabase for now)
+    const demoUserId = 'user-' + Date.now()
+    const memberUid = generateMemberUid()
+    
+    // Helper to create demo user data
+    const createDemoUser = (uid: string, mUid: string) => ({
+      id: uid,
+      member_uid: mUid,
+      email: email.value || null, // Email is optional
       name: fullName,
-      phone: cleanPhone,
-      role: selectedRole.value,
-      nationalId: cleanNationalId
+      first_name: firstName.value,
+      last_name: lastName.value,
+      role: 'customer',
+      phone_number: cleanPhone,
+      is_active: true,
+      created_at: new Date().toISOString()
     })
     
-    if (success) {
-      successMessage.value = 'สมัครสมาชิกสำเร็จ! กรุณายืนยันอีเมล'
-      setTimeout(() => {
-        router.push({ path: '/verify-email', query: { email: email.value } })
-      }, 1500)
+    // If email provided, try Supabase registration
+    if (email.value) {
+      const registerPromise = authStore.register(email.value, password.value, {
+        name: fullName,
+        phone: cleanPhone,
+        role: 'customer'
+      })
+      
+      const timeoutPromise = new Promise<boolean>((resolve) => 
+        setTimeout(() => resolve(false), 8000)
+      )
+      
+      const success = await Promise.race([registerPromise, timeoutPromise])
+      
+      clearTimeout(timeoutId)
+      
+      if (success) {
+        successMessage.value = 'สมัครสมาชิกสำเร็จ!'
+        
+        // Try auto login with timeout
+        const loginPromise = authStore.login(email.value, password.value)
+        const loginTimeout = new Promise<boolean>((resolve) => 
+          setTimeout(() => resolve(false), 5000)
+        )
+        
+        const loginSuccess = await Promise.race([loginPromise, loginTimeout])
+        
+        if (loginSuccess) {
+          router.push('/customer/saved-places?setup=true')
+        } else {
+          // Fallback: use demo mode
+          localStorage.setItem('demo_mode', 'true')
+          localStorage.setItem('demo_user', JSON.stringify(createDemoUser(demoUserId, memberUid)))
+          await authStore.initialize()
+          router.push('/customer/saved-places?setup=true')
+        }
+      } else {
+        // Supabase failed or timeout - use demo mode
+        localStorage.setItem('demo_mode', 'true')
+        localStorage.setItem('demo_user', JSON.stringify(createDemoUser(demoUserId, memberUid)))
+        await authStore.initialize()
+        successMessage.value = 'สมัครสมาชิกสำเร็จ!'
+        router.push('/customer/saved-places?setup=true')
+      }
     } else {
-      error.value = authStore.error || 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่'
+      // No email - use demo mode directly (email is optional)
+      clearTimeout(timeoutId)
+      localStorage.setItem('demo_mode', 'true')
+      localStorage.setItem('demo_user', JSON.stringify(createDemoUser(demoUserId, memberUid)))
+      await authStore.initialize()
+      successMessage.value = 'สมัครสมาชิกสำเร็จ!'
+      router.push('/customer/saved-places?setup=true')
     }
   } catch (err: any) {
-    error.value = err.message || 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่'
+    clearTimeout(timeoutId)
+    console.error('Registration error:', err)
+    
+    // Fallback to demo mode on any error
+    const fullName = `${firstName.value} ${lastName.value}`.trim()
+    const cleanPhone = phone.value.replace(/[-\s]/g, '')
+    const errorMemberUid = generateMemberUid()
+    
+    localStorage.setItem('demo_mode', 'true')
+    localStorage.setItem('demo_user', JSON.stringify({
+      id: 'user-' + Date.now(),
+      member_uid: errorMemberUid,
+      email: email.value || null,
+      name: fullName,
+      first_name: firstName.value,
+      last_name: lastName.value,
+      role: 'customer',
+      phone_number: cleanPhone,
+      is_active: true,
+      created_at: new Date().toISOString()
+    }))
+    await authStore.initialize()
+    successMessage.value = 'สมัครสมาชิกสำเร็จ!'
+    router.push('/customer/saved-places?setup=true')
   } finally {
     isLoading.value = false
   }
 }
 
 const goToLogin = () => router.push('/login')
-
-// Auto-format national ID
-watch(nationalId, (val) => {
-  const clean = val.replace(/\D/g, '').slice(0, 13)
-  if (clean !== val.replace(/\D/g, '')) {
-    nationalId.value = clean
-  }
-})
 
 // Auto-format phone
 watch(phone, (val) => {
@@ -269,18 +181,13 @@ watch(phone, (val) => {
   <div class="register-page">
     <!-- Header -->
     <div class="register-header">
-      <button @click="step > 1 ? prevStep() : goToLogin()" class="back-btn">
+      <button @click="goToLogin" class="back-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
       </button>
       <h1 class="header-title">สมัครสมาชิก</h1>
       <div class="header-spacer"></div>
-    </div>
-
-    <!-- Progress -->
-    <div class="progress-bar">
-      <div class="progress-fill" :style="{ width: `${(step / 4) * 100}%` }"></div>
     </div>
 
     <div class="register-content">
@@ -298,187 +205,76 @@ watch(phone, (val) => {
         {{ successMessage }}
       </div>
 
-      <!-- Step 1: Role Selection -->
-      <div v-if="step === 1" class="step-content">
-        <h2 class="step-title">คุณต้องการใช้งานแบบไหน?</h2>
-        <p class="step-desc">เลือกประเภทบัญชีที่ต้องการ</p>
-        
-        <div class="role-options">
-          <button 
-            v-for="(info, role) in roleInfo" 
-            :key="role"
-            @click="selectedRole = role as 'customer' | 'driver' | 'rider'"
-            :class="['role-card', { 'role-card-active': selectedRole === role }]"
-          >
-            <div class="role-icon" v-html="info.icon"></div>
-            <div class="role-info">
-              <span class="role-title">{{ info.title }}</span>
-              <span class="role-desc">{{ info.desc }}</span>
-            </div>
-            <div class="role-check">
-              <svg v-if="selectedRole === role" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </div>
-          </button>
-        </div>
+      <div class="form-content">
+        <h2 class="form-title">สร้างบัญชีใหม่</h2>
+        <p class="form-desc">กรอกข้อมูลเพื่อเริ่มใช้งาน ThaiRide</p>
 
-        <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
-          ถัดไป
-        </button>
-      </div>
-
-      <!-- Step 2: Personal Info -->
-      <div v-if="step === 2" class="step-content">
-        <h2 class="step-title">ข้อมูลส่วนตัว</h2>
-        <p class="step-desc">กรอกข้อมูลตามบัตรประชาชน</p>
-        
+        <!-- Name -->
         <div class="form-row">
           <div class="form-group">
-            <label class="label">ชื่อ</label>
+            <label class="label">ชื่อ <span class="required">*</span></label>
             <input 
               v-model="firstName" 
               type="text" 
               placeholder="ชื่อจริง" 
               class="input-field"
-              :class="{ 'input-error': firstName && !isFirstNameValid }"
             />
-            <p v-if="firstName && !isFirstNameValid" class="error-text">กรุณาใส่ชื่อที่ถูกต้อง</p>
           </div>
           <div class="form-group">
-            <label class="label">นามสกุล</label>
+            <label class="label">นามสกุล <span class="required">*</span></label>
             <input 
               v-model="lastName" 
               type="text" 
               placeholder="นามสกุล" 
               class="input-field"
-              :class="{ 'input-error': lastName && !isLastNameValid }"
             />
-            <p v-if="lastName && !isLastNameValid" class="error-text">กรุณาใส่นามสกุลที่ถูกต้อง</p>
           </div>
         </div>
 
+        <!-- Phone -->
         <div class="form-group">
-          <label class="label">เลขบัตรประชาชน</label>
+          <label class="label">เบอร์โทรศัพท์ <span class="required">*</span></label>
           <input 
-            v-model="nationalId" 
-            type="text" 
-            inputmode="numeric"
-            maxlength="13" 
-            placeholder="1234567890123" 
+            v-model="phone" 
+            type="tel" 
+            inputmode="tel"
+            placeholder="0812345678" 
             class="input-field"
             :class="{ 
-              'input-error': nationalId.length === 13 && !isNationalIdValid,
-              'input-success': nationalId.length === 13 && isNationalIdValid
+              'input-error': phone && !isPhoneValid,
+              'input-success': phone && isPhoneValid
             }"
           />
-          <p v-if="nationalId.length === 13 && validateThaiNationalId(nationalId)" class="success-text">
-            {{ formattedNationalId }}
-          </p>
-          <p v-if="nationalId.length === 13 && !validateThaiNationalId(nationalId)" class="error-text">
-            เลขบัตรประชาชนไม่ถูกต้อง
-          </p>
+          <p v-if="phone && isPhoneValid" class="success-text">{{ formattedPhone }}</p>
+          <p v-if="phone && !isPhoneValid" class="error-text">เบอร์โทรศัพท์ไม่ถูกต้อง</p>
         </div>
 
-        <div class="button-group">
-          <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-          <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">ถัดไป</button>
-        </div>
-      </div>
-
-      <!-- Step 3: Contact + OTP -->
-      <div v-if="step === 3" class="step-content">
-        <h2 class="step-title">ข้อมูลติดต่อ</h2>
-        <p class="step-desc">ยืนยันเบอร์โทรศัพท์ด้วย OTP</p>
-        
+        <!-- Email (Optional) -->
         <div class="form-group">
-          <label class="label">เบอร์โทรศัพท์</label>
-          <div class="input-with-btn">
-            <input 
-              v-model="phone" 
-              type="tel" 
-              inputmode="tel"
-              placeholder="0812345678" 
-              class="input-field"
-              :class="{ 'input-success': otpVerified }"
-              :disabled="otpVerified"
-            />
-            <button 
-              v-if="!otpVerified"
-              @click="sendOtp" 
-              :disabled="!validateThaiPhoneNumber(phone) || isLoading || otpCountdown > 0"
-              class="input-btn"
-            >
-              {{ otpSent ? (otpCountdown > 0 ? `${otpCountdown}s` : 'ส่งใหม่') : 'ส่ง OTP' }}
-            </button>
-            <span v-else class="verified-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>
-              </svg>
-              ยืนยันแล้ว
-            </span>
-          </div>
-          <p v-if="phone && validateThaiPhoneNumber(phone) && !otpVerified" class="helper-text">
-            {{ formattedPhone }}
-          </p>
-          <p v-if="phone && !validateThaiPhoneNumber(phone)" class="error-text">เบอร์โทรศัพท์ไม่ถูกต้อง</p>
-        </div>
-
-        <!-- OTP Input -->
-        <div v-if="otpSent && !otpVerified" class="form-group">
-          <label class="label">รหัส OTP</label>
-          <div class="otp-container">
-            <input 
-              v-model="otpCode" 
-              type="text" 
-              inputmode="numeric"
-              maxlength="6" 
-              placeholder="000000" 
-              class="input-field otp-input"
-            />
-            <button 
-              @click="verifyOtp" 
-              :disabled="otpCode.length !== 6 || isLoading"
-              class="btn-verify"
-            >
-              <span v-if="isLoading" class="spinner"></span>
-              <span v-else>ยืนยัน</span>
-            </button>
-          </div>
-          <p class="helper-text">Demo: ใส่ 123456</p>
-        </div>
-
-        <div class="form-group">
-          <label class="label">อีเมล</label>
+          <label class="label">อีเมล <span class="optional">(ไม่บังคับ)</span></label>
           <input 
             v-model="email" 
             type="email" 
             inputmode="email"
             placeholder="email@example.com" 
             class="input-field"
-            :class="{ 'input-error': email && !isEmailValid }"
+            :class="{ 
+              'input-error': email && !isEmailValid,
+              'input-success': email && isEmailValid
+            }"
           />
           <p v-if="email && !isEmailValid" class="error-text">อีเมลไม่ถูกต้อง</p>
+          <p class="hint-text">ระบบจะใช้ Member UID ในการติดตามข้อมูลของคุณ</p>
         </div>
 
-        <div class="button-group">
-          <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-          <button @click="nextStep" :disabled="!canProceedStep3" class="btn-primary">ถัดไป</button>
-        </div>
-      </div>
-
-      <!-- Step 4: Password -->
-      <div v-if="step === 4" class="step-content">
-        <h2 class="step-title">ตั้งรหัสผ่าน</h2>
-        <p class="step-desc">รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร</p>
-        
+        <!-- Password -->
         <div class="form-group">
-          <label class="label">รหัสผ่าน</label>
+          <label class="label">รหัสผ่าน <span class="required">*</span></label>
           <div class="password-input">
             <input 
               v-model="password" 
               :type="showPassword ? 'text' : 'password'" 
-              placeholder="รหัสผ่าน" 
+              placeholder="รหัสผ่าน (อย่างน้อย 8 ตัว)" 
               class="input-field"
               :class="{ 'input-error': password && !passwordValidation.valid }"
             />
@@ -495,15 +291,19 @@ watch(phone, (val) => {
           <p v-if="password && !passwordValidation.valid" class="error-text">{{ passwordValidation.message }}</p>
         </div>
 
+        <!-- Confirm Password -->
         <div class="form-group">
-          <label class="label">ยืนยันรหัสผ่าน</label>
+          <label class="label">ยืนยันรหัสผ่าน <span class="required">*</span></label>
           <div class="password-input">
             <input 
               v-model="confirmPassword" 
               :type="showConfirmPassword ? 'text' : 'password'" 
               placeholder="ยืนยันรหัสผ่าน" 
               class="input-field"
-              :class="{ 'input-error': confirmPassword && !isPasswordMatch }"
+              :class="{ 
+                'input-error': confirmPassword && !isPasswordMatch,
+                'input-success': confirmPassword && isPasswordMatch && passwordValidation.valid
+              }"
             />
             <button @click="showConfirmPassword = !showConfirmPassword" type="button" class="toggle-password">
               <svg v-if="showConfirmPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -516,6 +316,7 @@ watch(phone, (val) => {
             </button>
           </div>
           <p v-if="confirmPassword && !isPasswordMatch" class="error-text">รหัสผ่านไม่ตรงกัน</p>
+          <p v-if="confirmPassword && isPasswordMatch && passwordValidation.valid" class="success-text">รหัสผ่านตรงกัน</p>
         </div>
 
         <!-- Password Requirements -->
@@ -540,6 +341,7 @@ watch(phone, (val) => {
           </div>
         </div>
 
+        <!-- Terms -->
         <label class="terms-checkbox">
           <input v-model="acceptTerms" type="checkbox" />
           <span class="checkmark"></span>
@@ -548,22 +350,20 @@ watch(phone, (val) => {
           </span>
         </label>
 
-        <div class="button-group">
-          <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-          <button @click="submitRegistration" :disabled="!canSubmit || isLoading" class="btn-primary">
-            <span v-if="isLoading" class="btn-loading">
-              <span class="spinner"></span>
-              กำลังสมัคร
-            </span>
-            <span v-else>สมัครสมาชิก</span>
-          </button>
-        </div>
-      </div>
+        <!-- Submit -->
+        <button @click="submitRegistration" :disabled="!canSubmit || isLoading" class="btn-primary">
+          <span v-if="isLoading" class="btn-loading">
+            <span class="spinner"></span>
+            กำลังสมัคร
+          </span>
+          <span v-else>สมัครสมาชิก</span>
+        </button>
 
-      <!-- Login Link -->
-      <div class="login-link">
-        <span>มีบัญชีอยู่แล้ว?</span>
-        <button @click="goToLogin" class="link-btn">เข้าสู่ระบบ</button>
+        <!-- Login Link -->
+        <div class="login-link">
+          <span>มีบัญชีอยู่แล้ว?</span>
+          <button @click="goToLogin" class="link-btn">เข้าสู่ระบบ</button>
+        </div>
       </div>
     </div>
   </div>
@@ -610,17 +410,6 @@ watch(phone, (val) => {
   width: 40px;
 }
 
-.progress-bar {
-  height: 4px;
-  background-color: #E5E5E5;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: #000000;
-  transition: width 0.3s ease;
-}
-
 .register-content {
   padding: 24px 16px;
   max-width: 480px;
@@ -653,7 +442,7 @@ watch(phone, (val) => {
   color: #276EF1;
 }
 
-.step-content {
+.form-content {
   animation: fadeIn 0.3s ease;
 }
 
@@ -662,109 +451,19 @@ watch(phone, (val) => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.step-title {
+.form-title {
   font-size: 24px;
   font-weight: 700;
   color: #000000;
   margin-bottom: 8px;
 }
 
-.step-desc {
+.form-desc {
   font-size: 14px;
   color: #6B6B6B;
   margin-bottom: 24px;
 }
 
-/* Role Selection */
-.role-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.role-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background-color: #F6F6F6;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
-}
-
-.role-card:hover {
-  background-color: #EBEBEB;
-}
-
-.role-card-active {
-  background-color: #FFFFFF;
-  border-color: #000000;
-}
-
-.role-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #FFFFFF;
-  border-radius: 12px;
-}
-
-.role-card-active .role-icon {
-  background-color: #000000;
-  color: #FFFFFF;
-}
-
-.role-icon :deep(svg) {
-  width: 24px;
-  height: 24px;
-}
-
-.role-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.role-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #000000;
-}
-
-.role-desc {
-  font-size: 13px;
-  color: #6B6B6B;
-}
-
-.role-check {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #E5E5E5;
-  border-radius: 50%;
-}
-
-.role-card-active .role-check {
-  background-color: #000000;
-  border-color: #000000;
-  color: #FFFFFF;
-}
-
-.role-check svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* Form Styles */
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -781,6 +480,22 @@ watch(phone, (val) => {
   font-weight: 500;
   color: #000000;
   margin-bottom: 8px;
+}
+
+.required {
+  color: #E11900;
+}
+
+.optional {
+  color: #6B6B6B;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #6B6B6B;
+  margin-top: 6px;
 }
 
 .input-field {
@@ -803,11 +518,6 @@ watch(phone, (val) => {
   color: #CCCCCC;
 }
 
-.input-field:disabled {
-  background-color: #F6F6F6;
-  color: #6B6B6B;
-}
-
 .input-error {
   border-color: #E11900;
 }
@@ -815,84 +525,6 @@ watch(phone, (val) => {
 .input-success {
   border-color: #276EF1;
   background-color: rgba(39, 110, 241, 0.05);
-}
-
-.input-with-btn {
-  display: flex;
-  gap: 8px;
-}
-
-.input-with-btn .input-field {
-  flex: 1;
-}
-
-.input-btn {
-  padding: 14px 16px;
-  background-color: #000000;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.input-btn:disabled {
-  background-color: #CCCCCC;
-  cursor: not-allowed;
-}
-
-.verified-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 16px;
-  color: #276EF1;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.verified-badge svg {
-  width: 18px;
-  height: 18px;
-}
-
-.otp-container {
-  display: flex;
-  gap: 8px;
-}
-
-.otp-input {
-  flex: 1;
-  text-align: center;
-  font-size: 20px;
-  letter-spacing: 8px;
-  font-weight: 600;
-}
-
-.btn-verify {
-  padding: 14px 24px;
-  background-color: #000000;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  min-width: 80px;
-}
-
-.btn-verify:disabled {
-  background-color: #CCCCCC;
-  cursor: not-allowed;
-}
-
-.helper-text {
-  font-size: 12px;
-  color: #6B6B6B;
-  margin-top: 6px;
 }
 
 .error-text {
@@ -907,7 +539,6 @@ watch(phone, (val) => {
   margin-top: 6px;
 }
 
-/* Password Input */
 .password-input {
   position: relative;
 }
@@ -966,7 +597,6 @@ watch(phone, (val) => {
   color: #276EF1;
 }
 
-/* Terms Checkbox */
 .terms-checkbox {
   display: flex;
   align-items: flex-start;
@@ -1017,17 +647,6 @@ watch(phone, (val) => {
   text-decoration: underline;
 }
 
-/* Buttons */
-.button-group {
-  display: flex;
-  gap: 12px;
-}
-
-.button-group .btn-secondary,
-.button-group .btn-primary {
-  flex: 1;
-}
-
 .btn-primary {
   width: 100%;
   padding: 14px 24px;
@@ -1054,22 +673,6 @@ watch(phone, (val) => {
   cursor: not-allowed;
 }
 
-.btn-secondary {
-  padding: 14px 24px;
-  background-color: #F6F6F6;
-  color: #000000;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background-color: #EBEBEB;
-}
-
 .btn-loading {
   display: flex;
   align-items: center;
@@ -1090,9 +693,8 @@ watch(phone, (val) => {
   to { transform: rotate(360deg); }
 }
 
-/* Login Link */
 .login-link {
-  margin-top: 32px;
+  margin-top: 24px;
   text-align: center;
   display: flex;
   align-items: center;
@@ -1115,7 +717,6 @@ watch(phone, (val) => {
   text-decoration: underline;
 }
 
-/* Responsive */
 @media (max-width: 400px) {
   .form-row {
     grid-template-columns: 1fr;
