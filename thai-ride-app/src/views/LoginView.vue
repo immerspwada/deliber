@@ -19,15 +19,16 @@ const successMessage = ref('')
 const showFillToast = ref(false)
 const filledAccount = ref('')
 
-// Demo accounts
-const demoAccounts = [
-  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer', name: 'Customer Demo', id: '22222222-2222-2222-2222-222222222222' },
-  { label: 'คนขับรถ', email: 'driver1@demo.com', password: 'demo1234', role: 'driver', name: 'สมชาย ใจดี', id: 'd1111111-1111-1111-1111-111111111111' },
-  { label: 'ไรเดอร์', email: 'rider@demo.com', password: 'demo1234', role: 'rider', name: 'Rider User', id: '44444444-4444-4444-4444-444444444444' },
-  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin', name: 'Admin Demo', id: '11111111-1111-1111-1111-111111111111' }
+// Test accounts (must exist in Supabase - for development only)
+// These are real accounts that need to be created in Supabase Auth
+const testAccounts = [
+  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer' },
+  { label: 'คนขับรถ', email: 'driver1@demo.com', password: 'demo1234', role: 'driver' },
+  { label: 'ไรเดอร์', email: 'rider@demo.com', password: 'demo1234', role: 'rider' },
+  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin' }
 ]
 
-const selectDemoAccount = (account: typeof demoAccounts[0]) => {
+const selectTestAccount = (account: typeof testAccounts[0]) => {
   email.value = account.email
   password.value = account.password
   loginMethod.value = 'password'
@@ -94,7 +95,7 @@ const verifyEmailOtp = async () => {
   }
 }
 
-// Login ด้วย Email + Password
+// Login ด้วย Email + Password (Real Supabase only)
 const loginWithPassword = async () => {
   if (!email.value || !password.value) {
     error.value = 'กรุณากรอกอีเมลและรหัสผ่าน'
@@ -103,39 +104,12 @@ const loginWithPassword = async () => {
   isLoading.value = true
   error.value = ''
   
+  // Clear any old demo mode data
+  localStorage.removeItem('demo_mode')
+  localStorage.removeItem('demo_user')
+  
   try {
-    // Check demo account
-    const demoAccount = demoAccounts.find(a => a.email === email.value && a.password === password.value)
-    
-    if (demoAccount) {
-      localStorage.setItem('demo_mode', 'true')
-      localStorage.setItem('demo_user', JSON.stringify({
-        id: demoAccount.id,
-        email: demoAccount.email,
-        name: demoAccount.name,
-        first_name: demoAccount.name.split(' ')[0],
-        last_name: demoAccount.name.split(' ')[1] || '',
-        role: demoAccount.role,
-        phone_number: '0812345678',
-        is_active: true,
-        avatar_url: null,
-        created_at: new Date().toISOString()
-      }))
-      
-      await authStore.initialize()
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      const targetRoute = demoAccount.role === 'rider' || demoAccount.role === 'driver' 
-        ? '/provider' 
-        : demoAccount.role === 'admin' 
-          ? '/admin' 
-          : '/'
-      
-      await router.replace(targetRoute)
-      return
-    }
-    
-    // Real Supabase login
+    // Real Supabase login only - no demo mode
     const success = await authStore.login(email.value, password.value)
     if (success) {
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -261,14 +235,14 @@ const goToRegister = () => router.push('/register')
           <span v-else>เข้าสู่ระบบ</span>
         </button>
         
-        <!-- Demo Quick Fill -->
+        <!-- Test Account Quick Fill (Development only) -->
         <div class="demo-fill-section">
-          <p class="demo-hint">กรอกอัตโนมัติ:</p>
+          <p class="demo-hint">บัญชีทดสอบ (ต้องสร้างใน Supabase):</p>
           <div class="demo-fill-btns">
             <button 
-              v-for="account in demoAccounts" 
+              v-for="account in testAccounts" 
               :key="'fill-' + account.email"
-              @click="selectDemoAccount(account)"
+              @click="selectTestAccount(account)"
               class="demo-fill-btn"
               :title="account.email"
             >

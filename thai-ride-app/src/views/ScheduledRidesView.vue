@@ -234,6 +234,21 @@ const saveNewPlace = async () => {
   if (!newPlace.value.name.trim() || !newPlace.value.address.trim()) return
   if (!authStore.user?.id) return
   
+  // Check if user ID is a valid UUID
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authStore.user.id)
+  if (!isValidUUID) {
+    console.error('Cannot save place: Invalid user ID format')
+    // Still allow selecting the place locally without saving to DB
+    selectPlace({
+      name: newPlace.value.name,
+      address: newPlace.value.address,
+      lat: 13.7563,
+      lng: 100.5018
+    })
+    showAddPlaceModal.value = false
+    return
+  }
+  
   savingPlace.value = true
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -248,17 +263,19 @@ const saveNewPlace = async () => {
         lng: 100.5018
       } as any)
     
-    if (!err) {
-      await fetchSavedPlaces()
-      showAddPlaceModal.value = false
-      // Auto-select the new place
-      selectPlace({
-        name: newPlace.value.name,
-        address: newPlace.value.address,
-        lat: 13.7563,
-        lng: 100.5018
-      })
+    if (err) {
+      console.error('Error saving place to DB:', err.message)
     }
+    
+    await fetchSavedPlaces()
+    showAddPlaceModal.value = false
+    // Auto-select the new place
+    selectPlace({
+      name: newPlace.value.name,
+      address: newPlace.value.address,
+      lat: 13.7563,
+      lng: 100.5018
+    })
   } catch (e) {
     console.error('Error saving place:', e)
   } finally {

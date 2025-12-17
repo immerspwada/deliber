@@ -9,23 +9,18 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const isDemoMode = computed(() => localStorage.getItem('demo_mode') === 'true')
-  const isAuthenticated = computed(() => !!session.value || isDemoMode.value)
+  // Demo mode removed - use real Supabase auth only
+  const isDemoMode = computed(() => false)
+  const isAuthenticated = computed(() => !!session.value)
   const isVerified = computed(() => user.value?.is_active === true)
 
-  // Initialize auth state
+  // Initialize auth state - Real Supabase only
   const initialize = async () => {
     loading.value = true
     try {
-      // Check demo mode first - instant return
-      if (isDemoMode.value) {
-        const demoUser = localStorage.getItem('demo_user')
-        if (demoUser) {
-          user.value = JSON.parse(demoUser) as User
-        }
-        loading.value = false
-        return
-      }
+      // Clear any old demo mode data
+      localStorage.removeItem('demo_mode')
+      localStorage.removeItem('demo_user')
       
       // Check if we have any indication of a real session before calling Supabase
       // This avoids slow network calls when user is not logged in
