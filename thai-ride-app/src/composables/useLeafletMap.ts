@@ -35,13 +35,24 @@ const initTileCache = async () => {
 // Custom tile layer with caching
 class CachedTileLayer extends L.TileLayer {
   private tileCache: Cache | null = null
+  private cacheInitialized = false
   
-  async initialize() {
-    this.tileCache = await initTileCache()
+  async initializeCache() {
+    if (!this.cacheInitialized) {
+      this.tileCache = await initTileCache()
+      this.cacheInitialized = true
+    }
   }
 
   createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
     const tile = document.createElement('img')
+    
+    // Ensure URL template is available
+    if (!this._url) {
+      done(new Error('Tile URL not set'), tile)
+      return tile
+    }
+    
     const url = this.getTileUrl(coords)
 
     tile.alt = ''
@@ -306,7 +317,7 @@ export function useLeafletMap() {
       subdomains: 'abcd',
       maxZoom: 20
     })
-    tileLayer.initialize() // Initialize cache
+    tileLayer.initializeCache() // Initialize cache (non-blocking)
     tileLayer.addTo(map)
 
     mapInstance.value = map

@@ -102,7 +102,7 @@ onMounted(async () => {
     <OfflineIndicator />
     
     <!-- Main App with Error Boundary -->
-    <ErrorBoundary v-if="isReady" @error="(err) => console.error('[ErrorBoundary]', err)">
+    <ErrorBoundary v-if="isReady" :show-details="true" @error="(err) => console.error('[ErrorBoundary]', err)">
       <AppShell v-if="!hideNavigation">
         <RouterView />
       </AppShell>
