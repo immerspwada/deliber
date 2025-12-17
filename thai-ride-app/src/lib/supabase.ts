@@ -40,11 +40,30 @@ export const signUp = async (email: string, password: string, metadata?: object)
 }
 
 export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  })
-  return { data, error }
+  console.log('[Supabase] signIn called for:', email)
+  
+  try {
+    // Add timeout to prevent hanging
+    const signInPromise = supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+    
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+      setTimeout(() => {
+        console.log('[Supabase] signIn timeout!')
+        resolve({ data: null, error: { message: 'Login timeout - please try again' } })
+      }, 10000)
+    )
+    
+    const result = await Promise.race([signInPromise, timeoutPromise])
+    console.log('[Supabase] signIn result:', { hasData: !!result.data, hasError: !!result.error })
+    
+    return result as { data: any; error: any }
+  } catch (err: any) {
+    console.error('[Supabase] signIn exception:', err)
+    return { data: null, error: { message: err.message || 'Login failed' } }
+  }
 }
 
 // Email OTP (Magic Link alternative with 6-digit code)

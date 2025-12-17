@@ -109,23 +109,31 @@ const loginWithPassword = async () => {
   localStorage.removeItem('demo_user')
   
   try {
+    console.log('[Login] Starting login...')
     // Real Supabase login only - no demo mode
     const success = await authStore.login(email.value, password.value)
+    console.log('[Login] Login result:', success, 'User:', authStore.user?.email, 'Role:', authStore.user?.role)
+    
     if (success) {
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait a bit for user profile to be fetched
+      await new Promise(resolve => setTimeout(resolve, 200))
       
       const userRole = authStore.user?.role
+      console.log('[Login] Redirecting based on role:', userRole)
+      
       const targetRoute = userRole === 'rider' || userRole === 'driver' 
         ? '/provider' 
         : userRole === 'admin' 
           ? '/admin' 
           : '/'
       
-      await router.replace(targetRoute)
+      console.log('[Login] Target route:', targetRoute)
+      router.replace(targetRoute)
     } else {
       error.value = authStore.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
     }
   } catch (err: any) {
+    console.error('[Login] Error:', err)
     error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
   } finally {
     isLoading.value = false

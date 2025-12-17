@@ -24,7 +24,9 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Check if we have any indication of a real session before calling Supabase
       // This avoids slow network calls when user is not logged in
-      const hasStoredSession = localStorage.getItem('sb-' + import.meta.env.VITE_SUPABASE_URL?.split('//')[1]?.split('.')[0] + '-auth-token')
+      // Use hardcoded project ref to match supabase.ts
+      const projectRef = 'onsflqhkgqhydeupiqyt'
+      const hasStoredSession = localStorage.getItem('sb-' + projectRef + '-auth-token')
       
       if (!hasStoredSession) {
         // No stored session - skip Supabase call entirely
@@ -53,20 +55,32 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Fetch user profile from database
+  // Fetch user profile from database with timeout
   const fetchUserProfile = async (userId: string) => {
-    const { data, error: fetchError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    
-    if (fetchError) {
-      error.value = fetchError.message
-      return
+    try {
+      const fetchPromise = supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      
+      const timeoutPromise = new Promise<{ data: null, error: { message: string } }>((resolve) => 
+        setTimeout(() => resolve({ data: null, error: { message: 'Profile fetch timeout' } }), 5000)
+      )
+      
+      const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise])
+      
+      if (fetchError) {
+        console.error('[Auth] fetchUserProfile error:', fetchError.message)
+        error.value = fetchError.message
+        return
+      }
+      
+      user.value = data
+    } catch (err: any) {
+      console.error('[Auth] fetchUserProfile exception:', err)
+      error.value = err.message
     }
-    
-    user.value = data
   }
 
   // Alias for login
@@ -171,26 +185,37 @@ export const useAuthStore = defineStore('auth', () => {
   const loginWithEmail = async (email: string, password: string) => {
     loading.value = true
     error.value = null
+    console.log('[Auth] loginWithEmail started:', email)
     
     try {
+      console.log('[Auth] Calling signIn...')
       const { data, error: loginError } = await signIn(email, password)
+      console.log('[Auth] signIn result:', { hasData: !!data, hasError: !!loginError })
       
       if (loginError) {
+        console.error('[Auth] Login error:', loginError.message)
         error.value = loginError.message
         return false
       }
       
+      console.log('[Auth] Setting session...')
       session.value = data.session
+      
       if (data.user) {
+        console.log('[Auth] Fetching user profile for:', data.user.id)
         await fetchUserProfile(data.user.id)
+        console.log('[Auth] User profile fetched:', user.value?.email)
       }
       
+      console.log('[Auth] Login successful')
       return true
     } catch (err: any) {
+      console.error('[Auth] Login exception:', err)
       error.value = err.message
       return false
     } finally {
       loading.value = false
+      console.log('[Auth] loginWithEmail finished')
     }
   }
 
