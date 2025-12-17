@@ -216,6 +216,9 @@ onMounted(async () => {
     <!-- Loading skeleton -->
     <div v-if="!isMapReady" class="map-skeleton">
       <div class="skeleton-pulse"></div>
+      <div class="skeleton-grid">
+        <div class="skeleton-tile" v-for="i in 9" :key="i"></div>
+      </div>
       <div class="skeleton-center">
         <div class="skeleton-spinner"></div>
         <span class="skeleton-text">กำลังโหลดแผนที่...</span>
@@ -289,23 +292,48 @@ onMounted(async () => {
   border: none;
 }
 
-/* Loading skeleton */
+/* Loading skeleton - Uber style */
 .map-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 50%, #f0f0f0 100%);
-  background-size: 200% 200%;
-  animation: skeleton-gradient 1.5s ease infinite;
+  background: #F6F6F6;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
+
+.skeleton-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  opacity: 0.5;
+}
+
+.skeleton-tile {
+  background: linear-gradient(135deg, #e8e8e8 0%, #f0f0f0 50%, #e8e8e8 100%);
+  background-size: 200% 200%;
+  animation: tile-pulse 2s ease-in-out infinite;
+}
+
+.skeleton-tile:nth-child(1) { animation-delay: 0s; }
+.skeleton-tile:nth-child(2) { animation-delay: 0.1s; }
+.skeleton-tile:nth-child(3) { animation-delay: 0.2s; }
+.skeleton-tile:nth-child(4) { animation-delay: 0.1s; }
+.skeleton-tile:nth-child(5) { animation-delay: 0.2s; }
+.skeleton-tile:nth-child(6) { animation-delay: 0.3s; }
+.skeleton-tile:nth-child(7) { animation-delay: 0.2s; }
+.skeleton-tile:nth-child(8) { animation-delay: 0.3s; }
+.skeleton-tile:nth-child(9) { animation-delay: 0.4s; }
 
 .skeleton-pulse {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
@@ -316,27 +344,30 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   z-index: 1;
+  background: rgba(255,255,255,0.9);
+  padding: 20px 28px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
 
 .skeleton-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e0e0e0;
+  width: 36px;
+  height: 36px;
+  border: 3px solid #E5E5E5;
   border-top-color: #000;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 .skeleton-text {
-  font-size: 13px;
+  font-size: 14px;
   color: #6B6B6B;
   font-weight: 500;
 }
 
-@keyframes skeleton-gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@keyframes tile-pulse {
+  0%, 100% { background-position: 0% 50%; opacity: 0.3; }
+  50% { background-position: 100% 50%; opacity: 0.6; }
 }
 
 @keyframes skeleton-shimmer {

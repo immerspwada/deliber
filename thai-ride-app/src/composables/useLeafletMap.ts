@@ -19,8 +19,20 @@ L.Icon.Default.mergeOptions({
 // ============================================
 // Offline Map Tile Caching
 // ============================================
-const TILE_CACHE_NAME = 'thai-ride-map-tiles-v1'
-const TILE_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000 // 7 days
+const TILE_CACHE_NAME = 'thai-ride-map-tiles-v2'
+const TILE_CACHE_MAX_AGE = 14 * 24 * 60 * 60 * 1000 // 14 days
+
+// Su-ngai Kolok, Narathiwat area bounds
+const SUNGAI_KOLOK_BOUNDS = {
+  north: 6.0800,
+  south: 6.0100,
+  east: 101.9800,
+  west: 101.9000,
+  center: { lat: 6.0285, lng: 101.9658 }
+}
+
+// Zoom levels to pre-cache (12-16 for city navigation)
+const PRECACHE_ZOOM_LEVELS = [12, 13, 14, 15, 16]
 
 // Initialize tile cache
 const initTileCache = async () => {
@@ -31,6 +43,130 @@ const initTileCache = async () => {
     return null
   }
 }
+
+// Pre-cache tiles for Su-ngai Kolok area
+export const precacheSungaiKolokTiles = async (
+  onProgress?: (progress: number, total: number) => void
+) => {
+  const cache = await initTileCache()
+  if (!cache) return { success: false, cached: 0 }
+
+  const tiles: string[] = []
+  const subdomains = ['a', 'b', 'c', 'd']
+
+  // Generate tile URLs for the area
+  for (const zoom of PRECACHE_ZOOM_LEVELS) {
+    const { minX, maxX, minY, maxY } = latLngToTileRange(
+      SUNGAI_KOLOK_BOUNDS.north,
+      SUNGAI_KOLOK_BOUNDS.south,
+      SUNGAI_KOLOK_BOUNDS.east,
+      SUNGAI_KOLOK_BOUNDS.west,
+      zoom
+    )
+
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        const subdomain = subdomains[(x + y) % subdomains.length]
+        const url = `https://${subdomain}.basemaps.cartocdn.com/light_all/${zoom}/${x}/${y}.png`
+        tiles.push(url)
+      }
+    }
+  }
+
+  let cached = 0
+  const total = tiles.length
+
+  for (const url of tiles) {
+    try {
+      // Check if already cached
+      const existing = await cache.match(url)
+      if (!existing) {
+        const response = await fetch(url)
+        if (response.ok) {
+          const blob = await response.blob()
+          const responseToCache = new Response(blob, {
+            headers: { 'Cache-Time': Date.now().toString() }
+          })
+          await cache.put(url, responseToCache)
+        }
+      }
+      cached++
+      onProgress?.(cached, total)
+    } catch {
+      // Skip failed tiles
+      cached++
+    }
+  }
+
+  return { success: true, cached, total }
+}
+
+// Convert lat/lng bounds to tile coordinates
+const latLngToTileRange = (
+  north: number,
+  south: number,
+  east: number,
+  west: number,
+  zoom: number
+) => {
+  const n = Math.pow(2, zoom)
+  
+  const minX = Math.floor(((west + 180) / 360) * n)
+  const maxX = Math.floor(((east + 180) / 360) * n)
+  
+  const minY = Math.floor(
+    ((1 - Math.log(Math.tan((north * Math.PI) / 180) + 1 / Math.cos((north * Math.PI) / 180)) / Math.PI) / 2) * n
+  )
+  const maxY = Math.floor(
+    ((1 - Math.log(Math.tan((south * Math.PI) / 180) + 1 / Math.cos((south * Math.PI) / 180)) / Math.PI) / 2) * n
+  )
+  
+  return { minX, maxX, minY, maxY }
+}
+
+// Get cache statistics
+export const getTileCacheStats = async (): Promise<{ count: number; size: number; sizeFormatted: string }> => {
+  const cache = await initTileCache()
+  if (!cache) return { count: 0, size: 0, sizeFormatted: '0 B' }
+  
+  const keys = await cache.keys()
+  let totalSize = 0
+  
+  for (const request of keys) {
+    const response = await cache.match(request)
+    if (response) {
+      const blob = await response.blob()
+      totalSize += blob.size
+    }
+  }
+  
+  return {
+    count: keys.length,
+    size: totalSize,
+    sizeFormatted: formatBytes(totalSize)
+  }
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// Check if user is in Su-ngai Kolok area
+export const isInSungaiKolokArea = (lat: number, lng: number) => {
+  return (
+    lat >= SUNGAI_KOLOK_BOUNDS.south &&
+    lat <= SUNGAI_KOLOK_BOUNDS.north &&
+    lng >= SUNGAI_KOLOK_BOUNDS.west &&
+    lng <= SUNGAI_KOLOK_BOUNDS.east
+  )
+}
+
+// Export bounds for map centering
+export const SUNGAI_KOLOK_CENTER = SUNGAI_KOLOK_BOUNDS.center
 
 // Custom tile layer with caching
 class CachedTileLayer extends L.TileLayer {

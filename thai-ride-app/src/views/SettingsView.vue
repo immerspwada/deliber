@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { usePWA } from '../composables/usePWA'
 import { usePushNotifications } from '../composables/usePushNotifications'
 import { useBackgroundSync } from '../composables/useBackgroundSync'
+import { precacheSungaiKolokTiles, getTileCacheStats } from '../composables/useLeafletMap'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
@@ -52,6 +53,12 @@ const cacheInfo = ref({ used: 0, quota: 0, percent: 0 })
 const clearingCache = ref(false)
 const testingPush = ref(false)
 
+// Offline map state
+const offlineMapStats = ref({ count: 0, size: 0, sizeFormatted: '0 B' })
+const downloadingMap = ref(false)
+const downloadProgress = ref(0)
+const downloadTotal = ref(0)
+
 // Settings state
 const settings = ref({
   notifications: {
@@ -95,6 +102,9 @@ onMounted(async () => {
   
   // Get cache size
   cacheInfo.value = await getCacheSize()
+  
+  // Get offline map stats
+  offlineMapStats.value = await getTileCacheStats()
   
   setTimeout(() => { loading.value = false }, 500)
 })
@@ -146,8 +156,39 @@ const handleClearCache = async () => {
   clearingCache.value = true
   await clearAllCaches()
   cacheInfo.value = await getCacheSize()
+  offlineMapStats.value = await getTileCacheStats()
   clearingCache.value = false
   alert('ล้างแคชเรียบร้อยแล้ว')
+}
+
+// Offline map download
+const handleDownloadOfflineMap = async () => {
+  if (downloadingMap.value) return
+  
+  downloadingMap.value = true
+  downloadProgress.value = 0
+  downloadTotal.value = 0
+  
+  try {
+    const result = await precacheSungaiKolokTiles((progress, total) => {
+      downloadProgress.value = progress
+      downloadTotal.value = total
+    })
+    
+    if (result.success) {
+      offlineMapStats.value = await getTileCacheStats()
+      alert(`ดาวน์โหลดแผนที่สำเร็จ! (${result.cached} tiles)`)
+    } else {
+      alert('ไม่สามารถดาวน์โหลดแผนที่ได้')
+    }
+  } catch (err) {
+    console.error('Download error:', err)
+    alert('เกิดข้อผิดพลาดในการดาวน์โหลด')
+  } finally {
+    downloadingMap.value = false
+    downloadProgress.value = 0
+    downloadTotal.value = 0
+  }
 }
 
 // Sync management
@@ -556,6 +597,41 @@ const formatBytes = (bytes: number): string => {
           <button @click="handleClearCache" class="clear-btn" :disabled="clearingCache">
             {{ clearingCache ? 'กำลังล้าง...' : 'ล้างแคช' }}
           </button>
+        </div>
+
+        <!-- Offline Map Section -->
+        <div class="setting-item offline-map-item">
+          <div class="setting-info">
+            <span class="setting-label">แผนที่ออฟไลน์</span>
+            <span class="setting-desc">
+              อ.สุไหงโกลก จ.นราธิวาส
+              <span v-if="offlineMapStats.count > 0" class="map-cached">
+                ({{ offlineMapStats.sizeFormatted }})
+              </span>
+            </span>
+          </div>
+          <button 
+            @click="handleDownloadOfflineMap" 
+            :class="['download-map-btn', { downloading: downloadingMap }]"
+            :disabled="downloadingMap"
+          >
+            <svg v-if="!downloadingMap" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <svg v-else class="spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span v-if="downloadingMap">{{ downloadProgress }}/{{ downloadTotal }}</span>
+            <span v-else>{{ offlineMapStats.count > 0 ? 'อัพเดท' : 'ดาวน์โหลด' }}</span>
+          </button>
+        </div>
+        
+        <!-- Download progress bar -->
+        <div v-if="downloadingMap" class="download-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: downloadTotal > 0 ? (downloadProgress / downloadTotal * 100) + '%' : '0%' }"></div>
+          </div>
+          <span class="progress-text">กำลังดาวน์โหลดแผนที่... {{ Math.round(downloadProgress / downloadTotal * 100) || 0 }}%</span>
         </div>
 
         <button @click="handleCheckUpdates" class="action-item">
@@ -1185,5 +1261,72 @@ const formatBytes = (bytes: number): string => {
 .resolve-btn.dismiss {
   background: #E5E5E5;
   color: #000;
+}
+
+/* Offline Map Styles */
+.offline-map-item {
+  flex-wrap: wrap;
+}
+
+.map-cached {
+  color: #05944f;
+  font-weight: 500;
+}
+
+.download-map-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-map-btn:hover:not(:disabled) {
+  background: #333;
+}
+
+.download-map-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.download-map-btn.downloading {
+  background: #276EF1;
+}
+
+.download-progress {
+  width: 100%;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #E5E5E5;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #000;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #6B6B6B;
 }
 </style>
