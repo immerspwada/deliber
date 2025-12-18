@@ -7,15 +7,30 @@ import PullToRefresh from '../components/PullToRefresh.vue'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
 import DeliveryRatingModal from '../components/delivery/DeliveryRatingModal.vue'
 import ShoppingRatingModal from '../components/shopping/ShoppingRatingModal.vue'
+import QuickRatingModal from '../components/customer/QuickRatingModal.vue'
 
 const router = useRouter()
-const { history, loading, fetchHistory, rebookRide } = useRideHistory()
+const { 
+  history, 
+  loading, 
+  fetchHistory, 
+  rebookRide,
+  unratedRidesCount,
+  fetchUnratedRides,
+  fetchUnratedOrdersDetails,
+  submitRating,
+  skipRating
+} = useRideHistory()
 useServiceRatings()
 
 // Rating modal state
 const showDeliveryRating = ref(false)
 const showShoppingRating = ref(false)
 const selectedItem = ref<any>(null)
+
+// Quick rating modal state
+const showQuickRating = ref(false)
+const unratedOrders = ref<any[]>([])
 
 const openRatingModal = (item: any) => {
   selectedItem.value = item
@@ -31,8 +46,38 @@ const handleRatingSubmit = async (success: boolean) => {
   showShoppingRating.value = false
   if (success) {
     await fetchHistory(activeFilter.value)
+    await fetchUnratedRides()
   }
   selectedItem.value = null
+}
+
+// Quick rating handlers
+const handleQuickRate = async (orderId: string, orderType: string, rating: number, comment: string) => {
+  await submitRating(orderId, orderType as any, rating, comment)
+  await fetchHistory(activeFilter.value)
+}
+
+const handleQuickSkip = async (orderId: string, orderType: string) => {
+  await skipRating(orderId, orderType)
+}
+
+const handleQuickRatingClose = () => {
+  showQuickRating.value = false
+}
+
+// Check for unrated orders on mount
+const checkUnratedOrders = async () => {
+  await fetchUnratedRides()
+  if (unratedRidesCount.value > 0) {
+    const orders = await fetchUnratedOrdersDetails()
+    if (orders.length > 0) {
+      unratedOrders.value = orders
+      // Small delay for better UX
+      setTimeout(() => {
+        showQuickRating.value = true
+      }, 500)
+    }
+  }
 }
 
 type ServiceType = 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry'
@@ -78,8 +123,10 @@ const handleRefresh = async () => {
   isRefreshing.value = false
 }
 
-onMounted(() => {
-  fetchHistory()
+onMounted(async () => {
+  await fetchHistory()
+  // Check for unrated orders and show quick rating modal
+  await checkUnratedOrders()
 })
 </script>
 
@@ -246,6 +293,15 @@ onMounted(() => {
       :service-fee="selectedItem?.fare || 0"
       @close="showShoppingRating = false"
       @submit="handleRatingSubmit"
+    />
+
+    <!-- Quick Rating Modal -->
+    <QuickRatingModal
+      :show="showQuickRating"
+      :orders="unratedOrders"
+      @close="handleQuickRatingClose"
+      @rate="handleQuickRate"
+      @skip="handleQuickSkip"
     />
   </div>
 </template>

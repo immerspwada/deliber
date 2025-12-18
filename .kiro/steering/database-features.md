@@ -252,6 +252,7 @@
 | **F156** | Customer Loyalty Program | `useLoyalty.ts`, `LoyaltyView.vue`, `AdminLoyaltyView.vue` | `user_loyalty`, `points_transactions`, `loyalty_rewards`, `user_rewards`, `loyalty_tiers`, `points_rules` | 023 |
 | **F157** | Offline Mode | `useOfflineStorage.ts` | - (IndexedDB) | - |
 | **F158** | Queue Booking | `useQueueBooking.ts`, `QueueBookingView.vue`, `QueueTrackingView.vue`, `AdminQueueView.vue` | `queue_bookings`, `queue_ratings` | 029, 031 |
+| **F158a** | Queue Favorite Places & Wait Time | `useQueueFavorites.ts` | `queue_favorite_places`, `queue_place_stats` | 054 |
 | **F159** | Moving Service | `useMoving.ts`, `MovingView.vue`, `MovingTrackingView.vue`, `AdminMovingView.vue` | `moving_requests`, `moving_ratings` | 029, 031 |
 | **F160** | Laundry Service | `useLaundry.ts`, `LaundryView.vue`, `LaundryTrackingView.vue`, `AdminLaundryView.vue` | `laundry_requests`, `laundry_ratings` | 029, 031 |
 | **F161** | Provider Daily Summary | `useProviderDailySummary.ts` | `provider_daily_stats` | 032 |
@@ -476,6 +477,8 @@ points_rules            → F156 (Points Earning Rules)
 ```
 queue_bookings          → F158 (Queue Booking)
 queue_ratings           → F158 (Queue Ratings)
+queue_favorite_places   → F158a (Queue Favorite Places)
+queue_place_stats       → F158a (Queue Place Statistics & Wait Time)
 moving_requests         → F159 (Moving Service)
 moving_ratings          → F159 (Moving Ratings)
 laundry_requests        → F160 (Laundry Service)
@@ -708,6 +711,7 @@ system_health_log       → F251 (System Health) - status, uptime_ms, memory_use
 | `043_service_quality_metrics.sql` | Service quality metrics | F171 |
 | `044_performance_metrics.sql` | Performance metrics & monitoring | F172-F201 |
 | `045_advanced_system.sql` | Feature flags, A/B testing, user preferences, analytics, system health | F202, F203, F204, F237, F251 |
+| `054_queue_favorites_and_wait_time.sql` | Queue favorite places & estimated wait time | F158a |
 
 ---
 

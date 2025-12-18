@@ -1232,6 +1232,9 @@ export function useAdmin() {
     fetchProviderCancellations, fetchProviderCancellationStats,
     // New Services (F158, F159, F160)
     fetchQueueBookings, updateQueueBooking, fetchQueueStats,
+    // Queue Place Stats (F158a)
+    fetchQueuePlaceStats, updateQueuePlaceStats, createQueuePlaceStats, deleteQueuePlaceStats,
+    fetchUserQueueFavorites,
     fetchMovingRequests, updateMovingRequest, fetchMovingStats,
     fetchLaundryRequests, updateLaundryRequest, fetchLaundryStats,
     fetchNewServicesStats
@@ -1335,6 +1338,101 @@ async function fetchQueueStats() {
     }
   } catch {
     return { pending: 0, confirmed: 0, completed: 0, cancelled: 0 }
+  }
+}
+
+// Queue Place Stats Functions (F158a)
+async function fetchQueuePlaceStats(page = 1, limit = 20, filter?: { category?: string }) {
+  try {
+    let query = supabase.from('queue_place_stats').select('*', { count: 'exact' })
+    
+    if (filter?.category) query = query.eq('category', filter.category)
+    
+    const { data, count } = await query
+      .range((page - 1) * limit, page * limit - 1)
+      .order('total_bookings', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+async function updateQueuePlaceStats(placeId: string, updates: Record<string, any>) {
+  try {
+    const { data, error } = await (supabase
+      .from('queue_place_stats') as any)
+      .update({ ...updates, last_updated_at: new Date().toISOString() })
+      .eq('id', placeId)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+async function createQueuePlaceStats(placeData: {
+  place_name: string
+  category: string
+  avg_wait_time_minutes?: number
+  min_wait_time_minutes?: number
+  max_wait_time_minutes?: number
+  morning_avg_wait?: number
+  afternoon_avg_wait?: number
+  evening_avg_wait?: number
+}) {
+  try {
+    const { data, error } = await (supabase
+      .from('queue_place_stats') as any)
+      .insert({
+        ...placeData,
+        total_bookings: 0,
+        completed_bookings: 0
+      })
+      .select()
+      .single()
+    
+    if (error) throw error
+    return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+async function deleteQueuePlaceStats(placeId: string) {
+  try {
+    const { error } = await supabase
+      .from('queue_place_stats')
+      .delete()
+      .eq('id', placeId)
+    
+    if (error) throw error
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+// Fetch user's favorite queue places (Admin view)
+async function fetchUserQueueFavorites(userId?: string) {
+  try {
+    let query = supabase.from('queue_favorite_places').select(`
+      *,
+      user:user_id (id, name, phone_number, member_uid)
+    `, { count: 'exact' })
+    
+    if (userId) query = query.eq('user_id', userId)
+    
+    const { data, count } = await query
+      .order('visit_count', { ascending: false })
+      .limit(100)
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
   }
 }
 

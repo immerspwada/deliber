@@ -594,6 +594,216 @@ export function useRideHistory() {
     }
   }
 
+  // Fetch unrated orders with details (for QuickRatingModal)
+  const fetchUnratedOrdersDetails = async () => {
+    try {
+      if (!authStore.user?.id) return []
+
+      const userId = authStore.user.id
+      const unratedOrders: Array<{
+        id: string
+        type: 'ride' | 'delivery' | 'shopping'
+        typeName: string
+        from: string
+        to: string
+        date: string
+        fare: number
+        driverName?: string
+      }> = []
+
+      // Fetch unrated rides
+      const { data: rides } = await supabase
+        .from('ride_requests')
+        .select(`
+          id,
+          pickup_address,
+          destination_address,
+          final_fare,
+          estimated_fare,
+          created_at,
+          provider:provider_id (
+            users:user_id (name)
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .is('rated_at', null)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (rides) {
+        rides.forEach((r: any) => {
+          unratedOrders.push({
+            id: r.id,
+            type: 'ride',
+            typeName: 'เรียกรถ',
+            from: r.pickup_address?.split(',')[0] || 'ไม่ระบุ',
+            to: r.destination_address?.split(',')[0] || 'ไม่ระบุ',
+            date: formatDate(r.created_at),
+            fare: r.final_fare || r.estimated_fare || 0,
+            driverName: r.provider?.users?.name
+          })
+        })
+      }
+
+      // Fetch unrated deliveries
+      const { data: deliveries } = await supabase
+        .from('delivery_requests')
+        .select(`
+          id,
+          sender_address,
+          recipient_address,
+          final_fee,
+          estimated_fee,
+          created_at,
+          provider:provider_id (
+            users:user_id (name)
+          )
+        `)
+        .eq('user_id', userId)
+        .in('status', ['delivered', 'completed'])
+        .is('rated_at', null)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (deliveries) {
+        deliveries.forEach((d: any) => {
+          unratedOrders.push({
+            id: d.id,
+            type: 'delivery',
+            typeName: 'ส่งของ',
+            from: d.sender_address?.split(',')[0] || 'ไม่ระบุ',
+            to: d.recipient_address?.split(',')[0] || 'ไม่ระบุ',
+            date: formatDate(d.created_at),
+            fare: d.final_fee || d.estimated_fee || 0,
+            driverName: d.provider?.users?.name
+          })
+        })
+      }
+
+      // Fetch unrated shopping
+      const { data: shopping } = await supabase
+        .from('shopping_requests')
+        .select(`
+          id,
+          store_name,
+          delivery_address,
+          total_cost,
+          service_fee,
+          created_at,
+          provider:provider_id (
+            users:user_id (name)
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .is('rated_at', null)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (shopping) {
+        shopping.forEach((s: any) => {
+          unratedOrders.push({
+            id: s.id,
+            type: 'shopping',
+            typeName: 'ซื้อของ',
+            from: s.store_name || 'ร้านค้า',
+            to: s.delivery_address?.split(',')[0] || 'ไม่ระบุ',
+            date: formatDate(s.created_at),
+            fare: s.total_cost || s.service_fee || 0,
+            driverName: s.provider?.users?.name
+          })
+        })
+      }
+
+      // Sort by date (newest first)
+      return unratedOrders.slice(0, 5)
+    } catch (err) {
+      console.error('Error fetching unrated orders details:', err)
+      return []
+    }
+  }
+
+  // Submit rating for an order
+  const submitRating = async (
+    orderId: string,
+    orderType: 'ride' | 'delivery' | 'shopping',
+    rating: number,
+    comment?: string
+  ) => {
+    try {
+      if (!authStore.user?.id) return false
+
+      const userId = authStore.user.id
+      let ratingTable = ''
+      let orderIdColumn = ''
+
+      switch (orderType) {
+        case 'ride':
+          ratingTable = 'ride_ratings'
+          orderIdColumn = 'ride_id'
+          break
+        case 'delivery':
+          ratingTable = 'delivery_ratings'
+          orderIdColumn = 'delivery_id'
+          break
+        case 'shopping':
+          ratingTable = 'shopping_ratings'
+          orderIdColumn = 'shopping_id'
+          break
+        default:
+          return false
+      }
+
+      // Insert rating
+      const { error: ratingError } = await (supabase
+        .from(ratingTable) as any)
+        .insert({
+          [orderIdColumn]: orderId,
+          user_id: userId,
+          rating,
+          comment: comment || null
+        })
+
+      if (ratingError) {
+        console.error('Error submitting rating:', ratingError)
+        return false
+      }
+
+      // Update unrated count
+      await fetchUnratedRides()
+      
+      return true
+    } catch (err) {
+      console.error('Error submitting rating:', err)
+      return false
+    }
+  }
+
+  // Skip rating (mark as rated without actual rating)
+  const skipRating = async (orderId: string, orderType: string) => {
+    try {
+      // Call database function to mark as rated
+      const { error } = await (supabase.rpc as any)('mark_order_rated', {
+        p_order_id: orderId,
+        p_order_type: orderType
+      })
+
+      if (error) {
+        console.error('Error skipping rating:', error)
+        return false
+      }
+
+      // Update unrated count
+      await fetchUnratedRides()
+      
+      return true
+    } catch (err) {
+      console.error('Error skipping rating:', err)
+      return false
+    }
+  }
+
   return {
     history,
     loading,
@@ -601,6 +811,9 @@ export function useRideHistory() {
     unratedRidesCount,
     fetchHistory,
     fetchUnratedRides,
+    fetchUnratedOrdersDetails,
+    submitRating,
+    skipRating,
     getOrderDetails,
     getOrderByTrackingId,
     rebookRide

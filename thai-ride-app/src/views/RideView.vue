@@ -273,6 +273,8 @@ const destSearchResults = ref<Array<{ id: string; name: string; address: string;
 
 // Step Flow: pickup → destination → options → confirm
 const step = ref<'pickup' | 'destination' | 'options' | 'confirm'>('pickup')
+const stepDirection = ref<'forward' | 'backward'>('forward')
+const previousStep = ref<'pickup' | 'destination' | 'options' | 'confirm'>('pickup')
 
 // Active ride state
 const activeRide = ref<RideRequest | null>(null)
@@ -478,6 +480,9 @@ const resetBooking = () => {
 }
 
 const goBack = () => {
+  stepDirection.value = 'backward'
+  previousStep.value = step.value
+  
   if (step.value === 'confirm') {
     step.value = 'options'
   } else if (step.value === 'options') {
@@ -487,13 +492,18 @@ const goBack = () => {
   } else {
     router.back()
   }
+  triggerHaptic('light')
 }
 
 const goToStep = (targetStep: 'pickup' | 'destination' | 'options' | 'confirm') => {
   // อนุญาตให้กลับไปขั้นตอนก่อนหน้าเท่านั้น
   const targetIndex = stepLabels.findIndex(s => s.key === targetStep)
   if (targetIndex <= currentStepIndex.value) {
+    // Track direction for animation
+    stepDirection.value = targetIndex < currentStepIndex.value ? 'backward' : 'forward'
+    previousStep.value = step.value
     step.value = targetStep
+    triggerHaptic('light')
   }
 }
 
@@ -693,6 +703,9 @@ const useCurrentLocationEnhanced = async (type: 'pickup' | 'destination') => {
 // Enhanced step transition
 const goToNextStep = async () => {
   triggerHaptic('medium')
+  stepDirection.value = 'forward'
+  previousStep.value = step.value
+  
   if (step.value === 'pickup' && pickupLocation.value) {
     step.value = 'destination'
   } else if (step.value === 'destination' && destinationLocation.value) {
@@ -810,51 +823,56 @@ watch(rideType, () => {
       <div class="bottom-panel" :class="{ expanded: step === 'options' || step === 'confirm' }">
         <div class="panel-handle"></div>
         
-        <!-- Step Indicator -->
-        <div class="step-indicator">
-          <div 
-            v-for="(s, index) in stepLabels" 
-            :key="s.key"
-            :class="['step-item', { 
-              active: s.key === step, 
-              completed: index < currentStepIndex,
-              clickable: index < currentStepIndex
-            }]"
-            @click="goToStep(s.key)"
-          >
-            <div class="step-number">
-              <template v-if="index < currentStepIndex">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-              </template>
-              <template v-else>{{ s.number }}</template>
+        <!-- Step Indicator - Enhanced -->
+        <div class="step-indicator-enhanced">
+          <div class="step-progress-bar">
+            <div class="step-progress-fill" :style="{ width: `${(currentStepIndex / (stepLabels.length - 1)) * 100}%` }"></div>
+          </div>
+          <div class="step-items-row">
+            <div 
+              v-for="(s, index) in stepLabels" 
+              :key="s.key"
+              :class="['step-item-enhanced', { 
+                active: s.key === step, 
+                completed: index < currentStepIndex,
+                clickable: index < currentStepIndex
+              }]"
+              @click="goToStep(s.key)"
+            >
+              <div class="step-circle">
+                <template v-if="index < currentStepIndex">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                </template>
+                <template v-else>{{ s.number }}</template>
+              </div>
+              <span class="step-text">{{ s.label }}</span>
             </div>
-            <span class="step-label">{{ s.label }}</span>
           </div>
         </div>
 
         <!-- Step 1: เลือกจุดรับ -->
         <template v-if="step === 'pickup'">
-          <div class="step-content animate-step">
-            <!-- Step Header with Icon -->
-            <div class="step-header">
-              <div class="step-header-icon pickup-icon">
+          <div :class="['step-content', stepDirection === 'forward' ? 'animate-step' : 'animate-step-back']" :key="'step-pickup'">
+            <!-- Step Header Card -->
+            <div class="step-header-card">
+              <div class="step-header-icon-box pickup">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="4"/>
                   <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
                 </svg>
               </div>
-              <div class="step-header-text">
-                <h2 class="step-title">คุณอยู่ที่ไหน?</h2>
-                <p class="step-desc">เลือกจุดที่ต้องการให้รถมารับ</p>
+              <div class="step-header-content">
+                <h2 class="step-header-title">คุณอยู่ที่ไหน?</h2>
+                <p class="step-header-subtitle">เลือกจุดที่ต้องการให้รถมารับ</p>
               </div>
             </div>
             
-            <!-- Quick Actions with Enhanced Feedback -->
-            <div class="quick-actions-grid">
+            <!-- Quick Actions - Clean Card Style -->
+            <div class="location-options-list">
               <button 
-                class="quick-action-card"
+                class="location-option-card"
                 :class="{ 'is-loading': isGettingLocation, 'is-pressed': pressedButton === 'current-loc' }"
                 @mousedown="handleButtonPress('current-loc')"
                 @mouseup="handleButtonRelease"
@@ -864,7 +882,7 @@ watch(rideType, () => {
                 @click="useCurrentLocationEnhanced('pickup')"
                 :disabled="isGettingLocation"
               >
-                <div class="action-card-icon">
+                <div class="option-icon-box green">
                   <template v-if="isGettingLocation">
                     <div class="mini-spinner"></div>
                   </template>
@@ -876,11 +894,11 @@ watch(rideType, () => {
                     </svg>
                   </template>
                 </div>
-                <div class="action-card-content">
-                  <span class="action-card-title">ตำแหน่งปัจจุบัน</span>
-                  <span class="action-card-subtitle">{{ isGettingLocation ? 'กำลังค้นหา...' : 'ใช้ GPS ระบุตำแหน่ง' }}</span>
+                <div class="option-text">
+                  <span class="option-title">ตำแหน่งปัจจุบัน</span>
+                  <span class="option-subtitle">{{ isGettingLocation ? 'กำลังค้นหา...' : 'ใช้ GPS ระบุตำแหน่ง' }}</span>
                 </div>
-                <div class="action-card-arrow">
+                <div class="option-arrow">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>
                   </svg>
@@ -888,7 +906,7 @@ watch(rideType, () => {
               </button>
               
               <button 
-                class="quick-action-card"
+                class="location-option-card"
                 :class="{ 'is-pressed': pressedButton === 'map-picker' }"
                 @mousedown="handleButtonPress('map-picker')"
                 @mouseup="handleButtonRelease"
@@ -897,17 +915,17 @@ watch(rideType, () => {
                 @touchend="handleButtonRelease"
                 @click="showPickupMapPicker = true; triggerHaptic('light')"
               >
-                <div class="action-card-icon map-icon">
+                <div class="option-icon-box blue">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
                     <circle cx="12" cy="10" r="3"/>
                   </svg>
                 </div>
-                <div class="action-card-content">
-                  <span class="action-card-title">เลือกจากแผนที่</span>
-                  <span class="action-card-subtitle">ปักหมุดตำแหน่งบนแผนที่</span>
+                <div class="option-text">
+                  <span class="option-title">เลือกจากแผนที่</span>
+                  <span class="option-subtitle">ปักหมุดตำแหน่งบนแผนที่</span>
                 </div>
-                <div class="action-card-arrow">
+                <div class="option-arrow">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>
                   </svg>
@@ -954,18 +972,18 @@ watch(rideType, () => {
 
         <!-- Step 2: เลือกจุดหมาย -->
         <template v-else-if="step === 'destination'">
-          <div class="step-content animate-step">
-            <!-- Step Header with Icon -->
-            <div class="step-header">
-              <div class="step-header-icon destination-icon">
+          <div :class="['step-content', stepDirection === 'forward' ? 'animate-step' : 'animate-step-back']" :key="'step-destination'">
+            <!-- Step Header Card -->
+            <div class="step-header-card">
+              <div class="step-header-icon-box destination">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
                   <circle cx="12" cy="10" r="3"/>
                 </svg>
               </div>
-              <div class="step-header-text">
-                <h2 class="step-title">ไปที่ไหน?</h2>
-                <p class="step-desc">เลือกจุดหมายปลายทางของคุณ</p>
+              <div class="step-header-content">
+                <h2 class="step-header-title">ไปที่ไหน?</h2>
+                <p class="step-header-subtitle">เลือกจุดหมายปลายทางของคุณ</p>
               </div>
             </div>
             
@@ -1060,6 +1078,33 @@ watch(rideType, () => {
               </div>
             </div>
 
+            <!-- Recent History Quick Chips -->
+            <div v-if="recentPlaces.length > 0" class="recent-history-chips">
+              <h4 class="section-title-small">ไปเมื่อเร็วๆ นี้</h4>
+              <div class="history-chips-scroll">
+                <button 
+                  v-for="(place, index) in recentPlaces.slice(0, 5)" 
+                  :key="place.id"
+                  class="history-chip"
+                  :class="{ 'is-pressed': pressedButton === `recent-${index}` }"
+                  :style="{ animationDelay: `${index * 50}ms` }"
+                  @mousedown="handleButtonPress(`recent-${index}`)"
+                  @mouseup="handleButtonRelease"
+                  @touchstart="handleButtonPress(`recent-${index}`)"
+                  @touchend="handleButtonRelease"
+                  @click="selectRecentPlaceEnhanced(place)"
+                >
+                  <div class="history-chip-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                  </div>
+                  <span class="history-chip-text">{{ place.name }}</span>
+                </button>
+              </div>
+            </div>
+
             <!-- Map Picker Button -->
             <button 
               class="map-picker-btn"
@@ -1144,10 +1189,10 @@ watch(rideType, () => {
 
         <!-- Step 3: เลือกประเภทรถ -->
         <template v-else-if="step === 'options'">
-          <div class="step-content animate-step">
-            <!-- Step Header with Icon -->
-            <div class="step-header">
-              <div class="step-header-icon options-icon">
+          <div :class="['step-content', stepDirection === 'forward' ? 'animate-step' : 'animate-step-back']" :key="'step-options'">
+            <!-- Step Header Card -->
+            <div class="step-header-card">
+              <div class="step-header-icon-box options">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="1" y="3" width="15" height="13" rx="2"/>
                   <path d="M16 8h4a2 2 0 012 2v6a2 2 0 01-2 2h-4"/>
@@ -1155,9 +1200,9 @@ watch(rideType, () => {
                   <circle cx="18.5" cy="18.5" r="2.5"/>
                 </svg>
               </div>
-              <div class="step-header-text">
-                <h2 class="step-title">เลือกประเภทรถ</h2>
-                <p class="step-desc">เลือกรถที่เหมาะกับการเดินทางของคุณ</p>
+              <div class="step-header-content">
+                <h2 class="step-header-title">เลือกประเภทรถ</h2>
+                <p class="step-header-subtitle">เลือกรถที่เหมาะกับการเดินทางของคุณ</p>
               </div>
             </div>
 
@@ -1325,19 +1370,20 @@ watch(rideType, () => {
         </template>
 
         <!-- Step 4: ยืนยันการจอง -->
+        <!-- Step 4: ยืนยันการจอง -->
         <template v-else-if="step === 'confirm'">
-          <div class="step-content animate-step">
-            <!-- Step Header with Icon -->
-            <div class="step-header">
-              <div class="step-header-icon confirm-icon">
+          <div :class="['step-content', stepDirection === 'forward' ? 'animate-step' : 'animate-step-back']" :key="'step-confirm'">
+            <!-- Step Header Card -->
+            <div class="step-header-card">
+              <div class="step-header-icon-box confirm">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M9 12l2 2 4-4"/>
                   <circle cx="12" cy="12" r="10"/>
                 </svg>
               </div>
-              <div class="step-header-text">
-                <h2 class="step-title">ยืนยันการจอง</h2>
-                <p class="step-desc">ตรวจสอบรายละเอียดก่อนจอง</p>
+              <div class="step-header-content">
+                <h2 class="step-header-title">ยืนยันการจอง</h2>
+                <p class="step-header-subtitle">ตรวจสอบรายละเอียดก่อนจอง</p>
               </div>
             </div>
             
@@ -2015,85 +2061,101 @@ watch(rideType, () => {
   margin: 0 auto 12px;
 }
 
-/* Step Indicator */
-.step-indicator {
+/* Step Indicator Enhanced */
+.step-indicator-enhanced {
+  position: relative;
+  padding: 0 4px;
+  margin-bottom: 20px;
+}
+
+.step-progress-bar {
+  position: absolute;
+  top: 18px;
+  left: 40px;
+  right: 40px;
+  height: 3px;
+  background: #E8E8E8;
+  border-radius: 2px;
+  z-index: 0;
+}
+
+.step-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00A86B, #00C77B);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.step-items-row {
   display: flex;
   justify-content: space-between;
-  padding: 0 8px;
-  margin-bottom: 16px;
-}
-
-.step-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  position: relative;
-}
-
-.step-item:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 14px;
-  left: calc(50% + 18px);
-  width: calc(100% - 36px);
-  height: 2px;
-  background: #E8E8E8;
-}
-
-.step-item.completed:not(:last-child)::after {
-  background: #00A86B;
-}
-
-.step-number {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  background: #F5F5F5;
-  color: #999999;
   position: relative;
   z-index: 1;
 }
 
-.step-item.active .step-number {
-  background: #00A86B;
-  color: #FFFFFF;
+.step-item-enhanced {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  cursor: default;
 }
 
-.step-item.completed .step-number {
-  background: #00A86B;
-  color: #FFFFFF;
-}
-
-.step-item.completed .step-number svg {
-  width: 14px;
-  height: 14px;
-}
-
-.step-item.clickable {
+.step-item-enhanced.clickable {
   cursor: pointer;
 }
 
-.step-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: #999999;
-  text-align: center;
+.step-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  background: #FFFFFF;
+  color: #CCCCCC;
+  border: 3px solid #E8E8E8;
+  transition: all 0.3s ease;
 }
 
-.step-item.active .step-label {
+.step-item-enhanced.active .step-circle {
+  background: #00A86B;
+  color: #FFFFFF;
+  border-color: #00A86B;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.35);
+  transform: scale(1.1);
+}
+
+.step-item-enhanced.completed .step-circle {
+  background: #00A86B;
+  color: #FFFFFF;
+  border-color: #00A86B;
+}
+
+.step-item-enhanced.completed .step-circle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.step-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #AAAAAA;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.step-item-enhanced.active .step-text {
+  color: #00A86B;
+  font-weight: 700;
+}
+
+.step-item-enhanced.completed .step-text {
   color: #00A86B;
   font-weight: 600;
-}
-
-.step-item.completed .step-label {
-  color: #00A86B;
 }
 
 /* Step Content */
@@ -2103,6 +2165,173 @@ watch(rideType, () => {
   gap: 16px;
   flex: 1;
   min-height: 0;
+}
+
+/* Step Header Card - Clean Style */
+.step-header-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.step-header-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-header-icon-box svg {
+  width: 26px;
+  height: 26px;
+}
+
+.step-header-icon-box.pickup {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.step-header-icon-box.destination {
+  background: #E3F2FD;
+  color: #1976D2;
+}
+
+.step-header-icon-box.options {
+  background: #FFF3E0;
+  color: #F57C00;
+}
+
+.step-header-icon-box.confirm {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.step-header-content {
+  flex: 1;
+}
+
+.step-header-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+
+.step-header-subtitle {
+  font-size: 14px;
+  color: #666666;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Location Options List - Clean Card Style */
+.location-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.location-option-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #FFFFFF;
+  border: 1.5px solid #F0F0F0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.location-option-card:hover {
+  border-color: #00A86B;
+  background: #FAFFFE;
+}
+
+.location-option-card:active,
+.location-option-card.is-pressed {
+  transform: scale(0.98);
+  border-color: #00A86B;
+}
+
+.location-option-card.is-loading {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.option-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.option-icon-box svg {
+  width: 24px;
+  height: 24px;
+}
+
+.option-icon-box.green {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.option-icon-box.blue {
+  background: #E3F2FD;
+  color: #1976D2;
+}
+
+.option-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.option-subtitle {
+  font-size: 13px;
+  color: #888888;
+}
+
+.option-arrow {
+  width: 20px;
+  height: 20px;
+  color: #CCCCCC;
+  flex-shrink: 0;
+}
+
+.option-arrow svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Mini Spinner */
+.mini-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #E8F5EF;
+  border-top-color: #00A86B;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .step-title {
@@ -3296,19 +3525,114 @@ watch(rideType, () => {
    ENHANCED UX STYLES
    ======================================== */
 
-/* Step Animation */
+/* Step Animation - Slide Left/Right */
 .animate-step {
-  animation: stepFadeIn 0.4s ease-out;
+  animation: stepSlideIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-@keyframes stepFadeIn {
+@keyframes stepSlideIn {
   from {
     opacity: 0;
-    transform: translateX(20px);
+    transform: translateX(30px);
   }
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* Backward animation class */
+.animate-step-back {
+  animation: stepSlideBack 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes stepSlideBack {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Recent History Quick Chips */
+.recent-history-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-chips-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.history-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.history-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #F8F8F8;
+  border: 1.5px solid #F0F0F0;
+  border-radius: 24px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  animation: chipFadeIn 0.3s ease-out backwards;
+}
+
+.history-chip:hover {
+  background: #F0F0F0;
+  border-color: #E0E0E0;
+}
+
+.history-chip:active,
+.history-chip.is-pressed {
+  transform: scale(0.95);
+  background: #E8F5EF;
+  border-color: #00A86B;
+}
+
+.history-chip-icon {
+  width: 20px;
+  height: 20px;
+  color: #888888;
+  flex-shrink: 0;
+}
+
+.history-chip-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.history-chip-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333333;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes chipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

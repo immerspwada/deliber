@@ -36,6 +36,8 @@ const touchStartX = ref(0)
 const touchStartY = ref(0)
 const isSwiping = ref(false)
 const swipeThreshold = 80 // minimum swipe distance
+const swipeOffset = ref(0) // For visual feedback during swipe
+const stepDirection = ref<'next' | 'prev' | null>(null) // For animation direction
 
 // Sender info
 const senderName = ref('')
@@ -343,6 +345,23 @@ const handleTouchStart = (e: TouchEvent) => {
     touchStartX.value = touch.clientX
     touchStartY.value = touch.clientY
     isSwiping.value = true
+    swipeOffset.value = 0
+  }
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+  if (!isSwiping.value) return
+  const touch = e.touches[0]
+  if (!touch) return
+  
+  const deltaX = touch.clientX - touchStartX.value
+  const deltaY = touch.clientY - touchStartY.value
+  
+  // Only track horizontal swipes
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    // Limit swipe offset with resistance
+    const maxOffset = 100
+    swipeOffset.value = Math.max(-maxOffset, Math.min(maxOffset, deltaX * 0.5))
   }
 }
 
@@ -360,12 +379,22 @@ const handleTouchEnd = (e: TouchEvent) => {
   if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
     if (deltaX > 0) {
       // Swipe right - go back
+      stepDirection.value = 'prev'
       goBack()
     } else {
       // Swipe left - go next (if allowed)
+      stepDirection.value = 'next'
       handleSwipeNext()
     }
   }
+  
+  // Reset swipe offset with animation
+  swipeOffset.value = 0
+  
+  // Reset direction after animation
+  setTimeout(() => {
+    stepDirection.value = null
+  }, 300)
 }
 
 const handleSwipeNext = () => {
@@ -403,6 +432,7 @@ const clearDropoff = () => {
   <div 
     class="delivery-page"
     @touchstart="handleTouchStart"
+    @touchmove="handleTouchMove"
     @touchend="handleTouchEnd"
   >
     <!-- Exit Confirmation Dialog -->
@@ -499,9 +529,28 @@ const clearDropoff = () => {
         </div>
       </div>
 
+      <!-- Swipe Indicator -->
+      <Transition name="fade">
+        <div v-if="isSwiping && Math.abs(swipeOffset) > 20" class="swipe-indicator" :class="{ 'swipe-left': swipeOffset < 0, 'swipe-right': swipeOffset > 0 }">
+          <div class="swipe-arrow">
+            <svg v-if="swipeOffset > 0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <span class="swipe-text">{{ swipeOffset > 0 ? 'ย้อนกลับ' : 'ถัดไป' }}</span>
+        </div>
+      </Transition>
+
       <!-- Step 1: จุดรับพัสดุ -->
       <template v-if="currentStep === 'pickup'">
-        <div class="step-content animate-step">
+        <div 
+          class="step-content animate-step"
+          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
+          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+        >
           <div class="step-header">
             <div class="step-header-icon pickup-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -684,7 +733,11 @@ const clearDropoff = () => {
 
       <!-- Step 2: จุดส่งพัสดุ -->
       <template v-else-if="currentStep === 'dropoff'">
-        <div class="step-content animate-step">
+        <div 
+          class="step-content animate-step"
+          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
+          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+        >
           <div class="step-header">
             <div class="step-header-icon destination-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -864,7 +917,11 @@ const clearDropoff = () => {
 
       <!-- Step 3: รายละเอียดพัสดุ -->
       <template v-else-if="currentStep === 'details'">
-        <div class="step-content animate-step">
+        <div 
+          class="step-content animate-step"
+          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
+          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+        >
           <div class="step-header">
             <div class="step-header-icon details-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1132,7 +1189,11 @@ const clearDropoff = () => {
 
       <!-- Step 4: ยืนยันการส่ง -->
       <template v-else-if="currentStep === 'confirm'">
-        <div class="step-content animate-step">
+        <div 
+          class="step-content animate-step"
+          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
+          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+        >
           <div class="step-header">
             <div class="step-header-icon confirm-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1520,6 +1581,17 @@ const clearDropoff = () => {
 
 .animate-step {
   animation: stepFadeIn 0.4s ease-out;
+  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+  will-change: transform, opacity;
+}
+
+/* Step Direction Animations */
+.animate-step.step-next {
+  animation: stepSlideInFromRight 0.35s ease-out;
+}
+
+.animate-step.step-prev {
+  animation: stepSlideInFromLeft 0.35s ease-out;
 }
 
 @keyframes stepFadeIn {
@@ -1531,6 +1603,84 @@ const clearDropoff = () => {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+@keyframes stepSlideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes stepSlideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Swipe Indicator */
+.swipe-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(0, 168, 107, 0.95);
+  border-radius: 12px;
+  color: #FFFFFF;
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 168, 107, 0.3);
+  pointer-events: none;
+}
+
+.swipe-indicator.swipe-left {
+  right: 16px;
+}
+
+.swipe-indicator.swipe-right {
+  left: 16px;
+}
+
+.swipe-arrow {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.swipe-arrow svg {
+  width: 24px;
+  height: 24px;
+}
+
+.swipe-text {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Fade Transition for Swipe Indicator */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Step Header */

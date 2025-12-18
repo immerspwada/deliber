@@ -6,6 +6,7 @@
 
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/auth'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 // Types
@@ -50,6 +51,12 @@ export interface QueueRating {
 }
 
 export function useQueueBooking() {
+  // Auth Store
+  const authStore = useAuthStore()
+  
+  // Check if demo mode
+  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+  
   // State
   const bookings = ref<QueueBooking[]>([])
   const currentBooking = ref<QueueBooking | null>(null)
@@ -86,17 +93,44 @@ export function useQueueBooking() {
         return null
       }
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const userId = authStore.user?.id
+      if (!userId) {
         error.value = 'กรุณาเข้าสู่ระบบ'
         return null
+      }
+
+      // Demo mode - create mock booking
+      if (isDemoMode()) {
+        const mockBooking: QueueBooking = {
+          id: `demo-${Date.now()}`,
+          tracking_id: `QUE-DEMO-${Date.now()}`,
+          user_id: userId,
+          provider_id: null,
+          category: input.category,
+          place_name: input.place_name || null,
+          place_address: input.place_address || null,
+          details: input.details || null,
+          scheduled_date: input.scheduled_date,
+          scheduled_time: input.scheduled_time,
+          status: 'pending',
+          service_fee: 50,
+          final_fee: null,
+          cancelled_at: null,
+          cancel_reason: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: null
+        }
+        currentBooking.value = mockBooking
+        bookings.value.unshift(mockBooking)
+        return mockBooking
       }
 
       // Generate tracking_id via trigger (auto-generated)
       const { data, error: insertError } = await (supabase
         .from('queue_bookings') as any)
         .insert({
-          user_id: user.id,
+          user_id: userId,
           category: input.category,
           place_name: input.place_name || null,
           place_address: input.place_address || null,
@@ -127,22 +161,33 @@ export function useQueueBooking() {
     error.value = null
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const userId = authStore.user?.id
+      if (!userId) {
         error.value = 'กรุณาเข้าสู่ระบบ'
+        return
+      }
+
+      // Skip API call in demo mode
+      if (isDemoMode()) {
+        bookings.value = []
         return
       }
 
       const { data, error: fetchError } = await supabase
         .from('queue_bookings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
       if (fetchError) throw fetchError
 
       bookings.value = data || []
     } catch (err: any) {
+      // Silently handle network errors in demo mode
+      if (isDemoMode()) {
+        bookings.value = []
+        return
+      }
       error.value = err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
     } finally {
       loading.value = false
@@ -262,8 +307,8 @@ export function useQueueBooking() {
     error.value = null
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const userId = authStore.user?.id
+      if (!userId) {
         error.value = 'กรุณาเข้าสู่ระบบ'
         return false
       }
@@ -272,7 +317,7 @@ export function useQueueBooking() {
         .from('queue_ratings') as any)
         .insert({
           booking_id: bookingId,
-          user_id: user.id,
+          user_id: userId,
           provider_id: providerId,
           rating,
           comment: comment || null
