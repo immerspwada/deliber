@@ -19,7 +19,10 @@ const router = useRouter()
 const rideStore = useRideStore()
 const authStore = useAuthStore()
 const { calculateDistance, calculateTravelTime } = useLocation()
-const { getSurgeMultiplier, surgeMultiplier } = useSurgePricing()
+const { calculateSurge, currentMultiplier } = useSurgePricing()
+
+// Surge multiplier alias for template
+const surgeMultiplier = currentMultiplier
 
 // Check for pre-set destination from services page
 onMounted(async () => {
@@ -31,7 +34,7 @@ onMounted(async () => {
   
   // Check surge pricing
   if (pickupLocation.value) {
-    await getSurgeMultiplier(pickupLocation.value.lat, pickupLocation.value.lng)
+    await calculateSurge(pickupLocation.value.lat, pickupLocation.value.lng)
   }
   
   // Initialize ride store if user logged in
@@ -66,7 +69,6 @@ const estimatedFare = ref(0)
 const estimatedTime = ref(0)
 const estimatedDistance = ref(0)
 const showFareResult = ref(false)
-const showRideOptions = ref(false)
 const showPaymentSheet = ref(false)
 const showPromoSheet = ref(false)
 const step = ref<'location' | 'options' | 'confirm'>('location')
@@ -114,7 +116,6 @@ const paymentMethods = [
 ] as const
 
 const canCalculate = computed(() => pickupLocation.value && destinationLocation.value)
-const canBook = computed(() => canCalculate.value && showFareResult.value)
 
 const selectedRideType = computed(() => 
   rideTypes.find(t => t.value === rideType.value) || rideTypes[0]
@@ -132,7 +133,7 @@ const finalFare = computed(() => {
 const handlePickupSelected = async (location: GeoLocation) => {
   pickupLocation.value = location
   showFareResult.value = false
-  await getSurgeMultiplier(location.lat, location.lng)
+  await calculateSurge(location.lat, location.lng)
 }
 
 const handleDestinationSelected = (location: GeoLocation) => {
@@ -278,7 +279,7 @@ watch(rideType, () => {
         </div>
         <RideTracker
           :ride="activeRide"
-          :provider="assignedProvider || rideStore.matchedDriver"
+          :provider="(assignedProvider || rideStore.matchedDriver) as any"
           @cancel="handleCancelRide"
           @complete="handleRideComplete"
         />
