@@ -1,0 +1,66 @@
+# Dependabot configuration
+# Auto-update dependencies with security vulnerabilities
+
+version: 2
+
+updates:
+  # NPM dependencies for thai-ride-app
+  - package-ecosystem: "npm"
+    directory: "/thai-ride-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Bangkok"
+    
+    # Limit open PRs
+    open-pull-requests-limit: 10
+    
+    # Group minor and patch updates
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    
+    # Auto-merge settings (requires GitHub Actions)
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    
+    # Labels for PRs
+    labels:
+      - "dependencies"
+      - "automated"
+    
+    # Reviewers
+    reviewers:
+      - "dependabot"
+    
+    # Ignore specific packages (if needed)
+    ignore:
+      # Example: ignore major updates for specific packages
+      # - dependency-name: "vue"
+      #   update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Bangkok"
+    
+    labels:
+      - "dependencies"
+      - "github-actions"
+    
+    commit-message:
+      prefix: "ci"

@@ -706,13 +706,14 @@ const recentDestinations = computed(() => {
         </svg>
         <span>หน้าแรก</span>
       </button>
-      <button class="nav-item" @click="navigateTo('/customer/help')">
+      <button class="nav-item" @click="navigateTo('/customer/services')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
-          <circle cx="12" cy="17" r="1"/>
+          <rect x="3" y="3" width="6" height="6" rx="1"/>
+          <rect x="15" y="3" width="6" height="6" rx="1"/>
+          <rect x="3" y="15" width="6" height="6" rx="1"/>
+          <rect x="15" y="15" width="6" height="6" rx="1"/>
         </svg>
-        <span>ช่วยเหลือ</span>
+        <span>บริการ</span>
       </button>
       <button class="nav-item" @click="navigateTo('/customer/history')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

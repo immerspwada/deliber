@@ -1,0 +1,180 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for scanning
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run custom secret scanner
+        working-directory: thai-ride-app
+        run: |
+          echo "🔍 Scanning for secrets..."
+          node scripts/check-secrets.js \
+            src/lib/supabase.ts \
+            src/stores/auth.ts \
+            src/lib/env.ts \
+            src/main.ts
+
+      - name: Check for hardcoded credentials
+        run: |
+          echo "🔍 Checking for hardcoded Supabase credentials..."
+          
+          # Check for JWT tokens in source files (excluding .env files)
+          if grep -r "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" \
+            --include="*.ts" \
+            --include="*.js" \
+            --include="*.vue" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            thai-ride-app/src/; then
+            echo "❌ Found hardcoded JWT token in source code!"
+            exit 1
+          fi
+          
+          # Check for Supabase URL with inline key
+          if grep -rE "supabase\.co.*eyJ" \
+            --include="*.ts" \
+            --include="*.js" \
+            --include="*.vue" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            thai-ride-app/src/; then
+            echo "❌ Found hardcoded Supabase credentials!"
+            exit 1
+          fi
+          
+          echo "✅ No hardcoded credentials found"
+
+      - name: Check environment variable usage
+        run: |
+          echo "🔍 Verifying environment variable usage..."
+          
+          # Ensure supabase.ts uses env vars
+          if grep -q "import.meta.env.VITE_SUPABASE" thai-ride-app/src/lib/supabase.ts || \
+             grep -q "env.supabaseUrl" thai-ride-app/src/lib/supabase.ts; then
+            echo "✅ supabase.ts uses environment variables"
+          else
+            echo "⚠️ Warning: supabase.ts may not be using environment variables"
+          fi
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: thai-ride-app
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: thai-ride-app
+        run: |
+          echo "🔍 Running npm audit..."
+          npm audit --audit-level=high || true
+          
+      - name: Check for known vulnerabilities
+        working-directory: thai-ride-app
+        run: |
+          echo "📊 Dependency audit summary:"
+          npm audit --json | jq '.metadata' || echo "Audit completed"
+
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: thai-ride-app
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: thai-ride-app
+        run: |
+          echo "🔍 Running TypeScript check..."
+          npx vue-tsc --noEmit || echo "TypeScript check completed with warnings"
+
+      - name: Check for console.log in production code
+        run: |
+          echo "🔍 Checking for excessive console.log usage..."
+          
+          # Count console.log occurrences (warning only)
+          COUNT=$(grep -r "console\.\(log\|warn\|error\)" \
+            --include="*.ts" \
+            --include="*.vue" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            --exclude="*logger*" \
+            thai-ride-app/src/ | wc -l || echo "0")
+          
+          echo "Found $COUNT console statements"
+          
+          if [ "$COUNT" -gt 100 ]; then
+            echo "⚠️ Warning: High number of console statements ($COUNT)"
+            echo "Consider using the logger utility instead"
+          else
+            echo "✅ Console usage is acceptable"
+          fi
+
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: thai-ride-app
+        run: npm ci
+
+      - name: Run tests
+        working-directory: thai-ride-app
+        run: npm run test
+        env:
+          VITE_SUPABASE_URL: https://test.supabase.co
+          VITE_SUPABASE_ANON_KEY: test-key-for-ci
+
+      - name: Build application
+        working-directory: thai-ride-app
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://test.supabase.co
+          VITE_SUPABASE_ANON_KEY: test-key-for-ci

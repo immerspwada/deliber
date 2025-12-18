@@ -1,22 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
+import { env, isSupabaseConfigured as envConfigured } from './env'
+import { supabaseLogger as logger } from '../utils/logger'
 
-// Hardcoded for debugging - TODO: revert to env vars
-const supabaseUrl = 'https://onsflqhkgqhydeupiqyt.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk'
+// Get credentials from environment variables
+const supabaseUrl = env.supabaseUrl
+const supabaseAnonKey = env.supabaseAnonKey
 
-// Check if Supabase is properly configured
-export const isSupabaseConfigured = !!(
-  import.meta.env.VITE_SUPABASE_URL && 
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-)
+// Re-export for backward compatibility
+export const isSupabaseConfigured = envConfigured
 
-// Debug logging
-console.log('[Supabase] URL:', supabaseUrl?.substring(0, 30) + '...')
-console.log('[Supabase] Configured:', isSupabaseConfigured)
+// Debug logging (only in development)
+logger.log('URL:', supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'NOT SET')
+logger.log('Configured:', isSupabaseConfigured)
 
 if (!isSupabaseConfigured) {
-  console.warn('[Supabase] Not configured - running in demo mode')
+  logger.warn('Not configured - running in demo mode')
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
@@ -40,7 +39,7 @@ export const signUp = async (email: string, password: string, metadata?: object)
 }
 
 export const signIn = async (email: string, password: string) => {
-  console.log('[Supabase] signIn called for:', email)
+  logger.log('signIn called for:', email)
   
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -48,7 +47,7 @@ export const signIn = async (email: string, password: string) => {
       password
     })
     
-    console.log('[Supabase] signIn completed:', { 
+    logger.log('signIn completed:', { 
       hasSession: !!data?.session, 
       hasUser: !!data?.user,
       hasError: !!error,
@@ -57,14 +56,14 @@ export const signIn = async (email: string, password: string) => {
     
     return { data, error }
   } catch (err: any) {
-    console.error('[Supabase] signIn exception:', err)
+    logger.error('signIn exception:', err)
     return { data: null, error: { message: err.message || 'Login failed' } }
   }
 }
 
 // Email OTP (Magic Link alternative with 6-digit code)
 export const signInWithEmailOtp = async (email: string) => {
-  console.log('[Email OTP] Sending to:', email)
+  logger.log('[Email OTP] Sending to:', email)
   
   const { data, error } = await supabase.auth.signInWithOtp({
     email: email,
@@ -119,7 +118,7 @@ export const verifyOtp = async (phone: string, token: string) => {
 
 // Social Login - Google
 export const signInWithGoogle = async () => {
-  console.log('[Supabase] signInWithGoogle called')
+  logger.log('signInWithGoogle called')
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -131,7 +130,7 @@ export const signInWithGoogle = async () => {
 
 // Social Login - Facebook
 export const signInWithFacebook = async () => {
-  console.log('[Supabase] signInWithFacebook called')
+  logger.log('signInWithFacebook called')
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'facebook',
     options: {

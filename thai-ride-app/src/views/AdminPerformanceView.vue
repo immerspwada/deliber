@@ -1,722 +1,728 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-6 py-4">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-bold text-gray-900">Performance Dashboard</h1>
-          <p class="text-sm text-gray-500">ตรวจสอบประสิทธิภาพระบบ</p>
+  <AdminLayout>
+    <div class="admin-performance-view">
+      <!-- Header -->
+      <div class="header-section">
+        <div class="header-content">
+          <h1 class="page-title">Performance Monitoring</h1>
+          <p class="page-subtitle">ตรวจสอบประสิทธิภาพแอปพลิเคชันแบบ Real-time</p>
         </div>
-        <div class="flex items-center gap-3">
-          <select v-model="timeRange" class="px-3 py-2 border border-gray-200 rounded-xl text-sm">
-            <option value="1">1 ชั่วโมง</option>
-            <option value="6">6 ชั่วโมง</option>
-            <option value="24">24 ชั่วโมง</option>
-            <option value="72">3 วัน</option>
-            <option value="168">7 วัน</option>
-          </select>
-          <button
-            @click="refreshAll"
+        <div class="header-actions">
+          <button 
+            @click="refreshMetrics" 
             :disabled="loading"
-            class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50"
+            class="btn-refresh"
           >
-            <svg class="w-5 h-5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M23 4v6h-6M1 20v-6h6M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
             </svg>
             รีเฟรช
           </button>
+          <button 
+            @click="exportReport" 
+            class="btn-export"
+          >
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7,10 12,15 17,10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Performance Overview Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card score-card">
+          <div class="metric-header">
+            <h3>Performance Score</h3>
+            <div class="score-badge" :class="getScoreClass(performanceScore)">
+              {{ performanceGrade }}
+            </div>
+          </div>
+          <div class="metric-value">
+            <span class="score">{{ performanceScore }}</span>
+            <span class="score-max">/100</span>
+          </div>
+          <div class="metric-trend" :class="{ positive: scoreTrend > 0, negative: scoreTrend < 0 }">
+            <svg class="trend-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polyline :points="scoreTrend > 0 ? '22,12 18,12 15,21 9,3 5,12 2,12' : '22,12 18,12 15,3 9,21 5,12 2,12'"/>
+            </svg>
+            {{ Math.abs(scoreTrend) }}% จากเมื่อวาน
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <h3>Core Web Vitals</h3>
+            <div class="status-indicator" :class="getVitalsStatus()"></div>
+          </div>
+          <div class="vitals-list">
+            <div class="vital-item">
+              <span class="vital-label">LCP</span>
+              <span class="vital-value" :class="getLCPClass()">
+                {{ metrics.lcp ? `${(metrics.lcp / 1000).toFixed(1)}s` : 'N/A' }}
+              </span>
+            </div>
+            <div class="vital-item">
+              <span class="vital-label">FID</span>
+              <span class="vital-value" :class="getFIDClass()">
+                {{ metrics.fid ? `${metrics.fid.toFixed(0)}ms` : 'N/A' }}
+              </span>
+            </div>
+            <div class="vital-item">
+              <span class="vital-label">CLS</span>
+              <span class="vital-value" :class="getCLSClass()">
+                {{ metrics.cls ? metrics.cls.toFixed(3) : 'N/A' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <h3>Memory Usage</h3>
+            <div class="memory-percentage">
+              {{ metrics.memoryUsagePercent ? `${metrics.memoryUsagePercent.toFixed(1)}%` : 'N/A' }}
+            </div>
+          </div>
+          <div class="memory-bar">
+            <div 
+              class="memory-fill" 
+              :style="{ width: `${metrics.memoryUsagePercent || 0}%` }"
+              :class="getMemoryClass()"
+            ></div>
+          </div>
+          <div class="memory-details">
+            <span>{{ formatBytes(metrics.usedJSHeapSize) }} / {{ formatBytes(metrics.jsHeapSizeLimit) }}</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-header">
+            <h3>Critical Issues</h3>
+            <div class="issue-count" :class="{ warning: criticalIssuesCount > 0 }">
+              {{ criticalIssuesCount }}
+            </div>
+          </div>
+          <div class="issue-summary">
+            <div class="issue-type">
+              <span class="issue-label">Critical</span>
+              <span class="issue-number">{{ getCriticalIssues().length }}</span>
+            </div>
+            <div class="issue-type">
+              <span class="issue-label">Warning</span>
+              <span class="issue-number">{{ getWarningIssues().length }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Issues -->
+      <div class="issues-section" v-if="performanceIssues.length > 0">
+        <h2 class="section-title">Performance Issues</h2>
+        <div class="issues-list">
+          <div 
+            v-for="issue in performanceIssues" 
+            :key="`${issue.metric}-${issue.timestamp}`"
+            class="issue-item"
+            :class="issue.type"
+          >
+            <div class="issue-icon">
+              <svg v-if="issue.type === 'critical'" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <svg v-else-if="issue.type === 'warning'" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="issue-content">
+              <div class="issue-message">{{ issue.message }}</div>
+              <div class="issue-meta">
+                <span class="issue-time">{{ formatTime(issue.timestamp) }}</span>
+                <span class="issue-metric">{{ issue.metric.toUpperCase() }}</span>
+              </div>
+              <div class="issue-recommendations" v-if="issue.recommendations.length > 0">
+                <h4>แนะนำการแก้ไข:</h4>
+                <ul>
+                  <li v-for="rec in issue.recommendations" :key="rec">{{ rec }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Charts -->
+      <div class="charts-section">
+        <h2 class="section-title">Performance Trends</h2>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Core Web Vitals Trend</h3>
+            <div class="chart-placeholder">
+              <p>Chart visualization would go here</p>
+              <p class="chart-note">LCP: {{ metrics.lcp ? `${(metrics.lcp / 1000).toFixed(1)}s` : 'N/A' }}</p>
+              <p class="chart-note">FID: {{ metrics.fid ? `${metrics.fid.toFixed(0)}ms` : 'N/A' }}</p>
+              <p class="chart-note">CLS: {{ metrics.cls ? metrics.cls.toFixed(3) : 'N/A' }}</p>
+            </div>
+          </div>
+          
+          <div class="chart-card">
+            <h3>Memory Usage Over Time</h3>
+            <div class="chart-placeholder">
+              <p>Memory usage chart would go here</p>
+              <p class="chart-note">Current: {{ metrics.memoryUsagePercent ? `${metrics.memoryUsagePercent.toFixed(1)}%` : 'N/A' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Network Information -->
+      <div class="network-section">
+        <h2 class="section-title">Network Information</h2>
+        <div class="network-grid">
+          <div class="network-item">
+            <span class="network-label">Connection Type</span>
+            <span class="network-value">{{ metrics.connectionType || 'Unknown' }}</span>
+          </div>
+          <div class="network-item">
+            <span class="network-label">Effective Type</span>
+            <span class="network-value">{{ metrics.effectiveType || 'Unknown' }}</span>
+          </div>
+          <div class="network-item">
+            <span class="network-label">Downlink</span>
+            <span class="network-value">{{ metrics.downlink ? `${metrics.downlink} Mbps` : 'Unknown' }}</span>
+          </div>
+          <div class="network-item">
+            <span class="network-label">RTT</span>
+            <span class="network-value">{{ metrics.rtt ? `${metrics.rtt}ms` : 'Unknown' }}</span>
+          </div>
         </div>
       </div>
     </div>
-
-    <!-- Tabs -->
-    <div class="bg-white border-b border-gray-200 px-6">
-      <div class="flex gap-6">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          class="py-3 text-sm font-medium border-b-2 transition-colors"
-          :class="activeTab === tab.id ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-        >
-          {{ tab.label }}
-          <span v-if="tab.badge" class="ml-1 px-2 py-0.5 text-xs rounded-full" :class="tab.badgeClass">
-            {{ tab.badge }}
-          </span>
-        </button>
-      </div>
-    </div>
-
-    <div class="p-6 space-y-6">
-      <!-- Overview Tab -->
-      <template v-if="activeTab === 'overview'">
-        <!-- Server Stats from Database -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="bg-white rounded-2xl p-4 border border-gray-100">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Total Sessions</p>
-                <p class="text-lg font-bold text-gray-900">{{ serverSummary.total_sessions?.toLocaleString() || 0 }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-4 border border-gray-100">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Avg Page Load</p>
-                <p class="text-lg font-bold" :class="getVitalColor(serverSummary.avg_page_load_time || 0, 2000, 4000)">
-                  {{ formatDuration(serverSummary.avg_page_load_time || 0) }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-4 border border-gray-100">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Critical Alerts</p>
-                <p class="text-lg font-bold text-red-600">{{ serverSummary.critical_alerts_count || 0 }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-4 border border-gray-100">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500">Warning Alerts</p>
-                <p class="text-lg font-bold text-yellow-600">{{ serverSummary.warning_alerts_count || 0 }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Core Web Vitals (Server Average) -->
-        <div class="bg-white rounded-2xl p-6 border border-gray-100">
-          <h2 class="text-lg font-bold text-gray-900 mb-4">Core Web Vitals (ค่าเฉลี่ยจากทุก Sessions)</h2>
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div class="text-center p-4 bg-gray-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">LCP</p>
-              <p class="text-2xl font-bold" :class="getVitalColor(serverSummary.avg_lcp || 0, 2500, 4000)">
-                {{ formatDuration(serverSummary.avg_lcp || 0) }}
-              </p>
-              <p class="text-xs text-gray-400">Largest Contentful Paint</p>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">FID</p>
-              <p class="text-2xl font-bold" :class="getVitalColor(serverSummary.avg_fid || 0, 100, 300)">
-                {{ formatDuration(serverSummary.avg_fid || 0) }}
-              </p>
-              <p class="text-xs text-gray-400">First Input Delay</p>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">CLS</p>
-              <p class="text-2xl font-bold" :class="getVitalColor((serverSummary.avg_cls || 0) * 1000, 100, 250)">
-                {{ (serverSummary.avg_cls || 0).toFixed(3) }}
-              </p>
-              <p class="text-xs text-gray-400">Cumulative Layout Shift</p>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">TTFB</p>
-              <p class="text-2xl font-bold" :class="getVitalColor(serverSummary.avg_ttfb || 0, 800, 1800)">
-                {{ formatDuration(serverSummary.avg_ttfb || 0) }}
-              </p>
-              <p class="text-xs text-gray-400">Time to First Byte</p>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">Memory</p>
-              <p class="text-2xl font-bold" :class="getVitalColor(serverSummary.avg_memory_usage || 0, 60, 80)">
-                {{ (serverSummary.avg_memory_usage || 0).toFixed(1) }}%
-              </p>
-              <p class="text-xs text-gray-400">Avg Memory Usage</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Device Breakdown & Slow Pages -->
-        <div class="grid md:grid-cols-2 gap-6">
-          <!-- Device Breakdown -->
-          <div class="bg-white rounded-2xl p-6 border border-gray-100">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Device Breakdown</h2>
-            <div class="space-y-3">
-              <div v-for="device in serverSummary.device_breakdown || []" :key="device.device_type" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                    <svg v-if="device.device_type === 'mobile'" class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <svg v-else-if="device.device_type === 'tablet'" class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <svg v-else class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="font-medium text-gray-900 capitalize">{{ device.device_type || 'Unknown' }}</p>
-                    <p class="text-xs text-gray-500">{{ device.count }} sessions</p>
-                  </div>
-                </div>
-                <p class="text-sm font-medium" :class="getVitalColor(device.avg_load_time || 0, 2000, 4000)">
-                  {{ formatDuration(device.avg_load_time || 0) }}
-                </p>
-              </div>
-              <div v-if="!serverSummary.device_breakdown?.length" class="text-center py-8 text-gray-400">
-                ยังไม่มีข้อมูล
-              </div>
-            </div>
-          </div>
-
-          <!-- Slowest Pages -->
-          <div class="bg-white rounded-2xl p-6 border border-gray-100">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Slowest Pages</h2>
-            <div class="space-y-3">
-              <div v-for="page in serverSummary.top_slow_pages || []" :key="page.page_name" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <div>
-                  <p class="font-medium text-gray-900">{{ page.page_name || 'Unknown' }}</p>
-                  <p class="text-xs text-gray-500">{{ page.count }} views</p>
-                </div>
-                <p class="text-sm font-medium" :class="getVitalColor(page.avg_load_time || 0, 2000, 4000)">
-                  {{ formatDuration(page.avg_load_time || 0) }}
-                </p>
-              </div>
-              <div v-if="!serverSummary.top_slow_pages?.length" class="text-center py-8 text-gray-400">
-                ยังไม่มีข้อมูล
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Client-Side Stats (Current Browser) -->
-        <div class="bg-white rounded-2xl p-6 border border-gray-100">
-          <h2 class="text-lg font-bold text-gray-900 mb-4">Client-Side Stats (Browser ปัจจุบัน)</h2>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="text-center p-4 bg-blue-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">Memory Usage</p>
-              <p class="text-xl font-bold text-gray-900">{{ formatBytes(clientStats.usedJSHeapSize) }}</p>
-              <p class="text-xs" :class="clientStats.memoryUsagePercent > 80 ? 'text-red-500' : 'text-green-500'">
-                {{ clientStats.memoryUsagePercent.toFixed(1) }}%
-              </p>
-            </div>
-            <div class="text-center p-4 bg-green-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">Page Load</p>
-              <p class="text-xl font-bold text-gray-900">{{ formatDuration(clientStats.pageLoadTime) }}</p>
-              <p class="text-xs text-gray-400">DOM: {{ formatDuration(clientStats.domContentLoaded) }}</p>
-            </div>
-            <div class="text-center p-4 bg-purple-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">API Calls</p>
-              <p class="text-xl font-bold text-gray-900">{{ clientStats.apiCallCount }}</p>
-              <p class="text-xs text-gray-400">Avg: {{ formatDuration(getAverageApiTime) }}</p>
-            </div>
-            <div class="text-center p-4 bg-orange-50 rounded-xl">
-              <p class="text-xs text-gray-500 mb-1">Cache Hit Rate</p>
-              <p class="text-xl font-bold text-gray-900">{{ clientStats.cacheHitRate.toFixed(1) }}%</p>
-              <p class="text-xs text-gray-400">{{ clientStats.requestCount }} requests</p>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- Alerts Tab -->
-      <template v-if="activeTab === 'alerts'">
-        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 class="font-bold text-gray-900">Performance Alerts</h2>
-            <div class="flex items-center gap-2">
-              <select v-model="alertFilter.severity" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">
-                <option value="">ทุกระดับ</option>
-                <option value="critical">Critical</option>
-                <option value="warning">Warning</option>
-              </select>
-              <select v-model="alertFilter.status" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">
-                <option value="">ทุกสถานะ</option>
-                <option value="new">New</option>
-                <option value="acknowledged">Acknowledged</option>
-                <option value="resolved">Resolved</option>
-              </select>
-            </div>
-          </div>
-          <div class="divide-y divide-gray-50">
-            <div v-for="alert in alerts" :key="alert.id" class="p-4 hover:bg-gray-50">
-              <div class="flex items-start justify-between">
-                <div class="flex items-start gap-3">
-                  <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    :class="alert.severity === 'critical' ? 'bg-red-100' : 'bg-yellow-100'">
-                    <svg class="w-4 h-4" :class="alert.severity === 'critical' ? 'text-red-600' : 'text-yellow-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="font-medium text-gray-900">{{ formatAlertType(alert.alert_type) }}</p>
-                    <p class="text-sm text-gray-500">
-                      {{ alert.metric_name }}: {{ alert.metric_value }} (threshold: {{ alert.threshold_value }})
-                    </p>
-                    <p class="text-xs text-gray-400 mt-1">
-                      {{ alert.page_name || alert.page_url || 'Unknown page' }} • {{ alert.device_type || 'Unknown device' }}
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="px-2 py-1 text-xs rounded-lg"
-                    :class="{
-                      'bg-red-100 text-red-700': alert.status === 'new',
-                      'bg-yellow-100 text-yellow-700': alert.status === 'acknowledged',
-                      'bg-green-100 text-green-700': alert.status === 'resolved'
-                    }">
-                    {{ alert.status }}
-                  </span>
-                  <div v-if="alert.status !== 'resolved'" class="flex gap-1">
-                    <button v-if="alert.status === 'new'" @click="acknowledgeAlert(alert.id)"
-                      class="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    </button>
-                    <button @click="resolveAlert(alert.id)"
-                      class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <p class="text-xs text-gray-400 mt-2">{{ formatDateTime(alert.created_at) }}</p>
-            </div>
-            <div v-if="alerts.length === 0" class="p-8 text-center text-gray-400">
-              ไม่มี alerts
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- Slow APIs Tab -->
-      <template v-if="activeTab === 'apis'">
-        <div class="bg-white rounded-2xl p-6 border border-gray-100">
-          <h2 class="text-lg font-bold text-gray-900 mb-4">Slowest API Endpoints</h2>
-          <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead>
-                <tr class="text-left text-xs text-gray-500 border-b">
-                  <th class="pb-3 font-medium">Endpoint</th>
-                  <th class="pb-3 font-medium">Method</th>
-                  <th class="pb-3 font-medium">Avg Duration</th>
-                  <th class="pb-3 font-medium">Max Duration</th>
-                  <th class="pb-3 font-medium">Calls</th>
-                  <th class="pb-3 font-medium">Errors</th>
-                </tr>
-              </thead>
-              <tbody class="text-sm">
-                <tr v-for="api in slowApis" :key="`${api.endpoint}-${api.method}`" class="border-b border-gray-50">
-                  <td class="py-3 max-w-xs truncate font-mono text-xs">{{ api.endpoint }}</td>
-                  <td class="py-3">
-                    <span class="px-2 py-1 text-xs rounded-lg" :class="getMethodColor(api.method)">
-                      {{ api.method }}
-                    </span>
-                  </td>
-                  <td class="py-3 font-mono" :class="api.avg_duration_ms > 1000 ? 'text-red-500' : 'text-gray-900'">
-                    {{ formatDuration(api.avg_duration_ms) }}
-                  </td>
-                  <td class="py-3 font-mono text-gray-500">{{ formatDuration(api.max_duration_ms) }}</td>
-                  <td class="py-3">{{ api.call_count?.toLocaleString() }}</td>
-                  <td class="py-3">
-                    <span :class="api.error_count > 0 ? 'text-red-500' : 'text-gray-400'">
-                      {{ api.error_count }}
-                    </span>
-                  </td>
-                </tr>
-                <tr v-if="slowApis.length === 0">
-                  <td colspan="6" class="py-8 text-center text-gray-400">ยังไม่มีข้อมูล API calls</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Client-side API Calls -->
-        <div class="bg-white rounded-2xl p-6 border border-gray-100 mt-6">
-          <h2 class="text-lg font-bold text-gray-900 mb-4">Recent API Calls (Client-side)</h2>
-          <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead>
-                <tr class="text-left text-xs text-gray-500 border-b">
-                  <th class="pb-3 font-medium">URL</th>
-                  <th class="pb-3 font-medium">Method</th>
-                  <th class="pb-3 font-medium">Duration</th>
-                  <th class="pb-3 font-medium">Status</th>
-                  <th class="pb-3 font-medium">Time</th>
-                </tr>
-              </thead>
-              <tbody class="text-sm">
-                <tr v-for="call in getSlowestApiCalls" :key="call.timestamp" class="border-b border-gray-50">
-                  <td class="py-3 max-w-xs truncate font-mono text-xs">{{ call.url }}</td>
-                  <td class="py-3">
-                    <span class="px-2 py-1 text-xs rounded-lg" :class="getMethodColor(call.method)">
-                      {{ call.method }}
-                    </span>
-                  </td>
-                  <td class="py-3 font-mono" :class="call.duration > 1000 ? 'text-red-500' : 'text-gray-900'">
-                    {{ formatDuration(call.duration) }}
-                  </td>
-                  <td class="py-3">
-                    <span :class="call.status >= 400 ? 'text-red-500' : 'text-green-500'">
-                      {{ call.status }}
-                    </span>
-                  </td>
-                  <td class="py-3 text-gray-400">{{ formatTime(call.timestamp) }}</td>
-                </tr>
-                <tr v-if="getSlowestApiCalls.length === 0">
-                  <td colspan="5" class="py-8 text-center text-gray-400">ยังไม่มีข้อมูล API calls</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </template>
-
-      <!-- Thresholds Tab -->
-      <template v-if="activeTab === 'thresholds'">
-        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div class="p-4 border-b border-gray-100">
-            <h2 class="font-bold text-gray-900">Performance Thresholds</h2>
-            <p class="text-sm text-gray-500">กำหนดเกณฑ์สำหรับ alerts</p>
-          </div>
-          <div class="divide-y divide-gray-50">
-            <div v-for="threshold in thresholds" :key="threshold.id" class="p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="font-medium text-gray-900">{{ threshold.metric_name }}</p>
-                  <p class="text-sm text-gray-500">{{ threshold.description }}</p>
-                </div>
-                <div class="flex items-center gap-4">
-                  <div class="text-right">
-                    <p class="text-xs text-gray-500">Warning</p>
-                    <p class="font-mono text-yellow-600">{{ threshold.warning_threshold }} {{ threshold.unit }}</p>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-xs text-gray-500">Critical</p>
-                    <p class="font-mono text-red-600">{{ threshold.critical_threshold }} {{ threshold.unit }}</p>
-                  </div>
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" :checked="threshold.is_enabled" @change="toggleThreshold(threshold)" class="sr-only peer">
-                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div v-if="thresholds.length === 0" class="p-8 text-center text-gray-400">
-              ไม่มีข้อมูล thresholds
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- Network Tab -->
-      <template v-if="activeTab === 'network'">
-        <div class="grid md:grid-cols-2 gap-6">
-          <!-- Network Status -->
-          <div class="bg-white rounded-2xl p-6 border border-gray-100">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Network Status (Client)</h2>
-            <div class="space-y-4">
-              <div class="flex items-center justify-between">
-                <span class="text-gray-600">Connection</span>
-                <span class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full" :class="isOnline ? 'bg-green-500' : 'bg-red-500'"></span>
-                  {{ isOnline ? 'Online' : 'Offline' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-gray-600">Effective Type</span>
-                <span class="font-medium">{{ effectiveType }}</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-gray-600">Downlink</span>
-                <span class="font-medium">{{ downlink }} Mbps</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-gray-600">RTT</span>
-                <span class="font-medium">{{ rtt }} ms</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-gray-600">Data Saver</span>
-                <span :class="saveData ? 'text-orange-500' : 'text-gray-500'">
-                  {{ saveData ? 'Enabled' : 'Disabled' }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Storage Quota -->
-          <div class="bg-white rounded-2xl p-6 border border-gray-100">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Storage Quota (Client)</h2>
-            <div class="space-y-4">
-              <div>
-                <div class="flex justify-between text-sm mb-2">
-                  <span class="text-gray-600">Used</span>
-                  <span class="font-medium">{{ formatBytes(storageUsage) }} / {{ formatBytes(storageQuota) }}</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-3">
-                  <div 
-                    class="h-3 rounded-full transition-all"
-                    :class="storagePercentage > 80 ? 'bg-red-500' : storagePercentage > 50 ? 'bg-yellow-500' : 'bg-green-500'"
-                    :style="{ width: `${Math.min(storagePercentage, 100)}%` }"
-                  ></div>
-                </div>
-                <p class="text-xs text-gray-400 mt-1">{{ storagePercentage.toFixed(1) }}% used</p>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-gray-600">Persistence</span>
-                <span :class="isPersisted ? 'text-green-500' : 'text-gray-500'">
-                  {{ isPersisted ? 'Granted' : 'Not Granted' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-    </div>
-  </div>
+  </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { usePerformanceDashboard, useNetworkStatus, useStorageQuota } from '../composables/usePerformance'
-import { 
-  fetchPerformanceSummary, 
-  fetchPerformanceAlerts, 
-  acknowledgePerformanceAlert,
-  resolvePerformanceAlert,
-  fetchSlowApiEndpoints,
-  fetchPerformanceThresholds,
-  updatePerformanceThreshold
-} from '../composables/useAdmin'
+/**
+ * Admin Performance View (F194)
+ * จัดการและตรวจสอบประสิทธิภาพแอปพลิเคชัน
+ */
+import { ref, computed, onMounted } from 'vue'
+import AdminLayout from '../components/AdminLayout.vue'
+import { usePerformanceMonitoring } from '../composables/usePerformanceMonitoring'
 
-// Client-side composables
-const { 
-  stats: clientStats, 
-  collectAll, 
-  getAverageApiTime, 
-  getSlowestApiCalls,
-  formatBytes,
-  formatDuration 
-} = usePerformanceDashboard()
+const {
+  metrics,
+  performanceIssues,
+  getPerformanceScore,
+  getPerformanceGrade,
+  criticalIssuesCount,
+  startMonitoring,
+  generateReport
+} = usePerformanceMonitoring()
 
-const { isOnline, effectiveType, downlink, rtt, saveData } = useNetworkStatus()
-const { quota: storageQuota, usage: storageUsage, percentage: storagePercentage } = useStorageQuota()
-
-// State
 const loading = ref(false)
-const activeTab = ref('overview')
-const timeRange = ref(24)
-const isPersisted = ref(false)
+const scoreTrend = ref(2.5) // Mock trend data
 
-// Server data
-const serverSummary = ref<any>({})
-const alerts = ref<any[]>([])
-const slowApis = ref<any[]>([])
-const thresholds = ref<any[]>([])
+const performanceScore = computed(() => getPerformanceScore.value)
+const performanceGrade = computed(() => getPerformanceGrade.value)
 
-// Filters
-const alertFilter = ref({ severity: '', status: '' })
-
-// Tabs
-const tabs = computed(() => [
-  { id: 'overview', label: 'Overview' },
-  { id: 'alerts', label: 'Alerts', badge: serverSummary.value.critical_alerts_count || 0, badgeClass: 'bg-red-100 text-red-700' },
-  { id: 'apis', label: 'Slow APIs' },
-  { id: 'thresholds', label: 'Thresholds' },
-  { id: 'network', label: 'Network & Storage' }
-])
-
-// Load data
-const loadServerSummary = async () => {
-  try {
-    serverSummary.value = await fetchPerformanceSummary(timeRange.value)
-  } catch (e) {
-    console.error('Failed to load performance summary:', e)
-    // Use mock data
-    serverSummary.value = {
-      total_sessions: 1247,
-      avg_page_load_time: 1850,
-      avg_lcp: 2100,
-      avg_fid: 45,
-      avg_cls: 0.08,
-      avg_ttfb: 320,
-      avg_memory_usage: 52,
-      avg_api_response_time: 280,
-      avg_cache_hit_rate: 78,
-      slow_page_count: 23,
-      critical_alerts_count: 3,
-      warning_alerts_count: 12,
-      top_slow_pages: [
-        { page_name: 'AdminDashboard', avg_load_time: 3200, count: 156 },
-        { page_name: 'RideView', avg_load_time: 2800, count: 892 },
-        { page_name: 'HistoryView', avg_load_time: 2400, count: 445 }
-      ],
-      device_breakdown: [
-        { device_type: 'mobile', count: 856, avg_load_time: 2100 },
-        { device_type: 'desktop', count: 312, avg_load_time: 1400 },
-        { device_type: 'tablet', count: 79, avg_load_time: 1800 }
-      ]
-    }
-  }
-}
-
-const loadAlerts = async () => {
-  try {
-    const result = await fetchPerformanceAlerts(1, 50, alertFilter.value)
-    alerts.value = result.data
-  } catch (e) {
-    console.error('Failed to load alerts:', e)
-    alerts.value = [
-      { id: '1', alert_type: 'poor_page_load_time', severity: 'critical', metric_name: 'page_load_time', metric_value: 5200, threshold_value: 5000, page_name: 'AdminDashboard', device_type: 'mobile', status: 'new', created_at: new Date().toISOString() },
-      { id: '2', alert_type: 'poor_lcp', severity: 'warning', metric_name: 'lcp', metric_value: 3100, threshold_value: 2500, page_name: 'RideView', device_type: 'mobile', status: 'acknowledged', created_at: new Date(Date.now() - 3600000).toISOString() }
-    ]
-  }
-}
-
-const loadSlowApis = async () => {
-  try {
-    slowApis.value = await fetchSlowApiEndpoints(timeRange.value)
-  } catch (e) {
-    console.error('Failed to load slow APIs:', e)
-    slowApis.value = [
-      { endpoint: '/rest/v1/ride_requests', method: 'GET', avg_duration_ms: 1250, max_duration_ms: 3500, call_count: 892, error_count: 12 },
-      { endpoint: '/rest/v1/service_providers', method: 'GET', avg_duration_ms: 980, max_duration_ms: 2800, call_count: 456, error_count: 3 }
-    ]
-  }
-}
-
-const loadThresholds = async () => {
-  try {
-    thresholds.value = await fetchPerformanceThresholds()
-  } catch (e) {
-    console.error('Failed to load thresholds:', e)
-    thresholds.value = [
-      { id: '1', metric_name: 'page_load_time', warning_threshold: 3000, critical_threshold: 5000, description: 'Total page load time', unit: 'ms', is_enabled: true },
-      { id: '2', metric_name: 'lcp', warning_threshold: 2500, critical_threshold: 4000, description: 'Largest Contentful Paint', unit: 'ms', is_enabled: true },
-      { id: '3', metric_name: 'fid', warning_threshold: 100, critical_threshold: 300, description: 'First Input Delay', unit: 'ms', is_enabled: true },
-      { id: '4', metric_name: 'cls', warning_threshold: 0.1, critical_threshold: 0.25, description: 'Cumulative Layout Shift', unit: 'score', is_enabled: true },
-      { id: '5', metric_name: 'memory_usage_percent', warning_threshold: 70, critical_threshold: 90, description: 'Memory usage percentage', unit: '%', is_enabled: true }
-    ]
-  }
-}
-
-// Actions
-const acknowledgeAlert = async (alertId: string) => {
-  try {
-    await acknowledgePerformanceAlert(alertId)
-    await loadAlerts()
-  } catch (e) {
-    console.error('Failed to acknowledge alert:', e)
-  }
-}
-
-const resolveAlert = async (alertId: string) => {
-  try {
-    await resolvePerformanceAlert(alertId)
-    await loadAlerts()
-  } catch (e) {
-    console.error('Failed to resolve alert:', e)
-  }
-}
-
-const toggleThreshold = async (threshold: any) => {
-  try {
-    await updatePerformanceThreshold(threshold.id, { is_enabled: !threshold.is_enabled })
-    await loadThresholds()
-  } catch (e) {
-    console.error('Failed to toggle threshold:', e)
-  }
-}
-
-const refreshAll = async () => {
+const refreshMetrics = async () => {
   loading.value = true
   try {
-    collectAll()
-    await Promise.all([
-      loadServerSummary(),
-      loadAlerts(),
-      loadSlowApis(),
-      loadThresholds()
-    ])
+    // Restart monitoring to get fresh metrics
+    startMonitoring()
+    await new Promise(resolve => setTimeout(resolve, 1000)) // Wait for metrics to update
   } finally {
     loading.value = false
   }
 }
 
-// Helpers
-const getVitalColor = (value: number, good: number, poor: number) => {
-  if (value <= good) return 'text-green-500'
-  if (value <= poor) return 'text-yellow-500'
-  return 'text-red-500'
+const exportReport = () => {
+  const report = generateReport()
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `performance-report-${new Date().toISOString().split('T')[0]}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
-const getMethodColor = (method: string) => {
-  const colors: Record<string, string> = {
-    GET: 'bg-blue-100 text-blue-700',
-    POST: 'bg-green-100 text-green-700',
-    PUT: 'bg-yellow-100 text-yellow-700',
-    PATCH: 'bg-orange-100 text-orange-700',
-    DELETE: 'bg-red-100 text-red-700'
-  }
-  return colors[method] || 'bg-gray-100 text-gray-700'
+const getScoreClass = (score: number) => {
+  if (score >= 90) return 'excellent'
+  if (score >= 80) return 'good'
+  if (score >= 70) return 'fair'
+  if (score >= 60) return 'poor'
+  return 'critical'
+}
+
+const getVitalsStatus = () => {
+  const lcp = metrics.value.lcp || 0
+  const fid = metrics.value.fid || 0
+  const cls = metrics.value.cls || 0
+  
+  if (lcp > 4000 || fid > 300 || cls > 0.25) return 'critical'
+  if (lcp > 2500 || fid > 100 || cls > 0.1) return 'warning'
+  return 'good'
+}
+
+const getLCPClass = () => {
+  const lcp = metrics.value.lcp || 0
+  if (lcp > 4000) return 'critical'
+  if (lcp > 2500) return 'warning'
+  return 'good'
+}
+
+const getFIDClass = () => {
+  const fid = metrics.value.fid || 0
+  if (fid > 300) return 'critical'
+  if (fid > 100) return 'warning'
+  return 'good'
+}
+
+const getCLSClass = () => {
+  const cls = metrics.value.cls || 0
+  if (cls > 0.25) return 'critical'
+  if (cls > 0.1) return 'warning'
+  return 'good'
+}
+
+const getMemoryClass = () => {
+  const usage = metrics.value.memoryUsagePercent || 0
+  if (usage > 90) return 'critical'
+  if (usage > 70) return 'warning'
+  return 'good'
+}
+
+const getCriticalIssues = () => performanceIssues.value.filter(issue => issue.type === 'critical')
+const getWarningIssues = () => performanceIssues.value.filter(issue => issue.type === 'warning')
+
+const formatBytes = (bytes?: number) => {
+  if (!bytes) return 'N/A'
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`
 }
 
 const formatTime = (timestamp: number) => {
   return new Date(timestamp).toLocaleTimeString('th-TH')
 }
 
-const formatDateTime = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString('th-TH')
-}
-
-const formatAlertType = (type: string) => {
-  const types: Record<string, string> = {
-    'poor_page_load_time': 'Page Load ช้า',
-    'poor_lcp': 'LCP สูง',
-    'poor_fid': 'FID สูง',
-    'poor_cls': 'CLS สูง',
-    'poor_ttfb': 'TTFB สูง',
-    'poor_memory_usage_percent': 'Memory Usage สูง',
-    'poor_api_response_time': 'API Response ช้า',
-    'poor_cache_hit_rate': 'Cache Hit Rate ต่ำ'
-  }
-  return types[type] || type
-}
-
-// Watch for filter changes
-watch(alertFilter, () => loadAlerts(), { deep: true })
-watch(timeRange, () => {
-  loadServerSummary()
-  loadSlowApis()
-})
-
-// Init
-onMounted(async () => {
-  const { isPersisted: checkPersisted } = useStorageQuota()
-  isPersisted.value = await checkPersisted()
-  await refreshAll()
+onMounted(() => {
+  startMonitoring()
 })
 </script>
+
+<style scoped>
+.admin-performance-view {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.header-content h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin: 0 0 8px 0;
+}
+
+.page-subtitle {
+  color: #666666;
+  font-size: 16px;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-refresh, .btn-export {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-refresh {
+  background-color: #F5F5F5;
+  color: #1A1A1A;
+}
+
+.btn-refresh:hover {
+  background-color: #E8E8E8;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-export {
+  background-color: #00A86B;
+  color: white;
+}
+
+.btn-export:hover {
+  background-color: #008F5B;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.metric-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #F0F0F0;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.metric-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin: 0;
+}
+
+.score-card .metric-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.score {
+  font-size: 48px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.score-max {
+  font-size: 24px;
+  color: #666666;
+}
+
+.score-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.score-badge.excellent { background-color: #E8F5EF; color: #00A86B; }
+.score-badge.good { background-color: #E3F2FD; color: #1976D2; }
+.score-badge.fair { background-color: #FFF3E0; color: #F57C00; }
+.score-badge.poor { background-color: #FFEBEE; color: #D32F2F; }
+.score-badge.critical { background-color: #FFEBEE; color: #D32F2F; }
+
+.metric-trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.metric-trend.positive { color: #00A86B; }
+.metric-trend.negative { color: #E53935; }
+
+.trend-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.status-indicator.good { background-color: #00A86B; }
+.status-indicator.warning { background-color: #F5A623; }
+.status-indicator.critical { background-color: #E53935; }
+
+.vitals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vital-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vital-label {
+  font-weight: 600;
+  color: #666666;
+}
+
+.vital-value {
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.vital-value.good { background-color: #E8F5EF; color: #00A86B; }
+.vital-value.warning { background-color: #FFF3E0; color: #F57C00; }
+.vital-value.critical { background-color: #FFEBEE; color: #D32F2F; }
+
+.memory-percentage {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.memory-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #F0F0F0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 16px 0;
+}
+
+.memory-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.memory-fill.good { background-color: #00A86B; }
+.memory-fill.warning { background-color: #F5A623; }
+.memory-fill.critical { background-color: #E53935; }
+
+.memory-details {
+  font-size: 14px;
+  color: #666666;
+}
+
+.issue-count {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.issue-count.warning {
+  color: #E53935;
+}
+
+.issue-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.issue-type {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.issue-label {
+  font-size: 14px;
+  color: #666666;
+}
+
+.issue-number {
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.issues-section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin: 0 0 20px 0;
+}
+
+.issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.issue-item {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #F0F0F0;
+  border-left: 4px solid;
+}
+
+.issue-item.critical { border-left-color: #E53935; }
+.issue-item.warning { border-left-color: #F5A623; }
+.issue-item.error { border-left-color: #FF5722; }
+
+.issue-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.issue-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.issue-item.critical .issue-icon { color: #E53935; }
+.issue-item.warning .issue-icon { color: #F5A623; }
+.issue-item.error .issue-icon { color: #FF5722; }
+
+.issue-content {
+  flex: 1;
+}
+
+.issue-message {
+  font-weight: 600;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.issue-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: #666666;
+  margin-bottom: 12px;
+}
+
+.issue-recommendations h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin: 0 0 8px 0;
+}
+
+.issue-recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.issue-recommendations li {
+  font-size: 14px;
+  color: #666666;
+  margin-bottom: 4px;
+}
+
+.charts-section {
+  margin-bottom: 32px;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 24px;
+}
+
+.chart-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #F0F0F0;
+}
+
+.chart-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin: 0 0 16px 0;
+}
+
+.chart-placeholder {
+  height: 200px;
+  background-color: #F5F5F5;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #666666;
+}
+
+.chart-note {
+  font-size: 14px;
+  margin: 4px 0;
+}
+
+.network-section {
+  margin-bottom: 32px;
+}
+
+.network-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #F0F0F0;
+}
+
+.network-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.network-label {
+  font-size: 14px;
+  color: #666666;
+}
+
+.network-value {
+  font-weight: 600;
+  color: #1A1A1A;
+}
+</style>

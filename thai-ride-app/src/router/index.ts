@@ -25,7 +25,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/auth/callback',
     name: 'AuthCallback',
-    component: () => import('../views/EmailVerificationView.vue'),
+    component: () => import('../views/AuthCallbackView.vue'),
     meta: { hideNavigation: true, public: true }
   },
   {
@@ -76,6 +76,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/customer/services',
     name: 'CustomerServices',
     component: () => import('../views/ServicesView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/services-enhanced',
+    name: 'CustomerServicesEnhanced',
+    component: () => import('../views/EnhancedServicesView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
   {
@@ -540,6 +546,62 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/performance',
     name: 'AdminPerformance',
     component: () => import('../views/AdminPerformanceView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  // New Advanced Features (F33, F194, F236)
+  {
+    path: '/admin/driver-tracking',
+    name: 'AdminDriverTracking',
+    component: () => import('../views/AdminDriverTrackingView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/error-recovery',
+    name: 'AdminErrorRecovery',
+    component: () => import('../views/AdminErrorRecoveryView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  // Advanced System Features (F202-F251)
+  {
+    path: '/admin/feature-flags',
+    name: 'AdminFeatureFlags',
+    component: () => import('../views/AdminFeatureFlagsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/ab-tests',
+    name: 'AdminABTests',
+    component: () => import('../views/AdminABTestsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/system-health',
+    name: 'AdminSystemHealth',
+    component: () => import('../views/AdminSystemHealthView.vue'),
+    meta: { requiresAuth: true, isAdminRoute: true }
+  },
+  {
+    path: '/admin/service-health',
+    name: 'AdminServiceHealth',
+    component: () => import('../views/AdminServiceHealthView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/analytics-events',
+    name: 'AdminAnalyticsEvents',
+    component: () => import('../views/AdminAnalyticsEventsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/user-journey',
+    name: 'AdminUserJourney',
+    component: () => import('../views/AdminUserJourneyView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/ux-analytics',
+    name: 'AdminUXAnalytics',
+    component: () => import('../views/AdminUXAnalyticsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   }
 ]

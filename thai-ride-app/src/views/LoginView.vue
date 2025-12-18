@@ -718,6 +718,88 @@ const goToRegister = () => router.push('/register')
   }
 }
 
+/* Social Login */
+.social-section {
+  margin-top: 16px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #E8E8E8;
+}
+
+.divider span {
+  font-size: 12px;
+  color: #999999;
+  white-space: nowrap;
+}
+
+.social-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.social-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid #E8E8E8;
+  border-radius: 12px;
+  background: #FFFFFF;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A1A1A;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.social-btn:hover:not(:disabled) {
+  border-color: #CCCCCC;
+  background: #FAFAFA;
+}
+
+.social-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.social-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.social-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.social-btn.google:hover:not(:disabled) {
+  border-color: #4285F4;
+}
+
+.social-btn.facebook:hover:not(:disabled) {
+  border-color: #1877F2;
+}
+
+.spinner.small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #E8E8E8;
+  border-top-color: #00A86B;
+}
+
 /* Mobile Optimization */
 @media (max-height: 700px) {
   .login-container {

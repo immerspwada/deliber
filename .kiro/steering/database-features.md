@@ -301,6 +301,72 @@
 | **F200** | Polling | `usePerformance.ts` → `usePolling` | Smart polling with adaptive interval |
 | **F201** | Performance Dashboard | `AdminPerformanceView.vue` | Admin performance monitoring |
 
+### Advanced System Features (F202-F251)
+
+| รหัส | ฟีเจอร์ | Composable/Component | รายละเอียด |
+|------|---------|---------------------|------------|
+| **F202** | Feature Flags System | `useAdvancedSystem.ts` → `useFeatureFlags` | Feature flag management | `feature_flags` | 045 |
+| **F203** | A/B Testing Framework | `useAdvancedSystem.ts` → `useABTesting` | A/B test management | `ab_tests`, `ab_test_variants`, `ab_test_assignments`, `ab_test_conversions` | 045 |
+| **F204** | User Preferences Manager | `useAdvancedSystem.ts` → `useUserPreferences` | User preferences storage | `user_preferences` | 045 |
+| **F205** | Smart Caching System | `useAdvancedSystem.ts` → `useSmartCache` | Intelligent caching |
+| **F206** | Request Deduplication | `useAdvancedSystem.ts` → `useRequestDedup` | Prevent duplicate requests |
+| **F207** | Optimistic Updates | `useAdvancedSystem.ts` → `useOptimisticUpdate` | Optimistic UI updates |
+| **F208** | State Machine | `useAdvancedSystem.ts` → `useStateMachine` | State machine pattern |
+| **F209** | Event Sourcing | `useAdvancedSystem.ts` → `useEventSourcing` | Event sourcing pattern |
+| **F210** | Command Pattern | `useAdvancedSystem.ts` → `useCommand` | Command pattern |
+| **F211** | Pub/Sub System | `useAdvancedSystem.ts` → `usePubSub` | Publish/Subscribe pattern |
+| **F212** | Rate Limiter | `useAdvancedSystem.ts` → `useRateLimiter` | Rate limiting |
+| **F213** | Retry Queue | `useAdvancedSystem.ts` → `useRetryQueue` | Retry failed operations |
+| **F214** | Data Sync Manager | `useAdvancedSystem.ts` → `useDataSync` | Data synchronization |
+| **F215** | Conflict Resolution | `useAdvancedSystem.ts` → `useConflictResolution` | Conflict resolution |
+| **F216** | Schema Validator | `useAdvancedSystem.ts` → `useSchemaValidator` | Data validation |
+| **F217** | Data Transformer | `useAdvancedSystem.ts` → `useDataTransformer` | Data transformation |
+| **F218** | Query Builder | `useAdvancedSystem.ts` → `useQueryBuilder` | Dynamic query building |
+| **F219** | Pagination Helper | `useAdvancedSystem.ts` → `usePagination` | Pagination utilities |
+| **F220** | Search Engine | `useAdvancedSystem.ts` → `useSearch` | Search functionality |
+| **F221** | Filter Builder | `useAdvancedSystem.ts` → `useFilterBuilder` | Dynamic filters |
+| **F222** | Sort Manager | `useAdvancedSystem.ts` → `useSortManager` | Sorting utilities |
+| **F223** | Export Manager | `useAdvancedSystem.ts` → `useExport` | Data export (CSV, Excel) |
+| **F224** | Import Manager | `useAdvancedSystem.ts` → `useImport` | Data import |
+| **F225** | Clipboard Manager | `useAdvancedSystem.ts` → `useClipboard` | Clipboard operations |
+| **F226** | Keyboard Shortcuts | `useAdvancedSystem.ts` → `useKeyboardShortcuts` | Keyboard shortcuts |
+| **F227** | Drag and Drop | `useAdvancedSystem.ts` → `useDragAndDrop` | Drag and drop |
+| **F228** | Selection Manager | `useAdvancedSystem.ts` → `useSelection` | Multi-selection |
+| **F229** | Undo/Redo Stack | `useAdvancedSystem.ts` → `useUndoRedo` | Undo/Redo functionality |
+| **F230** | Form Wizard | `useAdvancedSystem.ts` → `useFormWizard` | Multi-step forms |
+| **F231** | Multi-Step Form | `useAdvancedSystem.ts` → `useMultiStepForm` | Step-by-step forms |
+| **F232** | Notification Queue | `useAdvancedSystem.ts` → `useNotificationQueue` | Notification queue |
+| **F233** | Modal Manager | `useAdvancedSystem.ts` → `useModalManager` | Modal management |
+| **F234** | Confirmation Dialog | `useAdvancedSystem.ts` → `useConfirmation` | Confirmation dialogs |
+| **F235** | Loading State Manager | `useAdvancedSystem.ts` → `useLoadingState` | Loading states |
+| **F236** | Error Boundary | `useAdvancedSystem.ts` → `useErrorBoundary` | Error handling |
+| **F237** | Analytics Tracker | `useAdvancedSystem.ts` → `useAnalytics` | Analytics tracking | `analytics_events` | 045 |
+| **F238** | Session Manager | `useAdvancedSystem.ts` → `useSessionManager` | Session management |
+| **F239** | Permission Manager | `useAdvancedSystem.ts` → `usePermissions` | Permission management |
+| **F240** | Theme Manager | `useAdvancedSystem.ts` → `useThemeManager` | Theme switching |
+| **F241** | Locale Manager | `useAdvancedSystem.ts` → `useLocaleManager` | Localization |
+| **F242** | Accessibility Manager | `useAdvancedSystem.ts` → `useAccessibility` | Accessibility features |
+| **F243** | Device Detection | `useAdvancedSystem.ts` → `useDeviceDetection` | Device detection |
+| **F244** | Geolocation Manager | `useAdvancedSystem.ts` → `useGeolocationManager` | Geolocation utilities |
+| **F245** | Media Query Manager | `useAdvancedSystem.ts` → `useMediaQuery` | Responsive utilities |
+| **F246** | Scroll Manager | `useAdvancedSystem.ts` → `useScrollManager` | Scroll management |
+| **F247** | Focus Manager | `useAdvancedSystem.ts` → `useFocusManager` | Focus management |
+| **F248** | Animation Controller | `useAdvancedSystem.ts` → `useAnimationController` | Animation control |
+| **F249** | File Manager | `useAdvancedSystem.ts` → `useFileManager` | File operations |
+| **F250** | Image Processor | `useAdvancedSystem.ts` → `useImageProcessor` | Image processing |
+| **F251** | System Health Monitor | `useAdvancedSystem.ts` → `useSystemHealth` | System health monitoring | `system_health_log` | 045 |
+
+### Admin Views for Advanced System (F202-F251)
+
+| รหัส | Admin View | รายละเอียด | ตาราง DB |
+|------|-----------|------------|----------|
+| **F201** | `AdminPerformanceView.vue` | ดู Performance Metrics | - |
+| **F202** | `AdminFeatureFlagsView.vue` | จัดการ Feature Flags | `feature_flags` |
+| **F203** | `AdminABTestsView.vue` | จัดการ A/B Tests | `ab_tests`, `ab_test_variants` |
+| **F237** | `AdminAnalyticsEventsView.vue` | ดู Analytics Events และ User Behavior | `analytics_events` |
+| **F237b** | `AdminUserJourneyView.vue` | Funnel Analysis และ Conversion Rate | `users`, `ride_requests`, `ride_ratings` |
+| **F251** | `AdminSystemHealthView.vue` | ตรวจสอบสุขภาพระบบ | `system_health_log` |
+
 ---
 
 ## 📁 Database Tables Reference
@@ -409,6 +475,18 @@ laundry_requests        → F160 (Laundry Service)
 laundry_ratings         → F160 (Laundry Ratings)
 ```
 
+### ตาราง Advanced System (F202-F251)
+```
+feature_flags           → F202 (Feature Flags) - key, name, enabled, rollout_percentage, target_users, target_roles
+ab_tests                → F203 (A/B Testing) - name, status (draft/running/paused/completed), start_date, end_date
+ab_test_variants        → F203 (A/B Testing) - test_id, name, weight, is_control
+ab_test_assignments     → F203 (A/B Testing) - test_id, user_id, variant_id
+ab_test_conversions     → F203 (A/B Testing) - test_id, variant_id, user_id, event_name, event_data
+user_preferences        → F204 (User Preferences) - theme, language, notifications, privacy, accessibility, ride_preferences
+analytics_events        → F237 (Analytics) - session_id, event_name, event_category, properties, page_url, device_type
+system_health_log       → F251 (System Health) - status, uptime_ms, memory_used, network_online, storage_used
+```
+
 ---
 
 ## 🔧 Database Functions Reference
@@ -500,6 +578,11 @@ laundry_ratings         → F160 (Laundry Ratings)
 | `notify_providers_new_queue_booking()` | Trigger: notify providers of new queue job | F158 |
 | `notify_providers_new_moving_request()` | Trigger: notify providers of new moving job | F159 |
 | `notify_providers_new_laundry_request()` | Trigger: notify providers of new laundry job | F160 |
+| `get_feature_flag()` | Get feature flag status for user with rollout | F202 |
+| `assign_ab_test_variant()` | Assign user to A/B test variant based on weight | F203 |
+| `track_ab_conversion()` | Track A/B test conversion event | F203 |
+| `get_ab_test_results()` | Get A/B test results with conversion rates | F203 |
+| `get_analytics_summary()` | Get analytics summary for specified hours | F237 |
 
 ---
 
@@ -616,6 +699,8 @@ laundry_ratings         → F160 (Laundry Ratings)
 | `041_peak_hours_analysis.sql` | Peak hours analysis functions | F169 |
 | `042_provider_incentives.sql` | Provider incentive/bonus system | F170 |
 | `043_service_quality_metrics.sql` | Service quality metrics | F171 |
+| `044_performance_metrics.sql` | Performance metrics & monitoring | F172-F201 |
+| `045_advanced_system.sql` | Feature flags, A/B testing, user preferences, analytics, system health | F202, F203, F204, F237, F251 |
 
 ---
 

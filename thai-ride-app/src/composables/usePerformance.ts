@@ -8,6 +8,7 @@
 
 import { ref, computed, onUnmounted, onMounted, watch } from 'vue'
 import type { Ref } from 'vue'
+import { env } from '../lib/env'
 
 // ============================================
 // SESSION 1: Memory Management & Cleanup
@@ -1731,8 +1732,10 @@ export function useResourceHints() {
 
   // Common preconnects for the app
   const setupCommonHints = () => {
-    // Supabase
-    preconnect('https://onsflqhkgqhydeupiqyt.supabase.co')
+    // Supabase - use environment variable
+    if (env.supabaseUrl) {
+      preconnect(env.supabaseUrl)
+    }
     
     // Map tiles
     preconnect('https://a.basemaps.cartocdn.com')

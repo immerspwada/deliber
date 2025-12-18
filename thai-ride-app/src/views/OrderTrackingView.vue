@@ -20,6 +20,71 @@ let subscription: any = null
 
 const trackingId = computed(() => route.params.trackingId as string)
 
+// Helper: Check if string is UUID format
+const isUUID = (str: string) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
+// Helper: Try to find order by UUID in all tables
+const findOrderByUUID = async (uuid: string) => {
+  // Try ride_requests first
+  const { data: rideData } = await (supabase
+    .from('ride_requests') as any)
+    .select(`
+      *,
+      provider:provider_id (
+        id, vehicle_type, vehicle_plate, vehicle_color, rating, current_lat, current_lng,
+        user:user_id (name, phone, avatar_url)
+      ),
+      user:user_id (name, phone)
+    `)
+    .eq('id', uuid)
+    .single()
+
+  if (rideData) {
+    return { data: rideData, type: 'ride' as const, table: 'ride_requests' }
+  }
+
+  // Try delivery_requests
+  const { data: deliveryData } = await (supabase
+    .from('delivery_requests') as any)
+    .select(`
+      *,
+      provider:provider_id (
+        id, vehicle_type, vehicle_plate, rating, current_lat, current_lng,
+        user:user_id (name, phone, avatar_url)
+      ),
+      user:user_id (name, phone)
+    `)
+    .eq('id', uuid)
+    .single()
+
+  if (deliveryData) {
+    return { data: deliveryData, type: 'delivery' as const, table: 'delivery_requests' }
+  }
+
+  // Try shopping_requests
+  const { data: shoppingData } = await (supabase
+    .from('shopping_requests') as any)
+    .select(`
+      *,
+      provider:provider_id (
+        id, vehicle_type, vehicle_plate, rating, current_lat, current_lng,
+        user:user_id (name, phone, avatar_url)
+      ),
+      user:user_id (name, phone)
+    `)
+    .eq('id', uuid)
+    .single()
+
+  if (shoppingData) {
+    return { data: shoppingData, type: 'shopping' as const, table: 'shopping_requests' }
+  }
+
+  return null
+}
+
 const fetchOrder = async () => {
   const id = trackingId.value
   if (!id) {
@@ -29,6 +94,19 @@ const fetchOrder = async () => {
   }
 
   try {
+    // Check if it's a UUID - search in all tables
+    if (isUUID(id)) {
+      const result = await findOrderByUUID(id)
+      if (result) {
+        orderType.value = result.type
+        orderData.value = result.data
+        subscribeToUpdates(result.table, result.data.id)
+      } else {
+        error.value = 'ไม่พบข้อมูลคำสั่ง'
+      }
+      return
+    }
+
     // Determine order type from tracking ID prefix
     if (id.startsWith('RID-')) {
       orderType.value = 'ride'

@@ -117,6 +117,13 @@ const formatNationalId = (id: string) => {
   if (!id || id.length !== 13) return id || '-'
   return `${id[0]}-${id.slice(1,5)}-${id.slice(5,10)}-${id.slice(10,12)}-${id[12]}`
 }
+
+const copyMemberUid = (uid: string) => {
+  if (uid) {
+    navigator.clipboard.writeText(uid)
+    alert('คัดลอก Member ID แล้ว: ' + uid)
+  }
+}
 </script>
 
 <template>
@@ -314,6 +321,20 @@ const formatNationalId = (id: string) => {
               </div>
             </div>
 
+            <!-- Member UID Section -->
+            <div v-if="selectedUser.member_uid" class="member-uid-section">
+              <div class="member-uid-card">
+                <span class="member-uid-label">Member ID</span>
+                <span class="member-uid-value">{{ selectedUser.member_uid }}</span>
+                <button class="copy-uid-btn" @click="copyMemberUid(selectedUser.member_uid)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
             <div class="detail-section">
               <h4>ข้อมูลส่วนตัว</h4>
               <div class="detail-grid">
@@ -500,6 +521,14 @@ const formatNationalId = (id: string) => {
 .btn-approve:hover { background: #008F5B; }
 .btn-reject { background: #f6f6f6; color: #e11900; }
 .btn-reject:hover { background: #ffebee; }
+
+/* Member UID Section */
+.member-uid-section { margin-bottom: 20px; }
+.member-uid-card { background: linear-gradient(135deg, #1A1A1A 0%, #333 100%); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+.member-uid-label { font-size: 11px; color: #999; }
+.member-uid-value { flex: 1; font-size: 18px; font-weight: 700; color: #00A86B; font-family: 'SF Mono', 'Monaco', monospace; letter-spacing: 1px; }
+.copy-uid-btn { width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.1); border-radius: 8px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.copy-uid-btn:hover { background: rgba(255,255,255,0.2); }
 
 @media (max-width: 900px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }

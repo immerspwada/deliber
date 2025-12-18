@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { AdminButton, AdminStatusBadge } from './admin'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,7 +68,16 @@ const menuItems = [
   { path: '/admin/audit-log', label: 'บันทึกกิจกรรม', icon: 'audit' },
   { path: '/admin/reports', label: 'รายงาน', icon: 'report' },
   { path: '/admin/performance', label: 'ประสิทธิภาพ', icon: 'performance' },
-  { path: '/admin/components', label: 'คอมโพเนนต์', icon: 'components' }
+  { path: '/admin/driver-tracking', label: 'ติดตามคนขับ', icon: 'live' },
+  { path: '/admin/error-recovery', label: 'การกู้คืนข้อผิดพลาด', icon: 'health' },
+  { path: '/admin/feature-flags', label: 'Feature Flags', icon: 'flag' },
+  { path: '/admin/ab-tests', label: 'A/B Testing', icon: 'ab' },
+  { path: '/admin/system-health', label: 'สุขภาพระบบ', icon: 'health' },
+  { path: '/admin/analytics-events', label: 'Analytics Events', icon: 'events' },
+  { path: '/admin/user-journey', label: 'User Journey', icon: 'journey' },
+  { path: '/admin/ux-analytics', label: 'UX Analytics', icon: 'ux' },
+  { path: '/admin/components', label: 'คอมโพเนนต์', icon: 'components' },
+  { path: '/admin/service-health', label: 'สุขภาพบริการ', icon: 'service-health' }
 ]
 
 const isActive = (path: string) => {
@@ -262,6 +272,33 @@ const logout = () => {
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
             <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
+          <!-- Flag -->
+          <svg v-else-if="item.icon === 'flag'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+          </svg>
+          <!-- A/B Testing -->
+          <svg v-else-if="item.icon === 'ab'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 17h4l3-10h6l3 10h4"/><path d="M6 13h12"/>
+          </svg>
+          <!-- Health -->
+          <svg v-else-if="item.icon === 'health'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+          <!-- Events -->
+          <svg v-else-if="item.icon === 'events'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 10"/>
+          </svg>
+          <!-- Journey -->
+          <svg v-else-if="item.icon === 'journey'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
+          <!-- UX Analytics -->
+          <svg v-else-if="item.icon === 'ux'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+            <line x1="9" y1="9" x2="9.01" y2="9"/>
+            <line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
           <!-- Revenue -->
           <svg v-else-if="item.icon === 'revenue'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
@@ -293,6 +330,11 @@ const logout = () => {
           <svg v-else-if="item.icon === 'laundry'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="14" r="5"/>
             <path d="M8 6h.01M12 6h.01M16 6h.01"/>
+          </svg>
+          <!-- Service Health -->
+          <svg v-else-if="item.icon === 'service-health'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            <circle cx="12" cy="12" r="3"/>
           </svg>
           <span>{{ item.label }}</span>
         </button>

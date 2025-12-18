@@ -19,7 +19,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
+
+import { RideService } from '../services/RideService'
+import { useRequestDedup, RequestKeys } from '../composables/useRequestDedup'
+import { rideLogger as logger } from '../utils/logger'
+import { fromSupabaseError, handleError } from '../utils/errorHandling'
 import type { RideRequest, RideRequestInsert, ServiceProvider } from '../types/database'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface Location {
   lat: number
@@ -49,8 +55,12 @@ export const useRideStore = defineStore('ride', () => {
   const nearbyDrivers = ref<ServiceProvider[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const rideSubscription = ref<any>(null)
-  const driverSubscription = ref<any>(null)
+  const rideSubscription = ref<RealtimeChannel | null>(null)
+  const driverSubscription = ref<RealtimeChannel | null>(null)
+  
+
+  const { dedupRequest } = useRequestDedup()
+  const rideService = new RideService()
 
   const hasActiveRide = computed(() => 
     currentRide.value && 
@@ -85,10 +95,11 @@ export const useRideStore = defineStore('ride', () => {
   // Initialize - restore active ride from database
   const initialize = async (userId: string) => {
     loading.value = true
+    error.value = null
+    
     try {
-      // Find any active ride for this user
-      const { data: activeRide, error: fetchError } = await (supabase
-        .from('ride_requests') as any)
+      const { data, error: queryError } = await supabase
+        .from('ride_requests')
         .select(`
           *,
           provider:provider_id (
@@ -112,14 +123,18 @@ export const useRideStore = defineStore('ride', () => {
         .in('status', ['pending', 'matched', 'pickup', 'in_progress'])
         .order('created_at', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (!fetchError && activeRide) {
-        currentRide.value = activeRide
+      if (queryError) {
+        throw queryError
+      }
+
+      if (data) {
+        currentRide.value = data
         
         // Set matched driver if exists
-        if (activeRide.provider) {
-          const provider = activeRide.provider
+        const provider = (data as any).provider
+        if (provider) {
           const user = provider.users
           matchedDriver.value = {
             id: provider.id,
@@ -138,10 +153,12 @@ export const useRideStore = defineStore('ride', () => {
         }
 
         // Subscribe to ride updates
-        subscribeToRideUpdates(activeRide.id)
+        subscribeToRideUpdates((data as any).id)
       }
-    } catch (err: any) {
-      console.warn('No active ride found:', err.message)
+    } catch (err) {
+      const appError = handleError(err, { logToSentry: false })
+      error.value = appError.message
+      logger.warn('No active ride found:', appError.message)
     } finally {
       loading.value = false
     }
@@ -153,22 +170,34 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
-      const { data, error: fetchError } = await (supabase.rpc as any)('find_nearby_providers', {
-        lat,
-        lng,
-        radius_km: radiusKm,
-        provider_type_filter: 'driver'
-      })
+      // Use request deduplication with location-based cache key
+      const cacheKey = `nearby_drivers_${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusKm}`
       
-      if (fetchError) {
-        error.value = fetchError.message
-        return []
-      }
+      const data = await dedupRequest(
+        cacheKey,
+        async () => {
+          const { data: result, error: fetchError } = await supabase.rpc('find_nearby_providers', {
+            lat: lat,
+            lng: lng,
+            radius_km: radiusKm,
+            provider_type_filter: 'driver'
+          } as any)
+          
+          if (fetchError) {
+            throw fromSupabaseError(fetchError)
+          }
+          
+          return result || []
+        },
+        { ttl: 30000 } // Cache for 30 seconds
+      )
       
-      nearbyDrivers.value = data || []
-      return data || []
-    } catch (err: any) {
-      error.value = err.message
+      nearbyDrivers.value = data
+      return data
+    } catch (err) {
+      const appError = handleError(err, { logToSentry: false })
+      error.value = appError.message
+      nearbyDrivers.value = []
       return []
     } finally {
       loading.value = false
@@ -188,47 +217,32 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
-      const distanceKm = calculateDistance(
-        pickup.lat, pickup.lng,
-        destination.lat, destination.lng
-      )
+      const result = await rideService.createRide({
+        userId,
+        pickup,
+        destination,
+        rideType,
+        passengerCount,
+        specialRequests
+      })
       
-      const estimatedFare = calculateFare(distanceKm, rideType)
-      
-      const rideData: RideRequestInsert = {
-        user_id: userId,
-        pickup_lat: pickup.lat,
-        pickup_lng: pickup.lng,
-        pickup_address: pickup.address,
-        destination_lat: destination.lat,
-        destination_lng: destination.lng,
-        destination_address: destination.address,
-        ride_type: rideType,
-        passenger_count: passengerCount,
-        special_requests: specialRequests,
-        estimated_fare: estimatedFare,
-        status: 'pending'
+      if (!result.success) {
+        throw new Error(result.error.message)
       }
       
-      const { data, error: insertError } = await (supabase
-        .from('ride_requests') as any)
-        .insert(rideData)
-        .select()
-        .single()
-      
-      if (insertError) {
-        error.value = insertError.message
-        return null
+      // Get the created ride data
+      const rideResult = await rideService.rideRepository.findById(result.data.rideId)
+      if (rideResult.success && rideResult.data) {
+        currentRide.value = rideResult.data
+        
+        // Subscribe to ride updates
+        subscribeToRideUpdates(result.data.rideId)
       }
       
-      currentRide.value = data
-      
-      // Subscribe to ride updates
-      subscribeToRideUpdates(data.id)
-      
-      return data
-    } catch (err: any) {
-      error.value = err.message
+      return result.data
+    } catch (err) {
+      const appError = handleError(err)
+      error.value = appError.message
       return null
     } finally {
       loading.value = false
@@ -257,8 +271,8 @@ export const useRideStore = defineStore('ride', () => {
 
       // Get first available driver with user info
       const driver = drivers[0]
-      const { data: providerData, error: providerError } = await (supabase
-        .from('service_providers') as any)
+      const { data: providerData, error: providerError } = await supabase
+        .from('service_providers')
         .select(`
           *,
           users:user_id (
@@ -267,7 +281,7 @@ export const useRideStore = defineStore('ride', () => {
             avatar_url
           )
         `)
-        .eq('id', driver.provider_id)
+        .eq('id', (driver as any).provider_id)
         .single()
 
       if (providerError || !providerData) {
@@ -275,47 +289,51 @@ export const useRideStore = defineStore('ride', () => {
         return null
       }
 
+      const provider = providerData as any
+
       // Update ride with matched driver
-      const { data: updatedRide, error: updateError } = await (supabase
-        .from('ride_requests') as any)
-        .update({
-          provider_id: providerData.id,
-          status: 'matched'
-        })
-        .eq('id', currentRide.value.id)
+      const updatePayload = {
+        provider_id: provider.id,
+        status: 'matched'
+      }
+      const { data: updateData, error: updateError } = await (supabase as any)
+        .from('ride_requests')
+        .update(updatePayload)
+        .eq('id', currentRide.value!.id)
         .select()
         .single()
 
-      if (updateError) {
-        error.value = updateError.message
+      if (updateError || !updateData) {
+        error.value = 'ไม่สามารถจับคู่คนขับได้'
         return null
       }
 
-      currentRide.value = updatedRide
+      currentRide.value = updateData as any
 
       // Set matched driver
-      const user = providerData.users
+      const user = provider.users
       matchedDriver.value = {
-        id: providerData.id,
+        id: provider.id,
         name: user?.name || 'คนขับ',
         phone: user?.phone || '',
-        rating: providerData.rating || 4.8,
-        total_trips: providerData.total_trips || 0,
-        vehicle_type: providerData.vehicle_type || 'รถยนต์',
-        vehicle_color: providerData.vehicle_color || 'สีดำ',
-        vehicle_plate: providerData.vehicle_plate || '',
+        rating: provider.rating || 4.8,
+        total_trips: provider.total_trips || 0,
+        vehicle_type: provider.vehicle_type || 'รถยนต์',
+        vehicle_color: provider.vehicle_color || 'สีดำ',
+        vehicle_plate: provider.vehicle_plate || '',
         avatar_url: user?.avatar_url,
-        current_lat: providerData.current_lat,
-        current_lng: providerData.current_lng,
-        eta: Math.ceil((driver.distance_km || 1) * 2)
+        current_lat: provider.current_lat,
+        current_lng: provider.current_lng,
+        eta: Math.ceil(((driver as any).distance_km || 1) * 2)
       }
 
       // Subscribe to driver location updates
-      subscribeToDriverLocation(providerData.id)
+      subscribeToDriverLocation(provider.id)
 
       return matchedDriver.value
-    } catch (err: any) {
-      error.value = err.message
+    } catch (err) {
+      const appError = handleError(err)
+      error.value = appError.message
       return null
     } finally {
       loading.value = false
@@ -331,13 +349,16 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
-      const { error: updateError } = await (supabase
-        .from('ride_requests') as any)
-        .update({ status: 'cancelled' })
+      const updatePayload = { status: 'cancelled' }
+      const { error: cancelError } = await (supabase as any)
+        .from('ride_requests')
+        .update(updatePayload)
         .eq('id', id)
+        .select()
+        .single()
       
-      if (updateError) {
-        error.value = updateError.message
+      if (cancelError) {
+        error.value = 'ไม่สามารถยกเลิกการเรียกรถได้'
         return false
       }
       
@@ -347,8 +368,9 @@ export const useRideStore = defineStore('ride', () => {
       matchedDriver.value = null
       
       return true
-    } catch (err: any) {
-      error.value = err.message
+    } catch (err) {
+      const appError = handleError(err)
+      error.value = appError.message
       return false
     } finally {
       loading.value = false
@@ -360,14 +382,19 @@ export const useRideStore = defineStore('ride', () => {
     if (!currentRide.value) return false
     
     loading.value = true
+    error.value = null
+    
     try {
-      const { error: updateError } = await (supabase
-        .from('ride_requests') as any)
-        .update({ status: 'completed' })
-        .eq('id', currentRide.value.id)
+      const updatePayload = { status: 'completed' }
+      const { error: completeError } = await (supabase as any)
+        .from('ride_requests')
+        .update(updatePayload)
+        .eq('id', currentRide.value!.id)
+        .select()
+        .single()
       
-      if (updateError) {
-        error.value = updateError.message
+      if (completeError) {
+        error.value = 'ไม่สามารถอัปเดตสถานะการเดินทางได้'
         return false
       }
       
@@ -377,8 +404,9 @@ export const useRideStore = defineStore('ride', () => {
       matchedDriver.value = null
       
       return true
-    } catch (err: any) {
-      error.value = err.message
+    } catch (err) {
+      const appError = handleError(err)
+      error.value = appError.message
       return false
     } finally {
       loading.value = false
@@ -390,46 +418,59 @@ export const useRideStore = defineStore('ride', () => {
     if (!currentRide.value || !matchedDriver.value) return false
     
     loading.value = true
+    error.value = null
+    
     try {
       // Insert rating
-      const { error: ratingError } = await (supabase
-        .from('ride_ratings') as any)
+      const { error: ratingError } = await supabase
+        .from('ride_ratings')
         .insert({
-          ride_id: currentRide.value.id,
-          user_id: currentRide.value.user_id,
-          provider_id: matchedDriver.value.id,
+          ride_id: currentRide.value!.id,
+          user_id: currentRide.value!.user_id,
+          provider_id: matchedDriver.value!.id,
           rating,
           tip_amount: tipAmount,
           comment
-        })
+        } as any)
+        .select()
+        .single()
 
       if (ratingError) {
-        console.warn('Rating error:', ratingError)
+        logger.warn('Rating error:', ratingError)
+        // Continue anyway - rating is not critical
       }
 
       // Update provider rating average
-      const { data: ratings } = await (supabase
-        .from('ride_ratings') as any)
+      const { data: ratingsData, error: ratingsError } = await supabase
+        .from('ride_ratings')
         .select('rating')
-        .eq('provider_id', matchedDriver.value.id)
+        .eq('provider_id', matchedDriver.value!.id)
 
-      if (ratings && ratings.length > 0) {
-        const avgRating = ratings.reduce((sum: number, r: any) => sum + r.rating, 0) / ratings.length
-        await (supabase
-          .from('service_providers') as any)
-          .update({
+      if (!ratingsError && ratingsData) {
+        const ratings = ratingsData as Array<{ rating: number }>
+        if (ratings.length > 0) {
+          const avgRating = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+          
+          const providerUpdatePayload = {
             rating: Math.round(avgRating * 100) / 100,
             total_trips: ratings.length
-          })
-          .eq('id', matchedDriver.value.id)
+          }
+          await (supabase as any)
+            .from('service_providers')
+            .update(providerUpdatePayload)
+            .eq('id', matchedDriver.value!.id)
+            .select()
+            .single()
+        }
       }
 
       // Complete the ride
       await completeRide()
       
       return true
-    } catch (err: any) {
-      error.value = err.message
+    } catch (err) {
+      const appError = handleError(err)
+      error.value = appError.message
       return false
     } finally {
       loading.value = false
@@ -442,33 +483,42 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
-      const { data, error: fetchError } = await (supabase
-        .from('ride_requests') as any)
-        .select(`
-          *,
-          provider:provider_id (
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            users:user_id (
-              name
-            )
-          )
-        `)
-        .eq('user_id', userId)
-        .in('status', ['completed', 'cancelled'])
-        .order('created_at', { ascending: false })
-        .limit(20)
+      const result = await dedupRequest(
+        RequestKeys.rideHistory(userId),
+        async () => {
+          const { data, error: fetchError } = await supabase
+            .from('ride_requests')
+            .select(`
+              *,
+              provider:provider_id (
+                vehicle_type,
+                vehicle_plate,
+                rating,
+                users:user_id (
+                  name
+                )
+              )
+            `)
+            .eq('user_id', userId)
+            .in('status', ['completed', 'cancelled'])
+            .order('created_at', { ascending: false })
+            .limit(20)
+          
+          if (fetchError) {
+            throw fromSupabaseError(fetchError)
+          }
+          
+          return data || []
+        },
+        { ttl: 60000 } // Cache for 1 minute
+      )
       
-      if (fetchError) {
-        error.value = fetchError.message
-        return []
-      }
-      
-      rideHistory.value = data || []
-      return data || []
-    } catch (err: any) {
-      error.value = err.message
+      rideHistory.value = result
+      return result
+    } catch (err) {
+      const appError = handleError(err, { logToSentry: false })
+      error.value = appError.message
+      rideHistory.value = []
       return []
     } finally {
       loading.value = false
