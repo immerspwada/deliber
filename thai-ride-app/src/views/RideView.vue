@@ -225,7 +225,8 @@ const bookRide = async () => {
     )
     
     if (ride) {
-      activeRide.value = ride
+      // Get the current ride from store after creation
+      activeRide.value = rideStore.currentRide
       viewMode.value = 'tracking'
       await rideStore.findAndMatchDriver()
     } else {

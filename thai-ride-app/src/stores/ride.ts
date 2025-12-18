@@ -223,22 +223,24 @@ export const useRideStore = defineStore('ride', () => {
       const estimatedFare = calculateFare(distanceKm, rideType)
       
       // Create ride request directly with supabase
-      const { data: rideData, error: insertError } = await supabase
+      const insertPayload = {
+        user_id: userId,
+        pickup_lat: pickup.lat,
+        pickup_lng: pickup.lng,
+        pickup_address: pickup.address,
+        destination_lat: destination.lat,
+        destination_lng: destination.lng,
+        destination_address: destination.address,
+        ride_type: rideType,
+        passenger_count: passengerCount,
+        special_requests: specialRequests,
+        estimated_fare: estimatedFare,
+        status: 'pending'
+      }
+      
+      const { data: rideData, error: insertError } = await (supabase as any)
         .from('ride_requests')
-        .insert({
-          user_id: userId,
-          pickup_lat: pickup.lat,
-          pickup_lng: pickup.lng,
-          pickup_address: pickup.address,
-          destination_lat: destination.lat,
-          destination_lng: destination.lng,
-          destination_address: destination.address,
-          ride_type: rideType,
-          passenger_count: passengerCount,
-          special_requests: specialRequests,
-          estimated_fare: estimatedFare,
-          status: 'pending'
-        })
+        .insert(insertPayload)
         .select()
         .single()
       
@@ -246,7 +248,7 @@ export const useRideStore = defineStore('ride', () => {
         throw insertError
       }
       
-      currentRide.value = rideData
+      currentRide.value = rideData as RideRequest
       
       // Subscribe to ride updates
       subscribeToRideUpdates(rideData.id)
