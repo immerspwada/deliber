@@ -711,7 +711,7 @@ const getPlaceIcon = (type: string) => {
   top: 80px;
   left: 50%;
   transform: translateX(-50%);
-  background: #000;
+  background: #00A86B;
   color: #fff;
   padding: 12px 24px;
   border-radius: 24px;
@@ -720,6 +720,7 @@ const getPlaceIcon = (type: string) => {
   gap: 8px;
   z-index: 100;
   animation: slideDown 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .success-toast svg {
@@ -770,7 +771,7 @@ const getPlaceIcon = (type: string) => {
 .hero-icon {
   width: 56px;
   height: 56px;
-  background: #f6f6f6;
+  background: #E8F5EF;
   border-radius: 16px;
   display: flex;
   align-items: center;
@@ -781,6 +782,7 @@ const getPlaceIcon = (type: string) => {
 .hero-icon svg {
   width: 28px;
   height: 28px;
+  color: #00A86B;
 }
 
 .hero-title {
@@ -826,7 +828,7 @@ const getPlaceIcon = (type: string) => {
 }
 
 .step.done .step-num {
-  background: #000;
+  background: #00A86B;
   color: #fff;
 }
 
@@ -836,7 +838,7 @@ const getPlaceIcon = (type: string) => {
 }
 
 .step.done .step-text {
-  color: #000;
+  color: #00A86B;
   font-weight: 500;
 }
 
@@ -848,7 +850,7 @@ const getPlaceIcon = (type: string) => {
 }
 
 .step-line.active {
-  background: #000;
+  background: #00A86B;
 }
 
 /* Quick Book */
@@ -884,7 +886,7 @@ const getPlaceIcon = (type: string) => {
 .label-icon {
   width: 24px;
   height: 24px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border-radius: 50%;
   display: flex;
@@ -922,14 +924,14 @@ const getPlaceIcon = (type: string) => {
 }
 
 .time-slot.active {
-  border-color: #000;
-  background: #fff;
+  border-color: #00A86B;
+  background: #E8F5EF;
 }
 
 .check-icon {
   width: 18px;
   height: 18px;
-  color: #000;
+  color: #00A86B;
   margin-left: auto;
 }
 
@@ -968,8 +970,8 @@ const getPlaceIcon = (type: string) => {
 }
 
 .place-item.active {
-  border-color: #000;
-  background: #fff;
+  border-color: #00A86B;
+  background: #E8F5EF;
 }
 
 .place-icon {
@@ -1018,7 +1020,7 @@ const getPlaceIcon = (type: string) => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: #000;
+  background: #00A86B00;
   border-radius: 12px;
   margin-bottom: 16px;
 }
@@ -1037,7 +1039,7 @@ const getPlaceIcon = (type: string) => {
 .selected-place-icon svg {
   width: 22px;
   height: 22px;
-  color: #000;
+  color: #00A86B;
 }
 
 .selected-place-info {
@@ -1098,7 +1100,7 @@ const getPlaceIcon = (type: string) => {
 }
 
 .address-input-wrapper:focus-within {
-  border-color: #000;
+  border-color: #00A86B;
 }
 
 .input-icon {
@@ -1122,7 +1124,7 @@ const getPlaceIcon = (type: string) => {
 
 .confirm-address-btn {
   padding: 8px 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1146,7 +1148,7 @@ const getPlaceIcon = (type: string) => {
   width: 20px;
   height: 20px;
   border: 2px solid #e5e5e5;
-  border-top-color: #000;
+  border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1159,11 +1161,19 @@ const getPlaceIcon = (type: string) => {
 }
 
 .place-icon.home {
-  background: #e8f5e9;
+  background: #E8F5EF;
+}
+
+.place-icon.home svg {
+  color: #00A86B;
 }
 
 .place-icon.work {
   background: #e3f2fd;
+}
+
+.place-icon.work svg {
+  color: #1976D2;
 }
 
 .empty-hint-text {
@@ -1180,7 +1190,7 @@ const getPlaceIcon = (type: string) => {
 .link-btn {
   background: none;
   border: none;
-  color: #000;
+  color: #00A86B;
   font-weight: 500;
   text-decoration: underline;
 }
@@ -1277,7 +1287,7 @@ const getPlaceIcon = (type: string) => {
   padding: 12px;
   background: none;
   border: none;
-  color: #000;
+  color: #00A86B;
   font-weight: 500;
   margin-top: 8px;
 }
@@ -1321,11 +1331,11 @@ const getPlaceIcon = (type: string) => {
 
 .btn-book {
   width: 100%;
-  padding: 16px 24px;
+  padding: 18px 24px;
   background: #e5e5e5;
   color: #6b6b6b;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
   display: flex;
@@ -1336,8 +1346,9 @@ const getPlaceIcon = (type: string) => {
 }
 
 .btn-book.ready {
-  background: #000;
+  background: #00A86B;
   color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .btn-book:disabled {
@@ -1441,7 +1452,7 @@ const getPlaceIcon = (type: string) => {
   width: 20px;
   height: 20px;
   border: 2px solid #e5e5e5;
-  border-top-color: #000;
+  border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1465,8 +1476,8 @@ const getPlaceIcon = (type: string) => {
 
 .add-place-btn:hover,
 .add-place-btn:active {
-  border-color: #000;
-  color: #000;
+  border-color: #00A86B;
+  color: #00A86B;
 }
 
 .add-place-btn svg {
@@ -1509,7 +1520,7 @@ const getPlaceIcon = (type: string) => {
 }
 
 .form-input:focus {
-  border-color: #000;
+  border-color: #00A86B;
 }
 
 .form-input::placeholder {
@@ -1544,24 +1555,26 @@ const getPlaceIcon = (type: string) => {
 }
 
 .type-btn.active {
-  border-color: #000;
-  background: #fff;
-  color: #000;
+  border-color: #00A86B;
+  background: #E8F5EF;
+  color: #00A86B;
 }
 
 /* Primary Button */
 .btn-primary {
   padding: 14px 24px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 16px;
   font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .btn-primary:disabled {
   background: #ccc;
   color: #999;
+  box-shadow: none;
 }
 </style>

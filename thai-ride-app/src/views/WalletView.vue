@@ -71,7 +71,7 @@ const goBack = () => router.back()
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
           </button>
-          <h1>ThaiRide Wallet</h1>
+          <h1>กระเป๋าเงิน GOBEAR</h1>
         </div>
 
         <!-- Balance Card Skeleton -->
@@ -257,7 +257,7 @@ const goBack = () => router.back()
 
 /* Balance Card */
 .balance-card {
-  background: #000;
+  background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%);
   color: #fff;
   border-radius: 20px;
   padding: 28px 24px;
@@ -265,6 +265,7 @@ const goBack = () => router.back()
   text-align: center;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 168, 107, 0.3);
 }
 
 .balance-card::before {
@@ -274,7 +275,7 @@ const goBack = () => router.back()
   right: -50%;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -307,7 +308,7 @@ const goBack = () => router.back()
   gap: 8px;
   padding: 14px 32px;
   background: #fff;
-  color: #000;
+  color: #00A86B;
   border: none;
   border-radius: 24px;
   font-size: 15px;
@@ -321,7 +322,7 @@ const goBack = () => router.back()
 
 .topup-btn:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
 }
 
 .topup-btn:active {
@@ -509,7 +510,7 @@ const goBack = () => router.back()
 }
 
 .tx-amount.positive {
-  color: #000;
+  color: #00A86B;
 }
 
 /* Modal */
@@ -587,8 +588,8 @@ const goBack = () => router.back()
 }
 
 .amount-btn.active {
-  border-color: #000;
-  background: #fff;
+  border-color: #00A86B;
+  background: #E8F5EF;
 }
 
 .custom-amount {
@@ -612,7 +613,7 @@ const goBack = () => router.back()
 }
 
 .custom-amount input:focus {
-  border-color: #000;
+  border-color: #00A86B;
 }
 
 .payment-methods h4 {
@@ -646,8 +647,8 @@ const goBack = () => router.back()
 
 .method-option.active,
 .method-option:has(input:checked) {
-  border-color: #000;
-  background: #fff;
+  border-color: #00A86B;
+  background: #E8F5EF;
 }
 
 .method-icon {
@@ -678,16 +679,23 @@ const goBack = () => router.back()
 .btn-primary {
   width: 100%;
   padding: 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #008F5B;
 }
 
 .btn-primary:disabled {
   background: #CCC;
+  box-shadow: none;
 }
 </style>

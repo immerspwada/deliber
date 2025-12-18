@@ -550,7 +550,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border: 3px solid #E5E5E5;
-  border-top-color: #000000;
+  border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -584,8 +584,8 @@ onUnmounted(() => {
 }
 
 .status-card.online {
-  border-color: #000000;
-  background-color: rgba(0, 0, 0, 0.02);
+  border-color: #00A86B;
+  background-color: rgba(0, 168, 107, 0.05);
 }
 
 .status-info {
@@ -630,7 +630,7 @@ onUnmounted(() => {
 }
 
 .toggle-btn.active {
-  background-color: #000000;
+  background-color: #00A86B;
 }
 
 .toggle-knob {

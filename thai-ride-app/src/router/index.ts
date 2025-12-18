@@ -187,9 +187,52 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
   {
+    path: '/customer/safety',
+    name: 'CustomerSafety',
+    component: () => import('../views/SafetyView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
     path: '/customer/loyalty',
     name: 'CustomerLoyalty',
     component: () => import('../views/LoyaltyView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/queue-booking',
+    name: 'CustomerQueueBooking',
+    component: () => import('../views/QueueBookingView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/moving',
+    name: 'CustomerMoving',
+    component: () => import('../views/MovingView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/laundry',
+    name: 'CustomerLaundry',
+    component: () => import('../views/LaundryView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  // Tracking Views for New Services
+  {
+    path: '/customer/queue-booking/:id',
+    name: 'queue-tracking',
+    component: () => import('../views/QueueTrackingView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/moving/:id',
+    name: 'moving-tracking',
+    component: () => import('../views/MovingTrackingView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/laundry/:id',
+    name: 'laundry-tracking',
+    component: () => import('../views/LaundryTrackingView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
 
@@ -260,6 +303,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider/help',
     name: 'ProviderHelp',
     component: () => import('../views/HelpView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/incentives',
+    name: 'ProviderIncentives',
+    component: () => import('../views/provider/ProviderIncentivesView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
 
@@ -442,6 +491,49 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/referrals',
     name: 'AdminReferrals',
     component: () => import('../views/AdminReferralsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/wallet-transactions',
+    name: 'AdminWalletTransactions',
+    component: () => import('../views/AdminWalletTransactionsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/revenue',
+    name: 'AdminRevenue',
+    component: () => import('../views/AdminRevenueDashboardView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/fraud-alerts',
+    name: 'AdminFraudAlerts',
+    component: () => import('../views/AdminFraudAlertsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/incentives',
+    name: 'AdminIncentives',
+    component: () => import('../views/AdminIncentivesView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  // New Services Admin (F158, F159, F160)
+  {
+    path: '/admin/queue-bookings',
+    name: 'AdminQueueBookings',
+    component: () => import('../views/AdminQueueView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/moving',
+    name: 'AdminMoving',
+    component: () => import('../views/AdminMovingView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/laundry',
+    name: 'AdminLaundry',
+    component: () => import('../views/AdminLaundryView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   }
 ]

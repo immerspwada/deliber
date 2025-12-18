@@ -273,7 +273,7 @@ watch(showAddModal, (isOpen) => {
           </svg>
         </div>
         <div class="setup-content">
-          <h3>ยินดีต้อนรับสู่ ThaiRide!</h3>
+          <h3>ยินดีต้อนรับสู่ GOBEAR!</h3>
           <p>เพิ่มที่อยู่บ้านและที่ทำงานเพื่อการจองที่รวดเร็วขึ้น</p>
         </div>
         <button @click="skipSetup" class="skip-btn">ข้าม</button>

@@ -647,6 +647,140 @@ export function useProvider() {
     if (locationInterval) { clearInterval(locationInterval); locationInterval = null }
   }
 
+  // =====================================================
+  // NEW SERVICES: Queue, Moving, Laundry (F158, F159, F160)
+  // =====================================================
+  
+  const pendingQueueJobs = ref<any[]>([])
+  const pendingMovingJobs = ref<any[]>([])
+  const pendingLaundryJobs = ref<any[]>([])
+
+  // Fetch pending queue bookings (Requirements 4.1)
+  const fetchPendingQueueJobs = async () => {
+    if (!profile.value?.id) return
+    try {
+      const { data } = await supabase.rpc('get_available_queue_bookings_for_provider', {
+        p_provider_id: profile.value.id
+      })
+      pendingQueueJobs.value = data || []
+    } catch (e) { console.error('Error fetching queue jobs:', e) }
+  }
+
+  // Fetch pending moving requests (Requirements 4.1)
+  const fetchPendingMovingJobs = async () => {
+    if (!profile.value?.id) return
+    try {
+      const { data } = await supabase.rpc('get_available_moving_requests_for_provider', {
+        p_provider_id: profile.value.id,
+        p_lat: profile.value.current_lat,
+        p_lng: profile.value.current_lng
+      })
+      pendingMovingJobs.value = data || []
+    } catch (e) { console.error('Error fetching moving jobs:', e) }
+  }
+
+  // Fetch pending laundry requests (Requirements 4.1)
+  const fetchPendingLaundryJobs = async () => {
+    if (!profile.value?.id) return
+    try {
+      const { data } = await supabase.rpc('get_available_laundry_requests_for_provider', {
+        p_provider_id: profile.value.id,
+        p_lat: profile.value.current_lat,
+        p_lng: profile.value.current_lng
+      })
+      pendingLaundryJobs.value = data || []
+    } catch (e) { console.error('Error fetching laundry jobs:', e) }
+  }
+
+  // Accept queue booking (Requirements 4.2)
+  const acceptQueueBooking = async (bookingId: string) => {
+    if (!profile.value?.id) return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
+    try {
+      const { data } = await supabase.rpc('accept_queue_booking', {
+        p_booking_id: bookingId,
+        p_provider_id: profile.value.id
+      })
+      if (data?.success) {
+        pendingQueueJobs.value = pendingQueueJobs.value.filter(j => j.id !== bookingId)
+      }
+      return data
+    } catch (e: any) { return { success: false, error: e.message } }
+  }
+
+  // Accept moving request (Requirements 4.2)
+  const acceptMovingRequest = async (requestId: string) => {
+    if (!profile.value?.id) return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
+    try {
+      const { data } = await supabase.rpc('accept_moving_request', {
+        p_request_id: requestId,
+        p_provider_id: profile.value.id
+      })
+      if (data?.success) {
+        pendingMovingJobs.value = pendingMovingJobs.value.filter(j => j.id !== requestId)
+      }
+      return data
+    } catch (e: any) { return { success: false, error: e.message } }
+  }
+
+  // Accept laundry request (Requirements 4.2)
+  const acceptLaundryRequest = async (requestId: string) => {
+    if (!profile.value?.id) return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
+    try {
+      const { data } = await supabase.rpc('accept_laundry_request', {
+        p_request_id: requestId,
+        p_provider_id: profile.value.id
+      })
+      if (data?.success) {
+        pendingLaundryJobs.value = pendingLaundryJobs.value.filter(j => j.id !== requestId)
+      }
+      return data
+    } catch (e: any) { return { success: false, error: e.message } }
+  }
+
+  // Update queue status (Requirements 4.3)
+  const updateQueueStatus = async (bookingId: string, newStatus: string) => {
+    try {
+      const { data } = await supabase.rpc('update_queue_status', {
+        p_booking_id: bookingId,
+        p_new_status: newStatus
+      })
+      return data
+    } catch (e: any) { return { success: false, error: e.message } }
+  }
+
+  // Update moving status (Requirements 4.3)
+  const updateMovingStatus = async (requestId: string, newStatus: string, finalPrice?: number) => {
+    try {
+      const { data } = await supabase.rpc('update_moving_status', {
+        p_request_id: requestId,
+        p_new_status: newStatus,
+        p_final_price: finalPrice || null
+      })
+      return data
+    } catch (e: any) { return { success: false, error: e.message } }
+  }
+
+  // Update laundry status (Requirements 4.3)
+  const updateLaundryStatus = async (requestId: string, newStatus: string, actualWeight?: number) => {
+    try {
+      const { data } = await supabase.rpc('update_laundry_status', {
+        p_request_id: requestId,
+        p_new_status: newStatus,
+        p_actual_weight: actualWeight || null
+      })
+      return data
+    } catch (e: any) { return { success: false, error: e.message } }
+  }
+
+  // Fetch all new service jobs
+  const fetchAllNewServiceJobs = async () => {
+    await Promise.all([
+      fetchPendingQueueJobs(),
+      fetchPendingMovingJobs(),
+      fetchPendingLaundryJobs()
+    ])
+  }
+
   onUnmounted(() => {
     unsubscribeFromRequests()
     unsubscribeFromRide()
@@ -662,6 +796,8 @@ export function useProvider() {
     pendingRequests, activeRide,
     // Delivery/Shopping state
     pendingDeliveries, pendingShopping, activeJob,
+    // New Services state (F158, F159, F160)
+    pendingQueueJobs, pendingMovingJobs, pendingLaundryJobs,
     // Computed
     hasActiveRide, hasActiveJob,
     // Profile
@@ -672,7 +808,13 @@ export function useProvider() {
     fetchPendingDeliveries, acceptDelivery, updateDeliveryStatus,
     // Shopping functions
     fetchPendingShopping, acceptShopping, updateShoppingStatus,
+    // Queue Booking functions (F158)
+    fetchPendingQueueJobs, acceptQueueBooking, updateQueueStatus,
+    // Moving functions (F159)
+    fetchPendingMovingJobs, acceptMovingRequest, updateMovingStatus,
+    // Laundry functions (F160)
+    fetchPendingLaundryJobs, acceptLaundryRequest, updateLaundryStatus,
     // All jobs
-    fetchAllPendingJobs
+    fetchAllPendingJobs, fetchAllNewServiceJobs
   }
 }

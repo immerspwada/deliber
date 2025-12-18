@@ -191,7 +191,7 @@ onMounted(() => {
 const shareReceipt = () => {
   if (navigator.share) {
     navigator.share({
-      title: 'ใบเสร็จ ThaiRide',
+      title: 'ใบเสร็จ GOBEAR',
       text: `${receipt.value.typeName}: ${receipt.value.from.name} → ${receipt.value.to.name}\nราคา: ฿${receipt.value.total}`
     })
   }
@@ -236,7 +236,7 @@ const goBack = () => {
       <div class="receipt-card">
         <div class="receipt-header">
           <div class="receipt-logo">
-            <span>ThaiRide</span>
+            <span>GOBEAR</span>
           </div>
           <div class="receipt-meta">
             <span class="receipt-id">#{{ receipt.id }}</span>

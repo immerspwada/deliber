@@ -496,8 +496,8 @@ const formatNationalId = (id: string) => {
 
 .modal-footer { display: flex; gap: 12px; padding: 20px; border-top: 1px solid #e5e5e5; }
 .btn { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-.btn-approve { background: #000; color: #fff; }
-.btn-approve:hover { opacity: 0.9; }
+.btn-approve { background: #00A86B; color: #fff; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3); }
+.btn-approve:hover { background: #008F5B; }
 .btn-reject { background: #f6f6f6; color: #e11900; }
 .btn-reject:hover { background: #ffebee; }
 

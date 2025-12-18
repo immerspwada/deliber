@@ -1226,7 +1226,12 @@ export function useAdmin() {
     fetchPushSubscriptions, fetchPushQueue, fetchPushStats,
     sendPushToUser, processPushQueue, queuePushNotification, sendBroadcastPush,
     // Provider Cancellations
-    fetchProviderCancellations, fetchProviderCancellationStats
+    fetchProviderCancellations, fetchProviderCancellationStats,
+    // New Services (F158, F159, F160)
+    fetchQueueBookings, updateQueueBooking, fetchQueueStats,
+    fetchMovingRequests, updateMovingRequest, fetchMovingStats,
+    fetchLaundryRequests, updateLaundryRequest, fetchLaundryStats,
+    fetchNewServicesStats
   }
 }
 
@@ -1266,5 +1271,194 @@ async function fetchProviderCancellationStats(providerId: string, days = 30) {
     return data?.[0] || { total_cancellations: 0, cancellation_rate: 0, total_completed: 0, penalty_total: 0, is_flagged: false }
   } catch {
     return { total_cancellations: 0, cancellation_rate: 0, total_completed: 0, penalty_total: 0, is_flagged: false }
+  }
+}
+
+
+// =====================================================
+// NEW SERVICES ADMIN FUNCTIONS (F158, F159, F160)
+// =====================================================
+
+// Queue Booking Functions (F158)
+async function fetchQueueBookings(page = 1, limit = 20, filter?: { status?: string; category?: string }) {
+  try {
+    let query = supabase.from('queue_bookings').select(`
+      *,
+      user:user_id (id, name, phone_number, member_uid),
+      provider:provider_id (id, vehicle_type, users(name, phone_number))
+    `, { count: 'exact' })
+    
+    if (filter?.status) query = query.eq('status', filter.status)
+    if (filter?.category) query = query.eq('category', filter.category)
+    
+    const { data, count } = await query
+      .range((page - 1) * limit, page * limit - 1)
+      .order('created_at', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+async function updateQueueBooking(bookingId: string, updates: Record<string, any>) {
+  try {
+    const { data, error } = await supabase
+      .from('queue_bookings')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', bookingId)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+async function fetchQueueStats() {
+  try {
+    const { data: pending } = await supabase.from('queue_bookings').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+    const { data: confirmed } = await supabase.from('queue_bookings').select('id', { count: 'exact', head: true }).eq('status', 'confirmed')
+    const { data: completed } = await supabase.from('queue_bookings').select('id', { count: 'exact', head: true }).eq('status', 'completed')
+    const { data: cancelled } = await supabase.from('queue_bookings').select('id', { count: 'exact', head: true }).eq('status', 'cancelled')
+    
+    return {
+      pending: pending?.length || 0,
+      confirmed: confirmed?.length || 0,
+      completed: completed?.length || 0,
+      cancelled: cancelled?.length || 0
+    }
+  } catch {
+    return { pending: 0, confirmed: 0, completed: 0, cancelled: 0 }
+  }
+}
+
+// Moving Request Functions (F159)
+async function fetchMovingRequests(page = 1, limit = 20, filter?: { status?: string; serviceType?: string }) {
+  try {
+    let query = supabase.from('moving_requests').select(`
+      *,
+      user:user_id (id, name, phone_number, member_uid),
+      provider:provider_id (id, vehicle_type, users(name, phone_number))
+    `, { count: 'exact' })
+    
+    if (filter?.status) query = query.eq('status', filter.status)
+    if (filter?.serviceType) query = query.eq('service_type', filter.serviceType)
+    
+    const { data, count } = await query
+      .range((page - 1) * limit, page * limit - 1)
+      .order('created_at', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+async function updateMovingRequest(requestId: string, updates: Record<string, any>) {
+  try {
+    const { data, error } = await supabase
+      .from('moving_requests')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', requestId)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+async function fetchMovingStats() {
+  try {
+    const { count: pending } = await supabase.from('moving_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+    const { count: matched } = await supabase.from('moving_requests').select('id', { count: 'exact', head: true }).eq('status', 'matched')
+    const { count: inProgress } = await supabase.from('moving_requests').select('id', { count: 'exact', head: true }).eq('status', 'in_progress')
+    const { count: completed } = await supabase.from('moving_requests').select('id', { count: 'exact', head: true }).eq('status', 'completed')
+    
+    return {
+      pending: pending || 0,
+      matched: matched || 0,
+      inProgress: inProgress || 0,
+      completed: completed || 0
+    }
+  } catch {
+    return { pending: 0, matched: 0, inProgress: 0, completed: 0 }
+  }
+}
+
+// Laundry Request Functions (F160)
+async function fetchLaundryRequests(page = 1, limit = 20, filter?: { status?: string }) {
+  try {
+    let query = supabase.from('laundry_requests').select(`
+      *,
+      user:user_id (id, name, phone_number, member_uid),
+      provider:provider_id (id, vehicle_type, users(name, phone_number))
+    `, { count: 'exact' })
+    
+    if (filter?.status) query = query.eq('status', filter.status)
+    
+    const { data, count } = await query
+      .range((page - 1) * limit, page * limit - 1)
+      .order('created_at', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+async function updateLaundryRequest(requestId: string, updates: Record<string, any>) {
+  try {
+    const { data, error } = await supabase
+      .from('laundry_requests')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', requestId)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+async function fetchLaundryStats() {
+  try {
+    const { count: pending } = await supabase.from('laundry_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+    const { count: matched } = await supabase.from('laundry_requests').select('id', { count: 'exact', head: true }).eq('status', 'matched')
+    const { count: washing } = await supabase.from('laundry_requests').select('id', { count: 'exact', head: true }).eq('status', 'washing')
+    const { count: delivered } = await supabase.from('laundry_requests').select('id', { count: 'exact', head: true }).eq('status', 'delivered')
+    
+    return {
+      pending: pending || 0,
+      matched: matched || 0,
+      washing: washing || 0,
+      delivered: delivered || 0
+    }
+  } catch {
+    return { pending: 0, matched: 0, washing: 0, delivered: 0 }
+  }
+}
+
+// Combined stats for all new services
+async function fetchNewServicesStats() {
+  const [queueStats, movingStats, laundryStats] = await Promise.all([
+    fetchQueueStats(),
+    fetchMovingStats(),
+    fetchLaundryStats()
+  ])
+  
+  return {
+    queue: queueStats,
+    moving: movingStats,
+    laundry: laundryStats,
+    totalPending: queueStats.pending + movingStats.pending + laundryStats.pending,
+    totalCompleted: queueStats.completed + movingStats.completed + laundryStats.delivered
   }
 }

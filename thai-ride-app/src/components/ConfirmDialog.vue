@@ -211,13 +211,14 @@ const handleCancel = () => {
 }
 
 .btn-confirm {
-  background: #000000;
+  background: #00A86B;
   border: none;
   color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .btn-confirm:hover {
-  background: #333333;
+  background: #008F5B;
 }
 
 .btn-confirm.danger {

@@ -121,14 +121,14 @@ const goToUserApp = () => {
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
           </svg>
         </div>
-        <h1>Thai Ride Admin</h1>
+        <h1>GOBEAR Admin</h1>
         <p class="subtitle">ระบบจัดการสำหรับผู้ดูแล</p>
       </div>
 
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
           <label>อีเมล</label>
-          <input v-model="email" type="email" placeholder="admin@thairide.app" autocomplete="email"/>
+          <input v-model="email" type="email" placeholder="admin@gobear.app" autocomplete="email"/>
         </div>
 
         <div class="form-group">

@@ -9,9 +9,9 @@ import { useAuthStore } from '../stores/auth'
 import { useToast } from './useToast'
 
 // Storage keys
-const SYNC_QUEUE_KEY = 'thairide_sync_queue'
-const SYNC_HISTORY_KEY = 'thairide_sync_history'
-const CONFLICT_QUEUE_KEY = 'thairide_conflict_queue'
+const SYNC_QUEUE_KEY = 'gobear_sync_queue'
+const SYNC_HISTORY_KEY = 'gobear_sync_history'
+const CONFLICT_QUEUE_KEY = 'gobear_conflict_queue'
 
 // Sync item types
 type SyncType = 'rating' | 'saved_place' | 'recent_place' | 'notification_read'

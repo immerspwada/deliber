@@ -7,7 +7,7 @@ const currentSlide = ref(0)
 
 const slides = [
   {
-    title: 'ยินดีต้อนรับสู่ ThaiRide',
+    title: 'ยินดีต้อนรับสู่ GOBEAR',
     description: 'แอปเรียกรถ ส่งของ และซื้อของครบวงจร ให้บริการทั่วประเทศไทย',
     icon: 'welcome'
   },

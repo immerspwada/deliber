@@ -404,12 +404,12 @@ watch(packageType, () => {
 }
 
 .package-type-btn:hover {
-  border-color: #CCC;
+  border-color: #00A86B;
 }
 
 .package-type-btn.active {
-  border-color: #000;
-  background: #000;
+  border-color: #00A86B;
+  background: #00A86B;
   color: white;
 }
 
@@ -431,18 +431,25 @@ watch(packageType, () => {
   justify-content: center;
   gap: 8px;
   padding: 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   margin-top: 16px;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #008F5B;
 }
 
 .btn-primary:disabled {
   background: #CCC;
+  box-shadow: none;
 }
 
 .btn-icon {

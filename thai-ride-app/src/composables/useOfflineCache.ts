@@ -7,12 +7,12 @@ import { ref } from 'vue'
 
 // Cache keys
 const CACHE_KEYS = {
-  SAVED_PLACES: 'thairide_saved_places',
-  RECENT_PLACES: 'thairide_recent_places',
-  RECENT_TRIPS: 'thairide_recent_trips',
-  USER_PROFILE: 'thairide_user_profile',
-  WALLET_BALANCE: 'thairide_wallet_balance',
-  LAST_SYNC: 'thairide_last_sync'
+  SAVED_PLACES: 'gobear_saved_places',
+  RECENT_PLACES: 'gobear_recent_places',
+  RECENT_TRIPS: 'gobear_recent_trips',
+  USER_PROFILE: 'gobear_user_profile',
+  WALLET_BALANCE: 'gobear_wallet_balance',
+  LAST_SYNC: 'gobear_last_sync'
 } as const
 
 // Cache expiry times (in milliseconds)

@@ -136,7 +136,7 @@ onUnmounted(() => {
         </svg>
       </div>
       <div class="install-text">
-        <strong>ติดตั้ง ThaiRide</strong>
+        <strong>ติดตั้ง GOBEAR</strong>
         <span>เพิ่มลงหน้าจอหลักเพื่อเข้าถึงได้เร็วขึ้น</span>
       </div>
     </div>

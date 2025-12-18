@@ -146,9 +146,10 @@ const clear = () => {
 
 .apply-btn {
   padding: 6px 14px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;

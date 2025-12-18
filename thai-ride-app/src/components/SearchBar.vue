@@ -95,7 +95,7 @@ const handleClear = () => {
 
 .search-bar:focus-within {
   background: #fff;
-  box-shadow: 0 0 0 2px #000;
+  box-shadow: 0 0 0 2px #00A86B;
 }
 
 .search-bar.disabled {

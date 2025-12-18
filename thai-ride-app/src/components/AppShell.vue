@@ -54,7 +54,7 @@ const pageTitle = computed(() => {
     '/customer/settings': 'ตั้งค่า',
     '/customer/help': 'ช่วยเหลือ'
   }
-  return titles[route.path] || 'ThaiRide'
+  return titles[route.path] || 'GOBEAR'
 })
 
 const canGoBack = computed(() => {
@@ -76,7 +76,7 @@ const goBack = () => {
           </svg>
         </button>
         <div v-else class="logo">
-          <span class="logo-text">ThaiRide</span>
+          <span class="logo-text">GOBEAR</span>
         </div>
         <h1 v-if="canGoBack" class="header-title">{{ pageTitle }}</h1>
         <div class="header-spacer"></div>

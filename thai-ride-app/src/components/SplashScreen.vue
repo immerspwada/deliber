@@ -11,7 +11,7 @@ const props = withDefaults(defineProps<{
   duration?: number
   showProgress?: boolean
 }>(), {
-  appName: 'Thai Ride',
+  appName: 'GOBEAR',
   tagline: 'เดินทางสะดวก ปลอดภัย',
   duration: 2000,
   showProgress: true
@@ -58,7 +58,7 @@ onMounted(() => {
       </div>
       
       <div class="footer">
-        <p>Powered by Thai Ride</p>
+        <p>Powered by GOBEAR</p>
       </div>
     </div>
   </Transition>

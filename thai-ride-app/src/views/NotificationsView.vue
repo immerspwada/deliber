@@ -308,7 +308,7 @@ onMounted(() => {
 }
 
 .mark-all-btn:hover {
-  color: #000;
+  color: #00A86B;
 }
 
 /* Loading State */
@@ -423,8 +423,8 @@ onMounted(() => {
 }
 
 .notification-card.unread {
-  background-color: #fafafa;
-  border-left: 3px solid #000;
+  background-color: #E8F5EF;
+  border-left: 3px solid #00A86B;
 }
 
 .notification-icon {
@@ -514,7 +514,7 @@ onMounted(() => {
   right: 16px;
   width: 8px;
   height: 8px;
-  background-color: #276ef1;
+  background-color: #00A86B;
   border-radius: 50%;
 }
 

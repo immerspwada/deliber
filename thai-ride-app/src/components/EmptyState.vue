@@ -170,7 +170,7 @@ defineEmits<{
 
 .action-btn {
   padding: 12px 24px;
-  background: #000000;
+  background: #00A86B;
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -178,10 +178,11 @@ defineEmits<{
   color: #ffffff;
   cursor: pointer;
   transition: background 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .action-btn:hover {
-  background: #333333;
+  background: #008F5B;
 }
 
 .secondary-btn {

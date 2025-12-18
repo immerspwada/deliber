@@ -110,7 +110,7 @@ const fetchPromos = async () => {
       { id: '10', code: 'GROCERY20', discount_type: 'percentage', discount_value: 20, min_order_amount: 150, max_discount: 100, valid_until: addDays(10), description: 'ลด 20% ซื้อของสด', used: false, category: 'shopping', used_count: 89, usage_limit: 600 },
       // All categories promos
       { id: '11', code: 'NEWYEAR2025', discount_type: 'fixed', discount_value: 150, min_order_amount: 300, valid_until: addDays(45), description: 'ฉลองปีใหม่ ลด ฿150', used: false, category: 'all', used_count: 567, usage_limit: 2000 },
-      { id: '12', code: 'THAIRIDE10', discount_type: 'percentage', discount_value: 10, min_order_amount: 50, max_discount: 200, valid_until: addDays(90), description: 'ลด 10% ทุกบริการ', used: false, category: 'all', used_count: 1234, usage_limit: null },
+      { id: '12', code: 'GOBEAR10', discount_type: 'percentage', discount_value: 10, min_order_amount: 50, max_discount: 200, valid_until: addDays(90), description: 'ลด 10% ทุกบริการ', used: false, category: 'all', used_count: 1234, usage_limit: null },
       { id: '13', code: 'WELCOME', discount_type: 'fixed', discount_value: 80, min_order_amount: 150, valid_until: addDays(365), description: 'ยินดีต้อนรับ ลด ฿80', used: false, category: 'all', used_count: 3456, usage_limit: null },
       { id: '14', code: 'RAINY30', discount_type: 'fixed', discount_value: 30, min_order_amount: 80, valid_until: addDays(2), description: 'หน้าฝน ลด ฿30', used: false, category: 'all', used_count: 792, usage_limit: 800 },
       // Expiring soon promos
@@ -202,11 +202,11 @@ const copyCode = (code: string) => {
 }
 
 const sharePromo = async (promo: any) => {
-  const shareText = `ใช้โค้ด ${promo.code} รับส่วนลด ${promo.discount_type === 'fixed' ? '฿' + promo.discount_value : promo.discount_value + '%'} ที่ ThaiRide! ${promo.description}`
+  const shareText = `ใช้โค้ด ${promo.code} รับส่วนลด ${promo.discount_type === 'fixed' ? '฿' + promo.discount_value : promo.discount_value + '%'} ที่ GOBEAR! ${promo.description}`
   
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'โปรโมชั่น ThaiRide', text: shareText })
+      await navigator.share({ title: 'โปรโมชั่น GOBEAR', text: shareText })
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         await navigator.clipboard?.writeText(shareText)

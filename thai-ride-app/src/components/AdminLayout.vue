@@ -33,33 +33,40 @@ onMounted(() => {
 
 const menuItems = [
   { path: '/admin/dashboard', label: 'แดชบอร์ด', icon: 'dashboard' },
-  { path: '/admin/analytics', label: 'Analytics', icon: 'analytics' },
-  { path: '/admin/live-map', label: 'Live Map', icon: 'live' },
+  { path: '/admin/analytics', label: 'วิเคราะห์ข้อมูล', icon: 'analytics' },
+  { path: '/admin/revenue', label: 'รายได้', icon: 'revenue' },
+  { path: '/admin/live-map', label: 'แผนที่สด', icon: 'live' },
   { path: '/admin/users', label: 'ผู้ใช้งาน', icon: 'users' },
   { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car' },
+  { path: '/admin/incentives', label: 'โบนัส/Incentive', icon: 'incentive' },
   { path: '/admin/orders', label: 'ออเดอร์', icon: 'orders' },
   { path: '/admin/scheduled-rides', label: 'การจองล่วงหน้า', icon: 'schedule' },
+  { path: '/admin/queue-bookings', label: 'จองคิว', icon: 'queue' },
+  { path: '/admin/moving', label: 'ยกของ/ขนย้าย', icon: 'moving' },
+  { path: '/admin/laundry', label: 'ซักผ้า', icon: 'laundry' },
   { path: '/admin/cancellations', label: 'การยกเลิก', icon: 'cancel' },
   { path: '/admin/tips', label: 'ทิป', icon: 'tip' },
   { path: '/admin/ratings', label: 'รีวิว', icon: 'ratings' },
-  { path: '/admin/feedback', label: 'Feedback', icon: 'feedback' },
-  { path: '/admin/notifications', label: 'Notifications', icon: 'notification' },
+  { path: '/admin/feedback', label: 'ความคิดเห็น', icon: 'feedback' },
+  { path: '/admin/notifications', label: 'การแจ้งเตือน', icon: 'notification' },
   { path: '/admin/payments', label: 'การเงิน', icon: 'payment' },
   { path: '/admin/wallets', label: 'กระเป๋าเงิน', icon: 'wallet' },
+  { path: '/admin/wallet-transactions', label: 'ประวัติ Wallet', icon: 'transaction' },
   { path: '/admin/withdrawals', label: 'การถอนเงิน', icon: 'withdrawal' },
+  { path: '/admin/fraud-alerts', label: 'แจ้งเตือนทุจริต', icon: 'fraud' },
   { path: '/admin/referrals', label: 'ระบบแนะนำ', icon: 'referral' },
   { path: '/admin/support', label: 'ซัพพอร์ต', icon: 'support' },
   { path: '/admin/promos', label: 'โปรโมชั่น', icon: 'promo' },
-  { path: '/admin/loyalty', label: 'Loyalty Program', icon: 'loyalty' },
+  { path: '/admin/loyalty', label: 'แต้มสะสม', icon: 'loyalty' },
   { path: '/admin/subscriptions', label: 'แพ็คเกจสมาชิก', icon: 'subscription' },
   { path: '/admin/insurance', label: 'ประกันภัย', icon: 'insurance' },
   { path: '/admin/corporate', label: 'บัญชีองค์กร', icon: 'corporate' },
-  { path: '/admin/surge', label: 'Surge Pricing', icon: 'surge' },
+  { path: '/admin/surge', label: 'ราคาช่วงเร่งด่วน', icon: 'surge' },
   { path: '/admin/service-areas', label: 'พื้นที่บริการ', icon: 'map' },
   { path: '/admin/settings', label: 'ตั้งค่าระบบ', icon: 'gear' },
-  { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' },
+  { path: '/admin/audit-log', label: 'บันทึกกิจกรรม', icon: 'audit' },
   { path: '/admin/reports', label: 'รายงาน', icon: 'report' },
-  { path: '/admin/components', label: 'Components', icon: 'components' }
+  { path: '/admin/components', label: 'คอมโพเนนต์', icon: 'components' }
 ]
 
 const isActive = (path: string) => {
@@ -91,7 +98,7 @@ const logout = () => {
           <path d="M3 12h18M3 6h18M3 18h18"/>
         </svg>
       </button>
-      <h1 class="header-title">Thai Ride Admin</h1>
+      <h1 class="header-title">GOBEAR Admin</h1>
       <button class="menu-btn" @click="logout">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
@@ -109,7 +116,7 @@ const logout = () => {
           <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
           </svg>
-          <span>Thai Ride</span>
+          <span>GOBEAR</span>
         </div>
         <button class="close-btn" @click="sidebarOpen = false">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -249,6 +256,23 @@ const logout = () => {
           <svg v-else-if="item.icon === 'components'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
             <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <!-- Revenue -->
+          <svg v-else-if="item.icon === 'revenue'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+          </svg>
+          <!-- Incentive -->
+          <svg v-else-if="item.icon === 'incentive'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
+          </svg>
+          <!-- Transaction -->
+          <svg v-else-if="item.icon === 'transaction'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 3l4 4-4 4M21 7H3M7 21l-4-4 4-4M3 17h18"/>
+          </svg>
+          <!-- Fraud -->
+          <svg v-else-if="item.icon === 'fraud'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
           <span>{{ item.label }}</span>
         </button>

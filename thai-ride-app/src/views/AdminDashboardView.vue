@@ -40,7 +40,7 @@ const getStatusText = (status: string) => {
     <div class="dashboard">
       <div class="page-header">
         <h1>แดชบอร์ด</h1>
-        <p class="subtitle">ภาพรวมระบบ Thai Ride</p>
+        <p class="subtitle">ภาพรวมระบบ GOBEAR</p>
       </div>
 
       <!-- Stats Grid -->

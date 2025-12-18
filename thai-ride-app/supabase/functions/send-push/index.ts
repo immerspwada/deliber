@@ -39,7 +39,7 @@ interface QueueItem {
 // VAPID keys should be set in Supabase secrets
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') || ''
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || ''
-const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@thairide.app'
+const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@gobear.app'
 
 // Base64URL encode/decode helpers
 function base64UrlEncode(data: Uint8Array): string {

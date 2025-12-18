@@ -275,8 +275,13 @@ const typeIcon = computed(() => props.type === 'pickup' ? 'pickup' : 'destinatio
 .btn-secondary:active { transform: scale(0.98); }
 
 .btn-primary {
-  background: #000;
+  background: #00A86B;
   color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+}
+
+.btn-primary:hover {
+  background: #008F5B;
 }
 
 .btn-primary:hover { background: #333; }

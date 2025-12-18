@@ -655,8 +655,8 @@ const confirmRejectDocument = async () => {
 .action-btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
 .action-btn.view { background: #f6f6f6; color: #000; }
 .action-btn.view:hover { background: #e5e5e5; }
-.action-btn.approve { background: #000; color: #fff; }
-.action-btn.approve:hover { background: #333; }
+.action-btn.approve { background: #00A86B; color: #fff; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3); }
+.action-btn.approve:hover { background: #008F5B; }
 .action-btn.reject { background: #f6f6f6; color: #e11900; }
 .action-btn.reject:hover { background: #ffebee; }
 .action-btn.secondary { background: #f6f6f6; color: #000; }

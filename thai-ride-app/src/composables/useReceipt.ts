@@ -157,7 +157,7 @@ export function useReceipt() {
   const formatReceipt = (receipt: ReceiptData): string => {
     const lines = [
       '================================',
-      '         THAI RIDE APP          ',
+      '           GOBEAR APP           ',
       '================================',
       '',
       `ใบเสร็จ: ${receipt.receiptNumber}`,
@@ -205,7 +205,7 @@ export function useReceipt() {
       `สถานะ: ${receipt.paymentStatus === 'paid' ? 'ชำระแล้ว' : 'รอชำระ'}`,
       '',
       '================================',
-      '    ขอบคุณที่ใช้บริการ Thai Ride',
+      '     ขอบคุณที่ใช้บริการ GOBEAR   ',
       '================================'
     )
 
@@ -251,7 +251,7 @@ export function useReceipt() {
 </head>
 <body>
   <div class="header">
-    <h1>THAI RIDE</h1>
+    <h1>GOBEAR</h1>
     <div class="receipt-no">ใบเสร็จ: ${receipt.receiptNumber}</div>
     <div>${formatDate(receipt.date)}</div>
   </div>
@@ -287,8 +287,8 @@ export function useReceipt() {
   </div>
   
   <div class="footer">
-    <p>ขอบคุณที่ใช้บริการ Thai Ride</p>
-    <p>หากมีข้อสงสัย กรุณาติดต่อ support@thairide.com</p>
+    <p>ขอบคุณที่ใช้บริการ GOBEAR</p>
+    <p>หากมีข้อสงสัย กรุณาติดต่อ support@gobear.app</p>
   </div>
 </body>
 </html>

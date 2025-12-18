@@ -251,6 +251,20 @@
 | **F155** | Trip Progress Card | `provider/TripProgressCard.vue` | - | - |
 | **F156** | Customer Loyalty Program | `useLoyalty.ts`, `LoyaltyView.vue`, `AdminLoyaltyView.vue` | `user_loyalty`, `points_transactions`, `loyalty_rewards`, `user_rewards`, `loyalty_tiers`, `points_rules` | 023 |
 | **F157** | Offline Mode | `useOfflineStorage.ts` | - (IndexedDB) | - |
+| **F158** | Queue Booking | `useQueueBooking.ts`, `QueueBookingView.vue`, `QueueTrackingView.vue`, `AdminQueueView.vue` | `queue_bookings`, `queue_ratings` | 029, 031 |
+| **F159** | Moving Service | `useMoving.ts`, `MovingView.vue`, `MovingTrackingView.vue`, `AdminMovingView.vue` | `moving_requests`, `moving_ratings` | 029, 031 |
+| **F160** | Laundry Service | `useLaundry.ts`, `LaundryView.vue`, `LaundryTrackingView.vue`, `AdminLaundryView.vue` | `laundry_requests`, `laundry_ratings` | 029, 031 |
+| **F161** | Provider Daily Summary | `useProviderDailySummary.ts` | `provider_daily_stats` | 032 |
+| **F162** | User Activity Log | `useActivityLog.ts` | `user_activity_log` | 033 |
+| **F163** | Promo Usage Analytics | `usePromoAnalytics.ts` | `user_promo_usage` | 034 |
+| **F164** | Revenue Dashboard | `useRevenueAnalytics.ts`, `AdminRevenueDashboardView.vue` | `ride_requests`, `delivery_requests`, `shopping_requests` | 035 |
+| **F165** | Customer Retention Analytics | `useRetentionAnalytics.ts` | `users`, `ride_requests` | 036 |
+| **F166** | Provider Rating Breakdown | `useProviderRatingBreakdown.ts` | `ride_ratings` | 038 |
+| **F167** | User Segmentation | `useUserSegmentation.ts` | `user_segments` | 039 |
+| **F168** | Fraud Detection | `useFraudDetection.ts`, `AdminFraudAlertsView.vue` | `fraud_alerts` | 040 |
+| **F169** | Peak Hours Analysis | `usePeakHours.ts` | `ride_requests` | 041 |
+| **F170** | Provider Incentives | `useProviderIncentives.ts`, `ProviderIncentivesView.vue`, `AdminIncentivesView.vue` | `provider_incentives`, `provider_incentive_progress` | 042 |
+| **F171** | Service Quality Metrics | `useServiceQuality.ts` | `service_quality_metrics` | 043 |
 
 ---
 
@@ -350,6 +364,16 @@ user_rewards            → F156 (Redeemed Rewards)
 points_rules            → F156 (Points Earning Rules)
 ```
 
+### ตาราง New Services (F158-F160)
+```
+queue_bookings          → F158 (Queue Booking)
+queue_ratings           → F158 (Queue Ratings)
+moving_requests         → F159 (Moving Service)
+moving_ratings          → F159 (Moving Ratings)
+laundry_requests        → F160 (Laundry Service)
+laundry_ratings         → F160 (Laundry Ratings)
+```
+
 ---
 
 ## 🔧 Database Functions Reference
@@ -420,6 +444,27 @@ points_rules            → F156 (Points Earning Rules)
 | `check_tier_upgrade()` | Check and upgrade user tier | F156 |
 | `generate_member_uid()` | Auto-generate Member UID on user creation | F01 |
 | `get_user_by_member_uid()` | Lookup user by Member UID | F01 |
+| `generate_service_tracking_id()` | Generate tracking ID for new services (QUE/MOV/LAU) | F158, F159, F160 |
+| `accept_queue_booking()` | Atomic acceptance of queue booking | F158 |
+| `update_queue_status()` | Update queue booking status with validation | F158 |
+| `accept_moving_request()` | Atomic acceptance of moving request | F159 |
+| `update_moving_status()` | Update moving request status with validation | F159 |
+| `calculate_moving_price()` | Calculate moving price based on service type and helpers | F159 |
+| `accept_laundry_request()` | Atomic acceptance of laundry request | F160 |
+| `update_laundry_status()` | Update laundry request status with validation | F160 |
+| `calculate_laundry_price()` | Calculate laundry price based on services and weight | F160 |
+| `notify_queue_booking_confirmed()` | Trigger: notify customer on queue confirmation | F158 |
+| `notify_queue_booking_completed()` | Trigger: notify customer on queue completion | F158 |
+| `notify_moving_matched()` | Trigger: notify customer when moving matched | F159 |
+| `notify_moving_pickup()` | Trigger: notify customer when provider arrives | F159 |
+| `notify_moving_completed()` | Trigger: notify customer on moving completion | F159 |
+| `notify_laundry_matched()` | Trigger: notify customer when laundry matched | F160 |
+| `notify_laundry_picked_up()` | Trigger: notify customer when laundry picked up | F160 |
+| `notify_laundry_ready()` | Trigger: notify customer when laundry ready | F160 |
+| `notify_laundry_delivered()` | Trigger: notify customer when laundry delivered | F160 |
+| `notify_providers_new_queue_booking()` | Trigger: notify providers of new queue job | F158 |
+| `notify_providers_new_moving_request()` | Trigger: notify providers of new moving job | F159 |
+| `notify_providers_new_laundry_request()` | Trigger: notify providers of new laundry job | F160 |
 
 ---
 
@@ -439,6 +484,9 @@ points_rules            → F156 (Points Earning Rules)
 | `SUP` | Support Ticket | SUP-20251216-000001 |
 | `CMP` | Complaint | CMP-20251216-000001 |
 | `RFD` | Refund | RFD-20251216-000001 |
+| `QUE` | Queue Booking | QUE-20251216-000001 |
+| `MOV` | Moving Request | MOV-20251216-000001 |
+| `LAU` | Laundry Request | LAU-20251216-000001 |
 
 ---
 
@@ -517,6 +565,22 @@ points_rules            → F156 (Points Earning Rules)
 | `025_fix_loyalty_functions.sql` | Fix Loyalty Functions (get_loyalty_summary, redeem_reward) | F156 |
 | `026_registration_system_enhancement.sql` | Registration system enhancement | F01 |
 | `027_user_member_uid.sql` | Member UID system for customer tracking | F01 |
+| `029_new_services.sql` | New services (Queue Booking, Moving, Laundry) | F158-F160 |
+| `031_new_services_notifications.sql` | Notification triggers for new services | F158-F160 |
+| `030_fix_loyalty_and_promo_functions.sql` | Fix add_loyalty_points, validate_promo_code, check_tier_upgrade | F156, F10 |
+| `031_auto_points_award_triggers.sql` | Auto-award loyalty points on service completion | F156 |
+| `032_provider_daily_summary.sql` | Provider daily summary functions | F161 |
+| `033_user_activity_log.sql` | User activity logging system | F162 |
+| `034_promo_usage_analytics.sql` | Promo usage analytics functions | F163 |
+| `035_revenue_dashboard.sql` | Revenue dashboard functions | F164 |
+| `036_customer_retention.sql` | Customer retention analytics | F165 |
+| `037_scheduled_notification_processor.sql` | Scheduled notification processor | F07 |
+| `038_provider_rating_breakdown.sql` | Provider rating breakdown by category | F166 |
+| `039_user_segmentation.sql` | User segmentation for marketing | F167 |
+| `040_fraud_detection.sql` | Fraud detection alerts system | F168 |
+| `041_peak_hours_analysis.sql` | Peak hours analysis functions | F169 |
+| `042_provider_incentives.sql` | Provider incentive/bonus system | F170 |
+| `043_service_quality_metrics.sql` | Service quality metrics | F171 |
 
 ---
 

@@ -25,7 +25,7 @@ const emit = defineEmits<{
           <h2 class="modal-title">อนุญาตเข้าถึงตำแหน่ง</h2>
           
           <p class="modal-description">
-            ThaiRide ต้องการเข้าถึงตำแหน่งของคุณเพื่อ:
+            GOBEAR ต้องการเข้าถึงตำแหน่งของคุณเพื่อ:
           </p>
 
           <ul class="feature-list">

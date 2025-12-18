@@ -65,7 +65,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .earnings-card {
-  background: linear-gradient(135deg, #000 0%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%);
   border-radius: 20px;
   padding: 20px;
   color: #fff;

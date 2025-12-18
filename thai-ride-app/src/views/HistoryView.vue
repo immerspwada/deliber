@@ -35,7 +35,7 @@ const handleRatingSubmit = async (success: boolean) => {
   selectedItem.value = null
 }
 
-type ServiceType = 'all' | 'ride' | 'delivery' | 'shopping'
+type ServiceType = 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry'
 const activeFilter = ref<ServiceType>('all')
 const isRefreshing = ref(false)
 
@@ -43,7 +43,10 @@ const filters: { id: ServiceType; label: string }[] = [
   { id: 'all', label: 'ทั้งหมด' },
   { id: 'ride', label: 'เรียกรถ' },
   { id: 'delivery', label: 'ส่งของ' },
-  { id: 'shopping', label: 'ซื้อของ' }
+  { id: 'shopping', label: 'ซื้อของ' },
+  { id: 'queue', label: 'จองคิว' },
+  { id: 'moving', label: 'ขนย้าย' },
+  { id: 'laundry', label: 'ซักรีด' }
 ]
 
 const filteredHistory = computed(() => {
@@ -112,14 +115,33 @@ onMounted(() => {
         >
           <div class="card-header">
             <div class="service-badge" :class="item.type">
+              <!-- Ride -->
               <svg v-if="item.type === 'ride'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"/>
               </svg>
+              <!-- Delivery -->
               <svg v-else-if="item.type === 'delivery'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
               </svg>
-              <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <!-- Shopping -->
+              <svg v-else-if="item.type === 'shopping'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+              </svg>
+              <!-- Queue -->
+              <svg v-else-if="item.type === 'queue'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+              </svg>
+              <!-- Moving -->
+              <svg v-else-if="item.type === 'moving'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M5 11h14l-1.5-4.5A2 2 0 0015.6 5H8.4a2 2 0 00-1.9 1.5L5 11zm0 0v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M3 11h2m14 0h2"/>
+              </svg>
+              <!-- Laundry -->
+              <svg v-else-if="item.type === 'laundry'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm8 4a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z"/>
+              </svg>
+              <!-- Default -->
+              <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
               </svg>
               <span>{{ item.typeName }}</span>
             </div>
@@ -277,12 +299,12 @@ onMounted(() => {
   min-height: 44px;
 }
 
-.filter-btn:hover { border-color: #000; }
+.filter-btn:hover { border-color: #00A86B; }
 .filter-btn:active { transform: scale(0.95); }
 
 .filter-btn.active {
-  background-color: #000;
-  border-color: #000;
+  background-color: #00A86B;
+  border-color: #00A86B;
   color: white;
 }
 
@@ -298,7 +320,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border: 3px solid #E5E5E5;
-  border-top-color: #000;
+  border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 12px;
@@ -338,11 +360,21 @@ onMounted(() => {
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #F5F5F5;
 }
 
+.service-badge.ride { background: #E8F5EF; color: #00A86B; }
+.service-badge.delivery { background: #FEF3C7; color: #92400E; }
+.service-badge.shopping { background: #E8F5EF; color: #00A86B; }
+.service-badge.queue { background: #EEF2FF; color: #4F46E5; }
+.service-badge.moving { background: #FEF3C7; color: #D97706; }
+.service-badge.laundry { background: #E0F2FE; color: #0284C7; }
+
 .service-badge svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .status-badge {
@@ -446,12 +478,12 @@ onMounted(() => {
 }
 
 .route-dot.from {
-  background-color: #000;
+  background-color: #00A86B;
 }
 
 .route-dot.to {
   background-color: transparent;
-  border: 2px solid #000;
+  border: 2px solid #E53935;
 }
 
 .route-line {
@@ -538,7 +570,7 @@ onMounted(() => {
 
 .rebook-btn {
   padding: 10px 18px;
-  background-color: #000;
+  background-color: #00A86B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -569,7 +601,7 @@ onMounted(() => {
   min-height: 40px;
 }
 
-.rate-btn:hover { border-color: #000; }
+.rate-btn:hover { border-color: #00A86B; }
 .rate-btn:active { transform: scale(0.95); }
 
 .empty-state {

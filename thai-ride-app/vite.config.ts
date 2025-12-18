@@ -17,11 +17,11 @@ export default defineConfig({
         'offline.html'
       ],
       manifest: {
-        id: '/thai-ride-app',
-        name: 'Thai Ride App - ระบบเรียกรถไทย',
-        short_name: 'ThaiRide',
-        description: 'ระบบเรียกรถ ส่งของ และซื้อของ ในประเทศไทย',
-        theme_color: '#000000',
+        id: '/gobear-app',
+        name: 'GOBEAR - เรียกรถ ส่งของ ซื้อของ',
+        short_name: 'GOBEAR',
+        description: 'GOBEAR - ระบบเรียกรถ ส่งของ และซื้อของ ในประเทศไทย',
+        theme_color: '#00A86B',
         background_color: '#ffffff',
         display: 'standalone',
         display_override: ['standalone', 'minimal-ui'],
@@ -95,7 +95,7 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             form_factor: 'narrow',
-            label: 'หน้าหลัก ThaiRide'
+            label: 'หน้าหลัก GOBEAR'
           }
         ],
         related_applications: [],

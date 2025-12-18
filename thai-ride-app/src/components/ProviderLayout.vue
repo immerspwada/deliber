@@ -54,7 +54,7 @@ const logout = () => {
     <header class="provider-header">
       <div class="header-content">
         <div class="header-left">
-          <span class="logo">ThaiRide</span>
+          <span class="logo">GOBEAR</span>
           <span class="role-badge">{{ userRole }}</span>
         </div>
         <div class="header-right">

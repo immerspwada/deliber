@@ -131,7 +131,7 @@ withDefaults(defineProps<Props>(), {
 }
 
 .spinner circle {
-  stroke: #000000;
+  stroke: #00A86B;
   stroke-linecap: round;
   stroke-dasharray: 90, 150;
   stroke-dashoffset: 0;
@@ -166,7 +166,7 @@ withDefaults(defineProps<Props>(), {
 .dots span {
   width: 8px;
   height: 8px;
-  background: #000000;
+  background: #00A86B;
   border-radius: 50%;
   animation: bounce 1.4s ease-in-out infinite both;
 }
@@ -197,7 +197,7 @@ withDefaults(defineProps<Props>(), {
   position: absolute;
   width: 100%;
   height: 100%;
-  border: 2px solid #000000;
+  border: 2px solid #00A86B;
   border-radius: 50%;
   animation: pulse-ring 2s ease-out infinite;
   opacity: 0;
@@ -223,7 +223,7 @@ withDefaults(defineProps<Props>(), {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000000;
+  background: #00A86B;
   border-radius: 50%;
   color: #ffffff;
   z-index: 1;
@@ -240,7 +240,7 @@ withDefaults(defineProps<Props>(), {
 
 .progress-fill {
   height: 100%;
-  background: #000000;
+  background: #00A86B;
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -341,7 +341,7 @@ withDefaults(defineProps<Props>(), {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000000;
+  background: #00A86B;
   border-radius: 20px;
   color: #ffffff;
   animation: logo-pulse 1.5s ease-in-out infinite;

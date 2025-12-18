@@ -245,7 +245,7 @@ onUnmounted(() => {
 }
 
 .message.sent .message-bubble {
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border-bottom-right-radius: 4px;
 }
@@ -300,13 +300,13 @@ onUnmounted(() => {
 }
 
 .chat-input input:focus {
-  border-color: #000;
+  border-color: #00A86B;
 }
 
 .send-btn {
   width: 44px;
   height: 44px;
-  background: #000;
+  background: #00A86B;
   border: none;
   border-radius: 50%;
   display: flex;

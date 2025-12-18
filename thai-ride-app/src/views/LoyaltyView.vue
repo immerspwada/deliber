@@ -68,7 +68,7 @@ const formatDate = (dateStr: string) => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
           </button>
-          <h1>ThaiRide Rewards</h1>
+          <h1>GOBEAR Rewards</h1>
         </div>
 
         <!-- Points Card -->

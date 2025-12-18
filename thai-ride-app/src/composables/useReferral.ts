@@ -158,7 +158,7 @@ export function useReferral() {
   // Get referral link
   const getReferralLink = computed(() => {
     if (!referralCode.value?.code) return ''
-    return `https://thairide.app/invite/${referralCode.value.code}`
+    return `https://gobear.app/invite/${referralCode.value.code}`
   })
 
   // Copy referral code
@@ -188,7 +188,7 @@ export function useReferral() {
     if (!referralCode.value?.code) return false
 
     const shareData = {
-      title: 'ชวนใช้ ThaiRide',
+      title: 'ชวนใช้ GOBEAR',
       text: `ใช้โค้ด ${referralCode.value.code} รับส่วนลด ${referralCode.value.referee_reward} บาท!`,
       url: getReferralLink.value
     }

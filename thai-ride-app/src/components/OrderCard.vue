@@ -226,9 +226,10 @@ const statusConfig = {
 
 .action-btn {
   padding: 8px 14px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;

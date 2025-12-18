@@ -82,8 +82,13 @@ const getIconPath = (icon: string) => {
 }
 
 .action-item:hover:not(.disabled) {
-  background: #f6f6f6;
-  border-color: #000;
+  background: #E8F5EF;
+  border-color: #00A86B;
+}
+
+.action-item:hover:not(.disabled) .action-icon {
+  background: #00A86B;
+  color: #fff;
 }
 
 .action-item.disabled {
@@ -112,7 +117,7 @@ const getIconPath = (icon: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #e11900;
+  background: #00A86B;
   color: #fff;
   font-size: 10px;
   font-weight: 600;

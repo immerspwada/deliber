@@ -15,7 +15,7 @@
           <circle cx="7.5" cy="17" r="1.5"/>
           <circle cx="16.5" cy="17" r="1.5"/>
         </svg>
-        <span>THAI RIDE</span>
+        <span>GOBEAR</span>
       </div>
       <div class="receipt-meta">
         <div class="receipt-number">{{ receipt.receiptNumber }}</div>
@@ -160,8 +160,8 @@
 
     <!-- Footer -->
     <div class="receipt-footer">
-      <p>ขอบคุณที่ใช้บริการ Thai Ride</p>
-      <p class="support-text">หากมีข้อสงสัย กรุณาติดต่อ support@thairide.com</p>
+      <p>ขอบคุณที่ใช้บริการ GOBEAR</p>
+      <p class="support-text">หากมีข้อสงสัย กรุณาติดต่อ support@gobear.com</p>
     </div>
   </div>
 </template>

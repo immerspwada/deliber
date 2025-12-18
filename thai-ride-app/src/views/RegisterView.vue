@@ -146,7 +146,7 @@ watch(phone, (val) => {
 
       <div class="form-content">
         <h2 class="form-title">สร้างบัญชีใหม่</h2>
-        <p class="form-desc">กรอกข้อมูลเพื่อเริ่มใช้งาน ThaiRide</p>
+        <p class="form-desc">กรอกข้อมูลเพื่อเริ่มใช้งาน GOBEAR</p>
 
         <!-- Name -->
         <div class="form-row">
@@ -319,7 +319,7 @@ watch(phone, (val) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background-color: #000000;
+  background-color: #00A86B;
   color: #FFFFFF;
 }
 
@@ -377,8 +377,8 @@ watch(phone, (val) => {
 }
 
 .success-message {
-  background-color: rgba(39, 110, 241, 0.1);
-  color: #276EF1;
+  background-color: rgba(0, 168, 107, 0.1);
+  color: #00A86B;
 }
 
 .form-content {
@@ -449,8 +449,8 @@ watch(phone, (val) => {
 
 .input-field:focus {
   outline: none;
-  border-color: #000000;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  border-color: #00A86B;
+  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
 }
 
 .input-field::placeholder {
@@ -462,8 +462,8 @@ watch(phone, (val) => {
 }
 
 .input-success {
-  border-color: #276EF1;
-  background-color: rgba(39, 110, 241, 0.05);
+  border-color: #00A86B;
+  background-color: rgba(0, 168, 107, 0.05);
 }
 
 .error-text {
@@ -474,7 +474,7 @@ watch(phone, (val) => {
 
 .success-text {
   font-size: 12px;
-  color: #276EF1;
+  color: #00A86B;
   margin-top: 6px;
 }
 
@@ -528,12 +528,12 @@ watch(phone, (val) => {
 }
 
 .req-met {
-  color: #276EF1;
+  color: #00A86B;
 }
 
 .req-met svg {
   opacity: 1;
-  color: #276EF1;
+  color: #00A86B;
 }
 
 .terms-checkbox {
@@ -561,8 +561,8 @@ watch(phone, (val) => {
 }
 
 .terms-checkbox input:checked + .checkmark {
-  background-color: #000000;
-  border-color: #000000;
+  background-color: #00A86B;
+  border-color: #00A86B;
 }
 
 .terms-checkbox input:checked + .checkmark::after {
@@ -582,21 +582,22 @@ watch(phone, (val) => {
 }
 
 .terms-text a {
-  color: #000000;
+  color: #00A86B;
   text-decoration: underline;
 }
 
 .btn-primary {
   width: 100%;
   padding: 14px 24px;
-  background-color: #000000;
+  background-color: #00A86B;
   color: #FFFFFF;
   border: none;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -649,7 +650,7 @@ watch(phone, (val) => {
 .link-btn {
   background: none;
   border: none;
-  color: #000000;
+  color: #00A86B;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;

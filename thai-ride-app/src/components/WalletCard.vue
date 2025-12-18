@@ -76,7 +76,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .wallet-card {
-  background: linear-gradient(135deg, #000 0%, #333 100%);
+  background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%);
   border-radius: 20px;
   padding: 24px;
   color: #fff;

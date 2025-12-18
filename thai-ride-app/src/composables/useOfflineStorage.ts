@@ -5,7 +5,7 @@
 
 import { ref, onMounted } from 'vue'
 
-const DB_NAME = 'thairide_offline'
+const DB_NAME = 'gobear_offline'
 const DB_VERSION = 1
 
 // OfflineData interface for type reference

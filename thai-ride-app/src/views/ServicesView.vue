@@ -14,38 +14,33 @@ const toast = useToast()
 const { getCurrentPosition, shouldShowPermissionModal } = useLocation()
 const { homePlace, workPlace, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
 
-// State
 const loading = ref(false)
 const pickupLocation = ref<GeoLocation | null>(null)
 const showLocationPermission = ref(false)
 
-// Default location (Bangkok)
 const DEFAULT_LOCATION = { lat: 13.7563, lng: 100.5018, address: 'กรุงเทพฯ' }
 
-// Services
-const services = [
-  { id: 'ride', name: 'เรียกรถ', icon: 'car', route: '/customer/ride', color: '#000' },
-  { id: 'delivery', name: 'ส่งของ', icon: 'package', route: '/customer/delivery', color: '#000' },
-  { id: 'shopping', name: 'ซื้อของ', icon: 'shopping', route: '/customer/shopping', color: '#000' }
+// Main services - บริการหลัก
+const mainServices = [
+  { id: 'ride', name: 'เรียกรถ', route: '/customer/ride', color: '#00A86B' },
+  { id: 'delivery', name: 'ส่งของ', route: '/customer/delivery', color: '#F5A623' },
+  { id: 'shopping', name: 'ซื้อของ', route: '/customer/shopping', color: '#E53935' }
 ]
 
-// Quick actions
-const quickActions = computed(() => [
-  { id: 'home', name: homePlace.value?.name || 'บ้าน', icon: 'home', place: homePlace.value },
-  { id: 'work', name: workPlace.value?.name || 'ที่ทำงาน', icon: 'work', place: workPlace.value }
+// Additional services - บริการเพิ่มเติม
+const additionalServices = [
+  { id: 'queue', name: 'จองคิว', route: '/customer/queue-booking', color: '#9C27B0', description: 'จองคิวร้านค้า/โรงพยาบาล' },
+  { id: 'moving', name: 'ยกของ', route: '/customer/moving', color: '#2196F3', description: 'บริการยกของ/ขนย้าย' },
+  { id: 'laundry', name: 'ซักผ้า', route: '/customer/laundry', color: '#00BCD4', description: 'รับ-ส่งซักผ้า' }
+]
+
+const savedPlaces = computed(() => [
+  { id: 'home', name: homePlace.value?.name || 'บ้าน', place: homePlace.value, icon: 'home' },
+  { id: 'work', name: workPlace.value?.name || 'ที่ทำงาน', place: workPlace.value, icon: 'work' }
 ])
 
-// Recent places (max 3)
-const displayRecentPlaces = computed(() => recentPlaces.value.slice(0, 3))
+const displayRecentPlaces = computed(() => recentPlaces.value.slice(0, 2))
 
-// Format address
-const formatAddress = (address: string): string => {
-  if (!address) return ''
-  const parts = address.split(',').map(p => p.trim())
-  return parts.slice(0, 2).join(', ')
-}
-
-// Get current location
 const getCurrentLocation = async () => {
   const shouldShow = await shouldShowPermissionModal()
   if (shouldShow) {
@@ -68,7 +63,6 @@ const fetchCurrentLocation = async () => {
   }
 }
 
-// Handle permission
 const handlePermissionAllow = async () => {
   showLocationPermission.value = false
   await fetchCurrentLocation()
@@ -79,12 +73,10 @@ const handlePermissionDeny = () => {
   pickupLocation.value = DEFAULT_LOCATION
 }
 
-// Navigate to service
 const goToService = (route: string) => {
   router.push(route)
 }
 
-// Go to ride with destination
 const goToRideWithDestination = (place: { lat?: number; lng?: number; address?: string; name?: string }) => {
   if (place?.lat && place?.lng) {
     rideStore.setDestination({
@@ -96,22 +88,19 @@ const goToRideWithDestination = (place: { lat?: number; lng?: number; address?: 
   router.push('/customer/ride')
 }
 
-// Handle quick action
-const handleQuickAction = (action: { id: string; place: any }) => {
-  if (action.place?.lat && action.place?.lng) {
-    goToRideWithDestination(action.place)
+const handleSavedPlace = (item: { id: string; place: any }) => {
+  if (item.place?.lat && item.place?.lng) {
+    goToRideWithDestination(item.place)
   } else {
-    toast.info(`กรุณาเพิ่มที่อยู่${action.id === 'home' ? 'บ้าน' : 'ที่ทำงาน'}ก่อน`)
-    router.push({ path: '/customer/saved-places', query: { add: action.id } })
+    toast.info(`กรุณาเพิ่มที่อยู่${item.id === 'home' ? 'บ้าน' : 'ที่ทำงาน'}ก่อน`)
+    router.push({ path: '/customer/saved-places', query: { add: item.id } })
   }
 }
 
-// Open search
-const openSearch = () => {
-  router.push('/customer/ride')
+const goBack = () => {
+  router.back()
 }
 
-// Initialize
 onMounted(async () => {
   if (!pickupLocation.value) {
     pickupLocation.value = DEFAULT_LOCATION
@@ -124,85 +113,161 @@ onMounted(async () => {
 
 <template>
   <div class="services-page">
-    <!-- Map Background (subtle) -->
-    <div class="map-bg">
+    <!-- Map Background (smaller) -->
+    <div class="map-container">
       <MapView
         :pickup="pickupLocation"
         :show-route="false"
         :draggable="false"
         height="100%"
       />
-      <div class="map-overlay"></div>
+      
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <button class="back-btn" @click="goBack" aria-label="กลับ">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
+        <div class="logo">
+          <svg viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="#00A86B" stroke-width="2"/>
+            <path d="M16 8L22 20H10L16 8Z" fill="#00A86B"/>
+            <circle cx="16" cy="18" r="3" fill="#00A86B"/>
+          </svg>
+          <span>GOBEAR</span>
+        </div>
+        <div class="spacer"></div>
+      </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="content">
-      <!-- Header -->
-      <div class="header">
-        <h1>ไปไหนดี?</h1>
-        <p class="subtitle">เลือกบริการที่ต้องการ</p>
+    <!-- Bottom Sheet - Main Content -->
+    <div class="bottom-sheet">
+      <div class="sheet-handle"></div>
+      
+      <!-- Main Services - กดได้ใน 1 วินาที -->
+      <div class="services-grid">
+        <button 
+          v-for="service in mainServices" 
+          :key="service.id"
+          class="service-btn"
+          :style="{ '--accent': service.color }"
+          @click="goToService(service.route)"
+        >
+          <div class="service-icon">
+            <!-- Ride Icon -->
+            <svg v-if="service.id === 'ride'" viewBox="0 0 24 24" fill="none">
+              <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z" stroke="currentColor" stroke-width="2"/>
+              <path d="M5 17H3v-4l2-5h9l4 5h3v4h-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M14 8V5H6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <!-- Delivery Icon -->
+            <svg v-else-if="service.id === 'delivery'" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="7" width="12" height="12" rx="1" stroke="currentColor" stroke-width="2"/>
+              <path d="M15 11h4l2 4v4h-6v-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="7" cy="19" r="2" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="19" r="2" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <!-- Shopping Icon -->
+            <svg v-else viewBox="0 0 24 24" fill="none">
+              <path d="M6 6h15l-1.5 9h-12L6 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6 6L5 3H2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="9" cy="20" r="1.5" stroke="currentColor" stroke-width="2"/>
+              <circle cx="18" cy="20" r="1.5" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <span class="service-name">{{ service.name }}</span>
+        </button>
       </div>
 
-      <!-- Search Bar (tap to go to ride) -->
-      <button class="search-bar" @click="openSearch">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <circle cx="11" cy="11" r="8" stroke-width="2"/>
-          <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"/>
+      <!-- Quick Destination - กดได้ใน 2 วินาที -->
+      <button class="destination-btn" @click="goToService('/customer/ride')">
+        <div class="dest-icon">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="3" fill="#E53935"/>
+            <circle cx="12" cy="12" r="8" stroke="#E53935" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="dest-text">
+          <span class="dest-label">ไปไหนดี?</span>
+          <span class="dest-hint">กดเพื่อค้นหาจุดหมาย</span>
+        </div>
+        <svg class="dest-arrow" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+          <path d="M9 18l6-6-6-6"/>
         </svg>
-        <span class="search-placeholder">ค้นหาจุดหมาย...</span>
       </button>
 
-      <!-- Quick Destinations -->
-      <div class="quick-section">
-        <div class="quick-row">
+      <!-- Saved Places - กดได้ใน 3 วินาที -->
+      <div class="saved-section">
+        <div class="saved-row">
           <button 
-            v-for="action in quickActions" 
-            :key="action.id"
-            class="quick-btn"
-            @click="handleQuickAction(action)"
+            v-for="item in savedPlaces" 
+            :key="item.id"
+            class="saved-btn"
+            @click="handleSavedPlace(item)"
           >
-            <div class="quick-icon">
-              <svg v-if="action.id === 'home'" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            <div class="saved-icon">
+              <svg v-if="item.icon === 'home'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
               </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
               </svg>
             </div>
-            <span>{{ action.name }}</span>
+            <span>{{ item.name }}</span>
           </button>
         </div>
       </div>
 
-      <!-- Services Grid -->
-      <div class="services-section">
-        <h2 class="section-title">บริการ</h2>
-        <div class="services-grid">
+      <!-- Additional Services - บริการเพิ่มเติม -->
+      <div class="additional-section">
+        <h3 class="section-title">บริการเพิ่มเติม</h3>
+        <div class="additional-grid">
           <button 
-            v-for="service in services" 
+            v-for="service in additionalServices" 
             :key="service.id"
-            class="service-card"
+            class="additional-btn"
+            :style="{ '--accent': service.color }"
             @click="goToService(service.route)"
           >
-            <div class="service-icon">
-              <svg v-if="service.icon === 'car'" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 17h.01M16 17h.01M3 11l1.5-5.5A2 2 0 016.4 4h11.2a2 2 0 011.9 1.5L21 11M3 11v6a1 1 0 001 1h1m16-7v6a1 1 0 01-1 1h-1M3 11h18"/>
+            <div class="additional-icon">
+              <!-- Queue Icon -->
+              <svg v-if="service.id === 'queue'" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="17" cy="13" r="2" stroke="currentColor" stroke-width="2"/>
               </svg>
-              <svg v-else-if="service.icon === 'package'" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+              <!-- Moving Icon -->
+              <svg v-else-if="service.id === 'moving'" viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="8" width="10" height="10" rx="1" stroke="currentColor" stroke-width="2"/>
+                <path d="M14 12h4l2 3v3h-6v-6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="8" cy="18" r="2" stroke="currentColor" stroke-width="2"/>
+                <circle cx="16" cy="18" r="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M7 8V5h6v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+              <!-- Laundry Icon -->
+              <svg v-else viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="2" width="18" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="13" r="5" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 13c0-1.5 1.5-2 3-1s3 .5 3-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <circle cx="7" cy="6" r="1" fill="currentColor"/>
+                <circle cx="10" cy="6" r="1" fill="currentColor"/>
               </svg>
             </div>
-            <span class="service-name">{{ service.name }}</span>
+            <div class="additional-info">
+              <span class="additional-name">{{ service.name }}</span>
+              <span class="additional-desc">{{ service.description }}</span>
+            </div>
+            <svg class="additional-arrow" viewBox="0 0 24 24" fill="none" stroke="#CCC" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
           </button>
         </div>
       </div>
 
-      <!-- Recent Places -->
+      <!-- Recent Places (if any) -->
       <div v-if="displayRecentPlaces.length > 0" class="recent-section">
-        <h2 class="section-title">ล่าสุด</h2>
+        <h3 class="section-title">ล่าสุด</h3>
         <div class="recent-list">
           <button 
             v-for="place in displayRecentPlaces" 
@@ -211,16 +276,14 @@ onMounted(async () => {
             @click="goToRideWithDestination(place)"
           >
             <div class="recent-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 8v4l3 3" stroke="#666" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="9" stroke="#666" stroke-width="2"/>
               </svg>
             </div>
-            <div class="recent-info">
-              <span class="recent-name">{{ place.name }}</span>
-              <span class="recent-address">{{ formatAddress(place.address) }}</span>
-            </div>
-            <svg class="recent-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            <span class="recent-name">{{ place.name }}</span>
+            <svg class="recent-arrow" viewBox="0 0 24 24" fill="none" stroke="#CCC" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
             </svg>
           </button>
         </div>
@@ -240,192 +303,135 @@ onMounted(async () => {
 .services-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #fff;
+  background: #FFFFFF;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Map Background */
-.map-bg {
+/* Map Container - เล็กลงเพื่อให้ bottom sheet ใหญ่ขึ้น */
+.map-container {
+  position: relative;
+  height: 32vh;
+  flex-shrink: 0;
+}
+
+/* Top Bar */
+.top-bar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 35vh;
-  z-index: 0;
-}
-
-.map-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%);
-}
-
-/* Content */
-.content {
-  position: relative;
-  z-index: 1;
-  padding: 0 20px;
-  padding-top: max(20vh, 160px);
-  padding-bottom: calc(100px + env(safe-area-inset-bottom));
-}
-
-/* Header */
-.header {
-  margin-bottom: 24px;
-}
-
-.header h1 {
-  font-size: 32px;
-  font-weight: 700;
-  color: #000;
-  margin: 0 0 4px;
-}
-
-.subtitle {
-  font-size: 16px;
-  color: #6B6B6B;
-  margin: 0;
-}
-
-/* Search Bar */
-.search-bar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 16px 20px;
-  background: #F6F6F6;
-  border: none;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 24px;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+  z-index: 10;
 }
 
-.search-bar:hover {
-  background: #EFEFEF;
-}
-
-.search-bar:active {
-  transform: scale(0.98);
-}
-
-.search-icon {
-  width: 22px;
-  height: 22px;
-  color: #6B6B6B;
-  flex-shrink: 0;
-}
-
-.search-placeholder {
-  font-size: 16px;
-  color: #6B6B6B;
-  text-align: left;
-}
-
-
-/* Quick Section */
-.quick-section {
-  margin-bottom: 28px;
-}
-
-.quick-row {
-  display: flex;
-  gap: 12px;
-}
-
-.quick-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #fff;
-  border: 1.5px solid #E5E5E5;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.quick-btn:hover {
-  border-color: #000;
-  background: #FAFAFA;
-}
-
-.quick-btn:active {
-  transform: scale(0.97);
-}
-
-.quick-icon {
-  width: 40px;
-  height: 40px;
-  background: #F6F6F6;
-  border-radius: 12px;
+.back-btn {
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  background: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.quick-icon svg {
-  width: 22px;
-  height: 22px;
-  color: #000;
+.back-btn svg {
+  width: 24px;
+  height: 24px;
+  color: #1A1A1A;
 }
 
-.quick-btn span {
-  font-size: 15px;
-  font-weight: 600;
-  color: #000;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.back-btn:active {
+  transform: scale(0.95);
 }
 
-/* Services Section */
-.services-section {
-  margin-bottom: 28px;
+.spacer {
+  width: 44px;
 }
 
-.section-title {
-  font-size: 18px;
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #FFFFFF;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.logo svg {
+  width: 24px;
+  height: 24px;
+}
+
+.logo span {
+  font-size: 13px;
   font-weight: 700;
-  color: #000;
-  margin: 0 0 14px;
+  color: #00A86B;
+  letter-spacing: 0.5px;
 }
 
+/* Bottom Sheet */
+.bottom-sheet {
+  flex: 1;
+  background: #FFFFFF;
+  border-radius: 24px 24px 0 0;
+  margin-top: -20px;
+  padding: 10px 20px 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  position: relative;
+  z-index: 20;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: #E0E0E0;
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+
+/* Services Grid - 3 ปุ่มหลัก กดได้ใน 1 วินาที */
 .services-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+  margin-bottom: 20px;
 }
 
-.service-card {
+.service-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
   padding: 20px 12px;
-  background: #000;
-  border: none;
+  background: #FFFFFF;
+  border: 2px solid #F0F0F0;
   border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
-.service-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-}
-
-.service-card:active {
+.service-btn:active {
   transform: scale(0.96);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, white);
 }
 
 .service-icon {
-  width: 48px;
-  height: 48px;
-  background: rgba(255,255,255,0.15);
+  width: 52px;
+  height: 52px;
+  background: color-mix(in srgb, var(--accent) 12%, white);
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -435,94 +441,268 @@ onMounted(async () => {
 .service-icon svg {
   width: 28px;
   height: 28px;
-  color: #fff;
+  color: var(--accent);
 }
 
 .service-name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: #1A1A1A;
 }
 
-
-/* Recent Section */
-.recent-section {
-  margin-bottom: 20px;
-}
-
-.recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.recent-item {
+/* Destination Button - กดได้ใน 2 วินาที */
+.destination-btn {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
-  background: #F6F6F6;
+  width: 100%;
+  padding: 16px;
+  background: #F8F8F8;
   border: none;
   border-radius: 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  margin-bottom: 16px;
   text-align: left;
 }
 
-.recent-item:hover {
-  background: #EFEFEF;
+.destination-btn:active {
+  background: #F0F0F0;
 }
 
-.recent-item:active {
+.dest-icon {
+  width: 44px;
+  height: 44px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.dest-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.dest-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dest-label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin-bottom: 2px;
+}
+
+.dest-hint {
+  display: block;
+  font-size: 13px;
+  color: #999999;
+}
+
+.dest-arrow {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* Saved Places - กดได้ใน 3 วินาที */
+.saved-section {
+  margin-bottom: 16px;
+}
+
+.saved-row {
+  display: flex;
+  gap: 10px;
+}
+
+.saved-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: #FFFFFF;
+  border: 1px solid #E8E8E8;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.saved-btn:active {
+  background: #F5F5F5;
   transform: scale(0.98);
 }
 
-.recent-icon {
-  width: 40px;
-  height: 40px;
-  background: #fff;
-  border-radius: 50%;
+.saved-icon {
+  width: 36px;
+  height: 36px;
+  background: #E8F5EF;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.recent-icon svg {
-  width: 20px;
-  height: 20px;
-  color: #6B6B6B;
+.saved-icon svg {
+  width: 18px;
+  height: 18px;
+  color: #00A86B;
 }
 
-.recent-info {
+.saved-btn span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1A1A1A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Additional Services Section */
+.additional-section {
+  margin-bottom: 16px;
+}
+
+.additional-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.additional-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  background: #FFFFFF;
+  border: 1px solid #E8E8E8;
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.additional-btn:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, white);
+}
+
+.additional-btn:active {
+  transform: scale(0.98);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, white);
+}
+
+.additional-icon {
+  width: 44px;
+  height: 44px;
+  background: color-mix(in srgb, var(--accent) 12%, white);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.additional-icon svg {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+}
+
+.additional-info {
   flex: 1;
   min-width: 0;
 }
 
-.recent-name {
+.additional-name {
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #000;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #1A1A1A;
+  margin-bottom: 2px;
 }
 
-.recent-address {
+.additional-desc {
   display: block;
+  font-size: 12px;
+  color: #999999;
+}
+
+.additional-arrow {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Recent Section */
+.recent-section {
+  margin-top: 8px;
+}
+
+.section-title {
   font-size: 13px;
-  color: #6B6B6B;
+  font-weight: 600;
+  color: #999999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border: 1px solid #F0F0F0;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.recent-item:active {
+  background: #F5F5F5;
+}
+
+.recent-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.recent-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.recent-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1A1A1A;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 2px;
 }
 
 .recent-arrow {
-  width: 20px;
-  height: 20px;
-  color: #CCC;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 </style>

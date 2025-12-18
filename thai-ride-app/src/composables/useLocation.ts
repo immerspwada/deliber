@@ -202,7 +202,7 @@ export function useLocation() {
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=th`,
         {
           headers: {
-            'User-Agent': 'ThaiRideApp/1.0'
+            'User-Agent': 'GOBEAR/1.0'
           }
         }
       )
@@ -225,7 +225,7 @@ export function useLocation() {
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=th&limit=1&accept-language=th`,
         {
           headers: {
-            'User-Agent': 'ThaiRideApp/1.0'
+            'User-Agent': 'GOBEAR/1.0'
           }
         }
       )

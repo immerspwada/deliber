@@ -19,8 +19,6 @@ const successMessage = ref('')
 const showFillToast = ref(false)
 const filledAccount = ref('')
 
-// Test accounts (must exist in Supabase - for development only)
-// These are real accounts that need to be created in Supabase Auth
 const testAccounts = [
   { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer' },
   { label: 'คนขับรถ', email: 'driver1@demo.com', password: 'demo1234', role: 'driver' },
@@ -46,7 +44,6 @@ const isEmailValid = computed(() => {
   return emailRegex.test(email.value)
 })
 
-// ส่ง Email OTP (Magic Link)
 const sendEmailOtp = async () => {
   if (!isEmailValid.value) {
     error.value = 'กรุณาใส่อีเมลที่ถูกต้อง'
@@ -61,7 +58,7 @@ const sendEmailOtp = async () => {
     
     if (success) {
       isOtpSent.value = true
-      successMessage.value = `ส่งรหัส OTP ไปที่ ${email.value} แล้ว กรุณาตรวจสอบอีเมล`
+      successMessage.value = `ส่งรหัส OTP ไปที่ ${email.value} แล้ว`
     } else {
       error.value = authStore.error || 'ไม่สามารถส่ง OTP ได้'
     }
@@ -72,7 +69,6 @@ const sendEmailOtp = async () => {
   }
 }
 
-// ยืนยัน Email OTP
 const verifyEmailOtp = async () => {
   if (otp.value.length !== 6) {
     error.value = 'กรุณาใส่รหัส OTP 6 หลัก'
@@ -95,7 +91,6 @@ const verifyEmailOtp = async () => {
   }
 }
 
-// Login ด้วย Email + Password (Real Supabase only)
 const loginWithPassword = async () => {
   if (!email.value || !password.value) {
     error.value = 'กรุณากรอกอีเมลและรหัสผ่าน'
@@ -104,39 +99,28 @@ const loginWithPassword = async () => {
   isLoading.value = true
   error.value = ''
   
-  // Clear any old demo mode data
   localStorage.removeItem('demo_mode')
   localStorage.removeItem('demo_user')
   
-  console.log('[Login] Starting login for:', email.value)
-  
   try {
     const success = await authStore.login(email.value, password.value)
-    console.log('[Login] authStore.login returned:', success)
-    console.log('[Login] User:', authStore.user?.email, 'Role:', authStore.user?.role)
     
     if (success) {
       const userRole = authStore.user?.role
-      console.log('[Login] Redirecting based on role:', userRole)
-      
       const targetRoute = userRole === 'rider' || userRole === 'driver' 
         ? '/provider' 
         : userRole === 'admin' 
           ? '/admin' 
           : '/'
       
-      console.log('[Login] Navigating to:', targetRoute)
       await router.replace(targetRoute)
     } else {
-      console.log('[Login] Login failed, error:', authStore.error)
       error.value = authStore.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
     }
   } catch (err: any) {
-    console.error('[Login] Exception:', err)
     error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
   } finally {
     isLoading.value = false
-    console.log('[Login] Finished')
   }
 }
 
@@ -152,18 +136,58 @@ const goToRegister = () => router.push('/register')
 
 <template>
   <div class="auth-page">
-    <div class="auth-header">
-      <h1 class="auth-logo">ThaiRide</h1>
-      <p class="auth-subtitle">เข้าสู่ระบบ</p>
+    <!-- Hero Section with Illustration -->
+    <div class="hero-section">
+      <div class="hero-illustration">
+        <svg viewBox="0 0 300 200" fill="none">
+          <!-- Night sky background -->
+          <rect width="300" height="200" fill="#1A1A2E"/>
+          <!-- Stars -->
+          <circle cx="50" cy="30" r="1" fill="#FFF"/>
+          <circle cx="100" cy="50" r="1.5" fill="#FFF"/>
+          <circle cx="200" cy="25" r="1" fill="#FFF"/>
+          <circle cx="250" cy="60" r="1.5" fill="#FFF"/>
+          <circle cx="280" cy="35" r="1" fill="#FFF"/>
+          <!-- Moon -->
+          <circle cx="240" cy="45" r="20" fill="#F5F5F5"/>
+          <!-- Road -->
+          <path d="M0 180 Q150 150 300 180" fill="#333"/>
+          <path d="M0 185 L300 185" stroke="#FFD700" stroke-width="2" stroke-dasharray="20 10"/>
+          <!-- Car -->
+          <g transform="translate(100, 130)">
+            <rect x="0" y="20" width="80" height="30" rx="8" fill="#00A86B"/>
+            <rect x="10" y="5" width="60" height="25" rx="6" fill="#00A86B"/>
+            <rect x="15" y="8" width="22" height="15" rx="3" fill="#4DD4AC"/>
+            <rect x="43" y="8" width="22" height="15" rx="3" fill="#4DD4AC"/>
+            <circle cx="20" cy="50" r="10" fill="#1A1A1A"/>
+            <circle cx="60" cy="50" r="10" fill="#1A1A1A"/>
+            <circle cx="20" cy="50" r="5" fill="#333"/>
+            <circle cx="60" cy="50" r="5" fill="#333"/>
+            <!-- Headlights -->
+            <ellipse cx="85" cy="35" rx="15" ry="8" fill="#FFD700" opacity="0.3"/>
+          </g>
+          <!-- Speed lines -->
+          <path d="M60 155 L30 155" stroke="#00A86B" stroke-width="2" opacity="0.5"/>
+          <path d="M70 165 L35 165" stroke="#00A86B" stroke-width="2" opacity="0.3"/>
+          <!-- Logo -->
+          <g transform="translate(120, 70)">
+            <circle cx="30" cy="30" r="25" stroke="#00A86B" stroke-width="3" fill="none"/>
+            <path d="M30 15L42 40H18L30 15Z" fill="#00A86B"/>
+            <circle cx="30" cy="32" r="6" fill="#00A86B"/>
+          </g>
+        </svg>
+      </div>
+      <h1 class="hero-title">เข้าสู่ระบบ<br/>เพื่อดำเนินการต่อ</h1>
     </div>
 
+    <!-- Login Form -->
     <div class="auth-content">
       <div class="method-toggle">
         <button
           @click="loginMethod = 'otp'; resetOtpState()"
           :class="['toggle-option', { active: loginMethod === 'otp' }]"
         >
-          Email OTP
+          OTP ทางอีเมล
         </button>
         <button
           @click="loginMethod = 'password'; resetOtpState()"
@@ -173,28 +197,45 @@ const goToRegister = () => router.push('/register')
         </button>
       </div>
 
-      <div v-if="error" class="error-message">{{ error }}</div>
-      <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+      <div v-if="error" class="error-message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4M12 16h.01"/>
+        </svg>
+        {{ error }}
+      </div>
+      <div v-if="successMessage" class="success-message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <path d="M22 4L12 14.01l-3-3"/>
+        </svg>
+        {{ successMessage }}
+      </div>
 
       <!-- Email OTP Login -->
       <div v-if="loginMethod === 'otp'">
         <div v-if="!isOtpSent">
           <div class="form-group">
             <label class="label">อีเมล</label>
-            <input 
-              v-model="email" 
-              type="email" 
-              placeholder="email@example.com" 
-              class="input-field"
-              @keyup.enter="sendEmailOtp"
-            />
+            <div class="input-wrapper">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="M22 6l-10 7L2 6"/>
+              </svg>
+              <input 
+                v-model="email" 
+                type="email" 
+                placeholder="email@example.com" 
+                class="input-field"
+                @keyup.enter="sendEmailOtp"
+              />
+            </div>
             <p v-if="email && !isEmailValid" class="error-text">รูปแบบอีเมลไม่ถูกต้อง</p>
           </div>
           <button @click="sendEmailOtp" :disabled="!isEmailValid || isLoading" class="btn-primary">
             <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังส่ง OTP</span>
-            <span v-else>ส่งรหัส OTP ทางอีเมล</span>
+            <span v-else>ส่งรหัส OTP</span>
           </button>
-          <p class="otp-hint">รหัส OTP จะถูกส่งไปยังอีเมลของคุณ</p>
         </div>
         <div v-else>
           <div class="form-group">
@@ -204,7 +245,7 @@ const goToRegister = () => router.push('/register')
               v-model="otp" 
               type="text" 
               maxlength="6" 
-              placeholder="123456" 
+              placeholder="000000" 
               class="input-field otp-input"
               @keyup.enter="verifyEmailOtp"
             />
@@ -213,8 +254,10 @@ const goToRegister = () => router.push('/register')
             <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังตรวจสอบ</span>
             <span v-else>ยืนยัน OTP</span>
           </button>
-          <button @click="resetOtpState" class="btn-secondary change-btn">เปลี่ยนอีเมล</button>
-          <button @click="sendEmailOtp" :disabled="isLoading" class="resend-btn">ส่ง OTP อีกครั้ง</button>
+          <div class="otp-actions">
+            <button @click="resetOtpState" class="text-btn">เปลี่ยนอีเมล</button>
+            <button @click="sendEmailOtp" :disabled="isLoading" class="text-btn">ส่ง OTP อีกครั้ง</button>
+          </div>
         </div>
       </div>
 
@@ -222,37 +265,53 @@ const goToRegister = () => router.push('/register')
       <div v-else>
         <div class="form-group">
           <label class="label">อีเมล</label>
-          <input v-model="email" type="email" placeholder="email@example.com" class="input-field" />
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="M22 6l-10 7L2 6"/>
+            </svg>
+            <input v-model="email" type="email" placeholder="email@example.com" class="input-field" />
+          </div>
         </div>
         <div class="form-group">
           <label class="label">รหัสผ่าน</label>
-          <input 
-            v-model="password" 
-            type="password" 
-            placeholder="รหัสผ่าน" 
-            class="input-field"
-            @keyup.enter="loginWithPassword"
-          />
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <input 
+              v-model="password" 
+              type="password" 
+              placeholder="รหัสผ่าน" 
+              class="input-field"
+              @keyup.enter="loginWithPassword"
+            />
+          </div>
         </div>
-        <label class="remember-me">
-          <input type="checkbox" v-model="rememberMe" class="checkbox" />
-          <span>จดจำการเข้าสู่ระบบ</span>
-        </label>
+        
+        <div class="form-options">
+          <label class="remember-me">
+            <input type="checkbox" v-model="rememberMe" class="checkbox" />
+            <span>จดจำการเข้าสู่ระบบ</span>
+          </label>
+          <button class="forgot-btn">ลืมรหัสผ่าน?</button>
+        </div>
+        
         <button @click="loginWithPassword" :disabled="!email || !password || isLoading" class="btn-primary">
           <span v-if="isLoading" class="btn-loading"><span class="spinner"></span>กำลังเข้าสู่ระบบ</span>
           <span v-else>เข้าสู่ระบบ</span>
         </button>
         
-        <!-- Test Account Quick Fill (Development only) -->
-        <div class="demo-fill-section">
-          <p class="demo-hint">บัญชีทดสอบ (ต้องสร้างใน Supabase):</p>
-          <div class="demo-fill-btns">
+        <!-- Test Accounts -->
+        <div class="demo-section">
+          <p class="demo-hint">บัญชีทดสอบ:</p>
+          <div class="demo-btns">
             <button 
               v-for="account in testAccounts" 
               :key="'fill-' + account.email"
               @click="selectTestAccount(account)"
-              class="demo-fill-btn"
-              :title="account.email"
+              class="demo-btn"
             >
               {{ account.label }}
             </button>
@@ -268,12 +327,10 @@ const goToRegister = () => router.push('/register')
             กรอกข้อมูล {{ filledAccount }} แล้ว
           </div>
         </Transition>
-        
-        <button class="forgot-btn">ลืมรหัสผ่าน?</button>
       </div>
 
       <div class="register-link">
-        <p>ยังไม่มีบัญชี?</p>
+        <span>ยังไม่มีบัญชี?</span>
         <button @click="goToRegister" class="link-btn">สมัครสมาชิก</button>
       </div>
     </div>
@@ -286,100 +343,137 @@ const goToRegister = () => router.push('/register')
   background-color: #FFFFFF;
 }
 
-.auth-header {
-  background-color: #000000;
-  color: #FFFFFF;
-  padding: 48px 24px 32px;
+/* Hero Section */
+.hero-section {
+  background: linear-gradient(180deg, #1A1A2E 0%, #16213E 100%);
+  padding: 40px 24px 48px;
   text-align: center;
 }
 
-.auth-logo {
-  font-size: 32px;
+.hero-illustration {
+  margin-bottom: 24px;
+}
+
+.hero-illustration svg {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  border-radius: 20px;
+}
+
+.hero-title {
+  font-size: 28px;
   font-weight: 700;
-  margin-bottom: 8px;
+  color: #FFFFFF;
+  line-height: 1.3;
 }
 
-.auth-subtitle {
-  font-size: 16px;
-  opacity: 0.8;
-}
-
+/* Auth Content */
 .auth-content {
-  padding: 24px 16px;
+  padding: 24px 20px 40px;
   max-width: 400px;
   margin: 0 auto;
+  margin-top: -20px;
+  background: #FFFFFF;
+  border-radius: 24px 24px 0 0;
+  position: relative;
 }
 
 .method-toggle {
   display: flex;
-  background-color: #F6F6F6;
-  border-radius: 8px;
+  background-color: #F5F5F5;
+  border-radius: 12px;
   padding: 4px;
   margin-bottom: 24px;
 }
 
 .toggle-option {
   flex: 1;
-  padding: 12px;
+  padding: 14px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 500;
-  color: #6B6B6B;
+  font-weight: 600;
+  color: #999999;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .toggle-option.active {
   background-color: #FFFFFF;
-  color: #000000;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  color: #00A86B;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.error-message,
+.success-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  margin-bottom: 20px;
 }
 
 .error-message {
-  background-color: rgba(225, 25, 0, 0.1);
-  color: #E11900;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 16px;
+  background-color: #FFEBEE;
+  color: #E53935;
 }
 
 .success-message {
-  background-color: rgba(39, 110, 241, 0.1);
-  color: #276EF1;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 16px;
+  background-color: #E8F5EF;
+  color: #00A86B;
+}
+
+.error-message svg,
+.success-message svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .label {
   display: block;
   font-size: 14px;
-  font-weight: 500;
-  color: #000000;
+  font-weight: 600;
+  color: #1A1A1A;
   margin-bottom: 8px;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  color: #999999;
 }
 
 .input-field {
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid #E5E5E5;
-  border-radius: 8px;
+  padding: 16px 16px 16px 48px;
+  border: 2px solid #E8E8E8;
+  border-radius: 12px;
   font-size: 16px;
   transition: all 0.2s ease;
+  background: #FFFFFF;
 }
 
 .input-field:focus {
   outline: none;
-  border-color: #000000;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  border-color: #00A86B;
+  box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.1);
 }
 
 .input-field::placeholder {
@@ -387,45 +481,42 @@ const goToRegister = () => router.push('/register')
 }
 
 .otp-input {
+  padding-left: 16px;
   text-align: center;
-  font-size: 24px;
-  letter-spacing: 8px;
+  font-size: 28px;
+  letter-spacing: 12px;
+  font-weight: 600;
 }
 
 .helper-text {
-  font-size: 14px;
-  color: #6B6B6B;
-  margin-bottom: 8px;
-}
-
-.otp-hint {
   font-size: 13px;
-  color: #6B6B6B;
-  text-align: center;
-  margin-top: 12px;
+  color: #666666;
+  margin-bottom: 12px;
 }
 
 .error-text {
   font-size: 12px;
-  color: #E11900;
-  margin-top: 4px;
+  color: #E53935;
+  margin-top: 6px;
 }
 
 .btn-primary {
   width: 100%;
-  padding: 14px 24px;
-  background-color: #000000;
+  padding: 18px 24px;
+  background: #00A86B;
   color: #FFFFFF;
   border: none;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+  background: #008F5B;
+  transform: translateY(-1px);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -433,37 +524,21 @@ const goToRegister = () => router.push('/register')
 }
 
 .btn-primary:disabled {
-  background-color: #CCCCCC;
+  background: #CCCCCC;
+  box-shadow: none;
   cursor: not-allowed;
-}
-
-.btn-secondary {
-  width: 100%;
-  padding: 14px 24px;
-  background-color: #F6F6F6;
-  color: #000000;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background-color: #EBEBEB;
 }
 
 .btn-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .spinner {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 2px solid rgba(255,255,255,0.3);
   border-top-color: #FFFFFF;
   border-radius: 50%;
@@ -474,89 +549,96 @@ const goToRegister = () => router.push('/register')
   to { transform: rotate(360deg); }
 }
 
-.change-btn {
-  margin-top: 12px;
+.otp-actions {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 16px;
 }
 
-.resend-btn {
-  display: block;
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px;
+.text-btn {
   background: none;
   border: none;
-  color: #000000;
+  color: #00A86B;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+}
+
+.text-btn:hover {
   text-decoration: underline;
-  transition: opacity 0.2s ease;
 }
 
-.resend-btn:hover:not(:disabled) {
-  opacity: 0.7;
-}
-
-.resend-btn:disabled {
-  color: #CCCCCC;
-  cursor: not-allowed;
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .remember-me {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
   cursor: pointer;
   font-size: 14px;
-  color: #000000;
+  color: #666666;
 }
 
 .checkbox {
   width: 20px;
   height: 20px;
-  accent-color: #000000;
+  accent-color: #00A86B;
   cursor: pointer;
 }
 
-.demo-fill-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #E5E5E5;
+.forgot-btn {
+  background: none;
+  border: none;
+  color: #00A86B;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.demo-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #F0F0F0;
 }
 
 .demo-hint {
   font-size: 12px;
-  color: #6B6B6B;
+  color: #999999;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
-.demo-fill-btns {
+.demo-btns {
   display: flex;
   gap: 8px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
-.demo-fill-btn {
-  padding: 8px 16px;
-  background-color: #F6F6F6;
-  border: 1px solid #E5E5E5;
+.demo-btn {
+  padding: 10px 18px;
+  background: #F5F5F5;
+  border: none;
   border-radius: 20px;
   font-size: 13px;
-  color: #000000;
+  font-weight: 500;
+  color: #1A1A1A;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.demo-fill-btn:hover {
-  background-color: #000000;
+.demo-btn:hover {
+  background: #00A86B;
   color: #FFFFFF;
-  border-color: #000000;
 }
 
-.demo-fill-btn:active {
+.demo-btn:active {
   transform: scale(0.95);
 }
 
@@ -567,21 +649,21 @@ const goToRegister = () => router.push('/register')
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  background-color: #000000;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #1A1A1A;
   color: #FFFFFF;
-  border-radius: 24px;
+  border-radius: 30px;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   z-index: 1000;
 }
 
 .fill-toast svg {
-  width: 18px;
-  height: 18px;
-  color: #4ADE80;
+  width: 20px;
+  height: 20px;
+  color: #00A86B;
 }
 
 .toast-enter-active {
@@ -614,46 +696,30 @@ const goToRegister = () => router.push('/register')
   }
 }
 
-.forgot-btn {
-  display: block;
-  width: 100%;
-  margin-top: 16px;
-  padding: 12px;
-  background: none;
-  border: none;
-  color: #000000;
-  font-size: 14px;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.forgot-btn:hover {
-  opacity: 0.7;
-}
-
 .register-link {
   margin-top: 32px;
   text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
 }
 
-.register-link p {
+.register-link span {
   font-size: 14px;
-  color: #6B6B6B;
-  margin-bottom: 8px;
+  color: #666666;
 }
 
 .link-btn {
   background: none;
   border: none;
-  color: #000000;
-  font-size: 16px;
-  font-weight: 500;
+  color: #00A86B;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  text-decoration: underline;
-  transition: opacity 0.2s ease;
 }
 
 .link-btn:hover {
-  opacity: 0.7;
+  text-decoration: underline;
 }
 </style>

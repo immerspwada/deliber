@@ -16,7 +16,7 @@ import { useAuthStore } from '../stores/auth'
 export interface RideHistoryItem {
   id: string
   tracking_id: string  // Human-readable tracking ID (e.g., RID-20251215-000001)
-  type: 'ride' | 'delivery' | 'shopping'
+  type: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry'
   typeName: string
   from: string
   to: string
@@ -37,8 +37,8 @@ export function useRideHistory() {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Fetch all order history (ride, delivery, shopping)
-  const fetchHistory = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping') => {
+  // Fetch all order history (ride, delivery, shopping, queue, moving, laundry)
+  const fetchHistory = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
     loading.value = true
     error.value = null
 
@@ -197,6 +197,154 @@ export function useRideHistory() {
               driver_name: item.provider?.users?.name,
               driver_tracking_id: item.provider?.tracking_id,
               vehicle: item.provider?.vehicle_type,
+              created_at: item.created_at
+            })
+          })
+        }
+      }
+
+      // Fetch queue bookings if filter is 'all' or 'queue'
+      if (!filter || filter === 'all' || filter === 'queue') {
+        const { data: queues, error: queuesError } = await (supabase
+          .from('queue_bookings') as any)
+          .select(`
+            id,
+            tracking_id,
+            service_name,
+            location_name,
+            location_address,
+            booking_date,
+            booking_time,
+            estimated_price,
+            final_price,
+            status,
+            created_at,
+            completed_at,
+            provider:provider_id (
+              tracking_id,
+              users:user_id (name)
+            ),
+            rating:queue_ratings (rating)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['completed', 'cancelled'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+
+        if (!queuesError && queues) {
+          queues.forEach((item: any) => {
+            allItems.push({
+              id: item.id,
+              tracking_id: item.tracking_id || `QUE-${formatDateForId(item.created_at)}-000000`,
+              type: 'queue',
+              typeName: 'จองคิว',
+              from: item.service_name || 'บริการ',
+              to: item.location_name || item.location_address?.split(',')[0] || 'ไม่ระบุ',
+              date: formatDate(item.created_at),
+              time: formatTime(item.created_at),
+              fare: item.final_price || item.estimated_price || 0,
+              status: item.status === 'completed' ? 'completed' : 'cancelled',
+              rating: item.rating?.[0]?.rating || null,
+              driver_name: item.provider?.users?.name,
+              driver_tracking_id: item.provider?.tracking_id,
+              created_at: item.created_at
+            })
+          })
+        }
+      }
+
+      // Fetch moving requests if filter is 'all' or 'moving'
+      if (!filter || filter === 'all' || filter === 'moving') {
+        const { data: movings, error: movingsError } = await (supabase
+          .from('moving_requests') as any)
+          .select(`
+            id,
+            tracking_id,
+            pickup_address,
+            destination_address,
+            service_type,
+            estimated_price,
+            final_price,
+            status,
+            created_at,
+            completed_at,
+            provider:provider_id (
+              tracking_id,
+              vehicle_type,
+              users:user_id (name)
+            ),
+            rating:moving_ratings (rating)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['completed', 'cancelled'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+
+        if (!movingsError && movings) {
+          movings.forEach((item: any) => {
+            allItems.push({
+              id: item.id,
+              tracking_id: item.tracking_id || `MOV-${formatDateForId(item.created_at)}-000000`,
+              type: 'moving',
+              typeName: 'ขนย้าย',
+              from: item.pickup_address?.split(',')[0] || 'ไม่ระบุ',
+              to: item.destination_address?.split(',')[0] || 'ไม่ระบุ',
+              date: formatDate(item.created_at),
+              time: formatTime(item.created_at),
+              fare: item.final_price || item.estimated_price || 0,
+              status: item.status === 'completed' ? 'completed' : 'cancelled',
+              rating: item.rating?.[0]?.rating || null,
+              driver_name: item.provider?.users?.name,
+              driver_tracking_id: item.provider?.tracking_id,
+              vehicle: item.provider?.vehicle_type,
+              created_at: item.created_at
+            })
+          })
+        }
+      }
+
+      // Fetch laundry requests if filter is 'all' or 'laundry'
+      if (!filter || filter === 'all' || filter === 'laundry') {
+        const { data: laundries, error: laundriesError } = await (supabase
+          .from('laundry_requests') as any)
+          .select(`
+            id,
+            tracking_id,
+            pickup_address,
+            delivery_address,
+            service_type,
+            estimated_price,
+            final_price,
+            status,
+            created_at,
+            delivered_at,
+            provider:provider_id (
+              tracking_id,
+              users:user_id (name)
+            ),
+            rating:laundry_ratings (rating)
+          `)
+          .eq('user_id', userId)
+          .in('status', ['delivered', 'completed', 'cancelled'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+
+        if (!laundriesError && laundries) {
+          laundries.forEach((item: any) => {
+            allItems.push({
+              id: item.id,
+              tracking_id: item.tracking_id || `LAU-${formatDateForId(item.created_at)}-000000`,
+              type: 'laundry',
+              typeName: 'ซักรีด',
+              from: item.pickup_address?.split(',')[0] || 'ไม่ระบุ',
+              to: item.delivery_address?.split(',')[0] || 'ไม่ระบุ',
+              date: formatDate(item.created_at),
+              time: formatTime(item.created_at),
+              fare: item.final_price || item.estimated_price || 0,
+              status: ['delivered', 'completed'].includes(item.status) ? 'completed' : 'cancelled',
+              rating: item.rating?.[0]?.rating || null,
+              driver_name: item.provider?.users?.name,
+              driver_tracking_id: item.provider?.tracking_id,
               created_at: item.created_at
             })
           })

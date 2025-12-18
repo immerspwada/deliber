@@ -88,11 +88,11 @@ const currencies = [
 ]
 
 const saveSettings = () => {
-  localStorage.setItem('thairide_settings', JSON.stringify(settings.value))
+  localStorage.setItem('gobear_settings', JSON.stringify(settings.value))
 }
 
 onMounted(async () => {
-  const saved = localStorage.getItem('thairide_settings')
+  const saved = localStorage.getItem('gobear_settings')
   if (saved) {
     settings.value = { ...settings.value, ...JSON.parse(saved) }
   }
@@ -673,7 +673,7 @@ const formatBytes = (bytes: number): string => {
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span>เกี่ยวกับ ThaiRide</span>
+          <span>เกี่ยวกับ GOBEAR</span>
           <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
@@ -681,7 +681,7 @@ const formatBytes = (bytes: number): string => {
       </div>
       </template>
 
-      <p class="version-text">ThaiRide v1.0.0</p>
+      <p class="version-text">GOBEAR v1.0.0</p>
     </div>
   </div>
 </template>
@@ -795,7 +795,7 @@ const formatBytes = (bytes: number): string => {
 }
 
 .toggle input:checked + .toggle-slider {
-  background-color: #000;
+  background-color: #00A86B;
 }
 
 .toggle input:checked + .toggle-slider:before {
@@ -813,7 +813,7 @@ const formatBytes = (bytes: number): string => {
 }
 
 .setting-select:focus {
-  border-color: #000;
+  border-color: #00A86B;
 }
 
 /* Action Items */
@@ -885,7 +885,7 @@ const formatBytes = (bytes: number): string => {
 .install-btn,
 .enable-btn {
   padding: 8px 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -896,12 +896,12 @@ const formatBytes = (bytes: number): string => {
 
 .install-btn:hover,
 .enable-btn:hover {
-  background: #333;
+  background: #008F5B;
 }
 
 .toggle-btn {
   padding: 8px 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -983,7 +983,7 @@ const formatBytes = (bytes: number): string => {
   justify-content: center;
   gap: 8px;
   padding: 12px 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -993,7 +993,7 @@ const formatBytes = (bytes: number): string => {
 }
 
 .sync-btn:hover {
-  background: #333;
+  background: #008F5B;
 }
 
 .sync-btn:disabled {
@@ -1249,7 +1249,7 @@ const formatBytes = (bytes: number): string => {
 }
 
 .resolve-btn.local {
-  background: #000;
+  background: #00A86B;
   color: #fff;
 }
 
@@ -1278,7 +1278,7 @@ const formatBytes = (bytes: number): string => {
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1289,7 +1289,7 @@ const formatBytes = (bytes: number): string => {
 }
 
 .download-map-btn:hover:not(:disabled) {
-  background: #333;
+  background: #008F5B;
 }
 
 .download-map-btn:disabled {
@@ -1320,7 +1320,7 @@ const formatBytes = (bytes: number): string => {
 
 .progress-fill {
   height: 100%;
-  background: #000;
+  background: #00A86B;
   border-radius: 3px;
   transition: width 0.3s ease;
 }

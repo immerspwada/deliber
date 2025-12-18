@@ -83,9 +83,9 @@ const iconPaths: Record<string, string> = {
 }
 
 .service-item:hover:not(.disabled) {
-  border-color: #000;
+  border-color: #00A86B;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.15);
 }
 
 .service-item.disabled {
@@ -106,7 +106,7 @@ const iconPaths: Record<string, string> = {
 }
 
 .service-item:hover:not(.disabled) .service-icon {
-  background: #000;
+  background: #00A86B;
   color: #fff;
 }
 

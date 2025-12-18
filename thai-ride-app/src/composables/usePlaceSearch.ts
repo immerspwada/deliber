@@ -46,7 +46,7 @@ export function usePlaceSearch() {
 
       const response = await fetch(`${NOMINATIM_URL}?${params}`, {
         headers: {
-          'User-Agent': 'ThaiRideApp/1.0'
+          'User-Agent': 'GOBEAR/1.0'
         }
       })
 

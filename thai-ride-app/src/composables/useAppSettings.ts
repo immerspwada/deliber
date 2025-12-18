@@ -60,7 +60,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   minimumWithdrawal: 100,
   withdrawalFee: 15,
   supportPhone: '02-xxx-xxxx',
-  supportEmail: 'support@thairide.com',
+  supportEmail: 'support@gobear.app',
   appVersion: '1.0.0',
   maintenanceMode: false
 }

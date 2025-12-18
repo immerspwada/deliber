@@ -85,12 +85,13 @@ const handleClick = (e: MouseEvent) => {
 
 /* Color variants */
 .variant-primary {
-  background: #000;
+  background: #00A86B;
   color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .variant-primary:hover:not(:disabled) {
-  background: #333;
+  background: #008F5B;
 }
 
 .variant-secondary {
