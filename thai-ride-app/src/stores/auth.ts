@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp, signInWithEmailOtp, verifyEmailOtp as verifyEmailOtpApi } from '../lib/supabase'
+import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp, signInWithEmailOtp, verifyEmailOtp as verifyEmailOtpApi, signInWithGoogle, signInWithFacebook } from '../lib/supabase'
 import type { User, UserUpdate } from '../types/database'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -492,6 +492,50 @@ export const useAuthStore = defineStore('auth', () => {
     }
   })
 
+  // Social Login - Google
+  const loginWithGoogle = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { error: googleError } = await signInWithGoogle()
+      
+      if (googleError) {
+        error.value = googleError.message
+        return false
+      }
+      
+      return true
+    } catch (err: any) {
+      error.value = err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google'
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Social Login - Facebook
+  const loginWithFacebook = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { error: fbError } = await signInWithFacebook()
+      
+      if (fbError) {
+        error.value = fbError.message
+        return false
+      }
+      
+      return true
+    } catch (err: any) {
+      error.value = err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Facebook'
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     user,
     session,
@@ -508,6 +552,8 @@ export const useAuthStore = defineStore('auth', () => {
     verifyPhoneOtp,
     loginWithEmailOtp,
     verifyEmailOtp,
+    loginWithGoogle,
+    loginWithFacebook,
     logout,
     updateProfile
   }

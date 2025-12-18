@@ -117,6 +117,30 @@ export const verifyOtp = async (phone: string, token: string) => {
   return { data, error }
 }
 
+// Social Login - Google
+export const signInWithGoogle = async () => {
+  console.log('[Supabase] signInWithGoogle called')
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`
+    }
+  })
+  return { data, error }
+}
+
+// Social Login - Facebook
+export const signInWithFacebook = async () => {
+  console.log('[Supabase] signInWithFacebook called')
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'facebook',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`
+    }
+  })
+  return { data, error }
+}
+
 export const signOut = async () => {
   // Add timeout to prevent hanging on slow network
   const timeoutPromise = new Promise<{ error: Error }>((resolve) => 
