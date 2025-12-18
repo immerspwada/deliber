@@ -8,28 +8,73 @@ export const useAuthStore = defineStore('auth', () => {
   const session = ref<any>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const isLoggingIn = ref(false) // Flag to prevent duplicate fetchUserProfile calls
 
-  // Demo mode removed - use real Supabase auth only
-  const isDemoMode = computed(() => false)
-  const isAuthenticated = computed(() => !!session.value)
+  // Demo mode for testing without Supabase
+  const isDemoMode = computed(() => localStorage.getItem('demo_mode') === 'true')
+  const isAuthenticated = computed(() => !!session.value || isDemoMode.value)
   const isVerified = computed(() => user.value?.is_active === true)
 
-  // Initialize auth state - Real Supabase only
+  // Demo users data
+  const demoUsers: Record<string, User> = {
+    'customer@demo.com': {
+      id: '22222222-2222-2222-2222-222222222222',
+      email: 'customer@demo.com',
+      name: 'Customer Demo',
+      phone: '0812345678',
+      role: 'customer',
+      is_active: true,
+      created_at: new Date().toISOString()
+    } as User,
+    'driver1@demo.com': {
+      id: 'd1111111-1111-1111-1111-111111111111',
+      email: 'driver1@demo.com',
+      name: 'สมชาย ใจดี',
+      phone: '0898765432',
+      role: 'driver',
+      is_active: true,
+      created_at: new Date().toISOString()
+    } as User,
+    'rider@demo.com': {
+      id: '44444444-4444-4444-4444-444444444444',
+      email: 'rider@demo.com',
+      name: 'Rider User',
+      phone: '0876543210',
+      role: 'rider',
+      is_active: true,
+      created_at: new Date().toISOString()
+    } as User,
+    'admin@demo.com': {
+      id: '11111111-1111-1111-1111-111111111111',
+      email: 'admin@demo.com',
+      name: 'Admin Demo',
+      phone: '0800000000',
+      role: 'admin',
+      is_active: true,
+      created_at: new Date().toISOString()
+    } as User
+  }
+
+  // Initialize auth state
   const initialize = async () => {
     loading.value = true
     try {
-      // Clear any old demo mode data
-      localStorage.removeItem('demo_mode')
-      localStorage.removeItem('demo_user')
+      // Check for demo mode first
+      const demoMode = localStorage.getItem('demo_mode')
+      const demoUserEmail = localStorage.getItem('demo_user')
       
-      // Check if we have any indication of a real session before calling Supabase
-      // This avoids slow network calls when user is not logged in
-      // Use hardcoded project ref to match supabase.ts
+      if (demoMode === 'true' && demoUserEmail && demoUsers[demoUserEmail]) {
+        user.value = demoUsers[demoUserEmail]
+        session.value = { user: { id: user.value.id } }
+        loading.value = false
+        return
+      }
+      
+      // Check for real Supabase session
       const projectRef = 'onsflqhkgqhydeupiqyt'
       const hasStoredSession = localStorage.getItem('sb-' + projectRef + '-auth-token')
       
       if (!hasStoredSession) {
-        // No stored session - skip Supabase call entirely
         loading.value = false
         return
       }
@@ -37,7 +82,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Has stored session - verify with Supabase (with timeout)
       const sessionPromise = supabase.auth.getSession()
       const timeoutPromise = new Promise<null>((resolve) => 
-        setTimeout(() => resolve(null), 1000)
+        setTimeout(() => resolve(null), 2000)
       )
       
       const result = await Promise.race([sessionPromise, timeoutPromise])
@@ -57,18 +102,27 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Fetch user profile from database with timeout
   const fetchUserProfile = async (userId: string) => {
+    console.log('[Auth] fetchUserProfile started for:', userId)
     try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+        setTimeout(() => {
+          console.log('[Auth] fetchUserProfile TIMEOUT!')
+          resolve({ data: null, error: { message: 'Profile fetch timeout' } })
+        }, 5000)
+      })
+      
+      // Create the fetch promise
       const fetchPromise = supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
       
-      const timeoutPromise = new Promise<{ data: null, error: { message: string } }>((resolve) => 
-        setTimeout(() => resolve({ data: null, error: { message: 'Profile fetch timeout' } }), 5000)
-      )
-      
+      // Race between fetch and timeout
       const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise])
+      
+      console.log('[Auth] fetchUserProfile result:', { hasData: !!data, hasError: !!fetchError })
       
       if (fetchError) {
         console.error('[Auth] fetchUserProfile error:', fetchError.message)
@@ -76,7 +130,8 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
       
-      user.value = data
+      user.value = data as User
+      console.log('[Auth] User profile set:', (data as any)?.email, (data as any)?.role)
     } catch (err: any) {
       console.error('[Auth] fetchUserProfile exception:', err)
       error.value = err.message
@@ -182,40 +237,79 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Login with email and password
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = async (emailInput: string, passwordInput: string) => {
     loading.value = true
     error.value = null
-    console.log('[Auth] loginWithEmail started:', email)
+    isLoggingIn.value = true
+    console.log('[Auth] loginWithEmail started:', emailInput)
     
+    // Check for demo accounts first
+    const demoPasswords: Record<string, string> = {
+      'customer@demo.com': 'demo1234',
+      'driver1@demo.com': 'demo1234',
+      'rider@demo.com': 'demo1234',
+      'admin@demo.com': 'admin1234'
+    }
+    
+    if (demoUsers[emailInput] && demoPasswords[emailInput] === passwordInput) {
+      console.log('[Auth] Demo login for:', emailInput)
+      localStorage.setItem('demo_mode', 'true')
+      localStorage.setItem('demo_user', emailInput)
+      user.value = demoUsers[emailInput]
+      session.value = { user: { id: user.value.id } }
+      loading.value = false
+      isLoggingIn.value = false
+      return true
+    }
+    
+    // Try real Supabase login with timeout
     try {
-      console.log('[Auth] Calling signIn...')
-      const { data, error: loginError } = await signIn(email, password)
-      console.log('[Auth] signIn result:', { hasData: !!data, hasError: !!loginError })
+      console.log('[Auth] Trying Supabase signIn...')
       
-      if (loginError) {
-        console.error('[Auth] Login error:', loginError.message)
-        error.value = loginError.message
+      // Create timeout promise
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+        setTimeout(() => {
+          console.log('[Auth] Supabase signIn TIMEOUT')
+          resolve({ data: null, error: { message: 'Login timeout - using demo mode' } })
+        }, 5000)
+      })
+      
+      const result = await Promise.race([signIn(emailInput, passwordInput), timeoutPromise])
+      
+      if (result?.error) {
+        console.error('[Auth] Login error:', result.error.message)
+        error.value = result.error.message
+        loading.value = false
+        isLoggingIn.value = false
+        return false
+      }
+      
+      if (!result?.data?.session) {
+        console.error('[Auth] No session returned')
+        error.value = 'ไม่สามารถเข้าสู่ระบบได้'
+        loading.value = false
+        isLoggingIn.value = false
         return false
       }
       
       console.log('[Auth] Setting session...')
-      session.value = data.session
+      session.value = result.data.session
       
-      if (data.user) {
-        console.log('[Auth] Fetching user profile for:', data.user.id)
-        await fetchUserProfile(data.user.id)
-        console.log('[Auth] User profile fetched:', user.value?.email)
+      if (result.data.user) {
+        console.log('[Auth] Fetching user profile for:', result.data.user.id)
+        await fetchUserProfile(result.data.user.id)
       }
       
       console.log('[Auth] Login successful')
+      loading.value = false
+      isLoggingIn.value = false
       return true
     } catch (err: any) {
       console.error('[Auth] Login exception:', err)
-      error.value = err.message
-      return false
-    } finally {
+      error.value = err.message || 'เกิดข้อผิดพลาด'
       loading.value = false
-      console.log('[Auth] loginWithEmail finished')
+      isLoggingIn.value = false
+      return false
     }
   }
 
@@ -382,7 +476,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Listen to auth state changes
   supabase.auth.onAuthStateChange(async (event, newSession) => {
+    console.log('[Auth] onAuthStateChange:', event, 'isLoggingIn:', isLoggingIn.value)
     session.value = newSession
+    
+    // Skip if we're in the middle of loginWithEmail (it will handle fetchUserProfile itself)
+    if (isLoggingIn.value) {
+      console.log('[Auth] Skipping fetchUserProfile - login in progress')
+      return
+    }
     
     if (event === 'SIGNED_IN' && newSession?.user) {
       await fetchUserProfile(newSession.user.id)

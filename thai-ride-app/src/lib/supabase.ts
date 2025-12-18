@@ -43,23 +43,19 @@ export const signIn = async (email: string, password: string) => {
   console.log('[Supabase] signIn called for:', email)
   
   try {
-    // Add timeout to prevent hanging
-    const signInPromise = supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     })
     
-    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-      setTimeout(() => {
-        console.log('[Supabase] signIn timeout!')
-        resolve({ data: null, error: { message: 'Login timeout - please try again' } })
-      }, 10000)
-    )
+    console.log('[Supabase] signIn completed:', { 
+      hasSession: !!data?.session, 
+      hasUser: !!data?.user,
+      hasError: !!error,
+      errorMsg: error?.message 
+    })
     
-    const result = await Promise.race([signInPromise, timeoutPromise])
-    console.log('[Supabase] signIn result:', { hasData: !!result.data, hasError: !!result.error })
-    
-    return result as { data: any; error: any }
+    return { data, error }
   } catch (err: any) {
     console.error('[Supabase] signIn exception:', err)
     return { data: null, error: { message: err.message || 'Login failed' } }
