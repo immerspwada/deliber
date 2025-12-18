@@ -2,15 +2,13 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSafety } from '../composables/useSafety'
-import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
-const authStore = useAuthStore()
 const { emergencyContacts, fetchEmergencyContacts, addEmergencyContact, removeEmergencyContact } = useSafety()
 
 const loading = ref(true)
 const showAddModal = ref(false)
-const newContact = ref({ name: '', phone: '', relationship: '' })
+const newContact = ref({ name: '', phone: '', relationship: '', is_primary: false })
 const saving = ref(false)
 
 onMounted(async () => {
@@ -24,7 +22,7 @@ const handleAddContact = async () => {
   if (!newContact.value.name || !newContact.value.phone) return
   saving.value = true
   await addEmergencyContact(newContact.value)
-  newContact.value = { name: '', phone: '', relationship: '' }
+  newContact.value = { name: '', phone: '', relationship: '', is_primary: false }
   showAddModal.value = false
   saving.value = false
 }

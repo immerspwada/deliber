@@ -7,7 +7,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useAdmin } from '../composables/useAdmin'
 import AdminLayout from '../components/AdminLayout.vue'
 
-const { fetchQueueBookings, updateQueueBooking, fetchQueueStats, loading } = useAdmin()
+const { fetchQueueBookings, updateQueueBooking, fetchQueueStats } = useAdmin()
 
 const bookings = ref<any[]>([])
 const total = ref(0)

@@ -8,7 +8,7 @@ import { useWallet } from '../composables/useWallet'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { loyaltySummary, fetchLoyaltySummary } = useLoyalty()
+const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } = useLoyalty()
 const { history, fetchHistory } = useRideHistory()
 const { balance, fetchBalance } = useWallet()
 
@@ -180,13 +180,13 @@ const logout = async () => {
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item" @click="navigateToMenu('/customer/loyalty')">
-          <span class="stat-value">{{ (loyaltySummary?.total_points || 0).toLocaleString() }}</span>
+          <span class="stat-value">{{ (loyaltySummary?.current_points || 0).toLocaleString() }}</span>
           <span class="stat-label">แต้ม</span>
         </div>
       </div>
 
       <!-- Loyalty Tier Card -->
-      <div v-if="loyaltySummary?.tier_name" class="loyalty-tier-card" @click="navigateToMenu('/customer/loyalty')">
+      <div v-if="loyaltySummary?.tier" class="loyalty-tier-card" @click="navigateToMenu('/customer/loyalty')">
         <div class="tier-icon">
           <svg viewBox="0 0 24 24" fill="none">
             <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="#FFD700"/>
@@ -194,13 +194,13 @@ const logout = async () => {
         </div>
         <div class="tier-info">
           <span class="tier-label">ระดับสมาชิก</span>
-          <span class="tier-name">{{ loyaltySummary.tier_name }}</span>
+          <span class="tier-name">{{ loyaltySummary.tier.name_th }}</span>
         </div>
         <div class="tier-progress">
           <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: `${Math.min((loyaltySummary.total_points / (loyaltySummary.next_tier_points || 1000)) * 100, 100)}%` }"></div>
+            <div class="progress-fill" :style="{ width: `${Math.min((loyaltySummary.current_points / (loyaltySummary.next_tier?.min_points || 1000)) * 100, 100)}%` }"></div>
           </div>
-          <span class="progress-text">{{ loyaltySummary.total_points }}/{{ loyaltySummary.next_tier_points || 1000 }}</span>
+          <span class="progress-text">{{ loyaltySummary.current_points }}/{{ loyaltySummary.next_tier?.min_points || 1000 }}</span>
         </div>
         <svg class="tier-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 5l7 7-7 7"/>

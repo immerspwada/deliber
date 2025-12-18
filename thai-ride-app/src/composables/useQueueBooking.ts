@@ -93,8 +93,8 @@ export function useQueueBooking() {
       }
 
       // Generate tracking_id via trigger (auto-generated)
-      const { data, error: insertError } = await supabase
-        .from('queue_bookings')
+      const { data, error: insertError } = await (supabase
+        .from('queue_bookings') as any)
         .insert({
           user_id: user.id,
           category: input.category,
@@ -179,8 +179,8 @@ export function useQueueBooking() {
     error.value = null
 
     try {
-      const { error: updateError } = await supabase
-        .from('queue_bookings')
+      const { error: updateError } = await (supabase
+        .from('queue_bookings') as any)
         .update({
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
@@ -193,9 +193,9 @@ export function useQueueBooking() {
       // Update local state
       const index = bookings.value.findIndex(b => b.id === bookingId)
       if (index !== -1) {
-        bookings.value[index].status = 'cancelled'
-        bookings.value[index].cancelled_at = new Date().toISOString()
-        bookings.value[index].cancel_reason = reason || null
+        bookings.value[index]!.status = 'cancelled'
+        bookings.value[index]!.cancelled_at = new Date().toISOString()
+        bookings.value[index]!.cancel_reason = reason || null
       }
 
       if (currentBooking.value && currentBooking.value.id === bookingId) {
@@ -268,8 +268,8 @@ export function useQueueBooking() {
         return false
       }
 
-      const { error: insertError } = await supabase
-        .from('queue_ratings')
+      const { error: insertError } = await (supabase
+        .from('queue_ratings') as any)
         .insert({
           booking_id: bookingId,
           user_id: user.id,
@@ -306,8 +306,8 @@ export function useQueueBooking() {
         }
       }
 
-      const { error: updateError } = await supabase
-        .from('queue_bookings')
+      const { error: updateError } = await (supabase
+        .from('queue_bookings') as any)
         .update({
           ...updates,
           updated_at: new Date().toISOString()
@@ -320,11 +320,11 @@ export function useQueueBooking() {
       // Update local state
       const index = bookings.value.findIndex(b => b.id === bookingId)
       if (index !== -1) {
-        bookings.value[index] = { ...bookings.value[index], ...updates }
+        bookings.value[index] = { ...bookings.value[index]!, ...updates } as QueueBooking
       }
 
       if (currentBooking.value && currentBooking.value.id === bookingId) {
-        currentBooking.value = { ...currentBooking.value, ...updates }
+        currentBooking.value = { ...currentBooking.value, ...updates } as QueueBooking
       }
 
       return true

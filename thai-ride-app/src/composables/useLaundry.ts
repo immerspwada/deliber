@@ -90,8 +90,8 @@ export function useLaundry() {
         ? calculatePrice(input.services, input.estimated_weight)
         : null
 
-      const { data, error: insertError } = await supabase
-        .from('laundry_requests')
+      const { data, error: insertError } = await (supabase
+        .from('laundry_requests') as any)
         .insert({
           user_id: user.id,
           services: input.services,
@@ -196,8 +196,8 @@ export function useLaundry() {
         return false
       }
 
-      const { error: insertError } = await supabase
-        .from('laundry_ratings')
+      const { error: insertError } = await (supabase
+        .from('laundry_ratings') as any)
         .insert({
           request_id: requestId,
           user_id: user.id,
@@ -270,8 +270,8 @@ export function useLaundry() {
     error.value = null
 
     try {
-      const { error: updateError } = await supabase
-        .from('laundry_requests')
+      const { error: updateError } = await (supabase
+        .from('laundry_requests') as any)
         .update({
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
@@ -284,9 +284,9 @@ export function useLaundry() {
       // Update local state
       const index = requests.value.findIndex(r => r.id === requestId)
       if (index !== -1) {
-        requests.value[index].status = 'cancelled'
-        requests.value[index].cancelled_at = new Date().toISOString()
-        requests.value[index].cancel_reason = reason || null
+        requests.value[index]!.status = 'cancelled'
+        requests.value[index]!.cancelled_at = new Date().toISOString()
+        requests.value[index]!.cancel_reason = reason || null
       }
 
       if (currentRequest.value && currentRequest.value.id === requestId) {
@@ -316,15 +316,15 @@ export function useLaundry() {
       // Recalculate price if weight changed
       let updateData: any = { ...updates, updated_at: new Date().toISOString() }
       
-      if (updates.estimated_weight !== undefined) {
+      if (updates.estimated_weight !== undefined && updates.estimated_weight !== null) {
         const request = requests.value.find(r => r.id === requestId)
         if (request) {
           updateData.estimated_price = calculatePrice(request.services, updates.estimated_weight)
         }
       }
 
-      const { error: updateError } = await supabase
-        .from('laundry_requests')
+      const { error: updateError } = await (supabase
+        .from('laundry_requests') as any)
         .update(updateData)
         .eq('id', requestId)
         .in('status', ['pending', 'matched']) // Only allow updates before pickup

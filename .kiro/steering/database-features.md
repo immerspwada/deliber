@@ -266,6 +266,41 @@
 | **F170** | Provider Incentives | `useProviderIncentives.ts`, `ProviderIncentivesView.vue`, `AdminIncentivesView.vue` | `provider_incentives`, `provider_incentive_progress` | 042 |
 | **F171** | Service Quality Metrics | `useServiceQuality.ts` | `service_quality_metrics` | 043 |
 
+### Performance Optimization (F172-F201)
+
+| รหัส | ฟีเจอร์ | Composable/Component | รายละเอียด |
+|------|---------|---------------------|------------|
+| **F172** | Memory Management & Cleanup | `usePerformance.ts` → `useAutoCleanup` | Auto-cleanup subscriptions และ timers |
+| **F173** | Debounce Utilities | `usePerformance.ts` → `useDebounce` | Debounce function with cancel |
+| **F174** | Throttle Utilities | `usePerformance.ts` → `useThrottle` | Throttle with leading/trailing |
+| **F175** | Lazy Loading | `usePerformance.ts` → `useLazyLoad` | Intersection observer lazy load |
+| **F176** | Resource Preloading | `usePerformance.ts` → `usePreload` | Preload images, scripts, fonts |
+| **F177** | Virtual Scrolling | `usePerformance.ts` → `useVirtualScroll` | Virtual scroll for large lists |
+| **F178** | Memoization | `usePerformance.ts` → `useMemo` | Memoize expensive computations |
+| **F179** | LRU Cache | `usePerformance.ts` → `useLRUCache` | LRU Cache implementation |
+| **F180** | Request Queue | `usePerformance.ts` → `useRequestQueue` | Priority request queue |
+| **F181** | Batch Requests | `usePerformance.ts` → `useBatchRequest` | Batch multiple requests |
+| **F182** | Retry with Backoff | `usePerformance.ts` → `useRetry` | Exponential backoff retry |
+| **F183** | Circuit Breaker | `usePerformance.ts` → `useCircuitBreaker` | Circuit breaker pattern |
+| **F184** | Progressive Image | `usePerformance.ts` → `useProgressiveImage` | Progressive image loading |
+| **F185** | Responsive Image | `usePerformance.ts` → `useResponsiveImage` | Srcset generator |
+| **F186** | RAF Animation | `usePerformance.ts` → `useRAF` | RequestAnimationFrame hook |
+| **F187** | Smooth Scroll | `usePerformance.ts` → `useSmoothScroll` | Smooth scroll with easing |
+| **F188** | Web Workers | `usePerformance.ts` → `useWebWorker` | Web Worker wrapper |
+| **F189** | Network Status | `usePerformance.ts` → `useNetworkStatus` | Network info & adaptive loading |
+| **F190** | Idle Callback | `usePerformance.ts` → `useIdleCallback` | Idle callback for non-critical tasks |
+| **F191** | Background Tasks | `usePerformance.ts` → `useBackgroundTasks` | Background task scheduler |
+| **F192** | Persistent State | `usePerformance.ts` → `usePersistentState` | localStorage persistence |
+| **F193** | Event Bus | `usePerformance.ts` → `useEventBus` | Global event bus |
+| **F194** | Performance Metrics | `usePerformance.ts` → `usePerformanceMetrics` | Core Web Vitals collection |
+| **F195** | Resource Hints | `usePerformance.ts` → `useResourceHints` | Preconnect, prefetch, preload |
+| **F196** | Intersection Observer | `usePerformance.ts` → `useIntersectionObserver` | Visibility tracking |
+| **F197** | Optimized Form | `usePerformance.ts` → `useOptimizedForm` | Form state management |
+| **F198** | Infinite Scroll | `usePerformance.ts` → `useInfiniteScroll` | Infinite scroll implementation |
+| **F199** | Touch Gestures | `usePerformance.ts` → `useTouchGestures` | Touch gesture detection |
+| **F200** | Polling | `usePerformance.ts` → `usePolling` | Smart polling with adaptive interval |
+| **F201** | Performance Dashboard | `AdminPerformanceView.vue` | Admin performance monitoring |
+
 ---
 
 ## 📁 Database Tables Reference

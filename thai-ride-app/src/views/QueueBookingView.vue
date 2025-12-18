@@ -3,7 +3,7 @@
  * Feature: F158 - Queue Booking Service
  * บริการจองคิวร้านค้า/โรงพยาบาล
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueueBooking } from '../composables/useQueueBooking'
 import { useToast } from '../composables/useToast'

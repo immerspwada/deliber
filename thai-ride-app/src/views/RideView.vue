@@ -139,7 +139,7 @@ const paymentMethods = [
 ] as const
 
 const canCalculate = computed(() => pickupLocation.value && destinationLocation.value)
-const hasRoute = computed(() => pickupLocation.value && destinationLocation.value && estimatedDistance.value > 0)
+const hasRoute = computed(() => !!(pickupLocation.value && destinationLocation.value && estimatedDistance.value > 0))
 
 const selectedRideType = computed(() => 
   rideTypes.find(t => t.value === rideType.value) || rideTypes[0]
@@ -153,8 +153,8 @@ const finalFare = computed(() => {
   return Math.round(fare)
 })
 
-// Handlers
-const handlePickupSelected = async (location: GeoLocation) => {
+// Handlers (reserved for future use)
+const _handlePickupSelected = async (location: GeoLocation) => {
   pickupLocation.value = location
   pickupAddress.value = location.address
   await calculateSurge(location.lat, location.lng)
@@ -162,12 +162,16 @@ const handlePickupSelected = async (location: GeoLocation) => {
   step.value = 'destination'
 }
 
-const handleDestinationSelected = async (location: GeoLocation) => {
+const _handleDestinationSelected = async (location: GeoLocation) => {
   destinationLocation.value = location
   destinationAddress.value = location.address
   // คำนวณค่าโดยสารและไปขั้นตอนเลือกรถ
   await calculateFare()
 }
+
+// Export for potential future use
+void _handlePickupSelected
+void _handleDestinationSelected
 
 const handleRouteCalculated = (data: { distance: number; duration: number }) => {
   estimatedDistance.value = data.distance

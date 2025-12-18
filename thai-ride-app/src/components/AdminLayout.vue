@@ -66,6 +66,7 @@ const menuItems = [
   { path: '/admin/settings', label: 'ตั้งค่าระบบ', icon: 'gear' },
   { path: '/admin/audit-log', label: 'บันทึกกิจกรรม', icon: 'audit' },
   { path: '/admin/reports', label: 'รายงาน', icon: 'report' },
+  { path: '/admin/performance', label: 'ประสิทธิภาพ', icon: 'performance' },
   { path: '/admin/components', label: 'คอมโพเนนต์', icon: 'components' }
 ]
 
@@ -252,6 +253,10 @@ const logout = () => {
             <path d="M12 15l-2 5l9-9l-5 2l2-5l-9 9l5-2z"/>
             <circle cx="12" cy="12" r="10"/>
           </svg>
+          <!-- Performance -->
+          <svg v-else-if="item.icon === 'performance'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
           <!-- Components -->
           <svg v-else-if="item.icon === 'components'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
@@ -273,6 +278,21 @@ const logout = () => {
           <svg v-else-if="item.icon === 'fraud'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <!-- Queue -->
+          <svg v-else-if="item.icon === 'queue'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+          </svg>
+          <!-- Moving -->
+          <svg v-else-if="item.icon === 'moving'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+            <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+          </svg>
+          <!-- Laundry -->
+          <svg v-else-if="item.icon === 'laundry'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="14" r="5"/>
+            <path d="M8 6h.01M12 6h.01M16 6h.01"/>
           </svg>
           <span>{{ item.label }}</span>
         </button>

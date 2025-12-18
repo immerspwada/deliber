@@ -117,6 +117,112 @@ Customer ให้คะแนน + Admin เห็นสรุป
 
 ---
 
+## 🚨 กฎเหล็ก: ทุกฟีเจอร์ต้องทำงานครบทุก Role (MANDATORY)
+
+### หลักการสำคัญที่สุด
+**ทุกการสร้างฟีเจอร์ใหม่หรือ UI ต้องทำงานครบทุก Role ตามบริบทอย่างถูกต้อง**
+
+### กฎบังคับ (MUST DO)
+
+#### 1. เมื่อสร้างฟีเจอร์ที่ลูกค้าสั่ง (Customer Creates Order)
+ต้องทำให้ครบ 3 ฝ่าย:
+
+| Role | สิ่งที่ต้องทำ | ตัวอย่าง |
+|------|-------------|---------|
+| **Customer** | สร้างคำสั่ง + ติดตามสถานะ | สั่งรถ, สั่งอาหาร, ส่งของ |
+| **Provider** | รับงาน + อัพเดทสถานะ + จบงาน | คนขับรับงาน, ไรเดอร์รับงาน |
+| **Admin** | ดู/จัดการ/แก้ไข/ยกเลิก | ดูออเดอร์ทั้งหมด, แก้ไขสถานะ |
+
+#### 2. Flow ที่ถูกต้องสำหรับทุกบริการ
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    MANDATORY FLOW                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  CUSTOMER                PROVIDER                 ADMIN         │
+│  ────────                ────────                 ─────         │
+│                                                                 │
+│  1. สร้างคำสั่ง ──────────────────────────────→ เห็นในระบบ      │
+│     [pending]                                                   │
+│                                                                 │
+│  2. รอคนรับ ←──────── รับงาน ─────────────────→ เห็นการจับคู่   │
+│     [matched]         [matched]                                 │
+│                                                                 │
+│  3. ติดตามสถานะ ←──── อัพเดทสถานะ ────────────→ ดูความคืบหน้า  │
+│     [in_progress]     [in_progress]                             │
+│                                                                 │
+│  4. รับบริการ ←────── จบงาน ──────────────────→ เห็นสรุป       │
+│     [completed]       [completed]                               │
+│                                                                 │
+│  5. ให้คะแนน ─────────────────────────────────→ ดูรีวิว        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 3. Checklist บังคับก่อน Deploy
+
+**❌ ห้าม Deploy ถ้าไม่ครบ:**
+
+- [ ] **Customer สามารถ**: สร้างคำสั่ง + ติดตาม Realtime + ยกเลิก + ให้คะแนน
+- [ ] **Provider สามารถ**: เห็นงานใหม่ + รับงาน + อัพเดทสถานะ + จบงาน
+- [ ] **Admin สามารถ**: ดูทั้งหมด + แก้ไขสถานะ + ยกเลิก + Refund
+- [ ] **Notification**: ส่งแจ้งเตือนทุกฝ่ายเมื่อสถานะเปลี่ยน
+- [ ] **Realtime**: Sync สถานะระหว่าง Customer ↔ Provider
+
+#### 4. ตัวอย่างการสร้างฟีเจอร์ใหม่ที่ถูกต้อง
+
+**ตัวอย่าง: สร้างบริการ "เรียกรถ"**
+
+```
+1. Database (Migration)
+   - สร้างตาราง ride_requests
+   - RLS: customer อ่าน/สร้างของตัวเอง
+   - RLS: provider อ่าน pending + อัพเดทที่รับ
+   - RLS: admin อ่าน/แก้ไขทั้งหมด
+   - Enable Realtime
+
+2. Customer Side
+   - useServices.ts: createRideRequest()
+   - RideView.vue: UI สร้างคำสั่ง
+   - Realtime: subscribe ride status
+   - Push: รับแจ้งเตือนสถานะ
+
+3. Provider Side
+   - useProvider.ts: acceptRide(), updateRideStatus()
+   - ProviderDashboardView.vue: แสดงงานใหม่
+   - Realtime: subscribe new rides
+   - Push: รับแจ้งเตือนงานใหม่
+
+4. Admin Side
+   - useAdmin.ts: getAllRides(), updateRideStatus()
+   - AdminRidesView.vue: ดู/จัดการทั้งหมด
+   - สามารถยกเลิก/แก้ไข/refund
+```
+
+#### 5. ข้อห้ามเด็ดขาด
+
+| ❌ ห้ามทำ | ✅ ต้องทำ |
+|----------|----------|
+| สร้างฟีเจอร์แค่ฝั่ง Customer | ทำครบทั้ง Customer + Provider + Admin |
+| ไม่มี Realtime sync | ต้องมี Realtime ทุกฝ่าย |
+| ไม่มี Push notification | ต้องแจ้งเตือนทุกฝ่ายที่เกี่ยวข้อง |
+| Admin ดูไม่ได้ | Admin ต้องดู/จัดการได้ทุกอย่าง |
+| Provider รับงานไม่ได้ | Provider ต้องรับ/อัพเดท/จบงานได้ |
+
+#### 6. Service Types และ Role ที่เกี่ยวข้อง
+
+| Service | Customer | Provider Type | Admin View |
+|---------|----------|---------------|------------|
+| Ride | สั่งรถ | Driver | AdminRidesView |
+| Delivery | ส่งของ | Rider | AdminDeliveryView |
+| Shopping | ซื้อของ | Shopper | AdminShoppingView |
+| Queue | จองคิว | Service Provider | AdminQueueView |
+| Moving | ขนย้าย | Mover | AdminMovingView |
+| Laundry | ซักผ้า | Laundry Provider | AdminLaundryView |
+
+---
+
 ## กฎการตอบกลับหลังดำเนินการ
 
 ### ทุกครั้งที่ดำเนินการเสร็จ ต้องแนะนำ 3 อย่าง:

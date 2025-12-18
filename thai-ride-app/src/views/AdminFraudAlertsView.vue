@@ -77,9 +77,9 @@ const fetchAlerts = async () => {
     const { data, error } = await supabase.from('fraud_alerts').select('*').order('created_at', { ascending: false }).limit(50)
     if (!error && data) {
       alerts.value = data
-      stats.pending = data.filter(a => a.status === 'pending').length
-      stats.reviewing = data.filter(a => a.status === 'reviewing').length
-      stats.resolved = data.filter(a => a.status === 'resolved').length
+      stats.pending = data.filter((a: any) => a.status === 'pending').length
+      stats.reviewing = data.filter((a: any) => a.status === 'reviewing').length
+      stats.resolved = data.filter((a: any) => a.status === 'resolved').length
     }
   } catch (err) { console.error(err) }
   finally { loading.value = false }
@@ -96,7 +96,7 @@ const runChecks = async () => {
 }
 
 const resolveAlert = async (id: string) => {
-  await supabase.from('fraud_alerts').update({ status: 'resolved', reviewed_at: new Date().toISOString() }).eq('id', id)
+  await (supabase.from('fraud_alerts') as any).update({ status: 'resolved', reviewed_at: new Date().toISOString() }).eq('id', id)
   await fetchAlerts()
 }
 

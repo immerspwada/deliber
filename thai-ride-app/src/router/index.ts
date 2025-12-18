@@ -535,5 +535,11 @@ export const routes: RouteRecordRaw[] = [
     name: 'AdminLaundry',
     component: () => import('../views/AdminLaundryView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/performance',
+    name: 'AdminPerformance',
+    component: () => import('../views/AdminPerformanceView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
   }
 ]

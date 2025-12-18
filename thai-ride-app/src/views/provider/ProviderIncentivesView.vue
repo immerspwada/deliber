@@ -53,9 +53,9 @@ const loading = ref(false)
 const fetchIncentives = async () => {
   loading.value = true
   try {
-    const { data: provider } = await supabase.from('service_providers').select('id').eq('user_id', authStore.user?.id).single()
+    const { data: provider } = await (supabase.from('service_providers') as any).select('id').eq('user_id', authStore.user?.id || '').single()
     if (provider) {
-      const { data } = await supabase.rpc('get_provider_active_incentives', { p_provider_id: provider.id })
+      const { data } = await (supabase.rpc as any)('get_provider_active_incentives', { p_provider_id: provider.id })
       if (data) incentives.value = data
     }
   } catch (err) { console.error(err) }

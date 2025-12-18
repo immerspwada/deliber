@@ -659,7 +659,7 @@ export function useProvider() {
   const fetchPendingQueueJobs = async () => {
     if (!profile.value?.id) return
     try {
-      const { data } = await supabase.rpc('get_available_queue_bookings_for_provider', {
+      const { data } = await (supabase.rpc as any)('get_available_queue_bookings_for_provider', {
         p_provider_id: profile.value.id
       })
       pendingQueueJobs.value = data || []
@@ -670,7 +670,7 @@ export function useProvider() {
   const fetchPendingMovingJobs = async () => {
     if (!profile.value?.id) return
     try {
-      const { data } = await supabase.rpc('get_available_moving_requests_for_provider', {
+      const { data } = await (supabase.rpc as any)('get_available_moving_requests_for_provider', {
         p_provider_id: profile.value.id,
         p_lat: profile.value.current_lat,
         p_lng: profile.value.current_lng
@@ -683,7 +683,7 @@ export function useProvider() {
   const fetchPendingLaundryJobs = async () => {
     if (!profile.value?.id) return
     try {
-      const { data } = await supabase.rpc('get_available_laundry_requests_for_provider', {
+      const { data } = await (supabase.rpc as any)('get_available_laundry_requests_for_provider', {
         p_provider_id: profile.value.id,
         p_lat: profile.value.current_lat,
         p_lng: profile.value.current_lng
@@ -696,14 +696,14 @@ export function useProvider() {
   const acceptQueueBooking = async (bookingId: string) => {
     if (!profile.value?.id) return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
     try {
-      const { data } = await supabase.rpc('accept_queue_booking', {
+      const { data } = await (supabase.rpc as any)('accept_queue_booking', {
         p_booking_id: bookingId,
         p_provider_id: profile.value.id
       })
       if (data?.success) {
         pendingQueueJobs.value = pendingQueueJobs.value.filter(j => j.id !== bookingId)
       }
-      return data
+      return data || { success: false }
     } catch (e: any) { return { success: false, error: e.message } }
   }
 
@@ -711,14 +711,14 @@ export function useProvider() {
   const acceptMovingRequest = async (requestId: string) => {
     if (!profile.value?.id) return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
     try {
-      const { data } = await supabase.rpc('accept_moving_request', {
+      const { data } = await (supabase.rpc as any)('accept_moving_request', {
         p_request_id: requestId,
         p_provider_id: profile.value.id
       })
       if (data?.success) {
         pendingMovingJobs.value = pendingMovingJobs.value.filter(j => j.id !== requestId)
       }
-      return data
+      return data || { success: false }
     } catch (e: any) { return { success: false, error: e.message } }
   }
 
@@ -726,21 +726,21 @@ export function useProvider() {
   const acceptLaundryRequest = async (requestId: string) => {
     if (!profile.value?.id) return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
     try {
-      const { data } = await supabase.rpc('accept_laundry_request', {
+      const { data } = await (supabase.rpc as any)('accept_laundry_request', {
         p_request_id: requestId,
         p_provider_id: profile.value.id
       })
       if (data?.success) {
         pendingLaundryJobs.value = pendingLaundryJobs.value.filter(j => j.id !== requestId)
       }
-      return data
+      return data || { success: false }
     } catch (e: any) { return { success: false, error: e.message } }
   }
 
   // Update queue status (Requirements 4.3)
   const updateQueueStatus = async (bookingId: string, newStatus: string) => {
     try {
-      const { data } = await supabase.rpc('update_queue_status', {
+      const { data } = await (supabase.rpc as any)('update_queue_status', {
         p_booking_id: bookingId,
         p_new_status: newStatus
       })
@@ -751,7 +751,7 @@ export function useProvider() {
   // Update moving status (Requirements 4.3)
   const updateMovingStatus = async (requestId: string, newStatus: string, finalPrice?: number) => {
     try {
-      const { data } = await supabase.rpc('update_moving_status', {
+      const { data } = await (supabase.rpc as any)('update_moving_status', {
         p_request_id: requestId,
         p_new_status: newStatus,
         p_final_price: finalPrice || null
@@ -763,7 +763,7 @@ export function useProvider() {
   // Update laundry status (Requirements 4.3)
   const updateLaundryStatus = async (requestId: string, newStatus: string, actualWeight?: number) => {
     try {
-      const { data } = await supabase.rpc('update_laundry_status', {
+      const { data } = await (supabase.rpc as any)('update_laundry_status', {
         p_request_id: requestId,
         p_new_status: newStatus,
         p_actual_weight: actualWeight || null

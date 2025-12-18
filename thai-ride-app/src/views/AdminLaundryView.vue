@@ -7,7 +7,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useAdmin } from '../composables/useAdmin'
 import AdminLayout from '../components/AdminLayout.vue'
 
-const { fetchLaundryRequests, updateLaundryRequest, fetchLaundryStats, loading } = useAdmin()
+const { fetchLaundryRequests, updateLaundryRequest, fetchLaundryStats } = useAdmin()
 
 const requests = ref<any[]>([])
 const total = ref(0)
@@ -55,6 +55,7 @@ const updateStatus = async (requestId: string, newStatus: string) => {
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
+void formatDate // Used in template
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('th-TH').format(price)

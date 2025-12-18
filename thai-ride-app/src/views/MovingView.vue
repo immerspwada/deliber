@@ -9,7 +9,7 @@ import { useMoving } from '../composables/useMoving'
 import { useToast } from '../composables/useToast'
 
 const router = useRouter()
-const { createMovingRequest, calculatePrice, loading, error, serviceTypeLabels, clearError } = useMoving()
+const { createMovingRequest, calculatePrice, loading, error, clearError } = useMoving()
 const toast = useToast()
 
 // Clear error on unmount

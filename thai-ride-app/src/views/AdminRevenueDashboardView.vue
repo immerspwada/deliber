@@ -63,7 +63,7 @@ const fetchData = async () => {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - dateRange.value)
     
-    const { data, error } = await supabase.rpc('get_revenue_summary', {
+    const { data, error } = await (supabase.rpc as any)('get_revenue_summary', {
       p_start_date: startDate.toISOString().split('T')[0],
       p_end_date: new Date().toISOString().split('T')[0]
     })

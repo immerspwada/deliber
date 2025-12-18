@@ -9,7 +9,7 @@ import { useLaundry } from '../composables/useLaundry'
 
 const route = useRoute()
 const router = useRouter()
-const { currentRequest, loading, error, subscribeToRequest, unsubscribe, submitRating, statusLabels, serviceLabels } = useLaundry()
+const { currentRequest, loading, subscribeToRequest, unsubscribe, submitRating, serviceLabels } = useLaundry()
 
 const requestId = computed(() => route.params.id as string)
 const showRating = ref(false)

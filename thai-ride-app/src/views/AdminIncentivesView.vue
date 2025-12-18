@@ -65,7 +65,7 @@ const fetchIncentives = async () => {
 }
 
 const toggleActive = async (item: any) => {
-  await supabase.from('provider_incentives').update({ is_active: !item.is_active }).eq('id', item.id)
+  await (supabase.from('provider_incentives') as any).update({ is_active: !item.is_active }).eq('id', item.id)
   await fetchIncentives()
 }
 

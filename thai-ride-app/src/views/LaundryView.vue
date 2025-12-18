@@ -9,7 +9,7 @@ import { useLaundry, type LaundryService } from '../composables/useLaundry'
 import { useToast } from '../composables/useToast'
 
 const router = useRouter()
-const { createLaundryRequest, calculatePrice, loading, error, serviceLabels, clearError } = useLaundry()
+const { createLaundryRequest, calculatePrice, loading, error, clearError } = useLaundry()
 const toast = useToast()
 
 // Clear error on unmount

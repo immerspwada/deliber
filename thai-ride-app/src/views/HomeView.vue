@@ -154,14 +154,14 @@ const loyaltyPoints = computed(() => loyaltySummary.value?.current_points || 0)
 // Pull to refresh handlers
 const handleTouchStart = (e: TouchEvent) => {
   const scrollTop = document.querySelector('.home-page')?.scrollTop || 0
-  if (scrollTop <= 0) {
+  if (scrollTop <= 0 && e.touches[0]) {
     startY.value = e.touches[0].clientY
     isPulling.value = true
   }
 }
 
 const handleTouchMove = (e: TouchEvent) => {
-  if (!isPulling.value || isRefreshing.value) return
+  if (!isPulling.value || isRefreshing.value || !e.touches[0]) return
   const currentY = e.touches[0].clientY
   const diff = currentY - startY.value
   if (diff > 0) {

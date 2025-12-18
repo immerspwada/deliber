@@ -3,13 +3,13 @@
  * Feature: F158 - Queue Booking Tracking
  * Customer view for tracking queue booking status
  */
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQueueBooking } from '../composables/useQueueBooking'
 
 const route = useRoute()
 const router = useRouter()
-const { currentRequest, loading, error, subscribeToBooking, unsubscribe, cancelBooking, statusLabels, categoryLabels } = useQueueBooking()
+const { currentBooking: currentRequest, loading, error, subscribeToBooking, unsubscribe, cancelBooking, categoryLabels } = useQueueBooking()
 
 const bookingId = computed(() => route.params.id as string)
 

@@ -120,13 +120,13 @@ const initMap = async () => {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd',
     maxZoom: 20
-  }).addTo(map.value)
+  }).addTo(map.value as any)
 
   // Add center marker
   centerMarker.value = L.marker([initialCenter.lat, initialCenter.lng], {
     icon: createPinIcon(),
     draggable: true
-  }).addTo(map.value)
+  }).addTo(map.value as any)
 
   // Update location when marker is dragged
   centerMarker.value.on('dragend', async () => {

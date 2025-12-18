@@ -4,7 +4,7 @@
  * Migration: 029_new_services.sql
  */
 
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
@@ -82,8 +82,8 @@ export function useMoving() {
       const helperCount = input.helper_count || 1
       const estimatedPrice = calculatePrice(input.service_type, helperCount)
 
-      const { data, error: insertError } = await supabase
-        .from('moving_requests')
+      const { data, error: insertError } = await (supabase
+        .from('moving_requests') as any)
         .insert({
           user_id: user.id,
           service_type: input.service_type,
@@ -190,8 +190,8 @@ export function useMoving() {
         return false
       }
 
-      const { error: insertError } = await supabase
-        .from('moving_ratings')
+      const { error: insertError } = await (supabase
+        .from('moving_ratings') as any)
         .insert({
           request_id: requestId,
           user_id: user.id,
@@ -264,8 +264,8 @@ export function useMoving() {
     error.value = null
 
     try {
-      const { error: updateError } = await supabase
-        .from('moving_requests')
+      const { error: updateError } = await (supabase
+        .from('moving_requests') as any)
         .update({
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
@@ -278,9 +278,9 @@ export function useMoving() {
       // Update local state
       const index = requests.value.findIndex(r => r.id === requestId)
       if (index !== -1) {
-        requests.value[index].status = 'cancelled'
-        requests.value[index].cancelled_at = new Date().toISOString()
-        requests.value[index].cancel_reason = reason || null
+        requests.value[index]!.status = 'cancelled'
+        requests.value[index]!.cancelled_at = new Date().toISOString()
+        requests.value[index]!.cancel_reason = reason || null
       }
 
       if (currentRequest.value && currentRequest.value.id === requestId) {
@@ -317,8 +317,8 @@ export function useMoving() {
         }
       }
 
-      const { error: updateError } = await supabase
-        .from('moving_requests')
+      const { error: updateError } = await (supabase
+        .from('moving_requests') as any)
         .update(updateData)
         .eq('id', requestId)
         .eq('status', 'pending') // Only allow updates for pending requests

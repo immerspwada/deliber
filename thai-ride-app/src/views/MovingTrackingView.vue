@@ -9,7 +9,7 @@ import { useMoving } from '../composables/useMoving'
 
 const route = useRoute()
 const router = useRouter()
-const { currentRequest, loading, error, subscribeToRequest, unsubscribe, submitRating, statusLabels, serviceTypeLabels } = useMoving()
+const { currentRequest, loading, subscribeToRequest, unsubscribe, submitRating, serviceTypeLabels } = useMoving()
 
 const requestId = computed(() => route.params.id as string)
 const showRating = ref(false)
