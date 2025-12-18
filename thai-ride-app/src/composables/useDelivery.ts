@@ -40,6 +40,7 @@ export interface DeliveryRequest {
   package_size: string | null
   package_weight: number | null
   package_description: string | null
+  package_photo: string | null
   special_instructions: string | null
   estimated_fee: number
   final_fee: number | null
@@ -61,11 +62,52 @@ export interface DeliveryRequest {
   }
 }
 
+export interface TimeRange {
+  min: number
+  max: number
+}
+
+// Image quality presets for compression
+export type ImageQuality = 'low' | 'medium' | 'high'
+
+export interface QualityPreset {
+  maxWidth: number
+  quality: number
+  label: string
+  description: string
+  estimatedSize: string
+}
+
+export const QUALITY_PRESETS: Record<ImageQuality, QualityPreset> = {
+  low: {
+    maxWidth: 640,
+    quality: 0.5,
+    label: 'ต่ำ',
+    description: 'ประหยัด data',
+    estimatedSize: '~50KB'
+  },
+  medium: {
+    maxWidth: 1024,
+    quality: 0.7,
+    label: 'กลาง',
+    description: 'สมดุล',
+    estimatedSize: '~150KB'
+  },
+  high: {
+    maxWidth: 1920,
+    quality: 0.85,
+    label: 'สูง',
+    description: 'คมชัด',
+    estimatedSize: '~300KB'
+  }
+}
+
 export function useDelivery() {
   const authStore = useAuthStore()
   const currentDelivery = ref<DeliveryRequest | null>(null)
   const deliveryHistory = ref<DeliveryRequest[]>([])
   const loading = ref(false)
+  const error = ref<string | null>(null)
 
   // Calculate delivery fee
   const calculateFee = (distanceKm: number, packageType: string): number => {
@@ -82,6 +124,109 @@ export function useDelivery() {
     return Math.ceil((baseFee + (distanceKm * perKm)) * multiplier)
   }
 
+  // Calculate estimated time range (more realistic than single value)
+  const calculateTimeRange = (distanceKm: number): TimeRange => {
+    // Base time calculation: average speed 25 km/h in city
+    const baseTime = Math.ceil((distanceKm / 25) * 60)
+    
+    // Add buffer for traffic, pickup time, etc.
+    const pickupBuffer = 5 // minutes for pickup
+    const trafficBuffer = Math.ceil(baseTime * 0.3) // 30% buffer for traffic
+    
+    const minTime = baseTime + pickupBuffer
+    const maxTime = baseTime + pickupBuffer + trafficBuffer + 10 // extra 10 min buffer
+    
+    return {
+      min: Math.max(15, minTime), // minimum 15 minutes
+      max: Math.max(25, maxTime)
+    }
+  }
+
+  // Upload package photo to Supabase Storage
+  const uploadPackagePhoto = async (file: File): Promise<string | null> => {
+    if (!authStore.user?.id) return null
+    
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${authStore.user.id}/${Date.now()}.${fileExt}`
+      
+      const { data, error: uploadError } = await supabase.storage
+        .from('package-photos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        return null
+      }
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('package-photos')
+        .getPublicUrl(data.path)
+      
+      return urlData.publicUrl
+    } catch (err) {
+      console.error('Error uploading photo:', err)
+      return null
+    }
+  }
+
+  // Compress image before upload with quality preset support
+  const compressImage = async (
+    file: File, 
+    maxWidthOrPreset: number | ImageQuality = 1024, 
+    quality = 0.8
+  ): Promise<File> => {
+    // Handle quality preset
+    let finalMaxWidth = typeof maxWidthOrPreset === 'number' ? maxWidthOrPreset : QUALITY_PRESETS[maxWidthOrPreset].maxWidth
+    let finalQuality = typeof maxWidthOrPreset === 'number' ? quality : QUALITY_PRESETS[maxWidthOrPreset].quality
+    
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+          
+          if (width > finalMaxWidth) {
+            height = (height * finalMaxWidth) / width
+            width = finalMaxWidth
+          }
+          
+          canvas.width = width
+          canvas.height = height
+          
+          const ctx = canvas.getContext('2d')
+          ctx?.drawImage(img, 0, 0, width, height)
+          
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(new File([blob], file.name, { type: 'image/jpeg' }))
+              } else {
+                resolve(file)
+              }
+            },
+            'image/jpeg',
+            finalQuality
+          )
+        }
+        img.src = e.target?.result as string
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  // Clear error
+  const clearError = () => {
+    error.value = null
+  }
+
   // Create delivery request
   const createDeliveryRequest = async (data: {
     senderName: string
@@ -95,16 +240,33 @@ export function useDelivery() {
     packageType: string
     packageWeight: number
     packageDescription?: string
+    packagePhoto?: string
     specialInstructions?: string
     distanceKm: number
   }) => {
-    if (!authStore.user?.id) return null
+    error.value = null
+    
+    if (!authStore.user?.id) {
+      error.value = 'กรุณาเข้าสู่ระบบก่อนใช้งาน'
+      return null
+    }
+
+    // Validate required fields
+    if (!data.senderLocation || !data.recipientLocation) {
+      error.value = 'กรุณาเลือกจุดรับและจุดส่งพัสดุ'
+      return null
+    }
+
+    if (!data.recipientPhone) {
+      error.value = 'กรุณากรอกเบอร์โทรผู้รับ'
+      return null
+    }
 
     loading.value = true
     try {
       const estimatedFee = calculateFee(data.distanceKm, data.packageType)
 
-      const { data: delivery, error } = await (supabase
+      const { data: delivery, error: dbError } = await (supabase
         .from('delivery_requests') as any)
         .insert({
           user_id: authStore.user.id,
@@ -121,6 +283,7 @@ export function useDelivery() {
           package_type: data.packageType,
           package_weight: data.packageWeight,
           package_description: data.packageDescription || null,
+          package_photo: data.packagePhoto || null,
           special_instructions: data.specialInstructions || null,
           estimated_fee: estimatedFee,
           distance_km: data.distanceKm,
@@ -129,13 +292,35 @@ export function useDelivery() {
         .select()
         .single()
 
-      if (!error && delivery) {
+      if (dbError) {
+        console.error('Database error:', dbError)
+        // Handle specific error codes
+        if (dbError.code === '42501') {
+          error.value = 'ไม่มีสิทธิ์ในการสร้างคำขอ กรุณาเข้าสู่ระบบใหม่'
+        } else if (dbError.code === '23503') {
+          error.value = 'ข้อมูลผู้ใช้ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่'
+        } else if (dbError.message?.includes('network') || dbError.message?.includes('fetch')) {
+          error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต'
+        } else {
+          error.value = dbError.message || 'เกิดข้อผิดพลาดในการสร้างคำขอ กรุณาลองใหม่'
+        }
+        return null
+      }
+
+      if (delivery) {
         currentDelivery.value = delivery as DeliveryRequest
         return delivery
       }
+      
+      error.value = 'ไม่สามารถสร้างคำขอได้ กรุณาลองใหม่'
       return null
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating delivery request:', err)
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต'
+      } else {
+        error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+      }
       return null
     } finally {
       loading.value = false
@@ -306,7 +491,12 @@ export function useDelivery() {
     currentDelivery,
     deliveryHistory,
     loading,
+    error,
+    clearError,
     calculateFee,
+    calculateTimeRange,
+    uploadPackagePhoto,
+    compressImage,
     createDeliveryRequest,
     fetchActiveDelivery,
     fetchDeliveryHistory,

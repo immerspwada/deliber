@@ -2,10 +2,13 @@
 /**
  * Feature: F268 - Location Picker
  * Map-based location picker with Leaflet - ใช้งานได้จริง
+ * + Saved places integration (บ้าน/ที่ทำงาน)
+ * + Search suggestions (autocomplete)
  */
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useServices, type SavedPlace } from '../composables/useServices'
 
 // Fix default marker icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -32,11 +35,22 @@ const props = withDefaults(defineProps<{
   label?: string
   type?: 'pickup' | 'destination'
   initialLocation?: { lat: number; lng: number }
+  homePlace?: SavedPlace | null
+  workPlace?: SavedPlace | null
 }>(), {
   modelValue: '',
   placeholder: 'เลือกตำแหน่งบนแผนที่',
-  type: 'pickup'
+  type: 'pickup',
+  homePlace: null,
+  workPlace: null
 })
+
+// Use services for saved places if not passed as props
+const { homePlace: serviceHomePlace, workPlace: serviceWorkPlace, fetchSavedPlaces } = useServices()
+
+// Computed saved places (use props if provided, otherwise from service)
+const computedHomePlace = ref<SavedPlace | null>(null)
+const computedWorkPlace = ref<SavedPlace | null>(null)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -61,6 +75,99 @@ const isGettingAddress = ref(false)
 const searchQuery = ref('')
 const searchResults = ref<Array<{ id: string; name: string; address: string; lat: number; lng: number }>>([])
 const showSearchResults = ref(false)
+const isSearchFocused = ref(false)
+const isSearching = ref(false)
+const searchNoResults = ref(false)
+
+// Recent searches from localStorage
+const RECENT_SEARCHES_KEY = 'location_picker_recent_searches'
+const MAX_RECENT_SEARCHES = 5
+
+interface RecentSearch {
+  id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  timestamp: number
+}
+
+const recentSearches = ref<RecentSearch[]>([])
+
+// Debounce timer for search suggestions
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+void searchDebounceTimer
+const SEARCH_DEBOUNCE_MS = 300
+void SEARCH_DEBOUNCE_MS
+
+// Load recent searches from localStorage
+const loadRecentSearches = () => {
+  try {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY)
+    if (stored) {
+      recentSearches.value = JSON.parse(stored)
+    }
+  } catch {
+    recentSearches.value = []
+  }
+}
+
+// Load saved places
+const loadSavedPlaces = async () => {
+  // Use props if provided
+  if (props.homePlace || props.workPlace) {
+    computedHomePlace.value = props.homePlace || null
+    computedWorkPlace.value = props.workPlace || null
+    return
+  }
+  
+  // Otherwise fetch from service
+  await fetchSavedPlaces()
+  computedHomePlace.value = serviceHomePlace.value || null
+  computedWorkPlace.value = serviceWorkPlace.value || null
+}
+
+// Save recent search to localStorage
+const saveRecentSearch = (place: { name: string; address: string; lat: number; lng: number }) => {
+  try {
+    // Remove duplicate if exists
+    const filtered = recentSearches.value.filter(
+      r => !(Math.abs(r.lat - place.lat) < 0.0001 && Math.abs(r.lng - place.lng) < 0.0001)
+    )
+    
+    // Add new search at the beginning
+    const newSearch: RecentSearch = {
+      id: `recent_${Date.now()}`,
+      name: place.name,
+      address: place.address,
+      lat: place.lat,
+      lng: place.lng,
+      timestamp: Date.now()
+    }
+    
+    recentSearches.value = [newSearch, ...filtered].slice(0, MAX_RECENT_SEARCHES)
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recentSearches.value))
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// Clear recent searches
+const clearRecentSearches = () => {
+  recentSearches.value = []
+  localStorage.removeItem(RECENT_SEARCHES_KEY)
+}
+
+// Suppress unused warnings - these are used conditionally
+void loadRecentSearches
+void saveRecentSearch
+void clearRecentSearches
+void loadSavedPlaces
+
+// Handle search blur
+const handleSearchBlur = () => {
+  setTimeout(() => { isSearchFocused.value = false }, 200)
+}
 
 // Mock places for search
 const mockPlaces = [
@@ -212,23 +319,93 @@ const getCurrentLocation = () => {
   )
 }
 
-// Search places
+// Search places with Nominatim API (real autocomplete)
 const searchPlaces = () => {
+  // Clear previous timer
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  
+  searchNoResults.value = false
+  
   if (searchQuery.value.length < 2) {
     searchResults.value = []
     showSearchResults.value = false
+    isSearching.value = false
     return
   }
   
-  const query = searchQuery.value.toLowerCase()
-  searchResults.value = mockPlaces.filter(p => 
-    p.name.toLowerCase().includes(query) || p.address.toLowerCase().includes(query)
-  ).slice(0, 5)
-  showSearchResults.value = searchResults.value.length > 0
+  // Show loading state
+  isSearching.value = true
+  showSearchResults.value = true
+  
+  // Debounce search for better UX
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      // First try local mock places for common locations
+      const query = searchQuery.value.toLowerCase()
+      const localResults = mockPlaces.filter(p => 
+        p.name.toLowerCase().includes(query) || p.address.toLowerCase().includes(query)
+      ).slice(0, 3)
+      
+      // Then fetch from Nominatim API for real places
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.value)}&countrycodes=th&limit=5&addressdetails=1`,
+        { headers: { 'Accept-Language': 'th' } }
+      )
+      const data = await response.json()
+      
+      // Transform Nominatim results
+      const apiResults = data.map((item: any, index: number) => ({
+        id: `nominatim_${item.place_id || index}`,
+        name: item.name || item.display_name?.split(',')[0] || 'ไม่ระบุชื่อ',
+        address: item.display_name?.split(',').slice(0, 3).join(', ') || '',
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon)
+      }))
+      
+      // Combine local and API results, remove duplicates
+      const combined = [...localResults]
+      for (const apiResult of apiResults) {
+        const isDuplicate = combined.some(
+          r => Math.abs(r.lat - apiResult.lat) < 0.001 && Math.abs(r.lng - apiResult.lng) < 0.001
+        )
+        if (!isDuplicate) {
+          combined.push(apiResult)
+        }
+      }
+      
+      searchResults.value = combined.slice(0, 6)
+      searchNoResults.value = searchResults.value.length === 0
+      showSearchResults.value = true
+    } catch (error) {
+      console.error('Search error:', error)
+      // Fallback to local search only
+      const query = searchQuery.value.toLowerCase()
+      searchResults.value = mockPlaces.filter(p => 
+        p.name.toLowerCase().includes(query) || p.address.toLowerCase().includes(query)
+      ).slice(0, 5)
+      searchNoResults.value = searchResults.value.length === 0
+    } finally {
+      isSearching.value = false
+    }
+  }, SEARCH_DEBOUNCE_MS)
 }
 
+// Select saved place (home/work)
+const selectSavedPlace = (place: SavedPlace) => {
+  selectPlace({
+    id: place.id,
+    name: place.name,
+    address: place.address,
+    lat: place.lat,
+    lng: place.lng
+  })
+}
+void selectSavedPlace
+
 // Select search result
-const selectPlace = async (place: typeof mockPlaces[0]) => {
+const selectPlace = async (place: { id?: string; name: string; address: string; lat: number; lng: number }) => {
   tempLocation.value = {
     lat: place.lat,
     lng: place.lng,
@@ -242,9 +419,13 @@ const selectPlace = async (place: typeof mockPlaces[0]) => {
     centerMarker.value.setLatLng([place.lat, place.lng])
   }
   
+  // Save to recent searches
+  saveRecentSearch(place)
+  
   searchQuery.value = ''
   searchResults.value = []
   showSearchResults.value = false
+  isSearchFocused.value = false
 }
 
 // Confirm location
@@ -264,12 +445,18 @@ const closePicker = () => {
   emit('close')
 }
 
-// Cleanup
+// Initialize
 onMounted(() => {
+  loadRecentSearches()
+  loadSavedPlaces()
   initMap()
 })
 
 onUnmounted(() => {
+  // Clear debounce timer
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
   if (map.value) {
     map.value.remove()
     map.value = null
@@ -315,7 +502,8 @@ watch(() => props.initialLocation, (newLoc) => {
             type="text" 
             placeholder="ค้นหาสถานที่..." 
             @input="searchPlaces"
-            @focus="showSearchResults = searchResults.length > 0"
+            @focus="isSearchFocused = true"
+            @blur="handleSearchBlur"
           />
           <button v-if="searchQuery" type="button" class="clear-search" @click="searchQuery = ''; searchResults = []">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -325,25 +513,128 @@ watch(() => props.initialLocation, (newLoc) => {
         </div>
         
         <!-- Search Results -->
-        <div v-if="showSearchResults && searchResults.length > 0" class="search-results">
-          <button 
-            v-for="place in searchResults" 
-            :key="place.id"
-            type="button"
-            class="search-result-item"
-            @click="selectPlace(place)"
-          >
-            <div class="result-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                <circle cx="12" cy="10" r="3"/>
-              </svg>
+        <div v-if="showSearchResults && searchQuery.length >= 2" class="search-results">
+          <!-- Loading State -->
+          <div v-if="isSearching" class="search-loading">
+            <div class="spinner-small"></div>
+            <span>กำลังค้นหา...</span>
+          </div>
+          
+          <!-- Results -->
+          <template v-else-if="searchResults.length > 0">
+            <button 
+              v-for="place in searchResults" 
+              :key="place.id"
+              type="button"
+              class="search-result-item"
+              @click="selectPlace(place)"
+            >
+              <div class="result-icon" :class="{ 'api-result': place.id.startsWith('nominatim_') }">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+              </div>
+              <div class="result-info">
+                <span class="result-name">{{ place.name }}</span>
+                <span class="result-address">{{ place.address }}</span>
+              </div>
+            </button>
+          </template>
+          
+          <!-- No Results -->
+          <div v-else-if="searchNoResults" class="no-results">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M16 16s-1.5-2-4-2-4 2-4 2"/>
+              <line x1="9" y1="9" x2="9.01" y2="9"/>
+              <line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+            <span>ไม่พบสถานที่ที่ค้นหา</span>
+            <span class="no-results-hint">ลองค้นหาด้วยคำอื่น หรือเลื่อนแผนที่เพื่อเลือกตำแหน่ง</span>
+          </div>
+        </div>
+        
+        <!-- Saved Places & Recent Searches (show when focused and no search query) -->
+        <div v-else-if="isSearchFocused && !searchQuery" class="search-results suggestions">
+          <!-- Saved Places Section -->
+          <div v-if="computedHomePlace || computedWorkPlace" class="saved-places-section">
+            <div class="section-header">
+              <span class="section-title">สถานที่บันทึกไว้</span>
             </div>
-            <div class="result-info">
-              <span class="result-name">{{ place.name }}</span>
-              <span class="result-address">{{ place.address }}</span>
+            
+            <!-- Home Place -->
+            <button 
+              v-if="computedHomePlace"
+              type="button"
+              class="search-result-item saved-place"
+              @click="selectSavedPlace(computedHomePlace)"
+            >
+              <div class="result-icon home">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                  <polyline points="9,22 9,12 15,12 15,22"/>
+                </svg>
+              </div>
+              <div class="result-info">
+                <span class="result-name">บ้าน</span>
+                <span class="result-address">{{ computedHomePlace.address }}</span>
+              </div>
+            </button>
+            
+            <!-- Work Place -->
+            <button 
+              v-if="computedWorkPlace"
+              type="button"
+              class="search-result-item saved-place"
+              @click="selectSavedPlace(computedWorkPlace)"
+            >
+              <div class="result-icon work">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                  <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+                </svg>
+              </div>
+              <div class="result-info">
+                <span class="result-name">ที่ทำงาน</span>
+                <span class="result-address">{{ computedWorkPlace.address }}</span>
+              </div>
+            </button>
+          </div>
+          
+          <!-- Recent Searches Section -->
+          <div v-if="recentSearches.length > 0" class="recent-section">
+            <div class="section-header">
+              <span class="section-title">ค้นหาล่าสุด</span>
+              <button type="button" class="clear-recent-btn" @click.stop="clearRecentSearches">ล้าง</button>
             </div>
-          </button>
+            <button 
+              v-for="place in recentSearches" 
+              :key="place.id"
+              type="button"
+              class="search-result-item"
+              @click="selectPlace(place)"
+            >
+              <div class="result-icon recent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12,6 12,12 16,14"/>
+                </svg>
+              </div>
+              <div class="result-info">
+                <span class="result-name">{{ place.name }}</span>
+                <span class="result-address">{{ place.address }}</span>
+              </div>
+            </button>
+          </div>
+          
+          <!-- Empty state when no saved places and no recent searches -->
+          <div v-if="!computedHomePlace && !computedWorkPlace && recentSearches.length === 0" class="empty-suggestions">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <span>พิมพ์เพื่อค้นหาสถานที่</span>
+          </div>
         </div>
       </div>
       
@@ -494,6 +785,133 @@ watch(() => props.initialLocation, (newLoc) => {
   max-height: 280px;
   overflow-y: auto;
   z-index: 100;
+}
+
+.search-results.suggestions {
+  padding-top: 0;
+}
+
+.saved-places-section,
+.recent-section {
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.saved-places-section:last-child,
+.recent-section:last-child {
+  border-bottom: none;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px 8px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.clear-recent-btn {
+  font-size: 12px;
+  color: #00A86B;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.clear-recent-btn:hover {
+  background: #E8F5EF;
+}
+
+.result-icon.recent {
+  background: #F5F5F5;
+  color: #666;
+}
+
+.result-icon.home {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.result-icon.work {
+  background: #E3F2FD;
+  color: #1976D2;
+}
+
+.search-result-item.saved-place {
+  background: #FAFAFA;
+}
+
+.search-result-item.saved-place:hover {
+  background: #F0F0F0;
+}
+
+.empty-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: #999;
+}
+
+.empty-suggestions svg {
+  opacity: 0.5;
+}
+
+.empty-suggestions span {
+  font-size: 13px;
+}
+
+.search-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 16px;
+  color: #666;
+  font-size: 14px;
+}
+
+.no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: #666;
+  text-align: center;
+}
+
+.no-results svg {
+  color: #999;
+  opacity: 0.6;
+}
+
+.no-results span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.no-results-hint {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #999;
+}
+
+.result-icon.api-result {
+  background: #FFF3E0;
+  color: #F57C00;
 }
 
 .search-result-item {

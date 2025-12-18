@@ -772,6 +772,209 @@ export function useProvider() {
     } catch (e: any) { return { success: false, error: e.message } }
   }
 
+  // =====================================================
+  // DELIVERY PROOF PHOTO (F03 Enhancement)
+  // =====================================================
+
+  // Compress image for upload
+  const compressProofImage = async (file: File, maxWidth = 1024, quality = 0.7): Promise<File> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx?.drawImage(img, 0, 0, width, height)
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(new File([blob], file.name, { type: 'image/jpeg' }))
+              else resolve(file)
+            },
+            'image/jpeg',
+            quality
+          )
+        }
+        img.src = e.target?.result as string
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  // Get current GPS location
+  const getCurrentGPS = (): Promise<{ lat: number; lng: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null)
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 10000 }
+      )
+    })
+  }
+
+  // Upload delivery proof photo with GPS timestamp
+  const uploadDeliveryProof = async (
+    deliveryId: string,
+    file: File,
+    proofType: 'pickup' | 'delivery' = 'delivery'
+  ): Promise<{ success: boolean; photoUrl?: string; error?: string }> => {
+    if (!profile.value?.id) {
+      return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
+    }
+
+    try {
+      // Get GPS location
+      const gps = await getCurrentGPS()
+      
+      // Compress image
+      const compressedFile = await compressProofImage(file)
+      
+      // Upload to Supabase Storage
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const fileName = `${profile.value.id}/${deliveryId}/${proofType}_${Date.now()}.${fileExt}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('delivery-proofs')
+        .upload(fileName, compressedFile, {
+          cacheControl: '3600',
+          upsert: false
+        })
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        return { success: false, error: 'ไม่สามารถอัพโหลดรูปได้' }
+      }
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('delivery-proofs')
+        .getPublicUrl(uploadData.path)
+      
+      const photoUrl = urlData.publicUrl
+      
+      // Save to database with GPS
+      const { data, error: dbError } = await (supabase.rpc as any)('upload_delivery_proof', {
+        p_delivery_id: deliveryId,
+        p_provider_id: profile.value.id,
+        p_photo_url: photoUrl,
+        p_lat: gps?.lat || null,
+        p_lng: gps?.lng || null,
+        p_proof_type: proofType
+      })
+      
+      if (dbError) {
+        console.error('DB error:', dbError)
+        return { success: false, error: 'ไม่สามารถบันทึกข้อมูลได้' }
+      }
+      
+      if (data && !data.success) {
+        return { success: false, error: data.message }
+      }
+      
+      return { success: true, photoUrl }
+    } catch (e: any) {
+      console.error('Error uploading proof:', e)
+      return { success: false, error: e.message || 'เกิดข้อผิดพลาด' }
+    }
+  }
+
+  // Complete delivery with proof photo (convenience function)
+  const completeDeliveryWithProof = async (
+    deliveryId: string,
+    proofFile: File
+  ): Promise<{ success: boolean; error?: string }> => {
+    // Upload proof first
+    const uploadResult = await uploadDeliveryProof(deliveryId, proofFile, 'delivery')
+    if (!uploadResult.success) {
+      return { success: false, error: uploadResult.error }
+    }
+    
+    // Then update status to delivered
+    const statusResult = await updateDeliveryStatus('delivered')
+    if (!statusResult) {
+      return { success: false, error: 'ไม่สามารถอัพเดทสถานะได้' }
+    }
+    
+    return { success: true }
+  }
+
+  // Save recipient signature (F03c Enhancement)
+  const saveDeliverySignature = async (
+    deliveryId: string,
+    signatureData: string,
+    signerName?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!profile.value?.id) {
+      return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
+    }
+
+    try {
+      const { data, error: dbError } = await (supabase.rpc as any)('save_delivery_signature', {
+        p_delivery_id: deliveryId,
+        p_provider_id: profile.value.id,
+        p_signature: signatureData,
+        p_signer_name: signerName || null
+      })
+
+      if (dbError) {
+        console.error('Signature save error:', dbError)
+        return { success: false, error: 'ไม่สามารถบันทึกลายเซ็นได้' }
+      }
+
+      if (data && !data.success) {
+        return { success: false, error: data.message }
+      }
+
+      return { success: true }
+    } catch (e: any) {
+      console.error('Error saving signature:', e)
+      return { success: false, error: e.message || 'เกิดข้อผิดพลาด' }
+    }
+  }
+
+  // Complete delivery with full proof (photo + signature)
+  const completeDeliveryWithFullProof = async (
+    deliveryId: string,
+    proofFile: File,
+    signatureData?: string,
+    signerName?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    // Upload proof photo first
+    const uploadResult = await uploadDeliveryProof(deliveryId, proofFile, 'delivery')
+    if (!uploadResult.success) {
+      return { success: false, error: uploadResult.error }
+    }
+
+    // Save signature if provided
+    if (signatureData) {
+      const signatureResult = await saveDeliverySignature(deliveryId, signatureData, signerName)
+      if (!signatureResult.success) {
+        console.warn('Signature save failed:', signatureResult.error)
+        // Continue anyway - signature is optional
+      }
+    }
+
+    // Update status to delivered
+    const statusResult = await updateDeliveryStatus('delivered')
+    if (!statusResult) {
+      return { success: false, error: 'ไม่สามารถอัพเดทสถานะได้' }
+    }
+
+    return { success: true }
+  }
+
   // Fetch all new service jobs
   const fetchAllNewServiceJobs = async () => {
     await Promise.all([
@@ -814,6 +1017,8 @@ export function useProvider() {
     fetchPendingMovingJobs, acceptMovingRequest, updateMovingStatus,
     // Laundry functions (F160)
     fetchPendingLaundryJobs, acceptLaundryRequest, updateLaundryStatus,
+    // Delivery Proof Photo & Signature (F03 Enhancement)
+    uploadDeliveryProof, completeDeliveryWithProof, saveDeliverySignature, completeDeliveryWithFullProof,
     // All jobs
     fetchAllPendingJobs, fetchAllNewServiceJobs
   }

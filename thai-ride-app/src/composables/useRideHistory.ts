@@ -36,6 +36,7 @@ export function useRideHistory() {
   const history = ref<RideHistoryItem[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const unratedRidesCount = ref(0)
 
   // Fetch all order history (ride, delivery, shopping, queue, moving, laundry)
   const fetchHistory = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
@@ -543,11 +544,63 @@ export function useRideHistory() {
     }
   }
 
+  // Fetch count of unrated completed orders (for badge display)
+  const fetchUnratedRides = async () => {
+    try {
+      if (!authStore.user?.id) {
+        unratedRidesCount.value = 0
+        return 0
+      }
+
+      const userId = authStore.user.id
+      let count = 0
+
+      // Count unrated rides
+      const { count: rideCount } = await supabase
+        .from('ride_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .is('rated_at', null)
+
+      count += rideCount || 0
+
+      // Count unrated deliveries
+      const { count: deliveryCount } = await supabase
+        .from('delivery_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .in('status', ['delivered', 'completed'])
+        .is('rated_at', null)
+
+      count += deliveryCount || 0
+
+      // Count unrated shopping
+      const { count: shoppingCount } = await supabase
+        .from('shopping_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .is('rated_at', null)
+
+      count += shoppingCount || 0
+
+      unratedRidesCount.value = count
+      return count
+    } catch (err) {
+      console.error('Error fetching unrated rides count:', err)
+      unratedRidesCount.value = 0
+      return 0
+    }
+  }
+
   return {
     history,
     loading,
     error,
+    unratedRidesCount,
     fetchHistory,
+    fetchUnratedRides,
     getOrderDetails,
     getOrderByTrackingId,
     rebookRide

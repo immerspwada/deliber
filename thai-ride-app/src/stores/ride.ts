@@ -209,7 +209,8 @@ export const useRideStore = defineStore('ride', () => {
     destination: Location,
     rideType: 'standard' | 'premium' | 'shared' = 'standard',
     passengerCount: number = 1,
-    specialRequests?: string
+    specialRequests?: string,
+    scheduledAt?: string // ISO datetime string for scheduled rides
   ) => {
     loading.value = true
     error.value = null
@@ -223,7 +224,7 @@ export const useRideStore = defineStore('ride', () => {
       const estimatedFare = calculateFare(distanceKm, rideType)
       
       // Create ride request directly with supabase
-      const insertPayload = {
+      const insertPayload: Record<string, unknown> = {
         user_id: userId,
         pickup_lat: pickup.lat,
         pickup_lng: pickup.lng,
@@ -235,7 +236,8 @@ export const useRideStore = defineStore('ride', () => {
         passenger_count: passengerCount,
         special_requests: specialRequests,
         estimated_fare: estimatedFare,
-        status: 'pending'
+        status: scheduledAt ? 'scheduled' : 'pending',
+        scheduled_time: scheduledAt || null
       }
       
       const { data: rideData, error: insertError } = await (supabase as any)

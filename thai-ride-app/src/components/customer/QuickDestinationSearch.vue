@@ -27,7 +27,7 @@ const handleVoice = (e: Event) => {
 </script>
 
 <template>
-  <button 
+  <div 
     class="search-card"
     :class="{ pressed: isPressed }"
     @mousedown="isPressed = true"
@@ -36,6 +36,8 @@ const handleVoice = (e: Event) => {
     @touchstart="isPressed = true"
     @touchend="isPressed = false"
     @click="handleClick"
+    role="button"
+    tabindex="0"
   >
     <!-- Destination Icon -->
     <div class="search-icon">
@@ -68,7 +70,7 @@ const handleVoice = (e: Event) => {
         <path d="M5 12h14M12 5l7 7-7 7"/>
       </svg>
     </div>
-  </button>
+  </div>
 </template>
 
 <style scoped>

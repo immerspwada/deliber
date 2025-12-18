@@ -2,6 +2,7 @@
 /**
  * BottomNavigation - Navigation bar ด้านล่างแบบน่ารัก
  * MUNEEF Style: สีเขียว #00A86B
+ * รองรับ notification badge สำหรับแสดงจำนวนรายการที่ต้องดำเนินการ
  */
 import { useHapticFeedback } from '../../composables/useHapticFeedback'
 
@@ -13,10 +14,16 @@ interface NavItem {
 
 interface Props {
   activeTab?: string
+  /** จำนวน badge สำหรับเมนู history (ออเดอร์ที่ยังไม่ได้ให้คะแนน) */
+  historyBadge?: number
+  /** จำนวน badge สำหรับเมนู profile (notifications) */
+  profileBadge?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  activeTab: 'home'
+  activeTab: 'home',
+  historyBadge: 0,
+  profileBadge: 0
 })
 
 const emit = defineEmits<{
@@ -35,6 +42,13 @@ const navItems: NavItem[] = [
 const handleClick = (item: NavItem) => {
   haptic.light()
   emit('navigate', item.route)
+}
+
+/** Get badge count for specific nav item */
+const getBadgeCount = (itemId: string): number => {
+  if (itemId === 'history') return props.historyBadge
+  if (itemId === 'profile') return props.profileBadge
+  return 0
 }
 </script>
 
@@ -61,16 +75,26 @@ const handleClick = (item: NavItem) => {
       </svg>
       
       <!-- History -->
-      <svg v-else-if="item.id === 'history'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12,6 12,12 16,14"/>
-      </svg>
+      <div v-else-if="item.id === 'history'" class="icon-wrapper">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12,6 12,12 16,14"/>
+        </svg>
+        <span v-if="getBadgeCount(item.id) > 0" class="badge">
+          {{ getBadgeCount(item.id) > 9 ? '9+' : getBadgeCount(item.id) }}
+        </span>
+      </div>
       
       <!-- Profile -->
-      <svg v-else-if="item.id === 'profile'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="8" r="4"/>
-        <path d="M20 21a8 8 0 10-16 0"/>
-      </svg>
+      <div v-else-if="item.id === 'profile'" class="icon-wrapper">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M20 21a8 8 0 10-16 0"/>
+        </svg>
+        <span v-if="getBadgeCount(item.id) > 0" class="badge">
+          {{ getBadgeCount(item.id) > 9 ? '9+' : getBadgeCount(item.id) }}
+        </span>
+      </div>
       
       <span>{{ item.name }}</span>
     </button>
@@ -99,16 +123,30 @@ const handleClick = (item: NavItem) => {
   align-items: center;
   gap: 4px;
   padding: 8px 16px;
+  min-width: 64px;
+  min-height: 52px; /* Touch target min 44px + padding */
   background: transparent;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 64px;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .nav-item:active {
   transform: scale(0.95);
+  background: rgba(0, 168, 107, 0.1);
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .nav-item:active {
+    background: rgba(0, 168, 107, 0.15);
+  }
 }
 
 .nav-item svg {
@@ -136,5 +174,50 @@ const handleClick = (item: NavItem) => {
 .nav-item.active span {
   color: #00A86B;
   font-weight: 600;
+}
+
+/* Icon wrapper for badge positioning */
+.icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-wrapper svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Notification Badge */
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #E53935;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(229, 57, 53, 0.3);
+  animation: badge-pop 0.3s ease;
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>

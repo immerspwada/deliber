@@ -136,6 +136,7 @@ const handleClick = () => {
   gap: 14px;
   width: 100%;
   padding: 16px;
+  min-height: 80px; /* Touch target optimization */
   background: #FFFFFF;
   border: 2px solid #F0F0F0;
   border-radius: 18px;
@@ -143,6 +144,11 @@ const handleClick = () => {
   text-align: left;
   overflow: hidden;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .order-card:hover {
@@ -152,6 +158,19 @@ const handleClick = () => {
 
 .order-card:active {
   transform: scale(0.98);
+  border-color: var(--type-color);
+  background: color-mix(in srgb, var(--type-color) 5%, white);
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .order-card:hover {
+    box-shadow: none;
+  }
+  
+  .order-card:active {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
 }
 
 /* Pulse Animation */

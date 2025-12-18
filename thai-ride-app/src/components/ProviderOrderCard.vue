@@ -14,6 +14,7 @@ interface Order {
   itemCount?: number
   customerName: string
   createdAt: string
+  packagePhoto?: string | null
 }
 
 const props = defineProps<{
@@ -82,6 +83,12 @@ const emit = defineEmits<{
           </svg>
           {{ order.customerName }}
         </span>
+      </div>
+      
+      <!-- Package Photo Preview (for delivery) -->
+      <div v-if="order.type === 'delivery' && order.packagePhoto" class="package-photo-preview">
+        <img :src="order.packagePhoto" alt="Package" class="package-thumb" />
+        <span class="photo-label">รูปพัสดุ</span>
       </div>
     </div>
     
@@ -247,5 +254,30 @@ const emit = defineEmits<{
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Package Photo Preview */
+.package-photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  background: #f8f8f8;
+  border-radius: 8px;
+}
+
+.package-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e5e5e5;
+}
+
+.package-photo-preview .photo-label {
+  font-size: 13px;
+  color: #00A86B;
+  font-weight: 500;
 }
 </style>

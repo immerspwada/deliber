@@ -146,11 +146,17 @@ const handleClick = (shortcut: Shortcut) => {
   align-items: center;
   gap: 8px;
   padding: 14px 8px;
+  min-height: 88px; /* Ensure touch target is large enough */
   background: #FFFFFF;
   border: 2px solid #F5F5F5;
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .shortcut-item:hover {
@@ -161,6 +167,19 @@ const handleClick = (shortcut: Shortcut) => {
 
 .shortcut-item:active {
   transform: scale(0.95);
+}
+
+/* Touch-specific styles for mobile */
+@media (hover: none) {
+  .shortcut-item:hover {
+    transform: none;
+  }
+  
+  .shortcut-item:active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, white);
+    transform: scale(0.95);
+  }
 }
 
 .shortcut-icon {

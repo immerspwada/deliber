@@ -97,7 +97,7 @@ export function useReferral() {
         .from('referrals') as any)
         .select(`
           *,
-          referee:referee_id (name, email)
+          referee:users!referrals_referee_id_fkey (name, email)
         `)
         .eq('referrer_id', authStore.user.id)
         .order('created_at', { ascending: false })

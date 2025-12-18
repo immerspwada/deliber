@@ -115,7 +115,8 @@ const handleManage = () => {
 }
 
 .manage-btn {
-  padding: 6px 12px;
+  padding: 8px 14px;
+  min-height: 44px; /* Touch target min 44px */
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -124,6 +125,11 @@ const handleManage = () => {
   color: #00A86B;
   cursor: pointer;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .manage-btn:hover {
@@ -132,6 +138,7 @@ const handleManage = () => {
 
 .manage-btn:active {
   transform: scale(0.95);
+  background: #D4EDE3;
 }
 
 .places-row {
@@ -145,12 +152,18 @@ const handleManage = () => {
   align-items: center;
   gap: 12px;
   padding: 14px;
+  min-height: 72px; /* Touch target optimization */
   background: #FFFFFF;
   border: 2px solid #F5F5F5;
   border-radius: 16px;
   cursor: pointer;
   text-align: left;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .place-card:hover {
@@ -160,6 +173,21 @@ const handleManage = () => {
 
 .place-card:active {
   transform: scale(0.98);
+  border-color: #00A86B;
+  background: #E8F5EF;
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .place-card:hover {
+    border-color: #F5F5F5;
+    background: #FFFFFF;
+  }
+  
+  .place-card:active {
+    border-color: #00A86B;
+    background: #E8F5EF;
+  }
 }
 
 .place-icon {

@@ -89,6 +89,7 @@ export function useShopping() {
     budgetLimit: number
     specialInstructions?: string
     distanceKm: number
+    referenceImages?: string[]
   }) => {
     if (!authStore.user?.id) return null
 
@@ -118,7 +119,8 @@ export function useShopping() {
           budget_limit: data.budgetLimit,
           special_instructions: data.specialInstructions || null,
           service_fee: serviceFee,
-          status: 'pending'
+          status: 'pending',
+          reference_images: data.referenceImages || null
         })
         .select()
         .single()

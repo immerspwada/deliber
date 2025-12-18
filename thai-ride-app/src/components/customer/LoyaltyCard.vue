@@ -100,12 +100,18 @@ const handleClick = () => {
   position: relative;
   width: 100%;
   padding: 0;
+  min-height: 88px; /* Touch target optimization */
   background: transparent;
   border: 2px solid #FFD700;
   border-radius: 18px;
   cursor: pointer;
   overflow: hidden;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .loyalty-card:hover {
@@ -115,6 +121,19 @@ const handleClick = () => {
 
 .loyalty-card:active {
   transform: scale(0.98);
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .loyalty-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .loyalty-card:active {
+    transform: scale(0.98);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+  }
 }
 
 .card-bg {

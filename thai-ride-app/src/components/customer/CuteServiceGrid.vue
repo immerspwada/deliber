@@ -202,11 +202,17 @@ const handleClick = (service: Service) => {
   align-items: center;
   gap: 10px;
   padding: 16px 8px;
+  min-height: 100px; /* Touch target min 44px, but card needs more */
   background: #FFFFFF;
   border: 2px solid #F5F5F5;
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .service-item:hover {
@@ -220,6 +226,20 @@ const handleClick = (service: Service) => {
   transform: scale(0.95);
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, white);
+}
+
+/* Touch active state for mobile */
+@media (hover: none) {
+  .service-item:active {
+    transform: scale(0.95);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, white);
+  }
+  
+  .service-item:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 .service-badge {

@@ -100,12 +100,18 @@ const handleClick = () => {
   position: relative;
   width: 100%;
   padding: 0;
+  min-height: 84px; /* Touch target optimization */
   background: transparent;
   border: none;
   border-radius: 18px;
   cursor: pointer;
   overflow: hidden;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .promo-banner:hover {
@@ -115,6 +121,19 @@ const handleClick = () => {
 
 .promo-banner.pressed {
   transform: scale(0.98);
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .promo-banner:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .promo-banner.pressed {
+    transform: scale(0.98);
+    box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2);
+  }
 }
 
 .banner-bg {

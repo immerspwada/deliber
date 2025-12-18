@@ -81,6 +81,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/services',
     name: 'CustomerServices',
+    component: () => import('../views/CustomerServicesView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/services-legacy',
+    name: 'CustomerServicesLegacy',
     component: () => import('../views/ServicesView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
@@ -95,7 +101,7 @@ export const routes: RouteRecordRaw[] = [
     path: '/customer/delivery',
     name: 'CustomerDelivery',
     component: () => import('../views/DeliveryView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
   },
   {
     path: '/customer/shopping',
@@ -292,6 +298,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider/bank',
     name: 'ProviderBank',
     component: () => import('../views/provider/ProviderBankView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/performance',
+    name: 'ProviderPerformance',
+    component: () => import('../views/provider/ProviderPerformanceView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {

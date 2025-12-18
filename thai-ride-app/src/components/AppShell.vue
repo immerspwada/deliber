@@ -31,7 +31,21 @@ const isActive = (path: string) => {
 }
 
 const showHeader = computed(() => {
-  return !['/customer', '/login', '/register'].includes(route.path)
+  // Pages that have their own header (exact match only)
+  const pagesWithOwnHeader = [
+    '/customer',
+    '/login',
+    '/register',
+    '/customer/queue-booking',
+    '/customer/moving',
+    '/customer/laundry',
+    '/customer/delivery',
+    '/customer/saved-places',
+    '/customer/profile'
+  ]
+  // Normalize path (remove trailing slash)
+  const normalizedPath = route.path.replace(/\/$/, '') || '/'
+  return !pagesWithOwnHeader.includes(normalizedPath)
 })
 
 // Full screen pages that handle their own layout (no padding-bottom needed)
@@ -125,6 +139,7 @@ const goBack = () => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: var(--color-background);
 }
 
@@ -202,7 +217,6 @@ const goBack = () => {
 
 .main-content.full-screen {
   padding-bottom: 0;
-  overflow: hidden;
 }
 
 /* Bottom Navigation */

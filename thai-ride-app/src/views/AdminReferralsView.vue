@@ -87,7 +87,7 @@ const filteredReferrals = computed(() => {
 const fetchReferralCodes = async () => {
   try {
     const { data } = await (supabase.from('referral_codes') as any)
-      .select('*, user:users(name, email)')
+      .select('*, user:users!referral_codes_user_id_fkey(name, email)')
       .order('usage_count', { ascending: false })
     referralCodes.value = data || []
   } catch (err) {
@@ -98,7 +98,7 @@ const fetchReferralCodes = async () => {
 const fetchReferrals = async () => {
   try {
     const { data } = await (supabase.from('referrals') as any)
-      .select('*, referrer:referrer_id(name, email), referee:referee_id(name, email)')
+      .select('*, referrer:users!referrals_referrer_id_fkey(name, email), referee:users!referrals_referee_id_fkey(name, email)')
       .order('created_at', { ascending: false })
     referrals.value = data || []
   } catch (err) {

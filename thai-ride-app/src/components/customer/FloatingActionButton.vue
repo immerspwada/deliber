@@ -88,6 +88,11 @@ const handleClick = () => {
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 168, 107, 0.35);
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .fab.small {
@@ -112,6 +117,19 @@ const handleClick = () => {
 
 .fab.pressed {
   transform: scale(0.95);
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .fab:hover {
+    transform: none;
+    box-shadow: 0 4px 16px rgba(0, 168, 107, 0.35);
+  }
+  
+  .fab.pressed {
+    transform: scale(0.95);
+    box-shadow: 0 2px 8px rgba(0, 168, 107, 0.25);
+  }
 }
 
 /* Pulse Animation */

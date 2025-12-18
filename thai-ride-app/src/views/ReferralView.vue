@@ -199,7 +199,7 @@ const goBack = () => router.back()
 .hero-card {
   text-align: center;
   padding: 24px;
-  background: #000;
+  background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%);
   color: #fff;
   border-radius: 16px;
   margin-bottom: 20px;
@@ -285,14 +285,20 @@ const goBack = () => router.back()
   justify-content: center;
   gap: 8px;
   padding: 16px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  transition: background 0.2s;
+}
+
+.share-btn:active {
+  background: #008F5B;
 }
 
 .share-btn svg {
@@ -316,7 +322,7 @@ const goBack = () => router.back()
 }
 
 .stat-card.highlight {
-  background: #000;
+  background: #00A86B;
   color: #fff;
 }
 
@@ -361,7 +367,7 @@ const goBack = () => router.back()
 .step-num {
   width: 32px;
   height: 32px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border-radius: 50%;
   display: flex;
@@ -403,7 +409,7 @@ const goBack = () => router.back()
   width: 32px;
   height: 32px;
   border: 3px solid #E5E5E5;
-  border-top-color: #000;
+  border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -471,7 +477,7 @@ const goBack = () => router.back()
 }
 
 .ref-status.completed {
-  color: #000;
+  color: #00A86B;
   font-weight: 600;
 }
 

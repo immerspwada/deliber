@@ -11,6 +11,7 @@ export interface SavedPlace {
   lat: number
   lng: number
   place_type: 'home' | 'work' | 'other'
+  sort_order?: number
 }
 
 export interface RecentPlace {
@@ -153,6 +154,7 @@ export function useServices() {
         .select('*')
         .eq('user_id', authStore.user!.id)
         .order('place_type', { ascending: true })
+        .order('sort_order', { ascending: true })
         .abortSignal(controller.signal)
 
       clearTimeout(timeoutId)
@@ -183,6 +185,7 @@ export function useServices() {
         .select('*')
         .eq('user_id', authStore.user!.id)
         .order('place_type', { ascending: true })
+        .order('sort_order', { ascending: true })
 
       if (data) {
         savedPlaces.value = data
@@ -411,6 +414,48 @@ export function useServices() {
     }
   }
 
+  // Update sort order for saved places (drag-and-drop reordering)
+  const updatePlacesSortOrder = async (placeIds: string[], sortOrders: number[]): Promise<boolean> => {
+    if (!authStore.user?.id) return false
+    if (placeIds.length !== sortOrders.length) return false
+
+    // Demo mode - save to localStorage
+    const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+    if (isDemoMode || authStore.user.id.startsWith('user-')) {
+      try {
+        const places = getPlacesFromLocalStorage()
+        placeIds.forEach((id, index) => {
+          const place = places.find((p: any) => p.id === id)
+          if (place) {
+            place.sort_order = sortOrders[index]
+          }
+        })
+        // Sort and save back
+        places.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+        localStorage.setItem('demo_saved_places', JSON.stringify(places))
+        await fetchSavedPlaces()
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    try {
+      const { error: rpcError } = await (supabase.rpc as any)('update_places_sort_order', {
+        p_user_id: authStore.user.id,
+        p_place_ids: placeIds,
+        p_sort_orders: sortOrders
+      })
+
+      if (rpcError) throw rpcError
+      await fetchSavedPlaces()
+      return true
+    } catch (err: any) {
+      error.value = err.message
+      return false
+    }
+  }
+
   // Validate promo code
   const validatePromoCode = async (code: string, orderAmount: number): Promise<PromoValidation> => {
     try {
@@ -614,6 +659,7 @@ export function useServices() {
     addRecentPlace,
     savePlace,
     deletePlace,
+    updatePlacesSortOrder,
     validatePromoCode,
     usePromoCode,
     createRide,

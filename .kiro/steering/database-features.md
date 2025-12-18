@@ -266,6 +266,13 @@
 | **F170** | Provider Incentives | `useProviderIncentives.ts`, `ProviderIncentivesView.vue`, `AdminIncentivesView.vue` | `provider_incentives`, `provider_incentive_progress` | 042 |
 | **F171** | Service Quality Metrics | `useServiceQuality.ts` | `service_quality_metrics` | 043 |
 
+### Delivery Enhancements (F03 Extensions)
+
+| รหัส | ฟีเจอร์ | Composable/Component | ตาราง DB | Migration |
+|------|---------|---------------------|----------|-----------|
+| **F03a** | Delivery Proof Photo | `useProvider.ts` → `uploadDeliveryProof()`, `DeliveryProofCapture.vue` | `delivery_requests` (delivery_proof_photo, delivery_proof_lat, delivery_proof_lng, delivery_proof_timestamp, pickup_proof_*) | 051 |
+| **F03b** | Image Quality Selector | `useDelivery.ts` → `compressImage()`, `QUALITY_PRESETS` | - | - |
+
 ### Performance Optimization (F172-F201)
 
 | รหัส | ฟีเจอร์ | Composable/Component | รายละเอียด |

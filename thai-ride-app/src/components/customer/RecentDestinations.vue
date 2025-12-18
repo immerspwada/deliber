@@ -112,7 +112,8 @@ const handleSeeAll = () => {
 }
 
 .see-all-btn {
-  padding: 6px 12px;
+  padding: 8px 14px;
+  min-height: 44px; /* Touch target min 44px */
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -121,6 +122,11 @@ const handleSeeAll = () => {
   color: #00A86B;
   cursor: pointer;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .see-all-btn:hover {
@@ -129,6 +135,7 @@ const handleSeeAll = () => {
 
 .see-all-btn:active {
   transform: scale(0.95);
+  background: #D4EDE3;
 }
 
 /* Empty State */
@@ -177,12 +184,18 @@ const handleSeeAll = () => {
   gap: 14px;
   width: 100%;
   padding: 14px 16px;
+  min-height: 68px; /* Touch target optimization */
   background: #FFFFFF;
   border: 2px solid #F5F5F5;
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
   transition: all 0.2s ease;
+  /* Touch optimizations */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .destination-item:hover {
@@ -192,6 +205,21 @@ const handleSeeAll = () => {
 
 .destination-item:active {
   transform: scale(0.98);
+  border-color: #E53935;
+  background: #FFEBEE;
+}
+
+/* Touch-specific styles */
+@media (hover: none) {
+  .destination-item:hover {
+    border-color: #F5F5F5;
+    background: #FFFFFF;
+  }
+  
+  .destination-item:active {
+    border-color: #E53935;
+    background: #FFEBEE;
+  }
 }
 
 .dest-icon {

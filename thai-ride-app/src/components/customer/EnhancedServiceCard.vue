@@ -209,6 +209,7 @@ const handleClick = () => {
   gap: 14px;
   width: 100%;
   padding: 16px;
+  min-height: 88px; /* Touch target optimization */
   background: #FFFFFF;
   border: 2px solid #F0F0F0;
   border-radius: 16px;
@@ -216,7 +217,11 @@ const handleClick = () => {
   text-align: left;
   overflow: hidden;
   transition: all 0.2s ease;
+  /* Touch optimizations */
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .service-card:hover:not(.disabled) {

@@ -12,6 +12,7 @@ import { useWallet } from '../composables/useWallet'
 import { useSearchHistory } from '../composables/useSearchHistory'
 import { useServices } from '../composables/useServices'
 import { useRideStore } from '../stores/ride'
+import { useRideHistory } from '../composables/useRideHistory'
 import { useToast } from '../composables/useToast'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -37,6 +38,7 @@ const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } = useLoyalt
 const { balance, fetchBalance } = useWallet()
 const { history: recentPlaces, fetchHistory: fetchRecentPlaces } = useSearchHistory()
 const { homePlace, workPlace, fetchSavedPlaces } = useServices()
+const { unratedRidesCount, fetchUnratedRides } = useRideHistory()
 
 // State
 const isLoaded = ref(false)
@@ -318,6 +320,7 @@ onMounted(async () => {
     fetchBalance().catch(() => {}),
     fetchRecentPlaces().catch(() => {}),
     fetchSavedPlaces().catch(() => {}),
+    fetchUnratedRides().catch(() => {}),
     fetchActiveOrders()
   ])
   
@@ -457,6 +460,7 @@ onUnmounted(() => {
     <!-- Bottom Navigation -->
     <BottomNavigation
       active-tab="home"
+      :history-badge="unratedRidesCount"
       @navigate="navigateTo"
     />
   </div>
