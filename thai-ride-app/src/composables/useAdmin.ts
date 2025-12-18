@@ -2673,6 +2673,14 @@ export {
   updateServiceConfiguration,
   // Performance Monitoring
   fetchPerformanceMetrics,
+  fetchPerformanceSummary,
+  fetchPerformanceAlerts,
+  acknowledgePerformanceAlert,
+  resolvePerformanceAlert,
+  fetchSlowApiEndpoints,
+  fetchPerformanceThresholds,
+  updatePerformanceThreshold,
+  recordPerformanceMetrics,
   getSystemHealth,
   updatePerformanceThresholds,
   // Error Recovery

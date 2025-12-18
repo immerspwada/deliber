@@ -296,7 +296,21 @@ const unreadNotifications = computed(() =>
 )
 
 // Menu configuration
-const menuSections = ref([
+type BadgeStatus = 'success' | 'error' | 'warning' | 'info' | 'pending' | 'active' | 'neutral' | 'inactive'
+
+interface MenuItem {
+  path: string
+  label: string
+  icon: { template: string }
+  badge?: { text: string; status: BadgeStatus }
+}
+
+interface MenuSection {
+  title: string
+  items: MenuItem[]
+}
+
+const menuSections = ref<MenuSection[]>([
   {
     title: 'หลัก',
     items: [
@@ -310,7 +324,7 @@ const menuSections = ref([
     items: [
       { path: '/admin/users', label: 'ผู้ใช้งาน', icon: { template: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>' } },
       { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: { template: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 17h14v-5H5v5zM19 12l-2-6H7L5 12"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>' } },
-      { path: '/admin/orders', label: 'ออเดอร์', icon: { template: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>' }, badge: { text: '12', status: 'warning' } }
+      { path: '/admin/orders', label: 'ออเดอร์', icon: { template: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>' }, badge: { text: '12', status: 'warning' as BadgeStatus } }
     ]
   }
 ])

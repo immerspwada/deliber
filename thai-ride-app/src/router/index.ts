@@ -69,6 +69,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer',
     name: 'CustomerHome',
+    component: () => import('../views/CustomerHomeView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/home-legacy',
+    name: 'CustomerHomeLegacy',
     component: () => import('../views/HomeView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
@@ -78,12 +84,7 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/ServicesView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
-  {
-    path: '/customer/services-enhanced',
-    name: 'CustomerServicesEnhanced',
-    component: () => import('../views/EnhancedServicesView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
+
   {
     path: '/customer/ride',
     name: 'CustomerRide',
@@ -580,12 +581,7 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/AdminSystemHealthView.vue'),
     meta: { requiresAuth: true, isAdminRoute: true }
   },
-  {
-    path: '/admin/service-health',
-    name: 'AdminServiceHealth',
-    component: () => import('../views/AdminServiceHealthView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
+
   {
     path: '/admin/analytics-events',
     name: 'AdminAnalyticsEvents',

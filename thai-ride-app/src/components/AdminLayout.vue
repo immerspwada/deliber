@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { AdminButton, AdminStatusBadge } from './admin'
+import { useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()

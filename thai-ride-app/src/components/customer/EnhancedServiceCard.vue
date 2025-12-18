@@ -50,12 +50,15 @@ const handleTouchStart = (e: TouchEvent | MouseEvent) => {
   const rect = target.getBoundingClientRect()
   
   let x: number, y: number
-  if ('touches' in e) {
+  if ('touches' in e && e.touches[0]) {
     x = e.touches[0].clientX - rect.left
     y = e.touches[0].clientY - rect.top
-  } else {
+  } else if ('clientX' in e) {
     x = e.clientX - rect.left
     y = e.clientY - rect.top
+  } else {
+    x = rect.width / 2
+    y = rect.height / 2
   }
   
   rippleStyle.value = { left: `${x}px`, top: `${y}px` }

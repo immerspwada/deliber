@@ -2,26 +2,33 @@
  * Customer Components - Enhanced UX Components
  * 
  * Centralized exports for all customer-facing enhanced components
- * Features: haptic feedback, smart suggestions, progressive loading, micro-interactions
+ * Features: haptic feedback, progressive loading, micro-interactions
  */
 
 // Core Enhanced Components
-export { default as SmartLocationInput } from './SmartLocationInput.vue'
 export { default as ProgressiveLoadingOverlay } from './ProgressiveLoadingOverlay.vue'
 export { default as EnhancedServiceCard } from './EnhancedServiceCard.vue'
 export { default as PullToRefresh } from './PullToRefresh.vue'
 export { default as EmptyState } from './EmptyState.vue'
 
+// Cute Customer Components (New)
+export { default as WelcomeHeader } from './WelcomeHeader.vue'
+export { default as QuickDestinationSearch } from './QuickDestinationSearch.vue'
+export { default as CuteServiceGrid } from './CuteServiceGrid.vue'
+export { default as ActiveOrderCard } from './ActiveOrderCard.vue'
+export { default as SavedPlacesRow } from './SavedPlacesRow.vue'
+export { default as QuickShortcuts } from './QuickShortcuts.vue'
+export { default as PromoBanner } from './PromoBanner.vue'
+export { default as RecentDestinations } from './RecentDestinations.vue'
+export { default as ProviderCTA } from './ProviderCTA.vue'
+export { default as BottomNavigation } from './BottomNavigation.vue'
+export { default as LoyaltyCard } from './LoyaltyCard.vue'
+export { default as FloatingActionButton } from './FloatingActionButton.vue'
+
 // Re-export composables for convenience
 export { useHapticFeedback } from '../../composables/useHapticFeedback'
-export { useSmartSuggestions } from '../../composables/useSmartSuggestions'
-export { useProgressiveLoading } from '../../composables/useProgressiveLoading'
-export { useSwipeGestures, useSwipeNavigation, useSwipeToAction } from '../../composables/useSwipeGestures'
 
 // Type exports
-export type { SmartSuggestion, TimeContext } from '../../composables/useSmartSuggestions'
-export type { LoadingStep, LoadingState } from '../../composables/useProgressiveLoading'
-export type { SwipeDirection, SwipeState, SwipeOptions, SwipeHandlers } from '../../composables/useSwipeGestures'
 export type { HapticType } from '../../composables/useHapticFeedback'
 
 // Utility functions

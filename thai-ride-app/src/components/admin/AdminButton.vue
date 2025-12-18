@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useSlots } from 'vue'
 
 interface Props {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success' | 'warning'
@@ -62,6 +62,8 @@ const emit = defineEmits<{
   click: [event: MouseEvent]
 }>()
 
+const slots = useSlots()
+
 const buttonClasses = computed(() => [
   'admin-button',
   `variant-${props.variant}`,
@@ -70,7 +72,7 @@ const buttonClasses = computed(() => [
     'full-width': props.fullWidth,
     'rounded': props.rounded,
     'loading': props.loading,
-    'icon-only': props.icon && !props.$slots.default
+    'icon-only': props.icon && !slots.default
   }
 ])
 

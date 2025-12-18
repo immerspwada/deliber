@@ -20,11 +20,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 
-import { RideService } from '../services/RideService'
 import { useRequestDedup, RequestKeys } from '../composables/useRequestDedup'
 import { rideLogger as logger } from '../utils/logger'
 import { fromSupabaseError, handleError } from '../utils/errorHandling'
-import type { RideRequest, RideRequestInsert, ServiceProvider } from '../types/database'
+import type { RideRequest, ServiceProvider } from '../types/database'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface Location {
@@ -60,7 +59,6 @@ export const useRideStore = defineStore('ride', () => {
   
 
   const { dedupRequest } = useRequestDedup()
-  const rideService = new RideService()
 
   const hasActiveRide = computed(() => 
     currentRide.value && 
@@ -217,29 +215,43 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
-      const result = await rideService.createRide({
-        userId,
-        pickup,
-        destination,
-        rideType,
-        passengerCount,
-        specialRequests
-      })
+      // Calculate distance and fare
+      const distanceKm = calculateDistance(
+        pickup.lat, pickup.lng,
+        destination.lat, destination.lng
+      )
+      const estimatedFare = calculateFare(distanceKm, rideType)
       
-      if (!result.success) {
-        throw new Error(result.error.message)
+      // Create ride request directly with supabase
+      const { data: rideData, error: insertError } = await supabase
+        .from('ride_requests')
+        .insert({
+          user_id: userId,
+          pickup_lat: pickup.lat,
+          pickup_lng: pickup.lng,
+          pickup_address: pickup.address,
+          destination_lat: destination.lat,
+          destination_lng: destination.lng,
+          destination_address: destination.address,
+          ride_type: rideType,
+          passenger_count: passengerCount,
+          special_requests: specialRequests,
+          estimated_fare: estimatedFare,
+          status: 'pending'
+        })
+        .select()
+        .single()
+      
+      if (insertError) {
+        throw insertError
       }
       
-      // Get the created ride data
-      const rideResult = await rideService.rideRepository.findById(result.data.rideId)
-      if (rideResult.success && rideResult.data) {
-        currentRide.value = rideResult.data
-        
-        // Subscribe to ride updates
-        subscribeToRideUpdates(result.data.rideId)
-      }
+      currentRide.value = rideData
       
-      return result.data
+      // Subscribe to ride updates
+      subscribeToRideUpdates(rideData.id)
+      
+      return { rideId: rideData.id, estimatedFare }
     } catch (err) {
       const appError = handleError(err)
       error.value = appError.message

@@ -166,16 +166,7 @@ watch(packageType, () => {
 
 <template>
   <div class="page-container">
-    <div class="content-container">
-      <div class="page-header">
-        <button @click="router.back()" class="back-btn">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <h1 class="page-title">ส่งของ</h1>
-      </div>
-
+    <div class="content-container content-with-header">
       <!-- Sender Section -->
       <div class="card form-card">
         <div class="card-header">
@@ -320,32 +311,8 @@ watch(packageType, () => {
 </template>
 
 <style scoped>
-.page-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 0;
-}
-
-.back-btn {
-  width: 40px;
-  height: 40px;
-  background: none;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.back-btn svg {
-  width: 24px;
-  height: 24px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
+.content-with-header {
+  padding-top: 16px;
 }
 
 .form-card {
