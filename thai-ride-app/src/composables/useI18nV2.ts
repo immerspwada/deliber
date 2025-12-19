@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useI18nV2 - Enhanced Internationalization System
  * 

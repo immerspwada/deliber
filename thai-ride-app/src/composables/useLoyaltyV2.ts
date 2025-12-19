@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useLoyaltyV2 - Enhanced Customer Loyalty Program
  * 

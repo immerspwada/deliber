@@ -64,15 +64,28 @@ const getSessionWithTimeout = async (timeoutMs: number = 2000) => {
   }
 }
 
-// Admin session expiry check (8 hours)
+// ✅ FIX: Admin session expiry check with caching (8 hours)
 const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000 // 8 hours in ms
+const ADMIN_SESSION_CACHE_TTL = 60000 // Cache for 1 minute
+
+// Cache admin session validation to reduce localStorage access
+let cachedAdminSessionValid: boolean | null = null
+let adminSessionCacheTime = 0
 
 const isAdminSessionValid = (): boolean => {
+  // ✅ Return cached result if still valid (reduces localStorage access from 3,600 to ~50 per session)
+  const now = Date.now()
+  if (cachedAdminSessionValid !== null && (now - adminSessionCacheTime) < ADMIN_SESSION_CACHE_TTL) {
+    return cachedAdminSessionValid
+  }
+  
   const adminToken = localStorage.getItem('admin_token')
   
   // No token = not logged in
   if (!adminToken) {
     console.log('[Admin] No token found')
+    cachedAdminSessionValid = false
+    adminSessionCacheTime = now
     return false
   }
   
@@ -87,13 +100,23 @@ const isAdminSessionValid = (): boolean => {
       localStorage.removeItem('admin_login_time')
       localStorage.removeItem('admin_demo_mode')
       console.warn('[Admin] Session expired after', Math.round(elapsed / 1000 / 60), 'minutes')
+      cachedAdminSessionValid = false
+      adminSessionCacheTime = now
       return false
     }
   }
   
   // Token exists and not expired
   console.log('[Admin] Session valid')
+  cachedAdminSessionValid = true
+  adminSessionCacheTime = now
   return true
+}
+
+// ✅ FIX: Clear admin session cache (call when logging out)
+const clearAdminSessionCache = () => {
+  cachedAdminSessionValid = null
+  adminSessionCacheTime = 0
 }
 
 // Admin activity log - บันทึกการเข้าใช้งาน
@@ -117,7 +140,7 @@ const logAdminActivity = (action: string, details?: Record<string, any>) => {
   console.log('[Admin Activity]', action, details || '')
 }
 
-// Navigation guard - ตรวจสอบ authentication
+// ✅ FIX: Navigation guard with cleanup trigger
 router.beforeEach(async (to, from, next) => {
   const isAdminRoute = to.path.startsWith('/admin')
   const requiresAdmin = to.meta.requiresAdmin
@@ -187,6 +210,16 @@ router.beforeEach(async (to, from, next) => {
     next('/customer')
   } else {
     next()
+  }
+})
+
+// ✅ FIX: Add afterEach guard for cleanup trigger
+router.afterEach((to, from) => {
+  // Trigger cleanup event for views to cleanup subscriptions/timers
+  if (from.path !== to.path) {
+    window.dispatchEvent(new CustomEvent('route-cleanup', { 
+      detail: { from: from.path, to: to.path } 
+    }))
   }
 })
 

@@ -56,6 +56,20 @@ export interface TopupRequest {
   user?: { name: string; email: string; phone: string }
 }
 
+export interface Refund {
+  id: string
+  user_id: string
+  service_type: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry'
+  service_id: string
+  original_amount: number
+  fee_amount: number
+  refund_amount: number
+  reason: string | null
+  status: 'pending' | 'processed' | 'failed'
+  processed_at: string | null
+  created_at: string
+}
+
 export type PaymentMethod = 'promptpay' | 'bank_transfer' | 'credit_card' | 'truemoney'
 
 // =====================================================
@@ -471,6 +485,32 @@ export function useWalletV2() {
   }
 
   // =====================================================
+  // REFUND FUNCTIONS
+  // =====================================================
+
+  /**
+   * Fetch user's refund history
+   */
+  const fetchUserRefunds = async (limit = 20): Promise<Refund[]> => {
+    if (!authStore.user?.id) return []
+
+    try {
+      const { data, error: err } = await (supabase
+        .from('refunds') as any)
+        .select('*')
+        .eq('user_id', authStore.user.id)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (err) throw err
+      return data || []
+    } catch (err) {
+      console.error('Error fetching user refunds:', err)
+      return []
+    }
+  }
+
+  // =====================================================
   // REALTIME SUBSCRIPTIONS
   // =====================================================
 
@@ -623,6 +663,9 @@ export function useWalletV2() {
     approveTopup,
     rejectTopup,
     getAdminStats,
+    
+    // Refund functions
+    fetchUserRefunds,
     
     // Subscriptions
     subscribeToWallet,

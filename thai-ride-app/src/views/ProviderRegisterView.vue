@@ -22,8 +22,7 @@ const error = ref('')
 const step = ref(1)
 const showSuccess = ref(false)
 
-// Form data
-const selectedType = ref<'driver' | 'rider'>('driver')
+// Form data - ไม่ต้องเลือกประเภทงานแล้ว Admin จะเปิดสิทธิ์ให้ทีหลัง
 const vehicleType = ref('')
 const vehicleBrand = ref('')
 const vehicleModel = ref('')
@@ -52,26 +51,22 @@ const isProcessingOCR = ref(false)
 const ocrStatus = ref('')
 const uploadProgress = ref(0)
 
-// Steps config
+// Steps config - 3 ขั้นตอน (ไม่ต้องเลือกประเภทงาน)
 const steps = [
-  { num: 1, title: 'ประเภท', icon: 'user' },
-  { num: 2, title: 'ยานพาหนะ', icon: 'car' },
-  { num: 3, title: 'ข้อมูล', icon: 'id' },
-  { num: 4, title: 'เอกสาร', icon: 'doc' }
+  { num: 1, title: 'ยานพาหนะ', icon: 'car' },
+  { num: 2, title: 'ข้อมูล', icon: 'id' },
+  { num: 3, title: 'เอกสาร', icon: 'doc' }
 ]
 
-// Vehicle options
-const vehicleOptions = {
-  driver: [
-    { value: 'car', label: 'รถยนต์' },
-    { value: 'suv', label: 'รถ SUV' },
-    { value: 'van', label: 'รถตู้' }
-  ],
-  rider: [
-    { value: 'motorcycle', label: 'มอเตอร์ไซค์' },
-    { value: 'bicycle', label: 'จักรยาน' }
-  ]
-}
+// Vehicle options - รวมทุกประเภท
+const vehicleOptions = [
+  { value: 'motorcycle', label: 'มอเตอร์ไซค์' },
+  { value: 'car', label: 'รถยนต์' },
+  { value: 'suv', label: 'รถ SUV' },
+  { value: 'van', label: 'รถตู้' },
+  { value: 'pickup', label: 'รถกระบะ' },
+  { value: 'bicycle', label: 'จักรยาน' }
+]
 
 const colorOptions = [
   { value: 'black', label: 'ดำ', color: '#1A1A1A' },
@@ -83,7 +78,7 @@ const colorOptions = [
   { value: 'other', label: 'อื่นๆ', color: '#9E9E9E' }
 ]
 
-const currentVehicleOptions = computed(() => vehicleOptions[selectedType.value])
+// ใช้ vehicleOptions โดยตรง (ไม่ต้อง filter ตาม type แล้ว)
 
 // Thai ID validation
 watch(nationalId, (value) => {
@@ -122,23 +117,24 @@ const formattedNationalId = computed(() => {
   return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10, 12)}-${id.slice(12)}`
 })
 
-// Validations
-const canProceedStep1 = computed(() => !!selectedType.value)
-const canProceedStep2 = computed(() => 
+// Validations - 3 ขั้นตอน
+const canProceedStep1 = computed(() => 
   vehicleType.value && 
   vehicleBrand.value.trim().length >= 2 &&
   vehicleModel.value.trim().length >= 1 &&
   vehiclePlate.value.trim().length >= 4 &&
   vehicleColor.value
 )
-const canProceedStep3 = computed(() => 
+const canProceedStep2 = computed(() => 
   licenseNumber.value.trim().length >= 6 &&
   licenseExpiry.value &&
   nationalIdValid.value
 )
-const canSubmit = computed(() => 
+const canProceedStep3 = computed(() => 
   idCardFile.value && licenseFile.value && vehicleFile.value && acceptTerms.value
 )
+// canSubmit = canProceedStep3 สำหรับ step สุดท้าย
+const canSubmit = canProceedStep3
 
 // Image compression
 const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<File> => {
@@ -280,13 +276,13 @@ const uploadToStorage = async (file: File, path: string): Promise<string> => {
   return urlData.publicUrl
 }
 
-// Navigation
+// Navigation - 3 ขั้นตอน
 const nextStep = () => {
   error.value = ''
   haptic.light()
   if (step.value === 1 && canProceedStep1.value) step.value = 2
   else if (step.value === 2 && canProceedStep2.value) step.value = 3
-  else if (step.value === 3 && canProceedStep3.value) step.value = 4
+  // step 3 คือขั้นตอนสุดท้าย ไม่มี nextStep
 }
 
 const prevStep = () => {
@@ -340,7 +336,8 @@ const submitApplication = async () => {
     
     const { error: insertError } = await (supabase.from('service_providers') as any).insert({
       user_id: userId,
-      provider_type: selectedType.value,
+      provider_type: 'pending', // Admin จะเปิดสิทธิ์งานให้ทีหลัง
+      allowed_services: [], // Admin จะกำหนดว่าเห็นงานอะไรได้บ้าง
       vehicle_type: vehicleType.value,
       vehicle_plate: vehiclePlate.value,
       vehicle_color: vehicleColor.value,
@@ -478,97 +475,15 @@ onMounted(() => {
       </div>
 
       <div class="form-content">
-        <!-- Step 1: Select Type -->
+        <!-- Step 1: Vehicle Info (ไม่ต้องเลือกประเภทงานแล้ว) -->
         <div v-if="step === 1" class="step-content">
-          <h2 class="step-title">คุณต้องการเป็นอะไร?</h2>
-          <p class="step-desc">เลือกประเภทผู้ให้บริการที่ต้องการสมัคร</p>
-
-          <div class="type-cards">
-            <button @click="selectedType = 'driver'; haptic.light()"
-              :class="['type-card', { active: selectedType === 'driver' }]">
-              <div class="type-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="1" y="3" width="15" height="13" rx="2"/>
-                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-                  <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-                </svg>
-              </div>
-              <div class="type-info">
-                <span class="type-name">คนขับรถ</span>
-                <span class="type-desc">รับส่งผู้โดยสาร</span>
-              </div>
-              <div class="type-check">
-                <svg v-if="selectedType === 'driver'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-              </div>
-            </button>
-
-            <button @click="selectedType = 'rider'; haptic.light()"
-              :class="['type-card', { active: selectedType === 'rider' }]">
-              <div class="type-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/>
-                  <circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
-                </svg>
-              </div>
-              <div class="type-info">
-                <span class="type-name">ไรเดอร์</span>
-                <span class="type-desc">ส่งอาหาร ส่งพัสดุ</span>
-              </div>
-              <div class="type-check">
-                <svg v-if="selectedType === 'rider'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-              </div>
-            </button>
-          </div>
-
-          <div class="benefits-box">
-            <h4>สิทธิประโยชน์</h4>
-            <div class="benefit-item">
-              <span class="benefit-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                </svg>
-              </span>
-              รายได้ดี ถอนได้ทุกวัน
-            </div>
-            <div class="benefit-item">
-              <span class="benefit-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-              </span>
-              เลือกเวลาทำงานเอง
-            </div>
-            <div class="benefit-item">
-              <span class="benefit-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-              </span>
-              ประกันอุบัติเหตุฟรี
-            </div>
-          </div>
-
-          <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
-            ถัดไป
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Step 2: Vehicle Info -->
-        <div v-if="step === 2" class="step-content">
           <h2 class="step-title">ข้อมูลยานพาหนะ</h2>
           <p class="step-desc">กรอกข้อมูลรถที่จะใช้ให้บริการ</p>
 
           <div class="form-group">
             <label class="label">ประเภทยานพาหนะ</label>
             <div class="vehicle-btns">
-              <button v-for="opt in currentVehicleOptions" :key="opt.value"
+              <button v-for="opt in vehicleOptions" :key="opt.value"
                 @click="vehicleType = opt.value; haptic.light()"
                 :class="['vehicle-btn', { active: vehicleType === opt.value }]">
                 {{ opt.label }}
@@ -611,14 +526,16 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="btn-group">
-            <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-            <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">ถัดไป</button>
-          </div>
+          <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
+            ถัดไป
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
         </div>
 
-        <!-- Step 3: Personal Info -->
-        <div v-if="step === 3" class="step-content">
+        <!-- Step 2: Personal Info -->
+        <div v-if="step === 2" class="step-content">
           <h2 class="step-title">ข้อมูลส่วนตัว</h2>
           <p class="step-desc">กรอกข้อมูลเพื่อยืนยันตัวตน</p>
 
@@ -653,12 +570,12 @@ onMounted(() => {
 
           <div class="btn-group">
             <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-            <button @click="nextStep" :disabled="!canProceedStep3" class="btn-primary">ถัดไป</button>
+            <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">ถัดไป</button>
           </div>
         </div>
 
-        <!-- Step 4: Documents -->
-        <div v-if="step === 4" class="step-content">
+        <!-- Step 3: Documents -->
+        <div v-if="step === 3" class="step-content">
           <h2 class="step-title">อัพโหลดเอกสาร</h2>
           <p class="step-desc">อัพโหลดรูปเอกสารเพื่อยืนยันตัวตน</p>
 

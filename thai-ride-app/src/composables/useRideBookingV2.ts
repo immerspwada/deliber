@@ -866,12 +866,72 @@ function createRideBookingInstance() {
   // ============================================
   
   /**
-   * Cancel ride with optimistic update
+   * Calculate cancellation fee based on current status
    */
-  const cancelRide = async (reason?: string): Promise<boolean> => {
-    if (!currentRide.value) return false
+  const calculateCancellationFee = (): number => {
+    if (!currentRide.value) return 0
+    
+    const { status, estimatedFare } = currentRide.value
+    let feePercentage = 0
+    
+    switch (status) {
+      case 'pending':
+      case 'scheduled':
+        feePercentage = 0 // Free cancellation
+        break
+      case 'matched':
+        feePercentage = 0.30 // 30% fee
+        break
+      case 'pickup':
+        feePercentage = 0.50 // 50% fee (driver on the way)
+        break
+      case 'in_progress':
+        feePercentage = 1.00 // 100% (cannot cancel normally)
+        break
+      default:
+        feePercentage = 0
+    }
+    
+    let fee = Math.round(estimatedFare * feePercentage)
+    
+    // Minimum fee of 20 baht if there's any fee
+    if (fee > 0 && fee < 20) fee = 20
+    
+    // Maximum fee cap at 200 baht
+    if (fee > 200) fee = 200
+    
+    return fee
+  }
+  
+  /**
+   * Cancel ride with optimistic update, fee calculation, and refund
+   */
+  const cancelRide = async (reason?: string): Promise<{ success: boolean; fee: number; refund: number }> => {
+    // Validate current ride exists
+    if (!currentRide.value) {
+      error.value = 'ไม่พบข้อมูลการเดินทาง'
+      return { success: false, fee: 0, refund: 0 }
+    }
     
     const rideId = currentRide.value.id
+    
+    // Check if ride id is temporary (not yet saved to database)
+    if (rideId.startsWith('temp-')) {
+      // Just clear the local state - ride was never saved
+      cleanup()
+      triggerHaptic('medium')
+      return { success: true, fee: 0, refund: 0 }
+    }
+    
+    // Check if ride can be cancelled (only pending, matched, pickup statuses)
+    const cancellableStatuses = ['pending', 'matched', 'pickup', 'scheduled']
+    if (!cancellableStatuses.includes(currentRide.value.status)) {
+      error.value = `ไม่สามารถยกเลิกได้ สถานะปัจจุบัน: ${currentRide.value.status}`
+      return { success: false, fee: 0, refund: 0 }
+    }
+    
+    // Calculate fee before cancellation
+    const cancellationFee = calculateCancellationFee()
     
     // Optimistic update
     const previousRide = currentRide.value
@@ -879,29 +939,104 @@ function createRideBookingInstance() {
     triggerRef(currentRide)
     
     try {
-      const { error: cancelError } = await (supabase
-        .from('ride_requests') as any)
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancel_reason: reason || 'ลูกค้ายกเลิก',
-          cancelled_by: 'customer'
-        })
-        .eq('id', rideId)
+      // Try using the enhanced refund function first
+      const { data: refundData, error: refundError } = await (supabase.rpc as any)(
+        'cancel_ride_with_refund',
+        {
+          p_ride_id: rideId,
+          p_reason: reason || 'ลูกค้ายกเลิก',
+          p_cancelled_by: 'customer'
+        }
+      )
       
-      if (cancelError) throw cancelError
+      if (!refundError && refundData?.[0]) {
+        // Success with refund function
+        cleanup()
+        triggerHaptic('medium')
+        return { 
+          success: refundData[0].success, 
+          fee: refundData[0].cancellation_fee || 0,
+          refund: refundData[0].refund_amount || 0
+        }
+      }
+      
+      // Fallback to basic cancel function
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
+        'cancel_ride_with_fee',
+        {
+          p_ride_id: rideId,
+          p_reason: reason || 'ลูกค้ายกเลิก',
+          p_cancelled_by: 'customer'
+        }
+      )
+      
+      if (rpcError) {
+        // Fallback to direct update if function doesn't exist
+        console.warn('[cancelRide] RPC failed, using direct update:', rpcError)
+        
+        const { data, error: cancelError } = await (supabase
+          .from('ride_requests') as any)
+          .update({ 
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancel_reason: reason || 'ลูกค้ายกเลิก',
+            cancelled_by: 'customer',
+            cancellation_fee: cancellationFee
+          })
+          .eq('id', rideId)
+          .select()
+          .single()
+        
+        if (cancelError) throw cancelError
+        if (!data) throw new Error('ไม่พบข้อมูลการเดินทางในระบบ')
+      }
+      
+      // Notify provider if ride was matched
+      if (previousRide.providerId) {
+        try {
+          // Insert notification for provider
+          await (supabase.from('user_notifications') as any).insert({
+            user_id: previousRide.providerId,
+            title: 'งานถูกยกเลิก',
+            message: `ลูกค้ายกเลิกงาน: ${reason || 'ไม่ระบุเหตุผล'}`,
+            type: 'ride_cancelled',
+            data: { ride_id: rideId, reason: reason || 'ไม่ระบุเหตุผล' },
+            is_read: false
+          })
+          
+          // Queue push notification
+          await (supabase.from('push_notification_queue') as any).insert({
+            user_id: previousRide.providerId,
+            title: 'งานถูกยกเลิก',
+            body: `ลูกค้ายกเลิกงาน: ${reason || 'ไม่ระบุเหตุผล'}`,
+            data: { type: 'ride_cancelled', ride_id: rideId },
+            priority: 'high'
+          })
+        } catch (notifyErr) {
+          console.warn('[cancelRide] Failed to notify provider:', notifyErr)
+        }
+      }
       
       // Cleanup
       cleanup()
       triggerHaptic('medium')
-      return true
+      return { success: true, fee: cancellationFee, refund: 0 }
       
-    } catch (err) {
+    } catch (err: any) {
       // Rollback
       currentRide.value = previousRide
       triggerRef(currentRide)
-      error.value = handleError(err, 'cancelRide')
-      return false
+      
+      // Set specific error message
+      if (err.code === 'PGRST116') {
+        error.value = 'ไม่พบข้อมูลการเดินทางในระบบ'
+      } else if (err.message?.includes('violates row-level security')) {
+        error.value = 'ไม่มีสิทธิ์ยกเลิกการเดินทางนี้'
+      } else {
+        error.value = handleError(err, 'cancelRide')
+      }
+      
+      return { success: false, fee: 0, refund: 0 }
     }
   }
   
@@ -1155,6 +1290,7 @@ function createRideBookingInstance() {
     createRide,
     findAndMatchDriver,
     cancelRide,
+    calculateCancellationFee,
     submitRating,
     goToStep,
     goBack,

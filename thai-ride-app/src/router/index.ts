@@ -247,6 +247,12 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/LaundryView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
+  {
+    path: '/customer/become-provider',
+    name: 'BecomeProvider',
+    component: () => import('../views/BecomeProviderView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
+  },
   // Tracking Views for New Services
   {
     path: '/customer/queue-booking/:id',
@@ -273,6 +279,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/provider',
     name: 'ProviderDashboard',
+    component: () => import('../views/provider/ProviderDashboardV4.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider-legacy',
+    name: 'ProviderDashboardLegacy',
     component: () => import('../views/provider/ProviderDashboardView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
@@ -381,6 +393,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
+    path: '/admin/customers',
+    name: 'AdminCustomers',
+    component: () => import('../views/AdminCustomersView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
     path: '/admin/providers',
     name: 'AdminProviders',
     component: () => import('../views/AdminProvidersView.vue'),
@@ -390,6 +408,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/orders',
     name: 'AdminOrders',
     component: () => import('../views/AdminOrdersView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/cancellations',
+    name: 'AdminCancellations',
+    component: () => import('../views/AdminCancellationsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
@@ -467,6 +491,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/admin/settings',
     name: 'AdminSettings',
+    component: () => import('../views/AdminSettingsViewV2.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/settings-legacy',
+    name: 'AdminSettingsLegacy',
     component: () => import('../views/AdminSettingsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
@@ -528,6 +558,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/topup-requests',
     name: 'AdminTopupRequests',
     component: () => import('../views/AdminTopupRequestsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/refunds',
+    name: 'AdminRefunds',
+    component: () => import('../views/AdminRefundsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
@@ -641,5 +677,55 @@ export const routes: RouteRecordRaw[] = [
     name: 'AdminUXAnalytics',
     component: () => import('../views/AdminUXAnalyticsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
+  },
+
+  // ========================================
+  // Multi-Role Ride Booking System V3
+  // ========================================
+  {
+    path: '/admin/rides-v3',
+    name: 'AdminRideMonitoringV3',
+    component: () => import('../views/AdminRideMonitoringViewV3.vue'),
+    meta: { requiresAuth: true, isAdminRoute: true }
+  },
+  {
+    path: '/admin/rides/:id',
+    name: 'AdminRideDetailV3',
+    component: () => import('../views/AdminRideDetailViewV3.vue'),
+    meta: { requiresAuth: true, isAdminRoute: true }
+  },
+  {
+    path: '/admin/provider-cancellations-v3',
+    name: 'AdminProviderCancellationsV3',
+    component: () => import('../views/AdminProviderCancellationsViewV3.vue'),
+    meta: { requiresAuth: true, isAdminRoute: true }
+  },
+
+  // Customer V3 Routes
+  {
+    path: '/customer/ride-booking-v3',
+    name: 'RideBookingV3',
+    component: () => import('../views/RideBookingViewV3.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/ride-tracking-v3/:rideId',
+    name: 'RideTrackingV3',
+    component: () => import('../views/RideTrackingViewV3.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+
+  // Provider V3 Routes
+  {
+    path: '/provider/available-rides-v3',
+    name: 'ProviderAvailableRidesV3',
+    component: () => import('../views/provider/ProviderAvailableRidesV3.vue'),
+    meta: { requiresAuth: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/active-ride-v3',
+    name: 'ProviderActiveRideV3',
+    component: () => import('../views/provider/ProviderActiveRideV3.vue'),
+    meta: { requiresAuth: true, isProviderRoute: true }
   }
 ]

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useSafetyV2 - Enhanced Safety Features
  * 

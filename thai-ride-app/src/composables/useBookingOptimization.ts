@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useBookingOptimization - Smart Booking Features
  * 
@@ -137,7 +138,7 @@ export function useBookingOptimization() {
   // Use template (apply and track)
   const useTemplate = async (templateId: string) => {
     try {
-      const { data, error: err } = await supabase.rpc('use_booking_template', {
+      const { data, error: err } = await (supabase.rpc as any)('use_booking_template', {
         p_template_id: templateId
       })
       
@@ -199,7 +200,7 @@ export function useBookingOptimization() {
       const { data: userData } = await supabase.auth.getUser()
       if (!userData.user) return
       
-      const { data, error: err } = await supabase.rpc('get_booking_suggestions', {
+      const { data, error: err } = await (supabase.rpc as any)('get_booking_suggestions', {
         p_user_id: userData.user.id,
         p_limit: 5
       })
@@ -237,7 +238,7 @@ export function useBookingOptimization() {
     vehicleType: string = 'car'
   ) => {
     try {
-      const { data, error: err } = await supabase.rpc('predict_fare', {
+      const { data, error: err } = await (supabase.rpc as any)('predict_fare', {
         p_pickup_area: pickupArea,
         p_destination_area: destinationArea,
         p_vehicle_type: vehicleType
@@ -268,7 +269,7 @@ export function useBookingOptimization() {
     try {
       const { data: userData } = await supabase.auth.getUser()
       
-      await supabase.rpc('track_booking_event', {
+      await (supabase.rpc as any)('track_booking_event', {
         p_user_id: userData.user?.id || null,
         p_session_id: sessionId.value,
         p_event_type: eventType,

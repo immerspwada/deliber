@@ -23,12 +23,14 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { AdminModal, AdminButton, AdminStatusBadge } from '../components/admin'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { supabase } from '../lib/supabase'
 
 // Type assertion helper for Supabase
 const db = supabase as any
 
 const { loading } = useAdmin()
+const { addSubscription, addCleanup } = useAdminCleanup()
 
 // State
 const orders = ref<any[]>([])
@@ -2038,6 +2040,9 @@ const setupRealtime = () => {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'moving_requests' }, () => fetchAllOrders())
     .on('postgres_changes', { event: '*', schema: 'public', table: 'laundry_requests' }, () => fetchAllOrders())
     .subscribe()
+  
+  // Track subscription for cleanup
+  addSubscription(realtimeChannel)
 }
 
 // Helpers
@@ -2065,13 +2070,74 @@ const generateMockOrders = () => [
 onMounted(() => {
   fetchAllOrders()
   setupRealtime()
+  
+  // Register cleanup for data arrays and state
+  addCleanup(() => {
+    // Clear all data arrays
+    orders.value = []
+    totalOrders.value = 0
+    selectedOrder.value = null
+    selectedOrders.value.clear()
+    
+    // Reset filters
+    searchQuery.value = ''
+    typeFilter.value = ''
+    statusFilter.value = ''
+    dateFilter.value = ''
+    activeQuickFilter.value = ''
+    
+    // Reset pagination
+    currentPage.value = 1
+    
+    // Reset modal states
+    showDetailModal.value = false
+    showStatusModal.value = false
+    showCancelModal.value = false
+    showRefundModal.value = false
+    showBulkStatusModal.value = false
+    showBulkCancelModal.value = false
+    showTimelineModal.value = false
+    showNotesModal.value = false
+    showAssignModal.value = false
+    showProviderMap.value = false
+    showRulesModal.value = false
+    showHistoryModal.value = false
+    
+    // Clear notes and timeline
+    orderNotes.value = []
+    orderTimeline.value = []
+    
+    // Clear providers
+    availableProviders.value = []
+    providerMarkers.value = []
+    
+    // Clear assignment history
+    assignmentHistory.value = []
+    
+    // Reset stats
+    stats.value = {
+      total: 0,
+      pending: 0,
+      inProgress: 0,
+      completed: 0,
+      cancelled: 0,
+      todayRevenue: 0
+    }
+    
+    // Clean up auto-assignment interval
+    if (autoAssignInterval.value) {
+      clearInterval(autoAssignInterval.value)
+      autoAssignInterval.value = null
+    }
+  })
 })
 
 onUnmounted(() => {
+  // Cleanup is now handled by useAdminCleanup
+  // Manual cleanup for backward compatibility
   if (realtimeChannel) {
     supabase.removeChannel(realtimeChannel)
   }
-  // Clean up auto-assignment interval
   if (autoAssignInterval.value) {
     clearInterval(autoAssignInterval.value)
   }

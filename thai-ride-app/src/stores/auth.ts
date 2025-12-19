@@ -288,7 +288,14 @@ export const useAuthStore = defineStore('auth', () => {
       
       if (result?.error) {
         logger.error('Login error:', result.error.message)
-        error.value = result.error.message
+        // Handle specific error messages in Thai
+        if (result.error.message.includes('Email not confirmed')) {
+          error.value = 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ (ตรวจสอบกล่องจดหมายของคุณ)'
+        } else if (result.error.message.includes('Invalid login credentials')) {
+          error.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
+        } else {
+          error.value = result.error.message
+        }
         loading.value = false
         isLoggingIn.value = false
         return false

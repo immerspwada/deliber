@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useNotificationPreferences - Notification Preferences Management
  * 

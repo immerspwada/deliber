@@ -10,6 +10,46 @@
 
 ---
 
+## 🚫 กฎห้ามใช้ Mock Data (CRITICAL)
+
+### หลักการ
+**ระบบนี้ใช้ข้อมูลจริงจากฐานข้อมูลเท่านั้น ห้ามใช้ข้อมูล Mock/Fake/Dummy**
+
+### ข้อห้ามเด็ดขาด
+- ❌ **ห้ามสร้าง mock data** ใน composables หรือ components
+- ❌ **ห้ามใช้ hardcoded arrays** แทนการ query จาก database
+- ❌ **ห้ามใช้ fake users/providers/orders** สำหรับ testing หรือ demo
+- ❌ **ห้ามใช้ placeholder data** ที่ไม่มีอยู่จริงในฐานข้อมูล
+
+### สิ่งที่ต้องทำ
+- ✅ **Query ข้อมูลจาก Supabase** ทุกครั้ง
+- ✅ **สร้างข้อมูลจริงในฐานข้อมูล** ถ้าต้องการทดสอบ
+- ✅ **ใช้ migration** สำหรับ seed data ที่จำเป็น
+- ✅ **แสดง empty state** เมื่อไม่มีข้อมูล แทนการแสดง mock data
+
+### ตัวอย่างที่ถูกต้อง
+```typescript
+// ✅ ถูกต้อง - Query จาก database
+const { data: providers } = await supabase
+  .from('service_providers')
+  .select('*')
+  .eq('status', 'active')
+
+// ❌ ผิด - ใช้ mock data
+const providers = [
+  { id: 1, name: 'Mock Driver 1' },
+  { id: 2, name: 'Mock Driver 2' }
+]
+```
+
+### เหตุผล
+1. ข้อมูล mock ทำให้ทดสอบไม่ตรงกับ production
+2. อาจเกิด bug ที่ไม่พบจนกว่าจะใช้ข้อมูลจริง
+3. RLS policies ไม่ถูกทดสอบกับ mock data
+4. ความสัมพันธ์ระหว่างตารางอาจผิดพลาด
+
+---
+
 ## 🆔 Member UID System (กฎสำคัญ)
 
 ### หลักการใช้ Member UID
@@ -266,6 +306,8 @@
 | **F169** | Peak Hours Analysis | `usePeakHours.ts` | `ride_requests` | 041 |
 | **F170** | Provider Incentives | `useProviderIncentives.ts`, `ProviderIncentivesView.vue`, `AdminIncentivesView.vue` | `provider_incentives`, `provider_incentive_progress` | 042 |
 | **F171** | Service Quality Metrics | `useServiceQuality.ts` | `service_quality_metrics` | 043 |
+| **F172** | Customer Notes & Tags | `useCustomerManagement.ts` | `customer_notes`, `customer_tags`, `customer_tag_assignments` | 080 |
+| **F173** | Admin RBAC System | `useAdminRBAC.ts`, `PermissionGuard.vue`, `DoubleConfirmModal.vue` | `admin_audit_log`, `admin_sessions`, `admin_roles` | 081 |
 
 ### Delivery Enhancements (F03 Extensions)
 
@@ -495,6 +537,9 @@ ab_test_conversions     → F203 (A/B Testing) - test_id, variant_id, user_id, e
 user_preferences        → F204 (User Preferences) - theme, language, notifications, privacy, accessibility, ride_preferences
 analytics_events        → F237 (Analytics) - session_id, event_name, event_category, properties, page_url, device_type
 system_health_log       → F251 (System Health) - status, uptime_ms, memory_used, network_online, storage_used
+customer_tags           → F172 (Customer Tags) - name, name_th, color, bg_color, icon, is_system
+customer_tag_assignments → F172 (Customer Tags) - user_id, tag_id, assigned_by, assigned_at
+customer_notes          → F172 (Customer Notes) - user_id, admin_id, note, is_pinned, is_important
 ```
 
 ---
@@ -593,6 +638,10 @@ system_health_log       → F251 (System Health) - status, uptime_ms, memory_use
 | `track_ab_conversion()` | Track A/B test conversion event | F203 |
 | `get_ab_test_results()` | Get A/B test results with conversion rates | F203 |
 | `get_analytics_summary()` | Get analytics summary for specified hours | F237 |
+| `get_customer_tags()` | Get all tags assigned to a customer | F172 |
+| `assign_customer_tag()` | Assign a tag to a customer | F172 |
+| `remove_customer_tag()` | Remove a tag from a customer | F172 |
+| `get_customer_quick_stats()` | Get customer quick stats (rides, spending, activity) | F172 |
 
 ---
 

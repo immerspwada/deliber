@@ -2,8 +2,39 @@
 import { onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const { stats, loading, fetchDashboardStats, fetchRecentOrders, recentOrders } = useAdmin()
+const { addCleanup } = useAdminCleanup()
+
+// Register cleanup for all reactive data
+addCleanup(() => {
+  // Reset stats to initial state
+  stats.value = {
+    totalUsers: 0,
+    totalProviders: 0,
+    totalRides: 0,
+    totalDeliveries: 0,
+    totalShopping: 0,
+    totalRevenue: 0,
+    activeRides: 0,
+    onlineProviders: 0,
+    pendingVerifications: 0,
+    openTickets: 0,
+    activeSubscriptions: 0,
+    pendingInsuranceClaims: 0,
+    scheduledRides: 0,
+    activeCompanies: 0
+  }
+  
+  // Clear arrays
+  recentOrders.value = []
+  
+  // Reset loading state
+  loading.value = false
+  
+  console.log('[AdminDashboardView] Cleanup complete - all data cleared')
+})
 
 onMounted(async () => {
   await fetchDashboardStats()

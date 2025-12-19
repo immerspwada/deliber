@@ -13,10 +13,14 @@ const router = useRouter()
 const {
   balance, transactions, topupRequests, loading, hasPendingTopup, pendingTopupAmount,
   fetchBalance, fetchTransactions, fetchTopupRequests, createTopupRequest, cancelTopupRequest,
-  subscribeToWallet, getTransactionIcon, formatTopupStatus, formatPaymentMethod, isPositiveTransaction
+  subscribeToWallet, getTransactionIcon, formatTopupStatus, formatPaymentMethod, isPositiveTransaction,
+  fetchUserRefunds
 } = useWalletV2()
 
-const activeTab = ref<'balance' | 'history' | 'topups'>('balance')
+import type { Refund } from '../composables/useWalletV2'
+
+const activeTab = ref<'balance' | 'history' | 'topups' | 'refunds'>('balance')
+const refunds = ref<Refund[]>([])
 const showTopUpModal = ref(false)
 const selectedAmount = ref(100)
 const customAmount = ref('')
@@ -33,6 +37,7 @@ let subscription: { unsubscribe: () => void } | null = null
 
 onMounted(async () => {
   await Promise.all([fetchBalance(), fetchTransactions(), fetchTopupRequests()])
+  refunds.value = await fetchUserRefunds()
   subscription = subscribeToWallet()
 })
 onUnmounted(() => subscription?.unsubscribe())
@@ -40,7 +45,29 @@ onUnmounted(() => subscription?.unsubscribe())
 const handleRefresh = async () => {
   isRefreshing.value = true
   await Promise.all([fetchBalance(), fetchTransactions(), fetchTopupRequests()])
+  refunds.value = await fetchUserRefunds()
   isRefreshing.value = false
+}
+
+const formatServiceType = (type: string): string => {
+  const types: Record<string, string> = {
+    ride: 'เรียกรถ',
+    delivery: 'ส่งของ',
+    shopping: 'ซื้อของ',
+    queue: 'จองคิว',
+    moving: 'ขนย้าย',
+    laundry: 'ซักผ้า'
+  }
+  return types[type] || type
+}
+
+const formatRefundStatus = (status: string): { label: string; color: string } => {
+  const statuses: Record<string, { label: string; color: string }> = {
+    pending: { label: 'รอดำเนินการ', color: 'warning' },
+    processed: { label: 'คืนเงินแล้ว', color: 'success' },
+    failed: { label: 'ล้มเหลว', color: 'error' }
+  }
+  return statuses[status] || { label: status, color: 'gray' }
 }
 
 const finalAmount = () => customAmount.value ? Number(customAmount.value) : selectedAmount.value
@@ -150,9 +177,15 @@ const goBack = () => router.back()
           <button :class="['tab', { active: activeTab === 'balance' }]" @click="activeTab = 'balance'">ภาพรวม</button>
           <button :class="['tab', { active: activeTab === 'history' }]" @click="activeTab = 'history'">ประวัติ</button>
           <button :class="['tab', { active: activeTab === 'topups' }]" @click="activeTab = 'topups'">
-            คำขอเติมเงิน
+            เติมเงิน
             <span v-if="topupRequests.filter(r => r.status === 'pending').length" class="badge">
               {{ topupRequests.filter(r => r.status === 'pending').length }}
+            </span>
+          </button>
+          <button :class="['tab', { active: activeTab === 'refunds' }]" @click="activeTab = 'refunds'">
+            คืนเงิน
+            <span v-if="refunds.filter(r => r.status === 'pending').length" class="badge refund-badge">
+              {{ refunds.filter(r => r.status === 'pending').length }}
             </span>
           </button>
         </div>
@@ -250,6 +283,46 @@ const goBack = () => router.back()
               <button v-if="req.status === 'pending'" @click="openCancelConfirm(req.id)" class="btn-cancel">
                 ยกเลิกคำขอ
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Refunds Tab -->
+        <div v-if="activeTab === 'refunds'" class="tab-content">
+          <div v-if="refunds.length === 0" class="empty-state">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            <p>ยังไม่มีประวัติการคืนเงิน</p>
+          </div>
+          <div v-else class="refund-list">
+            <div v-for="refund in refunds" :key="refund.id" class="refund-item">
+              <div class="refund-header">
+                <span class="refund-service">{{ formatServiceType(refund.service_type) }}</span>
+                <span :class="['refund-status', formatRefundStatus(refund.status).color]">
+                  {{ formatRefundStatus(refund.status).label }}
+                </span>
+              </div>
+              <div class="refund-body">
+                <div class="refund-amounts">
+                  <div class="refund-row">
+                    <span class="refund-label">ยอดเดิม</span>
+                    <span class="refund-value">฿{{ refund.original_amount.toLocaleString() }}</span>
+                  </div>
+                  <div v-if="refund.fee_amount > 0" class="refund-row fee">
+                    <span class="refund-label">ค่าธรรมเนียม</span>
+                    <span class="refund-value">-฿{{ refund.fee_amount.toLocaleString() }}</span>
+                  </div>
+                  <div class="refund-row total">
+                    <span class="refund-label">คืนเงิน</span>
+                    <span class="refund-value positive">+฿{{ refund.refund_amount.toLocaleString() }}</span>
+                  </div>
+                </div>
+                <div v-if="refund.reason" class="refund-reason">
+                  <span class="reason-label">เหตุผล:</span> {{ refund.reason }}
+                </div>
+                <div class="refund-date">{{ formatDateTime(refund.created_at) }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -456,4 +529,26 @@ const goBack = () => router.back()
 .btn-secondary { flex: 1; padding: 12px; border: 1px solid #E5E5E5; border-radius: 10px; background: #fff; font-size: 14px; cursor: pointer; }
 .btn-danger { flex: 1; padding: 12px; border: none; border-radius: 10px; background: #ef4444; color: #fff; font-size: 14px; cursor: pointer; }
 .btn-outline { padding: 12px 24px; background: transparent; border: 2px solid #00A86B; color: #00A86B; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+
+/* Refund Styles */
+.refund-badge { background: #00A86B; }
+.refund-list { display: flex; flex-direction: column; gap: 12px; }
+.refund-item { background: #fff; border-radius: 12px; padding: 16px; border-left: 4px solid #00A86B; }
+.refund-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.refund-service { font-size: 14px; font-weight: 600; color: #1A1A1A; }
+.refund-status { font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 12px; }
+.refund-status.warning { background: #fef3c7; color: #92400e; }
+.refund-status.success { background: #dcfce7; color: #166534; }
+.refund-status.error { background: #fee2e2; color: #991b1b; }
+.refund-body { display: flex; flex-direction: column; gap: 8px; }
+.refund-amounts { display: flex; flex-direction: column; gap: 4px; }
+.refund-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.refund-row.fee { color: #ef4444; }
+.refund-row.total { font-weight: 600; padding-top: 8px; border-top: 1px dashed #E8E8E8; margin-top: 4px; }
+.refund-label { color: #6B6B6B; }
+.refund-value { font-weight: 500; }
+.refund-value.positive { color: #00A86B; font-size: 16px; }
+.refund-reason { font-size: 12px; color: #6B6B6B; padding: 8px; background: #F5F5F5; border-radius: 6px; }
+.reason-label { font-weight: 500; }
+.refund-date { font-size: 12px; color: #999; }
 </style>

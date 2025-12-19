@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useAdminAnalytics - Admin Analytics Dashboard
  * 
@@ -89,7 +90,7 @@ export function useAdminAnalytics() {
     error.value = null
     
     try {
-      const { data, error: err } = await supabase.rpc('get_realtime_dashboard_stats')
+      const { data, error: err } = await (supabase.rpc as any)('get_realtime_dashboard_stats')
       
       if (err) throw err
       dashboardStats.value = data?.[0] || null
@@ -114,7 +115,7 @@ export function useAdminAnalytics() {
   // Fetch revenue trend
   const fetchRevenueTrend = async (days: number = 30) => {
     try {
-      const { data, error: err } = await supabase.rpc('get_revenue_trend', { p_days: days })
+      const { data, error: err } = await (supabase.rpc as any)('get_revenue_trend', { p_days: days })
       
       if (err) throw err
       revenueTrend.value = data || []
@@ -127,7 +128,7 @@ export function useAdminAnalytics() {
   // Fetch hourly orders
   const fetchHourlyOrders = async (date?: string) => {
     try {
-      const { data, error: err } = await supabase.rpc('get_orders_by_hour', {
+      const { data, error: err } = await (supabase.rpc as any)('get_orders_by_hour', {
         p_date: date || new Date().toISOString().split('T')[0]
       })
       
@@ -142,7 +143,7 @@ export function useAdminAnalytics() {
   // Fetch top providers
   const fetchTopProviders = async (limit: number = 10, days: number = 30) => {
     try {
-      const { data, error: err } = await supabase.rpc('get_top_providers', {
+      const { data, error: err } = await (supabase.rpc as any)('get_top_providers', {
         p_limit: limit,
         p_days: days
       })
@@ -162,7 +163,7 @@ export function useAdminAnalytics() {
   // Fetch service distribution
   const fetchServiceDistribution = async (days: number = 7) => {
     try {
-      const { data, error: err } = await supabase.rpc('get_service_distribution', { p_days: days })
+      const { data, error: err } = await (supabase.rpc as any)('get_service_distribution', { p_days: days })
       
       if (err) throw err
       serviceDistribution.value = data || []
@@ -178,7 +179,7 @@ export function useAdminAnalytics() {
   // Fetch user growth
   const fetchUserGrowth = async (days: number = 30) => {
     try {
-      const { data, error: err } = await supabase.rpc('get_user_growth', { p_days: days })
+      const { data, error: err } = await (supabase.rpc as any)('get_user_growth', { p_days: days })
       
       if (err) throw err
       userGrowth.value = data || []

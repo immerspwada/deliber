@@ -47,6 +47,7 @@ const {
   selectRideType,
   createRide,
   cancelRide,
+  calculateCancellationFee,
   goToStep,
   goBack,
   goNext,
@@ -60,6 +61,8 @@ const isGettingLocation = ref(false)
 const showCancelSheet = ref(false)
 const cancelReason = ref('')
 const isLoadingPlaces = ref(true)
+const showCancelSuccess = ref(false)
+const cancelResult = ref<{ fee: number; refund: number } | null>(null)
 
 // Step labels
 const stepLabels = [
@@ -173,17 +176,50 @@ const handleBookRide = async () => {
   }
 }
 
+// Select cancel reason with haptic feedback
+const selectCancelReason = (reason: string) => {
+  cancelReason.value = reason
+  triggerHaptic('light')
+}
+
 const handleCancelRide = async () => {
   if (!cancelReason.value) return
   
-  const success = await cancelRide(cancelReason.value)
-  if (success) {
+  triggerHaptic('medium')
+  const result = await cancelRide(cancelReason.value)
+  
+  if (result.success) {
     showCancelSheet.value = false
     cancelReason.value = ''
+    triggerHaptic('heavy')
+    
+    // Show success modal with options
+    cancelResult.value = { fee: result.fee || 0, refund: result.refund || 0 }
+    showCancelSuccess.value = true
   } else {
-    alert('ไม่สามารถยกเลิกได้ กรุณาลองใหม่')
+    triggerHaptic('light')
+    alert(error.value || 'ไม่สามารถยกเลิกได้ กรุณาลองใหม่')
   }
 }
+
+// Handle after cancel actions
+const goToHome = () => {
+  showCancelSuccess.value = false
+  cancelResult.value = null
+  router.push('/')
+}
+
+const bookAgain = () => {
+  showCancelSuccess.value = false
+  cancelResult.value = null
+  // Reset booking state to start fresh
+  bookingState.value.step = 'pickup'
+  bookingState.value.pickup = null
+  bookingState.value.destination = null
+}
+
+// Computed cancellation fee for display
+const cancellationFee = computed(() => calculateCancellationFee())
 
 const handleBack = () => {
   if (bookingState.value.step === 'pickup') {
@@ -712,12 +748,32 @@ const formatTime = (mins: number) => mins < 60 ? `${mins} นาที` : `${Mat
           <h3>ยกเลิกการเดินทาง</h3>
           <p>กรุณาเลือกเหตุผลในการยกเลิก</p>
           
+          <!-- Cancellation Fee Notice -->
+          <div v-if="cancellationFee > 0" class="fee-notice warning">
+            <svg class="fee-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div class="fee-text">
+              <span class="fee-label">ค่าธรรมเนียมยกเลิก</span>
+              <span class="fee-amount">฿{{ cancellationFee.toLocaleString() }}</span>
+            </div>
+          </div>
+          <div v-else class="fee-notice success">
+            <svg class="fee-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <span class="fee-text">ยกเลิกฟรี ไม่มีค่าธรรมเนียม</span>
+          </div>
+          
           <div class="cancel-reasons">
             <button 
               v-for="reason in cancelReasons" 
               :key="reason"
               :class="['reason-btn', { selected: cancelReason === reason }]"
-              @click="cancelReason = reason"
+              @click="selectCancelReason(reason)"
             >
               {{ reason }}
             </button>
@@ -730,7 +786,61 @@ const formatTime = (mins: number) => mins < 60 ? `${mins} นาที` : `${Mat
               :disabled="!cancelReason"
               @click="handleCancelRide"
             >
-              ยืนยันยกเลิก
+              {{ cancellationFee > 0 ? `ยืนยันยกเลิก (฿${cancellationFee})` : 'ยืนยันยกเลิก' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
+    <!-- Cancel Success Modal -->
+    <Teleport to="body">
+      <div v-if="showCancelSuccess" class="modal-overlay">
+        <div class="success-modal">
+          <!-- Success Icon -->
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          
+          <h2>ยกเลิกสำเร็จ</h2>
+          <p class="success-message">การเดินทางของคุณถูกยกเลิกแล้ว</p>
+          
+          <!-- Fee/Refund Info -->
+          <div v-if="cancelResult" class="cancel-info">
+            <div v-if="cancelResult.refund > 0" class="info-row refund">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+              <span>คืนเงิน ฿{{ cancelResult.refund.toLocaleString() }} เข้า Wallet</span>
+            </div>
+            <div v-if="cancelResult.fee > 0" class="info-row fee">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>หักค่าธรรมเนียม ฿{{ cancelResult.fee.toLocaleString() }}</span>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="success-actions">
+            <button class="btn-primary" @click="bookAgain">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6"/>
+                <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+              </svg>
+              เรียกรถใหม่
+            </button>
+            <button class="btn-secondary" @click="goToHome">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              กลับหน้าหลัก
             </button>
           </div>
         </div>
@@ -1807,6 +1917,77 @@ const formatTime = (mins: number) => mins < 60 ? `${mins} นาที` : `${Mat
   margin: 0 0 16px;
 }
 
+/* Fee Notice - MUNEEF Style with Animation */
+.fee-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fee-notice.warning {
+  background: #FFF3E0;
+  border: 1px solid #FFE0B2;
+}
+
+.fee-notice.success {
+  background: #E8F5EF;
+  border: 1px solid #C8E6C9;
+}
+
+.fee-notice .fee-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.fee-notice.warning .fee-icon {
+  color: #F57C00;
+}
+
+.fee-notice.success .fee-icon {
+  color: #00A86B;
+}
+
+.fee-notice .fee-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fee-notice.success .fee-text {
+  flex-direction: row;
+  font-size: 14px;
+  font-weight: 500;
+  color: #00A86B;
+}
+
+.fee-notice .fee-label {
+  font-size: 13px;
+  color: #666666;
+}
+
+.fee-notice .fee-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: #F57C00;
+}
+
 .cancel-reasons {
   display: flex;
   flex-wrap: wrap;
@@ -1822,13 +2003,24 @@ const formatTime = (mins: number) => mins < 60 ? `${mins} นาที` : `${Mat
   font-size: 14px;
   color: #1A1A1A;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+}
+
+.reason-btn:active {
+  transform: scale(0.95);
 }
 
 .reason-btn.selected {
   background: #FFEBEE;
   border-color: #E53935;
   color: #E53935;
+  animation: selectPop 0.2s ease;
+}
+
+@keyframes selectPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .sheet-actions {
@@ -1838,5 +2030,172 @@ const formatTime = (mins: number) => mins < 60 ? `${mins} นาที` : `${Mat
 
 .sheet-actions button {
   flex: 1;
+}
+
+/* ============================================
+   Cancel Success Modal - MUNEEF Style
+   ============================================ */
+.success-modal {
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 32px 24px;
+  width: calc(100% - 48px);
+  max-width: 360px;
+  text-align: center;
+  animation: modalPop 0.3s ease-out;
+}
+
+@keyframes modalPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.success-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #E8F5EF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  animation: iconBounce 0.5s ease-out 0.2s both;
+}
+
+@keyframes iconBounce {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.success-icon svg {
+  width: 36px;
+  height: 36px;
+  color: #00A86B;
+}
+
+.success-modal h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin: 0 0 8px;
+}
+
+.success-message {
+  font-size: 15px;
+  color: #666666;
+  margin: 0 0 20px;
+}
+
+.cancel-info {
+  background: #F9F9F9;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.cancel-info .info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.cancel-info .info-row:not(:last-child) {
+  border-bottom: 1px solid #E8E8E8;
+}
+
+.cancel-info .info-row svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.cancel-info .info-row.refund svg {
+  color: #00A86B;
+}
+
+.cancel-info .info-row.refund span {
+  color: #00A86B;
+  font-weight: 500;
+}
+
+.cancel-info .info-row.fee svg {
+  color: #F57C00;
+}
+
+.cancel-info .info-row.fee span {
+  color: #666666;
+  font-size: 14px;
+}
+
+.success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.success-actions .btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #00A86B;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+}
+
+.success-actions .btn-primary:active {
+  transform: scale(0.98);
+}
+
+.success-actions .btn-primary svg {
+  width: 20px;
+  height: 20px;
+}
+
+.success-actions .btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #F5F5F5;
+  color: #1A1A1A;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.success-actions .btn-secondary:active {
+  transform: scale(0.98);
+  background: #E8E8E8;
+}
+
+.success-actions .btn-secondary svg {
+  width: 18px;
+  height: 18px;
 }
 </style>

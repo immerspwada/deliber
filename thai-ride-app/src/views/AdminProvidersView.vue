@@ -3,14 +3,16 @@ import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
 import { useExternalNotifications } from '../composables/useExternalNotifications'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { supabase } from '../lib/supabase'
 
-const { fetchProviders } = useAdmin()
+const { fetchProviders, SERVICE_TYPES, updateProviderServices, getProviderServices } = useAdmin()
 const { 
   sendProviderApprovalNotification, 
   sendProviderRejectionNotification,
   sendProviderSuspensionNotification 
 } = useExternalNotifications()
+const { addSubscription, addCleanup } = useAdminCleanup()
 
 const providers = ref<any[]>([])
 const total = ref(0)
@@ -32,6 +34,11 @@ const previewImage = ref({ src: '', title: '' })
 // Status history
 const statusHistory = ref<any[]>([])
 const historyLoading = ref(false)
+
+// Service permissions modal
+const showServicesModal = ref(false)
+const selectedServices = ref<string[]>([])
+const servicesLoading = ref(false)
 
 // Stats
 const stats = computed(() => {
@@ -155,6 +162,51 @@ const loadProviders = async () => {
   loading.value = false
 }
 
+// Setup cleanup for memory stability
+addCleanup(() => {
+  // Clear all provider data arrays
+  providers.value = []
+  selectedProvider.value = null
+  statusHistory.value = []
+  selectedIds.value = []
+  selectedServices.value = []
+  
+  // Reset all filters and search
+  typeFilter.value = ''
+  statusFilter.value = ''
+  searchQuery.value = ''
+  
+  // Reset modal states
+  showDetailModal.value = false
+  showRejectModal.value = false
+  showImageModal.value = false
+  showHistoryModal.value = false
+  showServicesModal.value = false
+  showChecklistModal.value = false
+  
+  // Reset action states
+  actionLoading.value = false
+  servicesLoading.value = false
+  historyLoading.value = false
+  loading.value = false
+  
+  // Reset form data
+  rejectionReason.value = ''
+  rejectReason.value = ''
+  rejectingDocType.value = null
+  previewImage.value = { src: '', title: '' }
+  
+  // Reset checklist
+  Object.keys(checklist.value).forEach(key => {
+    (checklist.value as any)[key] = false
+  })
+  
+  // Reset bulk selection
+  selectAll.value = false
+  
+  console.log('[AdminProvidersView] Cleanup completed - all data cleared')
+})
+
 // Load status history for a provider
 const loadStatusHistory = async (providerId: string) => {
   historyLoading.value = true
@@ -184,6 +236,52 @@ const openHistoryModal = async (provider: any) => {
   selectedProvider.value = provider
   showHistoryModal.value = true
   await loadStatusHistory(provider.id)
+}
+
+// Open services modal - จัดการสิทธิ์งานที่ provider เห็นได้
+const openServicesModal = async (provider: any) => {
+  selectedProvider.value = provider
+  servicesLoading.value = true
+  showServicesModal.value = true
+  
+  // Load current services
+  const services = await getProviderServices(provider.id)
+  selectedServices.value = services || provider.allowed_services || []
+  servicesLoading.value = false
+}
+
+// Toggle service selection
+const toggleService = (serviceId: string) => {
+  const index = selectedServices.value.indexOf(serviceId)
+  if (index > -1) {
+    selectedServices.value.splice(index, 1)
+  } else {
+    selectedServices.value.push(serviceId)
+  }
+}
+
+// Save provider services
+const saveProviderServices = async () => {
+  if (!selectedProvider.value) return
+  
+  servicesLoading.value = true
+  const result = await updateProviderServices(selectedProvider.value.id, [...selectedServices.value])
+  
+  if (result.success) {
+    // Update local data
+    const idx = providers.value.findIndex(p => p.id === selectedProvider.value.id)
+    if (idx > -1) {
+      providers.value[idx].allowed_services = selectedServices.value
+    }
+    showServicesModal.value = false
+  }
+  servicesLoading.value = false
+}
+
+// Get service name in Thai
+const getServiceName = (serviceId: string) => {
+  const service = SERVICE_TYPES.find(s => s.id === serviceId)
+  return service?.name_th || serviceId
 }
 
 onMounted(loadProviders)
@@ -532,6 +630,25 @@ const confirmRejectDocument = async () => {
         <p class="subtitle">{{ total }} ผู้ให้บริการทั้งหมด</p>
       </div>
 
+      <!-- Quick Action Banner -->
+      <div v-if="stats.pending > 0" class="quick-action-banner">
+        <div class="banner-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <div class="banner-content">
+          <h3>มี {{ stats.pending }} รายการรอการอนุมัติ</h3>
+          <p>กรุณาตรวจสอบและอนุมัติผู้ให้บริการใหม่</p>
+        </div>
+        <button @click="statusFilter = 'pending'; loadProviders()" class="banner-btn">
+          ดูรายการ
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
       <!-- Stats Cards -->
       <div class="stats-grid">
         <div class="stat-card pending" @click="statusFilter = 'pending'; loadProviders()">
@@ -704,7 +821,17 @@ const confirmRejectDocument = async () => {
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </svg>
               </button>
-              <button v-if="p.status === 'pending'" class="action-btn approve" @click="approveProvider(p.id)" title="อนุมัติ">
+              <button v-if="p.status === 'approved'" class="action-btn services" @click="openServicesModal(p)" title="จัดการสิทธิ์งาน">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                </svg>
+              </button>
+              <button v-if="p.status === 'pending'" class="action-btn checklist" @click="openChecklistModal(p)" title="ตรวจสอบและอนุมัติ">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+              </button>
+              <button v-if="p.status === 'pending'" class="action-btn approve" @click="quickApproveAll(p)" title="อนุมัติทันที">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <path d="M20 6L9 17l-5-5"/>
                 </svg>
@@ -917,6 +1044,97 @@ const confirmRejectDocument = async () => {
 
           <div class="modal-footer">
             <button @click="showHistoryModal = false" class="action-btn secondary">ปิด</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services Permission Modal - จัดการสิทธิ์งานที่ Provider เห็นได้ -->
+      <div v-if="showServicesModal && selectedProvider" class="modal-overlay" @click.self="showServicesModal = false">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>จัดการสิทธิ์งาน</h2>
+            <button @click="showServicesModal = false" class="close-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="provider-info-header">
+              <div class="provider-avatar">
+                {{ selectedProvider.users?.first_name?.charAt(0) || 'P' }}
+              </div>
+              <div>
+                <h3>{{ selectedProvider.users?.first_name }} {{ selectedProvider.users?.last_name }}</h3>
+                <p>{{ selectedProvider.vehicle_type }} - {{ selectedProvider.vehicle_plate }}</p>
+              </div>
+            </div>
+
+            <div class="services-section">
+              <h4>เลือกประเภทงานที่เห็นได้</h4>
+              <p class="services-hint">Provider จะเห็นเฉพาะงานที่เปิดสิทธิ์ไว้เท่านั้น</p>
+              
+              <div v-if="servicesLoading" class="services-loading">
+                <div class="spinner"></div>
+                <span>กำลังโหลด...</span>
+              </div>
+              
+              <div v-else class="services-grid">
+                <button 
+                  v-for="service in SERVICE_TYPES" 
+                  :key="service.id"
+                  @click="toggleService(service.id)"
+                  :class="['service-toggle', { active: selectedServices.includes(service.id) }]"
+                >
+                  <div class="service-icon">
+                    <svg v-if="service.id === 'ride'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="1" y="3" width="15" height="13" rx="2"/>
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                    </svg>
+                    <svg v-else-if="service.id === 'delivery'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="1" y="3" width="15" height="13" rx="2"/>
+                      <path d="M16 8h4l3 3v5h-7V8z"/>
+                      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                    </svg>
+                    <svg v-else-if="service.id === 'shopping'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+                      <line x1="3" y1="6" x2="21" y2="6"/>
+                      <path d="M16 10a4 4 0 0 1-8 0"/>
+                    </svg>
+                    <svg v-else-if="service.id === 'queue'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <svg v-else-if="service.id === 'moving'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="1" y="3" width="15" height="13" rx="2"/>
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>
+                    </svg>
+                  </div>
+                  <span class="service-name">{{ service.name_th }}</span>
+                  <div class="service-check">
+                    <svg v-if="selectedServices.includes(service.id)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                  </div>
+                </button>
+              </div>
+
+              <div class="selected-summary">
+                <span v-if="selectedServices.length === 0" class="no-services">ยังไม่ได้เลือกงาน (Provider จะไม่เห็นงานใดๆ)</span>
+                <span v-else>เลือกแล้ว {{ selectedServices.length }} ประเภท: {{ selectedServices.map(s => getServiceName(s)).join(', ') }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button @click="saveProviderServices" :disabled="servicesLoading" class="action-btn approve">
+              {{ servicesLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
+            </button>
+            <button @click="showServicesModal = false" class="action-btn secondary">ยกเลิก</button>
           </div>
         </div>
       </div>
@@ -1170,8 +1388,10 @@ const confirmRejectDocument = async () => {
 .action-btn.view:hover { background: #e5e5e5; }
 .action-btn.history { background: #e3f2fd; color: #1976d2; width: 36px; height: 36px; padding: 0; }
 .action-btn.history:hover { background: #bbdefb; }
+.action-btn.checklist { background: #fff3e0; color: #f57c00; width: 36px; height: 36px; padding: 0; }
+.action-btn.checklist:hover { background: #ffe0b2; }
 .action-btn.approve { background: #00A86B; color: #fff; width: 36px; height: 36px; padding: 0; }
-.action-btn.approve:hover { background: #008F5B; }
+.action-btn.approve:hover { background: #008F5B; transform: scale(1.05); }
 .action-btn.reject { background: #ffebee; color: #e11900; width: 36px; height: 36px; padding: 0; }
 .action-btn.reject:hover { background: #ffcdd2; }
 .action-btn.quick-approve { background: #00A86B; color: #fff; padding: 8px 16px; width: auto; height: auto; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3); }
@@ -1494,12 +1714,218 @@ const confirmRejectDocument = async () => {
   transition: width 0.3s ease;
 }
 
+/* Services Button */
+.action-btn.services {
+  background: #e8f5ef;
+  color: #00A86B;
+}
+.action-btn.services:hover {
+  background: #00A86B;
+  color: #fff;
+}
+
+/* Services Modal */
+.provider-info-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.provider-info-header .provider-avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.provider-info-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.provider-info-header p {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+}
+
+.services-section h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.services-hint {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+}
+.services-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #666;
+}
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.service-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #fff;
+  border: 2px solid #e5e5e5;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.service-toggle:hover {
+  border-color: #00A86B;
+  background: #f0fff8;
+}
+.service-toggle.active {
+  border-color: #00A86B;
+  background: #e8f5ef;
+}
+.service-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f6f6;
+  border-radius: 10px;
+  color: #666;
+}
+.service-toggle.active .service-icon {
+  background: #00A86B;
+  color: #fff;
+}
+.service-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.service-name {
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+.service-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background: #00A86B;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s;
+}
+.service-toggle.active .service-check {
+  opacity: 1;
+  transform: scale(1);
+}
+.service-check svg {
+  width: 12px;
+  height: 12px;
+  color: #fff;
+}
+.selected-summary {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #333;
+}
+.no-services {
+  color: #e11900;
+}
+
+/* Quick Action Banner */
+.quick-action-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #ffc043 0%, #ff9800 100%);
+  border-radius: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(255, 192, 67, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(255, 192, 67, 0.3); }
+  50% { box-shadow: 0 6px 24px rgba(255, 192, 67, 0.5); }
+}
+.banner-icon {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.banner-icon svg {
+  width: 28px;
+  height: 28px;
+}
+.banner-content {
+  flex: 1;
+}
+.banner-content h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 4px;
+}
+.banner-content p {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+.banner-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #fff;
+  color: #ff9800;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.banner-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filters { flex-direction: column; }
   .search-box { width: 100%; }
   .provider-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .services-grid { grid-template-columns: 1fr; }
   
   .bulk-actions-bar {
     flex-direction: column;
@@ -1515,6 +1941,15 @@ const confirmRejectDocument = async () => {
   }
   .bulk-btn {
     flex: 1;
+    justify-content: center;
+  }
+  
+  .quick-action-banner {
+    flex-direction: column;
+    text-align: center;
+  }
+  .banner-btn {
+    width: 100%;
     justify-content: center;
   }
 }

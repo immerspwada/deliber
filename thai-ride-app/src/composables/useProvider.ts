@@ -11,7 +11,7 @@ import { useProviderEarnings } from './useProviderEarnings'
 export interface ProviderProfile {
   id: string
   user_id: string
-  provider_type: 'driver' | 'delivery' | 'both'
+  provider_type: 'driver' | 'delivery' | 'both' | 'rider' | 'pending' | 'multi'
   license_number: string | null
   vehicle_type: string | null
   vehicle_plate: string | null
@@ -22,6 +22,7 @@ export interface ProviderProfile {
   total_trips: number
   current_lat: number | null
   current_lng: number | null
+  allowed_services?: string[] // งานที่ได้รับอนุญาตให้เห็น (Admin กำหนด)
 }
 
 export interface RideRequest {
@@ -150,6 +151,7 @@ export function useProvider() {
   const pendingRequests = ref<RideRequest[]>([])
   const pendingDeliveries = ref<DeliveryRequest[]>([])
   const pendingShopping = ref<ShoppingRequest[]>([])
+  const allowedServices = ref<string[]>([]) // งานที่ได้รับอนุญาตให้เห็น
   const activeRide = ref<ActiveRide | null>(null)
   const activeJob = ref<ActiveJob | null>(null)
   const earnings = ref<EarningsSummary>({ today: 0, thisWeek: 0, thisMonth: 0, todayTrips: 0, weekTrips: 0, monthTrips: 0 })
@@ -195,6 +197,8 @@ export function useProvider() {
       if (!data) { profile.value = null; return null }
       profile.value = data as ProviderProfile
       isOnline.value = data.is_available || false
+      // ดึง allowed_services จาก profile
+      allowedServices.value = data.allowed_services || []
       return data
     } catch (e: any) { error.value = e.message; return null }
     finally { loading.value = false }
@@ -992,6 +996,15 @@ export function useProvider() {
     if (reconnectTimeout) clearTimeout(reconnectTimeout)
   })
 
+  // ตรวจสอบว่า provider มีสิทธิ์เห็นงานประเภทนี้หรือไม่
+  const canSeeService = (serviceType: string): boolean => {
+    // ถ้ายังไม่มี allowed_services = เห็นได้ทุกงาน (backward compatible)
+    if (!allowedServices.value || allowedServices.value.length === 0) {
+      return true
+    }
+    return allowedServices.value.includes(serviceType)
+  }
+
   return {
     // State
     loading, error, profile, isOnline, earnings, weeklyEarnings,
@@ -1001,6 +1014,8 @@ export function useProvider() {
     pendingDeliveries, pendingShopping, activeJob,
     // New Services state (F158, F159, F160)
     pendingQueueJobs, pendingMovingJobs, pendingLaundryJobs,
+    // Service permissions
+    allowedServices, canSeeService,
     // Computed
     hasActiveRide, hasActiveJob,
     // Profile

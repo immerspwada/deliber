@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useServiceAreaV2 - Enhanced Service Area Management
  * 

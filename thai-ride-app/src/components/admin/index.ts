@@ -16,6 +16,10 @@ export { default as AdminStatusBadge } from './AdminStatusBadge.vue'
 // Layout Components
 export { default as EnhancedAdminLayout } from './EnhancedAdminLayout.vue'
 
+// Security & RBAC Components
+export { default as PermissionGuard } from './PermissionGuard.vue'
+export { default as DoubleConfirmModal } from './DoubleConfirmModal.vue'
+
 // Type definitions for better TypeScript support
 export interface AdminCardProps {
   title?: string

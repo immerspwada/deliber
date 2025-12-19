@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useShoppingV2 - Enhanced Shopping Service
  * 

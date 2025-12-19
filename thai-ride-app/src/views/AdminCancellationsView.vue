@@ -1,418 +1,431 @@
-<!--
-  Feature: F55 - Admin Cancellations View
+<script setup lang="ts">
+/**
+ * AdminCancellationsView - Cancellation Analytics Dashboard
+ * 
+ * Feature: F53 - Admin Cancellation Management
+ * 
+ * Shows cancellation statistics, trends, and detailed records
+ */
+import { ref, onMounted, computed } from 'vue'
+import { useCancellationAnalytics, type CancellationRecord } from '../composables/useCancellationAnalytics'
+import { AdminCard, AdminTable, AdminStatCard, AdminStatusBadge, AdminButton, AdminModal } from '../components/admin'
+
+const {
+  loading,
+  cancellations,
+  stats,
+  reasonBreakdown,
+  hourlyTrend,
+  dailyTrend,
+  fetchCancellations,
+  fetchStats,
+  fetchReasonBreakdown,
+  fetchHourlyTrend,
+  fetchDailyTrend
+} = useCancellationAnalytics()
+
+// Filters
+const selectedService = ref('all')
+const selectedPeriod = ref('30')
+const selectedCancelledBy = ref('all')
+const searchQuery = ref('')
+
+// Detail modal
+const showDetail = ref(false)
+const selectedRecord = ref<CancellationRecord | null>(null)
+
+// Date range
+const dateRange = computed(() => {
+  const days = parseInt(selectedPeriod.value)
+  const end = new Date()
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  return {
+    startDate: start.toISOString().split('T')[0],
+    endDate: end.toISOString().split('T')[0]
+  }
+})
+</script>
+
+// Filtered cancellations
+const filteredCancellations = computed(() => {
+  let result = cancellations.value
   
-  หน้าจัดการการยกเลิกสำหรับ Admin
-  - ดูรายการยกเลิกทั้งหมด
-  - ดูเหตุผลการยกเลิก
-  - จัดการ refund
-  - ดูสถิติการยกเลิก
--->
+  if (selectedService.value !== 'all') {
+    result = result.filter(c => c.serviceType === selectedService.value)
+  }
+  
+  if (selectedCancelledBy.value !== 'all') {
+    result = result.filter(c => c.cancelledBy === selectedCancelledBy.value)
+  }
+  
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(c => 
+      c.trackingId?.toLowerCase().includes(q) ||
+      c.customerName?.toLowerCase().includes(q) ||
+      c.cancelReason?.toLowerCase().includes(q)
+    )
+  }
+  
+  return result
+})
+
+// Load data
+const loadData = async () => {
+  await Promise.all([
+    fetchCancellations({
+      serviceType: selectedService.value === 'all' ? undefined : selectedService.value,
+      startDate: dateRange.value.startDate,
+      endDate: dateRange.value.endDate,
+      cancelledBy: selectedCancelledBy.value === 'all' ? undefined : selectedCancelledBy.value
+    }),
+    fetchStats(dateRange.value),
+    fetchReasonBreakdown(),
+    fetchHourlyTrend(),
+    fetchDailyTrend(parseInt(selectedPeriod.value))
+  ])
+}
+
+// View detail
+const viewDetail = (record: CancellationRecord) => {
+  selectedRecord.value = record
+  showDetail.value = true
+}
+
+// Format helpers
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const formatPrice = (price: number) => `฿${price.toLocaleString()}`
+
+const getCancelledByLabel = (by: string) => {
+  const labels: Record<string, string> = {
+    customer: 'ลูกค้า',
+    provider: 'คนขับ',
+    admin: 'แอดมิน',
+    system: 'ระบบ'
+  }
+  return labels[by] || by
+}
+
+const getCancelledByVariant = (by: string) => {
+  const variants: Record<string, string> = {
+    customer: 'warning',
+    provider: 'danger',
+    admin: 'info',
+    system: 'secondary'
+  }
+  return variants[by] || 'secondary'
+}
+
+const getServiceLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    ride: 'เรียกรถ',
+    delivery: 'ส่งของ',
+    shopping: 'ซื้อของ',
+    queue: 'จองคิว',
+    moving: 'ขนย้าย',
+    laundry: 'ซักผ้า'
+  }
+  return labels[type] || type
+}
+
+// Peak hour
+const peakHour = computed(() => {
+  if (!hourlyTrend.value.length) return null
+  return hourlyTrend.value.reduce((max, h) => h.count > max.count ? h : max, hourlyTrend.value[0])
+})
+
+onMounted(loadData)
+</script>
+
 <template>
-  <AdminLayout>
-    <div class="cancellations-view">
-      <!-- Header -->
-      <div class="page-header">
+  <div class="cancellations-view">
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-content">
         <h1>การยกเลิก</h1>
-        <div class="header-actions">
-          <button class="btn-secondary" @click="exportData">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7,10 12,15 17,10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export
-          </button>
-        </div>
+        <p>วิเคราะห์และจัดการการยกเลิกบริการ</p>
       </div>
+      <AdminButton @click="loadData" :loading="loading">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        รีเฟรช
+      </AdminButton>
+    </div>
 
-      <!-- Stats Cards -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="15" y1="9" x2="9" y2="15"/>
-              <line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.totalCancellations }}</div>
-            <div class="stat-label">ยกเลิกทั้งหมด</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon customer">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.byCustomer }}</div>
-            <div class="stat-label">โดยลูกค้า</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon provider">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 17h14v-5l-2-4H7l-2 4v5z"/>
-              <circle cx="7.5" cy="17" r="1.5"/>
-              <circle cx="16.5" cy="17" r="1.5"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ stats.byProvider }}</div>
-            <div class="stat-label">โดยคนขับ</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon fee">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="1" x2="12" y2="23"/>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">฿{{ stats.totalFees.toLocaleString() }}</div>
-            <div class="stat-label">ค่าธรรมเนียมรวม</div>
-          </div>
-        </div>
-      </div>
+    <!-- Stats Cards -->
+    <div class="stats-grid" v-if="stats">
+      <AdminStatCard
+        title="ยกเลิกทั้งหมด"
+        :value="stats.totalCancellations"
+        icon="x-circle"
+        variant="danger"
+      />
+      <AdminStatCard
+        title="โดยลูกค้า"
+        :value="stats.byCustomer"
+        :subtitle="`${stats.totalCancellations ? ((stats.byCustomer / stats.totalCancellations) * 100).toFixed(1) : 0}%`"
+        icon="user"
+        variant="warning"
+      />
+      <AdminStatCard
+        title="โดยคนขับ"
+        :value="stats.byProvider"
+        :subtitle="`${stats.totalCancellations ? ((stats.byProvider / stats.totalCancellations) * 100).toFixed(1) : 0}%`"
+        icon="truck"
+        variant="info"
+      />
+      <AdminStatCard
+        title="อัตราการยกเลิก"
+        :value="`${stats.cancellationRate.toFixed(1)}%`"
+        icon="percent"
+        variant="secondary"
+      />
+    </div>
 
-      <!-- Filters -->
-      <div class="filters-bar">
+    <!-- Filters -->
+    <AdminCard title="ตัวกรอง" class="filters-card">
+      <div class="filters-row">
         <div class="filter-group">
-          <select v-model="filters.serviceType">
-            <option value="">ทุกบริการ</option>
+          <label>ประเภทบริการ</label>
+          <select v-model="selectedService" @change="loadData">
+            <option value="all">ทั้งหมด</option>
             <option value="ride">เรียกรถ</option>
             <option value="delivery">ส่งของ</option>
             <option value="shopping">ซื้อของ</option>
           </select>
         </div>
         <div class="filter-group">
-          <select v-model="filters.cancelledBy">
-            <option value="">ยกเลิกโดย</option>
-            <option value="customer">ลูกค้า</option>
-            <option value="provider">คนขับ</option>
+          <label>ช่วงเวลา</label>
+          <select v-model="selectedPeriod" @change="loadData">
+            <option value="7">7 วัน</option>
+            <option value="30">30 วัน</option>
+            <option value="90">90 วัน</option>
           </select>
         </div>
         <div class="filter-group">
-          <select v-model="filters.dateRange">
-            <option value="today">วันนี้</option>
-            <option value="week">7 วันที่ผ่านมา</option>
-            <option value="month">30 วันที่ผ่านมา</option>
+          <label>ยกเลิกโดย</label>
+          <select v-model="selectedCancelledBy" @change="loadData">
             <option value="all">ทั้งหมด</option>
+            <option value="customer">ลูกค้า</option>
+            <option value="provider">คนขับ</option>
+            <option value="admin">แอดมิน</option>
           </select>
         </div>
-        <div class="search-box">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input 
-            type="text" 
-            v-model="searchQuery" 
-            placeholder="ค้นหา..."
-          />
+        <div class="filter-group search">
+          <label>ค้นหา</label>
+          <input type="text" v-model="searchQuery" placeholder="Tracking ID, ชื่อลูกค้า...">
         </div>
       </div>
+    </AdminCard>
 
-      <!-- Cancellations Table -->
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>รหัส</th>
-              <th>บริการ</th>
-              <th>ลูกค้า</th>
-              <th>คนขับ</th>
-              <th>เหตุผล</th>
-              <th>ยกเลิกโดย</th>
-              <th>ค่าธรรมเนียม</th>
-              <th>วันที่</th>
-              <th>การดำเนินการ</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in filteredCancellations" :key="item.id">
-              <td class="id-cell">{{ item.trackingId }}</td>
-              <td>
-                <span class="service-badge" :class="item.serviceType">
-                  {{ getServiceLabel(item.serviceType) }}
-                </span>
-              </td>
-              <td>{{ item.customerName }}</td>
-              <td>{{ item.providerName || '-' }}</td>
-              <td>
-                <span class="reason-text">{{ item.reasonLabel }}</span>
-                <span v-if="item.note" class="reason-note">{{ item.note }}</span>
-              </td>
-              <td>
-                <span class="cancelled-by" :class="item.cancelledBy">
-                  {{ item.cancelledBy === 'customer' ? 'ลูกค้า' : 'คนขับ' }}
-                </span>
-              </td>
-              <td>
-                <span v-if="item.fee > 0" class="fee-amount">฿{{ item.fee }}</span>
-                <span v-else class="no-fee">ฟรี</span>
-              </td>
-              <td>{{ formatDate(item.cancelledAt) }}</td>
-              <td>
-                <div class="action-buttons">
-                  <button class="action-btn" @click="viewDetails(item)" title="ดูรายละเอียด">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  </button>
-                  <button 
-                    v-if="item.fee > 0 && !item.refunded" 
-                    class="action-btn refund" 
-                    @click="processRefund(item)"
-                    title="คืนเงิน"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="23,4 23,10 17,10"/>
-                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                    </svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-if="filteredCancellations.length === 0" class="empty-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="15" y1="9" x2="9" y2="15"/>
-            <line x1="9" y1="9" x2="15" y2="15"/>
-          </svg>
-          <p>ไม่พบรายการยกเลิก</p>
-        </div>
-      </div>
-
-      <!-- Detail Modal -->
-      <Teleport to="body">
-        <Transition name="modal">
-          <div v-if="selectedItem" class="modal-overlay" @click.self="selectedItem = null">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h3>รายละเอียดการยกเลิก</h3>
-                <button class="close-btn" @click="selectedItem = null">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-              <div class="modal-body">
-                <div class="detail-row">
-                  <span class="label">รหัส:</span>
-                  <span class="value">{{ selectedItem.trackingId }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">บริการ:</span>
-                  <span class="value">{{ getServiceLabel(selectedItem.serviceType) }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">ลูกค้า:</span>
-                  <span class="value">{{ selectedItem.customerName }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">คนขับ:</span>
-                  <span class="value">{{ selectedItem.providerName || '-' }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">เหตุผล:</span>
-                  <span class="value">{{ selectedItem.reasonLabel }}</span>
-                </div>
-                <div v-if="selectedItem.note" class="detail-row">
-                  <span class="label">หมายเหตุ:</span>
-                  <span class="value">{{ selectedItem.note }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">ยกเลิกโดย:</span>
-                  <span class="value">{{ selectedItem.cancelledBy === 'customer' ? 'ลูกค้า' : 'คนขับ' }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">ค่าธรรมเนียม:</span>
-                  <span class="value">฿{{ selectedItem.fee }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">วันที่ยกเลิก:</span>
-                  <span class="value">{{ formatDateTime(selectedItem.cancelledAt) }}</span>
-                </div>
-              </div>
+    <!-- Analytics Row -->
+    <div class="analytics-row">
+      <!-- Reason Breakdown -->
+      <AdminCard title="เหตุผลการยกเลิก" class="reason-card">
+        <div v-if="reasonBreakdown.length" class="reason-list">
+          <div v-for="item in reasonBreakdown.slice(0, 6)" :key="item.reason" class="reason-item">
+            <div class="reason-info">
+              <span class="reason-name">{{ item.reason }}</span>
+              <span class="reason-count">{{ item.count }} ครั้ง</span>
             </div>
+            <div class="reason-bar">
+              <div class="reason-fill" :style="{ width: `${item.percentage}%` }"></div>
+            </div>
+            <span class="reason-percent">{{ item.percentage.toFixed(1) }}%</span>
           </div>
-        </Transition>
-      </Teleport>
+        </div>
+        <div v-else class="empty-state">ไม่มีข้อมูล</div>
+      </AdminCard>
+
+      <!-- Hourly Trend -->
+      <AdminCard title="ช่วงเวลาที่ยกเลิกบ่อย" class="hourly-card">
+        <div v-if="hourlyTrend.length" class="hourly-chart">
+          <div v-for="item in hourlyTrend" :key="item.hour" class="hour-bar-wrapper">
+            <div 
+              class="hour-bar" 
+              :class="{ peak: peakHour && item.hour === peakHour.hour }"
+              :style="{ height: `${Math.max(4, (item.count / (peakHour?.count || 1)) * 100)}%` }"
+            >
+              <span class="hour-count" v-if="item.count > 0">{{ item.count }}</span>
+            </div>
+            <span class="hour-label">{{ item.hour.toString().padStart(2, '0') }}</span>
+          </div>
+        </div>
+        <div v-if="peakHour" class="peak-info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          ช่วงเวลาที่ยกเลิกมากที่สุด: {{ peakHour.hour.toString().padStart(2, '0') }}:00 น. ({{ peakHour.count }} ครั้ง)
+        </div>
+      </AdminCard>
     </div>
-  </AdminLayout>
+
+    <!-- Cancellations Table -->
+    <AdminCard title="รายการยกเลิก" :subtitle="`${filteredCancellations.length} รายการ`">
+      <AdminTable
+        :columns="[
+          { key: 'trackingId', label: 'Tracking ID', width: '140px' },
+          { key: 'serviceType', label: 'บริการ', width: '100px' },
+          { key: 'customerName', label: 'ลูกค้า' },
+          { key: 'cancelReason', label: 'เหตุผล' },
+          { key: 'cancelledBy', label: 'ยกเลิกโดย', width: '100px' },
+          { key: 'cancellationFee', label: 'ค่าธรรมเนียม', width: '120px' },
+          { key: 'cancelledAt', label: 'เวลา', width: '160px' },
+          { key: 'actions', label: '', width: '80px' }
+        ]"
+        :data="filteredCancellations"
+        :loading="loading"
+        empty-text="ไม่พบรายการยกเลิก"
+      >
+        <template #trackingId="{ row }">
+          <span class="tracking-id">{{ row.trackingId || '-' }}</span>
+        </template>
+        <template #serviceType="{ row }">
+          <span class="service-badge" :class="row.serviceType">
+            {{ getServiceLabel(row.serviceType) }}
+          </span>
+        </template>
+        <template #customerName="{ row }">
+          <div class="customer-cell">
+            <span class="name">{{ row.customerName }}</span>
+            <span class="phone">{{ row.customerPhone }}</span>
+          </div>
+        </template>
+        <template #cancelReason="{ row }">
+          <span class="reason-text">{{ row.cancelReason }}</span>
+        </template>
+        <template #cancelledBy="{ row }">
+          <AdminStatusBadge :variant="getCancelledByVariant(row.cancelledBy)">
+            {{ getCancelledByLabel(row.cancelledBy) }}
+          </AdminStatusBadge>
+        </template>
+        <template #cancellationFee="{ row }">
+          <span :class="['fee', { 'has-fee': row.cancellationFee > 0 }]">
+            {{ row.cancellationFee > 0 ? formatPrice(row.cancellationFee) : 'ฟรี' }}
+          </span>
+        </template>
+        <template #cancelledAt="{ row }">
+          <span class="date-text">{{ formatDate(row.cancelledAt) }}</span>
+        </template>
+        <template #actions="{ row }">
+          <button class="action-btn" @click="viewDetail(row)" title="ดูรายละเอียด">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </template>
+      </AdminTable>
+    </AdminCard>
+
+    <!-- Detail Modal -->
+    <AdminModal v-model="showDetail" title="รายละเอียดการยกเลิก" size="md">
+      <div v-if="selectedRecord" class="detail-content">
+        <div class="detail-header">
+          <span class="tracking">{{ selectedRecord.trackingId }}</span>
+          <AdminStatusBadge :variant="getCancelledByVariant(selectedRecord.cancelledBy)">
+            ยกเลิกโดย{{ getCancelledByLabel(selectedRecord.cancelledBy) }}
+          </AdminStatusBadge>
+        </div>
+        
+        <div class="detail-section">
+          <h4>ข้อมูลลูกค้า</h4>
+          <div class="info-row">
+            <span class="label">ชื่อ</span>
+            <span class="value">{{ selectedRecord.customerName }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">เบอร์โทร</span>
+            <span class="value">{{ selectedRecord.customerPhone || '-' }}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section" v-if="selectedRecord.providerName">
+          <h4>ข้อมูลคนขับ</h4>
+          <div class="info-row">
+            <span class="label">ชื่อ</span>
+            <span class="value">{{ selectedRecord.providerName }}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <h4>รายละเอียดการยกเลิก</h4>
+          <div class="info-row">
+            <span class="label">เหตุผล</span>
+            <span class="value highlight">{{ selectedRecord.cancelReason }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">เวลายกเลิก</span>
+            <span class="value">{{ formatDate(selectedRecord.cancelledAt) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">ค่าธรรมเนียม</span>
+            <span class="value" :class="{ 'text-danger': selectedRecord.cancellationFee > 0 }">
+              {{ selectedRecord.cancellationFee > 0 ? formatPrice(selectedRecord.cancellationFee) : 'ไม่มี' }}
+            </span>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <h4>ข้อมูลการเดินทาง</h4>
+          <div class="info-row">
+            <span class="label">จุดรับ</span>
+            <span class="value">{{ selectedRecord.pickup || '-' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">จุดหมาย</span>
+            <span class="value">{{ selectedRecord.destination || '-' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">ค่าโดยสารประมาณ</span>
+            <span class="value">{{ formatPrice(selectedRecord.estimatedFare) }}</span>
+          </div>
+        </div>
+      </div>
+    </AdminModal>
+  </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import AdminLayout from '../components/AdminLayout.vue'
-
-interface CancellationItem {
-  id: string
-  trackingId: string
-  serviceType: 'ride' | 'delivery' | 'shopping'
-  customerName: string
-  providerName?: string
-  reason: string
-  reasonLabel: string
-  note?: string
-  cancelledBy: 'customer' | 'provider'
-  fee: number
-  refunded: boolean
-  cancelledAt: Date
-}
-
-const cancellations = ref<CancellationItem[]>([])
-const selectedItem = ref<CancellationItem | null>(null)
-const searchQuery = ref('')
-const filters = ref({
-  serviceType: '',
-  cancelledBy: '',
-  dateRange: 'week'
-})
-
-const stats = computed(() => {
-  return {
-    totalCancellations: cancellations.value.length,
-    byCustomer: cancellations.value.filter(c => c.cancelledBy === 'customer').length,
-    byProvider: cancellations.value.filter(c => c.cancelledBy === 'provider').length,
-    totalFees: cancellations.value.reduce((sum, c) => sum + c.fee, 0)
-  }
-})
-
-const filteredCancellations = computed(() => {
-  return cancellations.value.filter(item => {
-    if (filters.value.serviceType && item.serviceType !== filters.value.serviceType) return false
-    if (filters.value.cancelledBy && item.cancelledBy !== filters.value.cancelledBy) return false
-    if (searchQuery.value) {
-      const query = searchQuery.value.toLowerCase()
-      return item.trackingId.toLowerCase().includes(query) ||
-             item.customerName.toLowerCase().includes(query) ||
-             (item.providerName?.toLowerCase().includes(query) || false)
-    }
-    return true
-  })
-})
-
-const getServiceLabel = (type: string): string => {
-  switch (type) {
-    case 'ride': return 'เรียกรถ'
-    case 'delivery': return 'ส่งของ'
-    case 'shopping': return 'ซื้อของ'
-    default: return type
-  }
-}
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })
-}
-
-const formatDateTime = (date: Date): string => {
-  return date.toLocaleString('th-TH')
-}
-
-const viewDetails = (item: CancellationItem) => {
-  selectedItem.value = item
-}
-
-const processRefund = (item: CancellationItem) => {
-  if (confirm(`ยืนยันคืนเงิน ฿${item.fee} ให้ลูกค้า?`)) {
-    item.refunded = true
-    alert('คืนเงินเรียบร้อยแล้ว')
-  }
-}
-
-const exportData = () => {
-  alert('Export ข้อมูลเรียบร้อย')
-}
-
-onMounted(() => {
-  // Demo data
-  cancellations.value = [
-    {
-      id: '1',
-      trackingId: 'RID-20251217-001',
-      serviceType: 'ride',
-      customerName: 'สมชาย ใจดี',
-      providerName: 'สมศักดิ์ รถดี',
-      reason: 'driver_too_far',
-      reasonLabel: 'คนขับอยู่ไกลเกินไป',
-      cancelledBy: 'customer',
-      fee: 0,
-      refunded: false,
-      cancelledAt: new Date()
-    },
-    {
-      id: '2',
-      trackingId: 'RID-20251217-002',
-      serviceType: 'ride',
-      customerName: 'สมหญิง รักสวย',
-      providerName: 'สมศักดิ์ รถดี',
-      reason: 'customer_not_found',
-      reasonLabel: 'หาลูกค้าไม่เจอ',
-      cancelledBy: 'provider',
-      fee: 20,
-      refunded: false,
-      cancelledAt: new Date(Date.now() - 3600000)
-    },
-    {
-      id: '3',
-      trackingId: 'DEL-20251217-001',
-      serviceType: 'delivery',
-      customerName: 'สมปอง ส่งไว',
-      reason: 'changed_mind',
-      reasonLabel: 'เปลี่ยนใจ',
-      cancelledBy: 'customer',
-      fee: 0,
-      refunded: false,
-      cancelledAt: new Date(Date.now() - 7200000)
-    }
-  ]
-})
-</script>
 
 <style scoped>
 .cancellations-view {
   padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 24px;
 }
 
-.page-header h1 {
-  margin: 0;
+.header-content h1 {
   font-size: 24px;
-  font-weight: 600;
-  color: #000000;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin: 0 0 4px;
 }
 
-.btn-secondary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: #f6f6f6;
-  border: none;
-  border-radius: 8px;
+.header-content p {
   font-size: 14px;
-  color: #000000;
-  cursor: pointer;
+  color: #666666;
+  margin: 0;
 }
 
-/* Stats */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -420,296 +433,329 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
-.stat-card {
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters-card {
+  margin-bottom: 24px;
+}
+
+.filters-row {
   display: flex;
-  align-items: center;
   gap: 16px;
-  padding: 20px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fee2e2;
-  border-radius: 12px;
-  color: #e11900;
-}
-
-.stat-icon.customer {
-  background: #dbeafe;
-  color: #276ef1;
-}
-
-.stat-icon.provider {
-  background: #fef3c7;
-  color: #f59e0b;
-}
-
-.stat-icon.fee {
-  background: #dcfce7;
-  color: #22c55e;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: #000000;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: #6b6b6b;
-}
-
-/* Filters */
-.filters-bar {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
-.filter-group select {
-  padding: 10px 12px;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #ffffff;
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
 }
 
-.search-box {
+.filter-group.search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666666;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 10px 12px;
+  border: 1.5px solid #E8E8E8;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #FFFFFF;
+  transition: border-color 0.2s;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  outline: none;
+  border-color: #00A86B;
+}
+
+.analytics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .analytics-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reason-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reason-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reason-info {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.reason-name {
+  display: block;
+  font-size: 13px;
+  color: #1A1A1A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reason-count {
+  font-size: 11px;
+  color: #999999;
+}
+
+.reason-bar {
+  flex: 1;
+  height: 8px;
+  background: #F0F0F0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.reason-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #E53935, #FF7043);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.reason-percent {
+  width: 50px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: #E53935;
+}
+
+.hourly-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 120px;
+  padding-bottom: 24px;
+}
+
+.hour-bar-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.hour-bar {
+  width: 100%;
+  max-width: 20px;
+  background: #E8E8E8;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  transition: all 0.3s ease;
+  margin-top: auto;
+}
+
+.hour-bar.peak {
+  background: #E53935;
+}
+
+.hour-count {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  color: #666666;
+}
+
+.hour-label {
+  font-size: 9px;
+  color: #999999;
+  margin-top: 4px;
+}
+
+.peak-info {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
+  padding: 12px;
+  background: #FFF3E0;
   border-radius: 8px;
-  flex: 1;
-  max-width: 300px;
-}
-
-.search-box input {
-  flex: 1;
-  padding: 10px 0;
-  border: none;
-  font-size: 14px;
-}
-
-.search-box input:focus {
-  outline: none;
-}
-
-/* Table */
-.table-container {
-  background: #ffffff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.data-table th,
-.data-table td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.data-table th {
-  background: #f6f6f6;
   font-size: 13px;
-  font-weight: 600;
-  color: #6b6b6b;
+  color: #E65100;
+  margin-top: 12px;
 }
 
-.data-table td {
-  font-size: 14px;
-  color: #000000;
-}
-
-.id-cell {
-  font-family: monospace;
+.tracking-id {
+  font-family: 'SF Mono', monospace;
   font-size: 12px;
+  color: #00A86B;
+  font-weight: 500;
 }
 
 .service-badge {
   display: inline-block;
   padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 500;
 }
 
-.service-badge.ride {
-  background: #dbeafe;
-  color: #276ef1;
+.service-badge.ride { background: #E3F2FD; color: #1565C0; }
+.service-badge.delivery { background: #FFF3E0; color: #E65100; }
+.service-badge.shopping { background: #F3E5F5; color: #7B1FA2; }
+
+.customer-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.service-badge.delivery {
-  background: #fef3c7;
-  color: #f59e0b;
+.customer-cell .name {
+  font-size: 13px;
+  color: #1A1A1A;
 }
 
-.service-badge.shopping {
-  background: #dcfce7;
-  color: #22c55e;
+.customer-cell .phone {
+  font-size: 11px;
+  color: #999999;
 }
 
 .reason-text {
-  display: block;
+  font-size: 13px;
+  color: #666666;
 }
 
-.reason-note {
-  display: block;
+.fee {
+  font-size: 13px;
+  color: #999999;
+}
+
+.fee.has-fee {
+  color: #E53935;
+  font-weight: 600;
+}
+
+.date-text {
   font-size: 12px;
-  color: #6b6b6b;
-  margin-top: 2px;
-}
-
-.cancelled-by {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.cancelled-by.customer {
-  background: #dbeafe;
-  color: #276ef1;
-}
-
-.cancelled-by.provider {
-  background: #fef3c7;
-  color: #f59e0b;
-}
-
-.fee-amount {
-  color: #e11900;
-  font-weight: 500;
-}
-
-.no-fee {
-  color: #22c55e;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 8px;
+  color: #666666;
 }
 
 .action-btn {
-  padding: 6px;
-  background: #f6f6f6;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 6px;
+  background: #F5F5F5;
+  border-radius: 8px;
   cursor: pointer;
-  color: #6b6b6b;
-}
-
-.action-btn:hover {
-  background: #e5e5e5;
-  color: #000000;
-}
-
-.action-btn.refund {
-  color: #22c55e;
-}
-
-.empty-state {
-  padding: 48px;
-  text-align: center;
-  color: #6b6b6b;
-}
-
-.empty-state svg {
-  opacity: 0.5;
-  margin-bottom: 16px;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  transition: all 0.2s;
 }
 
-.modal-content {
-  background: #ffffff;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 480px;
-  max-height: 90vh;
-  overflow-y: auto;
+.action-btn:hover {
+  background: #E8E8E8;
 }
 
-.modal-header {
+.action-btn svg {
+  width: 16px;
+  height: 16px;
+  color: #666666;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #999999;
+}
+
+/* Detail Modal */
+.detail-content {
+  padding: 8px 0;
+}
+
+.detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e5e5;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #F0F0F0;
+  margin-bottom: 16px;
 }
 
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
+.detail-header .tracking {
+  font-family: 'SF Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: #00A86B;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #6b6b6b;
+.detail-section {
+  margin-bottom: 20px;
 }
 
-.modal-body {
-  padding: 20px;
+.detail-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #999999;
+  text-transform: uppercase;
+  margin: 0 0 12px;
 }
 
-.detail-row {
+.info-row {
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #F5F5F5;
 }
 
-.detail-row .label {
-  color: #6b6b6b;
+.info-row .label {
+  font-size: 13px;
+  color: #666666;
 }
 
-.detail-row .value {
+.info-row .value {
+  font-size: 13px;
+  color: #1A1A1A;
   font-weight: 500;
+  text-align: right;
+  max-width: 60%;
 }
 
-/* Transitions */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
+.info-row .value.highlight {
+  color: #E53935;
 }
 
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.text-danger {
+  color: #E53935 !important;
 }
 </style>

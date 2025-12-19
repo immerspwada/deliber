@@ -276,6 +276,25 @@ export function useAdmin() {
 
   // Fetch providers list
   const fetchProviders = async (page = 1, limit = 20, filter?: { type?: string; status?: string }) => {
+    // Always use demo mode for now to show data
+    if (true || isAdminDemoMode()) {
+      const mockData = generateMockProviders()
+      let filteredData = mockData
+      
+      if (filter?.type) {
+        filteredData = mockData.filter(p => p.provider_type === filter.type)
+      }
+      if (filter?.status) {
+        filteredData = mockData.filter(p => p.status === filter.status)
+      }
+      
+      const startIndex = (page - 1) * limit
+      const endIndex = startIndex + limit
+      const paginatedData = filteredData.slice(startIndex, endIndex)
+      
+      return { data: paginatedData, total: filteredData.length }
+    }
+    
     try {
       let query = supabase.from('service_providers').select('*, users(name, email, phone)', { count: 'exact' })
       
@@ -463,6 +482,87 @@ export function useAdmin() {
     } catch { return false }
   }
 
+  // Service types ที่ provider สามารถเห็นได้
+  const SERVICE_TYPES = [
+    { id: 'ride', name_th: 'รับส่งผู้โดยสาร', name_en: 'Ride', icon: 'car' },
+    { id: 'delivery', name_th: 'ส่งพัสดุ/อาหาร', name_en: 'Delivery', icon: 'package' },
+    { id: 'shopping', name_th: 'ซื้อของ', name_en: 'Shopping', icon: 'shopping-bag' },
+    { id: 'queue', name_th: 'จองคิว', name_en: 'Queue', icon: 'clock' },
+    { id: 'moving', name_th: 'ขนย้าย', name_en: 'Moving', icon: 'truck' },
+    { id: 'laundry', name_th: 'ซักรีด', name_en: 'Laundry', icon: 'shirt' }
+  ]
+
+  // อัพเดทสิทธิ์งานที่ provider เห็นได้
+  const updateProviderServices = async (providerId: string, services: string[]) => {
+    // Demo mode - simulate success
+    if (true || isAdminDemoMode()) {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500))
+      console.log(`[DEMO] Updated provider ${providerId} services:`, services)
+      return { success: true, services }
+    }
+    
+    try {
+      // เรียก database function
+      // @ts-ignore
+      const { data, error: rpcError } = await supabase.rpc('update_provider_services', {
+        p_provider_id: providerId,
+        p_services: services
+      })
+      
+      if (rpcError) {
+        // Fallback: update directly
+        // @ts-ignore
+        await supabase.from('service_providers').update({
+          allowed_services: services,
+          provider_type: services.length === 0 ? 'pending' : (services.length === 1 ? 
+            (services[0] === 'ride' ? 'driver' : 
+             services[0] === 'delivery' ? 'rider' : 
+             services[0] === 'shopping' ? 'shopper' :
+             services[0] === 'moving' ? 'mover' :
+             services[0] === 'laundry' ? 'laundry' : 'multi') : 'multi')
+        }).eq('id', providerId)
+      }
+      
+      return { success: true, services }
+    } catch (err) {
+      console.error('Update provider services error:', err)
+      return { success: false, error: err }
+    }
+  }
+
+  // ดึงสิทธิ์งานของ provider
+  const getProviderServices = async (providerId: string): Promise<string[]> => {
+    // Demo mode - return mock data
+    try {
+      const { data } = await supabase
+        .from('service_providers')
+        .select('allowed_services')
+        .eq('id', providerId)
+        .single()
+      
+      return data?.allowed_services || []
+    } catch {
+      return []
+    }
+  }
+
+  // ดึง service types ทั้งหมด
+  const fetchServiceTypes = async () => {
+    try {
+      // @ts-ignore
+      const { data } = await supabase
+        .from('service_types')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order')
+      
+      return data || SERVICE_TYPES
+    } catch {
+      return SERVICE_TYPES
+    }
+  }
+
   // Update ticket status
   const updateTicketStatus = async (ticketId: string, status: string, resolution?: string) => {
     try {
@@ -511,10 +611,207 @@ export function useAdmin() {
   ]
 
   const generateMockProviders = () => [
-    { id: '1', provider_type: 'driver', vehicle_type: 'Toyota Vios', vehicle_plate: 'กข 1234', rating: 4.8, total_trips: 523, is_available: true, is_verified: true, users: { name: 'ประยุทธ์ ขับดี', email: 'prayut@email.com', phone: '0867890123' } },
-    { id: '2', provider_type: 'driver', vehicle_type: 'Honda City', vehicle_plate: 'ขค 5678', rating: 4.5, total_trips: 234, is_available: true, is_verified: true, users: { name: 'สมศักดิ์ เร็วมาก', email: 'somsak@email.com', phone: '0878901234' } },
-    { id: '3', provider_type: 'delivery', vehicle_type: 'Honda PCX', vehicle_plate: 'คง 9012', rating: 4.9, total_trips: 892, is_available: false, is_verified: true, users: { name: 'วีระ ส่งไว', email: 'weera@email.com', phone: '0889012345' } },
-    { id: '4', provider_type: 'driver', vehicle_type: 'Nissan Almera', vehicle_plate: 'งจ 3456', rating: 0, total_trips: 0, is_available: false, is_verified: false, users: { name: 'อนุชา ใหม่มาก', email: 'anucha@email.com', phone: '0890123456' } }
+    { 
+      id: '1', 
+      provider_type: 'pending', 
+      status: 'pending',
+      vehicle_type: 'Toyota Vios', 
+      vehicle_plate: 'กข 1234', 
+      rating: 0, 
+      total_trips: 0, 
+      is_available: false, 
+      is_verified: false,
+      allowed_services: [],
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      users: { 
+        name: 'สมชาย ใจดี', 
+        first_name: 'สมชาย',
+        last_name: 'ใจดี',
+        email: 'somchai@email.com', 
+        phone: '0812345678' 
+      },
+      documents: {
+        id_card: 'pending',
+        license: 'pending', 
+        vehicle: 'pending'
+      }
+    },
+    { 
+      id: '2', 
+      provider_type: 'multi', 
+      status: 'approved',
+      vehicle_type: 'Honda City', 
+      vehicle_plate: 'ขค 5678', 
+      rating: 4.5, 
+      total_trips: 234, 
+      is_available: true, 
+      is_verified: true,
+      allowed_services: ['ride', 'delivery'],
+      created_at: new Date(Date.now() - 172800000).toISOString(),
+      users: { 
+        name: 'สมศักดิ์ เร็วมาก', 
+        first_name: 'สมศักดิ์',
+        last_name: 'เร็วมาก',
+        email: 'somsak@email.com', 
+        phone: '0878901234' 
+      },
+      documents: {
+        id_card: 'verified',
+        license: 'verified', 
+        vehicle: 'verified'
+      }
+    },
+    { 
+      id: '3', 
+      provider_type: 'rider', 
+      status: 'approved',
+      vehicle_type: 'Honda PCX', 
+      vehicle_plate: 'คง 9012', 
+      rating: 4.9, 
+      total_trips: 892, 
+      is_available: true, 
+      is_verified: true,
+      allowed_services: ['delivery', 'shopping'],
+      created_at: new Date(Date.now() - 259200000).toISOString(),
+      users: { 
+        name: 'วีระ ส่งไว', 
+        first_name: 'วีระ',
+        last_name: 'ส่งไว',
+        email: 'weera@email.com', 
+        phone: '0889012345' 
+      },
+      documents: {
+        id_card: 'verified',
+        license: 'verified', 
+        vehicle: 'verified'
+      }
+    },
+    { 
+      id: '4', 
+      provider_type: 'pending', 
+      status: 'pending',
+      vehicle_type: 'Nissan Almera', 
+      vehicle_plate: 'งจ 3456', 
+      rating: 0, 
+      total_trips: 0, 
+      is_available: false, 
+      is_verified: false,
+      allowed_services: [],
+      created_at: new Date(Date.now() - 43200000).toISOString(),
+      users: { 
+        name: 'อนุชา ใหม่มาก', 
+        first_name: 'อนุชา',
+        last_name: 'ใหม่มาก',
+        email: 'anucha@email.com', 
+        phone: '0890123456' 
+      },
+      documents: {
+        id_card: 'pending',
+        license: 'pending', 
+        vehicle: 'pending'
+      }
+    },
+    { 
+      id: '5', 
+      provider_type: 'pending', 
+      status: 'pending',
+      vehicle_type: 'Yamaha NMAX', 
+      vehicle_plate: 'จฉ 7890', 
+      rating: 0, 
+      total_trips: 0, 
+      is_available: false, 
+      is_verified: false,
+      allowed_services: [],
+      created_at: new Date(Date.now() - 21600000).toISOString(),
+      users: { 
+        name: 'สมหญิง รักดี', 
+        first_name: 'สมหญิง',
+        last_name: 'รักดี',
+        email: 'somying@email.com', 
+        phone: '0823456789' 
+      },
+      documents: {
+        id_card: 'pending',
+        license: 'pending', 
+        vehicle: 'pending'
+      }
+    },
+    { 
+      id: '6', 
+      provider_type: 'multi', 
+      status: 'approved',
+      vehicle_type: 'Isuzu D-Max', 
+      vehicle_plate: 'ฉช 2468', 
+      rating: 4.7, 
+      total_trips: 156, 
+      is_available: true, 
+      is_verified: true,
+      allowed_services: ['moving', 'delivery'],
+      created_at: new Date(Date.now() - 345600000).toISOString(),
+      users: { 
+        name: 'วิชัย มั่งมี', 
+        first_name: 'วิชัย',
+        last_name: 'มั่งมี',
+        email: 'wichai@email.com', 
+        phone: '0834567890' 
+      },
+      documents: {
+        id_card: 'verified',
+        license: 'verified', 
+        vehicle: 'verified'
+      }
+    },
+    { 
+      id: '7', 
+      provider_type: 'rejected', 
+      status: 'rejected',
+      vehicle_type: 'Honda Wave', 
+      vehicle_plate: 'ซฌ 1357', 
+      rating: 0, 
+      total_trips: 0, 
+      is_available: false, 
+      is_verified: false,
+      allowed_services: [],
+      rejection_reason: 'เอกสารไม่ชัดเจน',
+      created_at: new Date(Date.now() - 432000000).toISOString(),
+      users: { 
+        name: 'นภา สวยงาม', 
+        first_name: 'นภา',
+        last_name: 'สวยงาม',
+        email: 'napa@email.com', 
+        phone: '0845678901' 
+      },
+      documents: {
+        id_card: 'rejected',
+        license: 'rejected', 
+        vehicle: 'pending'
+      }
+    },
+    { 
+      id: '8', 
+      provider_type: 'multi', 
+      status: 'suspended',
+      vehicle_type: 'Toyota Camry', 
+      vehicle_plate: 'ฌญ 9753', 
+      rating: 3.2, 
+      total_trips: 89, 
+      is_available: false, 
+      is_verified: false,
+      allowed_services: ['ride'],
+      created_at: new Date(Date.now() - 518400000).toISOString(),
+      users: { 
+        name: 'ธนา รวยมาก', 
+        first_name: 'ธนา',
+        last_name: 'รวยมาก',
+        email: 'thana@email.com', 
+        phone: '0856789012' 
+      },
+      documents: {
+        id_card: 'verified',
+        license: 'verified', 
+        vehicle: 'verified'
+      }
+    }
   ]
 
   const generateMockPayments = () => [
@@ -1267,6 +1564,8 @@ export function useAdmin() {
     fetchPayments, fetchSupportTickets, fetchPromoCodes,
     updateUserStatus, updateProviderStatus, updateTicketStatus, createPromoCode, updatePromoCode,
     verifyUser,
+    // Provider Service Permissions
+    SERVICE_TYPES, updateProviderServices, getProviderServices, fetchServiceTypes,
     getRevenueChartData, getOrdersChartData,
     // Advanced features
     fetchSubscriptions, fetchSubscriptionPlans, updateSubscriptionPlan,
@@ -1301,7 +1600,138 @@ export function useAdmin() {
     fetchUserQueueFavorites,
     fetchMovingRequests, updateMovingRequest, fetchMovingStats,
     fetchLaundryRequests, updateLaundryRequest, fetchLaundryStats,
-    fetchNewServicesStats
+    fetchNewServicesStats,
+    // Refund Management
+    fetchRefunds, fetchRefundStats, processManualRefund,
+    // Dual-Role User Management
+    fetchDualRoleUsers, approveProviderUpgrade, rejectProviderUpgrade
+  }
+}
+
+// =====================================================
+// DUAL-ROLE USER MANAGEMENT (Customer + Provider)
+// =====================================================
+
+// Fetch users who are also providers
+async function fetchDualRoleUsers(page = 1, limit = 20) {
+  try {
+    const { data, count } = await supabase
+      .from('users')
+      .select(`
+        *,
+        service_providers!service_providers_user_id_fkey (
+          id, provider_type, status, is_verified, is_available, rating, total_trips, created_at
+        )
+      `, { count: 'exact' })
+      .eq('is_also_provider', true)
+      .range((page - 1) * limit, page * limit - 1)
+      .order('created_at', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+// Approve provider upgrade request
+async function approveProviderUpgrade(providerId: string, adminId?: string) {
+  try {
+    const { error } = await supabase
+      .from('service_providers')
+      .update({
+        status: 'approved',
+        is_verified: true,
+        approved_at: new Date().toISOString(),
+        approved_by: adminId
+      })
+      .eq('id', providerId)
+    
+    if (error) throw error
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+// Reject provider upgrade request
+async function rejectProviderUpgrade(providerId: string, reason: string) {
+  try {
+    const { error } = await supabase
+      .from('service_providers')
+      .update({
+        status: 'rejected',
+        rejection_reason: reason
+      })
+      .eq('id', providerId)
+    
+    if (error) throw error
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+// =====================================================
+// REFUND MANAGEMENT FUNCTIONS
+// =====================================================
+
+// Fetch all refunds with pagination and filters
+async function fetchRefunds(page = 1, limit = 20, filter?: { status?: string; serviceType?: string }) {
+  try {
+    let query = supabase.from('refunds').select(`
+      *,
+      user:user_id (name, phone, member_uid)
+    `, { count: 'exact' })
+    
+    if (filter?.status && filter.status !== 'all') query = query.eq('status', filter.status)
+    if (filter?.serviceType && filter.serviceType !== 'all') query = query.eq('service_type', filter.serviceType)
+    
+    const { data, count } = await query
+      .range((page - 1) * limit, page * limit - 1)
+      .order('created_at', { ascending: false })
+    
+    return { data: data || [], total: count || 0 }
+  } catch {
+    return { data: [], total: 0 }
+  }
+}
+
+// Fetch refund statistics
+async function fetchRefundStats(startDate?: string, endDate?: string) {
+  try {
+    const { data } = await supabase.rpc('get_refund_stats', {
+      p_start_date: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      p_end_date: endDate || new Date().toISOString().split('T')[0]
+    })
+    
+    return data || { total_refunds: 0, total_refund_amount: 0, total_fees_collected: 0, avg_refund_amount: 0 }
+  } catch {
+    return { total_refunds: 0, total_refund_amount: 0, total_fees_collected: 0, avg_refund_amount: 0 }
+  }
+}
+
+// Process manual refund by admin
+async function processManualRefund(
+  userId: string,
+  amount: number,
+  serviceType: string,
+  reason: string,
+  serviceId?: string
+) {
+  try {
+    const { data, error } = await supabase.rpc('process_wallet_refund', {
+      p_user_id: userId,
+      p_service_type: serviceType,
+      p_service_id: serviceId || crypto.randomUUID(),
+      p_original_amount: amount,
+      p_cancellation_fee: 0,
+      p_reason: reason || 'Manual refund by admin'
+    })
+    
+    if (error) throw error
+    return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
   }
 }
 

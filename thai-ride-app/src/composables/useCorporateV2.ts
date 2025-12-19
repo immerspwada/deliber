@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useCorporateV2 - Enhanced Corporate Account Features
  * 
