@@ -10,11 +10,9 @@ const {
   bankAccounts,
   withdrawals,
   earningsSummary,
-  weeklyStats,
   fetchBankAccounts,
   fetchWithdrawals,
   fetchEarningsSummary,
-  fetchWeeklyStats,
   addBankAccount,
   deleteBankAccount,
   requestWithdrawal,
@@ -45,7 +43,6 @@ onMounted(async () => {
   if (profile.value?.id) {
     await Promise.all([
       fetchEarningsSummary(profile.value.id),
-      fetchWeeklyStats(profile.value.id),
       fetchBankAccounts(profile.value.id),
       fetchWithdrawals(profile.value.id)
     ])
@@ -80,10 +77,7 @@ const periodData = computed(() => {
   }
 })
 
-// Max weekly stat for chart
-const maxWeeklyStat = computed(() => {
-  return Math.max(...weeklyStats.value.map(s => s.earnings), 1)
-})
+
 
 // Handle withdrawal
 const handleWithdraw = async () => {
@@ -231,26 +225,6 @@ const formatDate = (dateStr: string) => {
             <div class="online-info">
               <span class="online-label">ออนไลน์วันนี้</span>
               <span class="online-value">{{ formatMinutesToHours(earningsSummary.today_online_minutes) }}</span>
-            </div>
-          </div>
-
-          <!-- Weekly Chart -->
-          <div class="chart-card">
-            <h3 class="chart-title">รายได้รายวัน</h3>
-            <div class="chart-container">
-              <div 
-                v-for="stat in weeklyStats" 
-                :key="stat.stat_date"
-                class="chart-bar-wrapper"
-              >
-                <div class="chart-bar-bg">
-                  <div 
-                    class="chart-bar"
-                    :style="{ height: `${(stat.earnings / maxWeeklyStat) * 100}%` }"
-                  ></div>
-                </div>
-                <span class="chart-label">{{ stat.day_name }}</span>
-              </div>
             </div>
           </div>
 
@@ -701,60 +675,6 @@ const formatDate = (dateStr: string) => {
 .online-value {
   font-size: 18px;
   font-weight: 600;
-}
-
-/* Chart Card */
-.chart-card {
-  background-color: #FFFFFF;
-  padding: 20px;
-  border-radius: 16px;
-  margin-bottom: 16px;
-}
-
-.chart-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 20px;
-}
-
-.chart-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  height: 120px;
-  gap: 8px;
-}
-
-.chart-bar-wrapper {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.chart-bar-bg {
-  width: 100%;
-  height: 100px;
-  background-color: #F6F6F6;
-  border-radius: 6px;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-}
-
-.chart-bar {
-  width: 100%;
-  background-color: #000000;
-  border-radius: 6px;
-  min-height: 4px;
-  transition: height 0.3s ease;
-}
-
-.chart-label {
-  font-size: 12px;
-  color: #6B6B6B;
-  font-weight: 500;
 }
 
 /* Summary Grid */
