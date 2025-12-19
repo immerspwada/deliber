@@ -44,7 +44,6 @@ const dateRange = computed(() => {
     endDate: end.toISOString().split('T')[0]
   }
 })
-</script>
 
 // Filtered cancellations
 const filteredCancellations = computed(() => {

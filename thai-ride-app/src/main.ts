@@ -1,19 +1,12 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createRouter, createWebHistory } from 'vue-router'
 import './style.css'
 import App from './App.vue'
 
-// Import routes
-import { routes } from './router/index'
+// Import router with guards
+import router from './router/index'
 import { supabase } from './lib/supabase'
 import { initSentry, setUser as setSentryUser } from './lib/sentry'
-
-// Create router
-const router = createRouter({
-  history: createWebHistory(),
-  routes
-})
 
 // Cache for session to avoid repeated checks
 let cachedSession: any = null
@@ -140,7 +133,7 @@ const logAdminActivity = (action: string, details?: Record<string, any>) => {
   console.log('[Admin Activity]', action, details || '')
 }
 
-// ✅ FIX: Navigation guard with cleanup trigger
+// ✅ Additional navigation guard for admin routes (runs after router/index.ts guards)
 router.beforeEach(async (to, from, next) => {
   const isAdminRoute = to.path.startsWith('/admin')
   const requiresAdmin = to.meta.requiresAdmin
@@ -163,54 +156,9 @@ router.beforeEach(async (to, from, next) => {
     if (isValidSession && to.path !== from.path) {
       logAdminActivity('navigate', { from: from.path, to: to.path })
     }
-    next()
-    return
-  }
-
-  // User routes - ใช้ user auth
-  const isDemoMode = localStorage.getItem('demo_mode') === 'true'
-  const isPublicRoute = to.meta.public
-  const requiresAuth = to.meta.requiresAuth
-  
-  // Fast path for demo mode - no async needed
-  if (isDemoMode) {
-    const role = getUserRole()
-    
-    if (isPublicRoute && (to.path === '/login' || to.path === '/register')) {
-      if (role === 'rider' || role === 'driver') {
-        next('/provider')
-      } else {
-        next('/customer')
-      }
-    } else if (to.path === '/') {
-      if (role === 'rider' || role === 'driver') {
-        next('/provider')
-      } else {
-        next('/customer')
-      }
-    } else {
-      next()
-    }
-    return
   }
   
-  // Fast path for public routes (login, register) - no session check needed
-  if (isPublicRoute && !requiresAuth) {
-    next()
-    return
-  }
-  
-  // Only check session for protected routes
-  const session = await getSessionWithTimeout(1500) // Reduced timeout
-  const isAuthenticated = !!session
-
-  if (requiresAuth && !isAuthenticated) {
-    next('/login')
-  } else if (to.path === '/' && isAuthenticated) {
-    next('/customer')
-  } else {
-    next()
-  }
+  next()
 })
 
 // ✅ FIX: Add afterEach guard for cleanup trigger

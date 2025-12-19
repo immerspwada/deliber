@@ -1,4 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { supabase } from '../lib/supabase'
 
 export const routes: RouteRecordRaw[] = [
   // ========================================
@@ -729,3 +732,129 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, isProviderRoute: true }
   }
 ]
+
+
+// Create router instance
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+// Navigation guard to check provider status
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+  
+  // Check if route requires provider access
+  if (to.meta.isProviderRoute) {
+    // Wait for auth to initialize if needed
+    if (!authStore.user && authStore.loading) {
+      await new Promise(resolve => {
+        const unwatch = authStore.$subscribe(() => {
+          if (!authStore.loading) {
+            unwatch()
+            resolve(true)
+          }
+        })
+      })
+    }
+
+    // Check if user is authenticated
+    if (!authStore.isAuthenticated) {
+      console.warn('[Router] Provider route requires authentication')
+      return next('/login')
+    }
+
+    // Allow access to onboarding/registration pages without provider check
+    const allowedWithoutProvider = [
+      '/provider/onboarding',
+      '/provider/register',
+      '/provider/documents'
+    ]
+    
+    if (allowedWithoutProvider.includes(to.path)) {
+      return next()
+    }
+
+    // Check if user has provider account and can access
+    try {
+      const { data, error } = await supabase.rpc('can_access_provider_routes', {
+        p_user_id: authStore.user?.id
+      })
+
+      if (error) {
+        console.error('[Router] Provider check error:', error)
+        return next('/customer/become-provider')
+      }
+
+      const result = Array.isArray(data) ? data[0] : data
+
+      if (!result?.can_access) {
+        console.warn('[Router] Provider access denied:', result?.message)
+        
+        // Redirect based on status
+        if (!result?.provider_id) {
+          // No provider account - redirect to become provider
+          return next('/customer/become-provider')
+        } else if (!result?.is_verified || result?.status !== 'approved') {
+          // Provider exists but not approved - redirect to onboarding
+          return next('/provider/onboarding')
+        } else {
+          // Other issues - redirect to become provider
+          return next('/customer/become-provider')
+        }
+      }
+
+      // Access granted
+      console.log('[Router] Provider access granted')
+    } catch (err) {
+      console.error('[Router] Provider check exception:', err)
+      return next('/customer/become-provider')
+    }
+  }
+
+  // Check if route requires customer access
+  if (to.meta.isCustomerRoute) {
+    if (!authStore.isAuthenticated) {
+      return next('/login')
+    }
+
+    // Check if user is a provider trying to access customer routes
+    try {
+      const { data: provider, error } = await supabase
+        .from('service_providers')
+        .select('id, is_verified, status, provider_type')
+        .eq('user_id', authStore.user?.id)
+        .single()
+
+      // If user has a provider account, check if they should be redirected
+      if (!error && provider) {
+        // If provider is not verified or not approved, redirect to onboarding
+        if (!provider.is_verified || provider.status !== 'approved') {
+          console.log('[Router] Provider not approved, redirecting to onboarding')
+          return next('/provider/onboarding')
+        }
+        
+        // If provider is approved, they can access both customer and provider routes
+        // No redirect needed - let them use customer features
+      }
+    } catch (err) {
+      console.error('[Router] Provider check error:', err)
+      // On error, allow access to customer routes (fail open)
+    }
+  }
+
+  // Check if route requires admin access
+  if (to.meta.requiresAdmin) {
+    if (!authStore.isAuthenticated) {
+      return next('/admin/login')
+    }
+    
+    if (authStore.user?.role !== 'admin') {
+      return next('/customer')
+    }
+  }
+
+  next()
+})
+
+export default router

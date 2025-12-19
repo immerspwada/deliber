@@ -5,7 +5,7 @@
  */
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../lib/supabase'
 
 interface StaleRideCheck {
   success: boolean

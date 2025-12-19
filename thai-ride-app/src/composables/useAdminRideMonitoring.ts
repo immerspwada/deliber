@@ -5,7 +5,7 @@
  */
 
 import { ref, computed, onUnmounted } from 'vue'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Types

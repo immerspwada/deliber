@@ -7,7 +7,7 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useAdminRideMonitoring } from '../composables/useAdminRideMonitoring'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../lib/supabase'
 
 const {
   isLoading,
