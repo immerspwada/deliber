@@ -2,18 +2,18 @@
 /**
  * ProviderCTA - Call to Action สมัครเป็นคนขับ
  * MUNEEF Style: สีเขียว #00A86B
+ * Flow: กดแล้วไปหน้า /provider/onboarding
  */
+import { useRouter } from 'vue-router'
 import { useHapticFeedback } from '../../composables/useHapticFeedback'
 
-const emit = defineEmits<{
-  'click': []
-}>()
-
+const router = useRouter()
 const haptic = useHapticFeedback()
 
 const handleClick = () => {
   haptic.medium()
-  emit('click')
+  // Navigate to provider onboarding page
+  router.push('/provider/onboarding')
 }
 </script>
 

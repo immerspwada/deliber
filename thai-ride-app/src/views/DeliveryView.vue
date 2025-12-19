@@ -2896,8 +2896,13 @@ const clearDropoff = () => {
   gap: 16px;
   box-shadow: 0 4px 16px rgba(0, 168, 107, 0.35);
   transition: all 0.3s ease;
-  position: relative;
   overflow: hidden;
+  /* Sticky CTA - ติดด้านล่างเสมอ */
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .confirm-book-btn::before {

@@ -73,7 +73,7 @@
 | **F02** | Ride Booking | `useServices.ts`, `stores/ride.ts` | `ride_requests`, `service_providers` | 001, 006 |
 | **F03** | Delivery Service | `useDelivery.ts` | `delivery_requests` | 001, 007 |
 | **F04** | Shopping Service | `useShopping.ts` | `shopping_requests` | 001, 007 |
-| **F05** | Wallet/Balance | `useWallet.ts` | `user_wallets`, `wallet_transactions` | 007 |
+| **F05** | Wallet/Balance | `useWallet.ts`, `useWalletV2.ts` | `user_wallets`, `wallet_transactions`, `topup_requests` | 007, 079 |
 | **F06** | Referral System | `useReferral.ts` | `referral_codes`, `referrals` | 007 |
 | **F07** | Notifications & Push | `useNotifications.ts`, `usePushNotifications.ts` | `user_notifications`, `push_subscriptions`, `push_notification_queue` | 007, 015 |
 | **F08** | Payment Methods | `usePaymentMethods.ts` | `payment_methods` | 002 |

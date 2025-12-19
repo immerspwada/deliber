@@ -11,7 +11,6 @@ import MapView from '../components/MapView.vue'
 import RideTracker from '../components/RideTracker.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import NearbyPlacesSheet from '../components/NearbyPlacesSheet.vue'
-import BottomNavigation from '../components/customer/BottomNavigation.vue'
 import type { NearbyPlace } from '../composables/useNearbyPlaces'
 import { useLocation, type GeoLocation } from '../composables/useLocation'
 import { useRideStore } from '../stores/ride'
@@ -19,7 +18,6 @@ import { useAuthStore } from '../stores/auth'
 import { useSurgePricing } from '../composables/useSurgePricing'
 import { useServices } from '../composables/useServices'
 import { useRecurringRides } from '../composables/useRecurringRides'
-import { useRideHistory } from '../composables/useRideHistory'
 import type { RideRequest, ServiceProvider } from '../types/database'
 
 const router = useRouter()
@@ -28,14 +26,8 @@ const authStore = useAuthStore()
 const { calculateDistance, calculateTravelTime } = useLocation()
 const { calculateSurge, currentMultiplier } = useSurgePricing()
 const { savedPlaces, recentPlaces, homePlace, workPlace, fetchSavedPlaces, fetchRecentPlaces, loading: placesLoading } = useServices()
-const { unratedRidesCount, fetchUnratedRides } = useRideHistory()
 
 const surgeMultiplier = currentMultiplier
-
-// Navigation handler for BottomNavigation
-const navigateTo = (route: string) => {
-  router.push(route)
-}
 
 // Computed: Favorite places (not home/work)
 const favoritePlaces = computed(() => 
@@ -61,8 +53,8 @@ onMounted(async () => {
       activeRide.value = rideStore.currentRide
       viewMode.value = 'tracking'
     }
-    // Fetch saved places, recent places, and unrated rides count
-    await Promise.all([fetchSavedPlaces(), fetchRecentPlaces(5), fetchUnratedRides()])
+    // Fetch saved places and recent places
+    await Promise.all([fetchSavedPlaces(), fetchRecentPlaces(5)])
   }
 })
 
@@ -1948,12 +1940,7 @@ watch(rideType, () => {
       @select="handleNearbyPlaceSelect"
     />
 
-    <!-- Bottom Navigation -->
-    <BottomNavigation
-      active-tab="services"
-      :history-badge="unratedRidesCount"
-      @navigate="navigateTo"
-    />
+    <!-- BottomNavigation ถูกซ่อนในหน้านี้เพื่อให้ผู้ใช้โฟกัสกับการจอง -->
   </div>
 </template>
 
@@ -2042,7 +2029,8 @@ watch(rideType, () => {
   background: #FFFFFF;
   border-radius: 28px 28px 0 0;
   margin-top: -24px;
-  padding: 12px 20px 90px; /* Extra padding for inline bottom nav */
+  padding: 12px 20px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom)); /* Safe area for CTA button */
   position: relative;
   z-index: 20;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
@@ -3934,6 +3922,12 @@ watch(rideType, () => {
   justify-content: center;
   gap: 10px;
   transition: all 0.2s ease;
+  /* Sticky CTA - ติดด้านล่างเสมอ */
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .continue-btn.primary {
@@ -5240,6 +5234,12 @@ watch(rideType, () => {
   justify-content: space-between;
   box-shadow: 0 4px 16px rgba(0, 168, 107, 0.35);
   transition: all 0.2s ease;
+  /* Sticky CTA - ติดด้านล่างเสมอ */
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .confirm-book-btn:hover:not(:disabled) {

@@ -1,18 +1,26 @@
 <script setup lang="ts">
+/**
+ * ProviderRegisterView - หน้าสมัครเป็นคนขับ GOBEAR
+ * MUNEEF Style: สีเขียว #00A86B
+ * Flow: 4 ขั้นตอน → สมัครสำเร็จ → รอ Admin อนุมัติ
+ */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useImageUtils } from '../composables/useImageUtils'
+import { useHapticFeedback } from '../composables/useHapticFeedback'
 import { supabase } from '../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const haptic = useHapticFeedback()
 const { validateThaiID, performOCR } = useImageUtils()
 
+// State
 const isLoading = ref(false)
 const error = ref('')
-const successMessage = ref('')
 const step = ref(1)
+const showSuccess = ref(false)
 
 // Form data
 const selectedType = ref<'driver' | 'rider'>('driver')
@@ -20,48 +28,65 @@ const vehicleType = ref('')
 const vehicleBrand = ref('')
 const vehicleModel = ref('')
 const vehicleYear = ref('')
-const licensePlate = ref('')
+const vehiclePlate = ref('')
+const vehicleColor = ref('')
 const licenseNumber = ref('')
 const licenseExpiry = ref('')
 const acceptTerms = ref(false)
 
-// Thai ID validation
+// Thai ID
 const nationalId = ref('')
 const nationalIdError = ref('')
 const nationalIdValid = ref(false)
 
-// OCR processing
-const ocrProgress = ref(0)
-const ocrStatus = ref('')
-const isProcessingOCR = ref(false)
-
-// Document uploads
+// Documents
 const idCardFile = ref<File | null>(null)
 const licenseFile = ref<File | null>(null)
 const vehicleFile = ref<File | null>(null)
 const idCardPreview = ref('')
 const licensePreview = ref('')
 const vehiclePreview = ref('')
+
+// OCR & Upload progress
+const isProcessingOCR = ref(false)
+const ocrStatus = ref('')
 const uploadProgress = ref(0)
+
+// Steps config
+const steps = [
+  { num: 1, title: 'ประเภท', icon: 'user' },
+  { num: 2, title: 'ยานพาหนะ', icon: 'car' },
+  { num: 3, title: 'ข้อมูล', icon: 'id' },
+  { num: 4, title: 'เอกสาร', icon: 'doc' }
+]
 
 // Vehicle options
 const vehicleOptions = {
   driver: [
-    { value: 'car', label: 'รถยนต์', icon: 'car' },
-    { value: 'suv', label: 'รถ SUV', icon: 'suv' },
-    { value: 'van', label: 'รถตู้', icon: 'van' }
+    { value: 'car', label: 'รถยนต์' },
+    { value: 'suv', label: 'รถ SUV' },
+    { value: 'van', label: 'รถตู้' }
   ],
   rider: [
-    { value: 'motorcycle', label: 'มอเตอร์ไซค์', icon: 'motorcycle' },
-    { value: 'bicycle', label: 'จักรยาน', icon: 'bicycle' }
+    { value: 'motorcycle', label: 'มอเตอร์ไซค์' },
+    { value: 'bicycle', label: 'จักรยาน' }
   ]
 }
 
+const colorOptions = [
+  { value: 'black', label: 'ดำ', color: '#1A1A1A' },
+  { value: 'white', label: 'ขาว', color: '#FFFFFF' },
+  { value: 'silver', label: 'เงิน', color: '#C0C0C0' },
+  { value: 'red', label: 'แดง', color: '#E53935' },
+  { value: 'blue', label: 'น้ำเงิน', color: '#2196F3' },
+  { value: 'green', label: 'เขียว', color: '#4CAF50' },
+  { value: 'other', label: 'อื่นๆ', color: '#9E9E9E' }
+]
+
 const currentVehicleOptions = computed(() => vehicleOptions[selectedType.value])
 
-// Real-time Thai ID validation
+// Thai ID validation
 watch(nationalId, (value) => {
-  // Remove non-digits
   const cleaned = value.replace(/\D/g, '')
   if (cleaned !== value) {
     nationalId.value = cleaned
@@ -78,6 +103,7 @@ watch(nationalId, (value) => {
     if (validateThaiID(cleaned)) {
       nationalIdError.value = ''
       nationalIdValid.value = true
+      haptic.success()
     } else {
       nationalIdError.value = 'เลขบัตรประชาชนไม่ถูกต้อง'
       nationalIdValid.value = false
@@ -87,7 +113,6 @@ watch(nationalId, (value) => {
   }
 })
 
-// Format Thai ID for display (x-xxxx-xxxxx-xx-x)
 const formattedNationalId = computed(() => {
   const id = nationalId.value
   if (id.length <= 1) return id
@@ -99,28 +124,23 @@ const formattedNationalId = computed(() => {
 
 // Validations
 const canProceedStep1 = computed(() => !!selectedType.value)
-
 const canProceedStep2 = computed(() => 
   vehicleType.value && 
   vehicleBrand.value.trim().length >= 2 &&
   vehicleModel.value.trim().length >= 1 &&
-  licensePlate.value.trim().length >= 4
+  vehiclePlate.value.trim().length >= 4 &&
+  vehicleColor.value
 )
-
 const canProceedStep3 = computed(() => 
   licenseNumber.value.trim().length >= 6 &&
   licenseExpiry.value &&
   nationalIdValid.value
 )
-
 const canSubmit = computed(() => 
-  idCardFile.value &&
-  licenseFile.value &&
-  vehicleFile.value &&
-  acceptTerms.value
+  idCardFile.value && licenseFile.value && vehicleFile.value && acceptTerms.value
 )
 
-// Image compression utility
+// Image compression
 const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -130,40 +150,20 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<File
         const canvas = document.createElement('canvas')
         let width = img.width
         let height = img.height
-        
-        // Scale down if larger than maxWidth
         if (width > maxWidth) {
           height = (height * maxWidth) / width
           width = maxWidth
         }
-        
         canvas.width = width
         canvas.height = height
-        
         const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          resolve(file)
-          return
-        }
-        
+        if (!ctx) { resolve(file); return }
         ctx.drawImage(img, 0, 0, width, height)
-        
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now()
-              })
-              console.log(`Compressed: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`)
-              resolve(compressedFile)
-            } else {
-              resolve(file)
-            }
-          },
-          'image/jpeg',
-          quality
-        )
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }))
+          } else { resolve(file) }
+        }, 'image/jpeg', quality)
       }
       img.onerror = () => reject(new Error('Failed to load image'))
       img.src = e.target?.result as string
@@ -173,13 +173,12 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<File
   })
 }
 
-// File handling with compression and OCR
+// File handling
 const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
   
-  // Validate file
   if (!file.type.startsWith('image/')) {
     error.value = 'กรุณาเลือกไฟล์รูปภาพเท่านั้น'
     return
@@ -190,112 +189,101 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
   }
   
   error.value = ''
+  haptic.light()
   
   try {
-    // Compress image
-    ocrStatus.value = 'กำลังบีบอัดรูปภาพ...'
-    ocrProgress.value = 10
+    isProcessingOCR.value = true
+    ocrStatus.value = 'กำลังประมวลผล...'
     const compressedFile = await compressImage(file)
-    ocrProgress.value = 30
     
-    // Set preview
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
-      if (type === 'idCard') {
-        idCardFile.value = compressedFile
-        idCardPreview.value = result
-      } else if (type === 'license') {
-        licenseFile.value = compressedFile
-        licensePreview.value = result
-      } else {
-        vehicleFile.value = compressedFile
-        vehiclePreview.value = result
-      }
+      if (type === 'idCard') { idCardFile.value = compressedFile; idCardPreview.value = result }
+      else if (type === 'license') { licenseFile.value = compressedFile; licensePreview.value = result }
+      else { vehicleFile.value = compressedFile; vehiclePreview.value = result }
     }
     reader.readAsDataURL(compressedFile)
     
-    // Perform OCR for ID card and license
+    // OCR for ID card and license
     if (type === 'idCard' || type === 'license') {
-      isProcessingOCR.value = true
-      ocrStatus.value = 'กำลังอ่านข้อมูลจากเอกสาร...'
-      ocrProgress.value = 50
-      
+      ocrStatus.value = 'กำลังอ่านข้อมูล...'
       try {
         const ocrResult = await performOCR(compressedFile, type === 'idCard' ? 'id_card' : 'license')
-        ocrProgress.value = 90
-        
         if (ocrResult.success && ocrResult.data) {
-          // Auto-fill data from OCR
           if (type === 'idCard' && ocrResult.data.idNumber) {
             nationalId.value = ocrResult.data.idNumber
-            ocrStatus.value = 'อ่านเลขบัตรประชาชนสำเร็จ'
+            ocrStatus.value = 'อ่านเลขบัตรสำเร็จ!'
           }
           if (type === 'license') {
-            if (ocrResult.data.licenseNumber) {
-              licenseNumber.value = ocrResult.data.licenseNumber
-            }
+            if (ocrResult.data.licenseNumber) licenseNumber.value = ocrResult.data.licenseNumber
             if (ocrResult.data.expiryDate) {
-              // Convert DD/MM/YYYY to YYYY-MM-DD for date input
               const parts = ocrResult.data.expiryDate.split('/')
               if (parts.length === 3) {
                 const year = parseInt(parts[2] || '0')
-                // Convert Buddhist year to Christian year if needed
                 const christianYear = year > 2500 ? year - 543 : year
                 licenseExpiry.value = `${christianYear}-${parts[1]?.padStart(2, '0')}-${parts[0]?.padStart(2, '0')}`
               }
             }
-            ocrStatus.value = 'อ่านข้อมูลใบขับขี่สำเร็จ'
+            ocrStatus.value = 'อ่านข้อมูลใบขับขี่สำเร็จ!'
           }
+          haptic.success()
         }
-      } catch (ocrErr) {
-        console.warn('OCR failed:', ocrErr)
-        ocrStatus.value = 'ไม่สามารถอ่านข้อมูลได้ กรุณากรอกเอง'
-      }
-      
-      ocrProgress.value = 100
-      setTimeout(() => {
-        isProcessingOCR.value = false
-        ocrProgress.value = 0
-        ocrStatus.value = ''
-      }, 2000)
+      } catch { ocrStatus.value = 'กรุณากรอกข้อมูลเอง' }
     }
+    
+    setTimeout(() => { isProcessingOCR.value = false; ocrStatus.value = '' }, 2000)
   } catch (err) {
-    console.error('Processing error:', err)
     error.value = 'ไม่สามารถประมวลผลรูปภาพได้'
     isProcessingOCR.value = false
-    ocrProgress.value = 0
   }
 }
 
 const removeFile = (type: 'idCard' | 'license' | 'vehicle') => {
-  if (type === 'idCard') {
-    idCardFile.value = null
-    idCardPreview.value = ''
-  } else if (type === 'license') {
-    licenseFile.value = null
-    licensePreview.value = ''
-  } else {
-    vehicleFile.value = null
-    vehiclePreview.value = ''
+  haptic.light()
+  if (type === 'idCard') { idCardFile.value = null; idCardPreview.value = '' }
+  else if (type === 'license') { licenseFile.value = null; licensePreview.value = '' }
+  else { vehicleFile.value = null; vehiclePreview.value = '' }
+}
+
+// Upload file to Supabase Storage
+const uploadToStorage = async (file: File, path: string): Promise<string> => {
+  const fileExt = file.name.split('.').pop() || 'jpg'
+  const fileName = `${path}_${Date.now()}.${fileExt}`
+  const filePath = `provider-documents/${fileName}`
+  
+  const { data, error } = await supabase.storage
+    .from('documents')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+  
+  if (error) {
+    // If bucket doesn't exist, try public bucket
+    const { data: publicData, error: publicError } = await supabase.storage
+      .from('public')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (publicError) {
+      throw new Error(`อัพโหลดไฟล์ไม่สำเร็จ: ${publicError.message}`)
+    }
+    
+    const { data: urlData } = supabase.storage.from('public').getPublicUrl(filePath)
+    return urlData.publicUrl
   }
+  
+  const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath)
+  return urlData.publicUrl
 }
-
-// Convert file to base64 (fallback when storage not available)
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-
 
 // Navigation
 const nextStep = () => {
   error.value = ''
+  haptic.light()
   if (step.value === 1 && canProceedStep1.value) step.value = 2
   else if (step.value === 2 && canProceedStep2.value) step.value = 3
   else if (step.value === 3 && canProceedStep3.value) step.value = 4
@@ -303,7 +291,13 @@ const nextStep = () => {
 
 const prevStep = () => {
   error.value = ''
+  haptic.light()
   if (step.value > 1) step.value--
+}
+
+const goBack = () => {
+  if (step.value > 1) prevStep()
+  else router.push('/provider/onboarding')
 }
 
 // Submit
@@ -313,421 +307,454 @@ const submitApplication = async () => {
   isLoading.value = true
   error.value = ''
   uploadProgress.value = 0
+  haptic.medium()
   
   try {
     const userId = authStore.user.id
+    uploadProgress.value = 5
     
-    // Convert documents to base64 directly (simpler approach)
-    uploadProgress.value = 10
-    let idCardData = ''
-    let licenseData = ''
-    let vehicleData = ''
+    // Upload documents to Storage (or use 'pending' status if storage fails)
+    let idCardUrl = 'pending'
+    let licenseUrl = 'pending'
+    let vehicleUrl = 'pending'
     
-    if (idCardFile.value) {
-      idCardData = await fileToBase64(idCardFile.value)
-      uploadProgress.value = 30
-    }
-    
-    if (licenseFile.value) {
-      licenseData = await fileToBase64(licenseFile.value)
+    try {
+      if (idCardFile.value) {
+        idCardUrl = await uploadToStorage(idCardFile.value, `${userId}/id_card`)
+      }
+      uploadProgress.value = 25
+      
+      if (licenseFile.value) {
+        licenseUrl = await uploadToStorage(licenseFile.value, `${userId}/license`)
+      }
       uploadProgress.value = 50
+      
+      if (vehicleFile.value) {
+        vehicleUrl = await uploadToStorage(vehicleFile.value, `${userId}/vehicle`)
+      }
+      uploadProgress.value = 75
+    } catch (uploadErr: any) {
+      console.warn('Storage upload failed, using pending status:', uploadErr.message)
+      // Continue with 'pending' status - admin can request re-upload
     }
     
-    if (vehicleFile.value) {
-      vehicleData = await fileToBase64(vehicleFile.value)
-      uploadProgress.value = 70
-    }
+    const { error: insertError } = await (supabase.from('service_providers') as any).insert({
+      user_id: userId,
+      provider_type: selectedType.value,
+      vehicle_type: vehicleType.value,
+      vehicle_plate: vehiclePlate.value,
+      vehicle_color: vehicleColor.value,
+      vehicle_info: {
+        brand: vehicleBrand.value,
+        model: vehicleModel.value,
+        year: vehicleYear.value,
+        license_plate: vehiclePlate.value,
+        color: vehicleColor.value
+      },
+      license_number: licenseNumber.value,
+      license_expiry: licenseExpiry.value,
+      national_id: nationalId.value,
+      documents: { 
+        id_card: idCardUrl, 
+        license: licenseUrl, 
+        vehicle: vehicleUrl 
+      },
+      status: 'pending',
+      is_available: false,
+      rating: 5.0,
+      total_trips: 0
+    })
     
-    // Create provider profile
-    const { error: insertError } = await (supabase
-      .from('service_providers') as any)
-      .insert({
-        user_id: userId,
-        provider_type: selectedType.value,
-        vehicle_type: vehicleType.value,
-        vehicle_info: {
-          brand: vehicleBrand.value,
-          model: vehicleModel.value,
-          year: vehicleYear.value,
-          license_plate: licensePlate.value
-        },
-        license_number: licenseNumber.value,
-        license_expiry: licenseExpiry.value,
-        documents: {
-          id_card: idCardData,
-          license: licenseData,
-          vehicle: vehicleData
-        },
-        status: 'pending',
-        is_available: false,
-        rating: 5.0,
-        total_trips: 0
-      })
-    
-    uploadProgress.value = 90
+    uploadProgress.value = 100
     
     if (insertError) {
-      if (insertError.code === '23505') {
-        error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว'
-      } else {
-        error.value = insertError.message
-      }
+      if (insertError.code === '23505') error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว'
+      else error.value = insertError.message
       return
     }
     
-    uploadProgress.value = 100
-    successMessage.value = 'สมัครสำเร็จ! รอการอนุมัติจากทีมงาน'
-    setTimeout(() => {
-      router.push('/provider')
-    }, 2000)
+    haptic.success()
+    showSuccess.value = true
   } catch (err: any) {
     error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+    haptic.error()
   } finally {
     isLoading.value = false
   }
 }
 
-const goBack = () => {
-  if (step.value > 1) {
-    prevStep()
-  } else {
-    router.push('/')
-  }
+const goToOnboarding = () => {
+  router.push('/provider/onboarding')
 }
 
 onMounted(() => {
-  if (!authStore.user) {
-    router.push('/login')
-  }
+  if (!authStore.user) router.push('/login')
 })
 </script>
 
 <template>
-  <div class="provider-register-page">
-    <!-- Header -->
-    <div class="page-header">
-      <button @click="goBack" class="back-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-      </button>
-      <h1 class="header-title">สมัครเป็นผู้ให้บริการ</h1>
-      <div class="header-spacer"></div>
+  <div class="register-page">
+    <!-- Success Screen -->
+    <div v-if="showSuccess" class="success-screen">
+      <div class="success-content">
+        <div class="success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <path d="M22 4L12 14.01l-3-3"/>
+          </svg>
+        </div>
+        <h1>สมัครสำเร็จ!</h1>
+        <p>ใบสมัครของคุณถูกส่งเรียบร้อยแล้ว<br/>ทีมงานจะตรวจสอบและแจ้งผลภายใน 1-3 วันทำการ</p>
+        
+        <div class="success-steps">
+          <div class="success-step done">
+            <div class="step-dot"></div>
+            <span>ส่งใบสมัคร</span>
+          </div>
+          <div class="success-step active">
+            <div class="step-dot"></div>
+            <span>รอตรวจสอบ</span>
+          </div>
+          <div class="success-step">
+            <div class="step-dot"></div>
+            <span>อนุมัติ</span>
+          </div>
+        </div>
+        
+        <div class="success-info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span>เราจะแจ้งเตือนคุณทันทีเมื่อมีการอัพเดท</span>
+        </div>
+        
+        <button @click="goToOnboarding" class="btn-primary">ตกลง</button>
+      </div>
     </div>
 
-    <!-- Progress -->
-    <div class="progress-bar">
-      <div class="progress-fill" :style="{ width: `${(step / 4) * 100}%` }"></div>
-    </div>
+    <!-- Main Form -->
+    <div v-else class="register-form">
+      <!-- Header -->
+      <div class="page-header">
+        <button @click="goBack" class="back-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <div class="header-logo">
+          <span class="logo-text">GOBEAR</span>
+          <span class="logo-badge">Partner</span>
+        </div>
+        <div class="header-spacer"></div>
+      </div>
 
-    <div class="page-content">
-      <!-- Messages -->
-      <div v-if="error" class="message error-message">
+      <!-- Step Indicator -->
+      <div class="step-indicator">
+        <div v-for="s in steps" :key="s.num" 
+          :class="['step-item', { active: step === s.num, done: step > s.num }]">
+          <div class="step-circle">
+            <svg v-if="step > s.num" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+            <span v-else>{{ s.num }}</span>
+          </div>
+          <span class="step-label">{{ s.title }}</span>
+        </div>
+      </div>
+
+      <!-- Error Message -->
+      <div v-if="error" class="error-msg">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
         </svg>
         {{ error }}
       </div>
-      <div v-if="successMessage" class="message success-message">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>
-        </svg>
-        {{ successMessage }}
+
+      <!-- OCR Status -->
+      <div v-if="isProcessingOCR" class="ocr-status">
+        <div class="ocr-spinner"></div>
+        <span>{{ ocrStatus }}</span>
       </div>
 
-      <!-- Step 1: Select Type -->
-      <div v-if="step === 1" class="step-content">
-        <h2 class="step-title">คุณต้องการเป็นอะไร?</h2>
-        <p class="step-desc">เลือกประเภทผู้ให้บริการ</p>
+      <div class="form-content">
+        <!-- Step 1: Select Type -->
+        <div v-if="step === 1" class="step-content">
+          <h2 class="step-title">คุณต้องการเป็นอะไร?</h2>
+          <p class="step-desc">เลือกประเภทผู้ให้บริการที่ต้องการสมัคร</p>
 
-        <div class="type-options">
-          <button 
-            @click="selectedType = 'driver'"
-            :class="['type-card', { 'type-card-active': selectedType === 'driver' }]"
-          >
-            <div class="type-icon">
+          <div class="type-cards">
+            <button @click="selectedType = 'driver'; haptic.light()"
+              :class="['type-card', { active: selectedType === 'driver' }]">
+              <div class="type-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="1" y="3" width="15" height="13" rx="2"/>
+                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                  <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+              </div>
+              <div class="type-info">
+                <span class="type-name">คนขับรถ</span>
+                <span class="type-desc">รับส่งผู้โดยสาร</span>
+              </div>
+              <div class="type-check">
+                <svg v-if="selectedType === 'driver'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              </div>
+            </button>
+
+            <button @click="selectedType = 'rider'; haptic.light()"
+              :class="['type-card', { active: selectedType === 'rider' }]">
+              <div class="type-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/>
+                  <circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
+                </svg>
+              </div>
+              <div class="type-info">
+                <span class="type-name">ไรเดอร์</span>
+                <span class="type-desc">ส่งอาหาร ส่งพัสดุ</span>
+              </div>
+              <div class="type-check">
+                <svg v-if="selectedType === 'rider'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              </div>
+            </button>
+          </div>
+
+          <div class="benefits-box">
+            <h4>สิทธิประโยชน์</h4>
+            <div class="benefit-item">
+              <span class="benefit-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </span>
+              รายได้ดี ถอนได้ทุกวัน
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </span>
+              เลือกเวลาทำงานเอง
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </span>
+              ประกันอุบัติเหตุฟรี
+            </div>
+          </div>
+
+          <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
+            ถัดไป
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Step 2: Vehicle Info -->
+        <div v-if="step === 2" class="step-content">
+          <h2 class="step-title">ข้อมูลยานพาหนะ</h2>
+          <p class="step-desc">กรอกข้อมูลรถที่จะใช้ให้บริการ</p>
+
+          <div class="form-group">
+            <label class="label">ประเภทยานพาหนะ</label>
+            <div class="vehicle-btns">
+              <button v-for="opt in currentVehicleOptions" :key="opt.value"
+                @click="vehicleType = opt.value; haptic.light()"
+                :class="['vehicle-btn', { active: vehicleType === opt.value }]">
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="label">ยี่ห้อ</label>
+              <input v-model="vehicleBrand" type="text" placeholder="Toyota, Honda" class="input" />
+            </div>
+            <div class="form-group">
+              <label class="label">รุ่น</label>
+              <input v-model="vehicleModel" type="text" placeholder="Vios, City" class="input" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="label">ปี (ค.ศ.)</label>
+              <input v-model="vehicleYear" type="text" inputmode="numeric" maxlength="4" placeholder="2020" class="input" />
+            </div>
+            <div class="form-group">
+              <label class="label">ทะเบียนรถ</label>
+              <input v-model="vehiclePlate" type="text" placeholder="กข 1234" class="input" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="label">สีรถ</label>
+            <div class="color-options">
+              <button v-for="c in colorOptions" :key="c.value"
+                @click="vehicleColor = c.value; haptic.light()"
+                :class="['color-btn', { active: vehicleColor === c.value }]"
+                :style="{ '--color': c.color }">
+                <span class="color-dot"></span>
+                <span>{{ c.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
+            <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">ถัดไป</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Personal Info -->
+        <div v-if="step === 3" class="step-content">
+          <h2 class="step-title">ข้อมูลส่วนตัว</h2>
+          <p class="step-desc">กรอกข้อมูลเพื่อยืนยันตัวตน</p>
+
+          <div class="form-group">
+            <label class="label">เลขบัตรประชาชน 13 หลัก</label>
+            <div class="id-input-wrap">
+              <input v-model="nationalId" type="text" inputmode="numeric" maxlength="13"
+                placeholder="x-xxxx-xxxxx-xx-x"
+                :class="['input', { valid: nationalIdValid, error: nationalIdError && nationalId.length > 0 }]" />
+              <div v-if="nationalIdValid" class="input-status valid">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+              </div>
+              <div v-else-if="nationalIdError && nationalId.length > 0" class="input-status error">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+              </div>
+            </div>
+            <span v-if="nationalId.length > 0" :class="['hint', { 'hint-error': nationalIdError, 'hint-valid': nationalIdValid }]">
+              {{ nationalIdError || (nationalIdValid ? 'เลขบัตรถูกต้อง' : '') }}
+            </span>
+            <span class="id-format">{{ formattedNationalId }}</span>
+          </div>
+
+          <div class="form-group">
+            <label class="label">เลขที่ใบอนุญาตขับขี่</label>
+            <input v-model="licenseNumber" type="text" placeholder="12345678" class="input" />
+          </div>
+
+          <div class="form-group">
+            <label class="label">วันหมดอายุใบขับขี่</label>
+            <input v-model="licenseExpiry" type="date" class="input" />
+          </div>
+
+          <div class="btn-group">
+            <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
+            <button @click="nextStep" :disabled="!canProceedStep3" class="btn-primary">ถัดไป</button>
+          </div>
+        </div>
+
+        <!-- Step 4: Documents -->
+        <div v-if="step === 4" class="step-content">
+          <h2 class="step-title">อัพโหลดเอกสาร</h2>
+          <p class="step-desc">อัพโหลดรูปเอกสารเพื่อยืนยันตัวตน</p>
+
+          <!-- ID Card -->
+          <div class="upload-section">
+            <label class="label">รูปบัตรประชาชน</label>
+            <p class="upload-hint">ระบบจะอ่านเลขบัตรอัตโนมัติ</p>
+            <div v-if="!idCardPreview" class="upload-box" @click="($refs.idCardInput as HTMLInputElement).click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>
+                <circle cx="8" cy="15" r="1"/><path d="M14 15h4"/>
+              </svg>
+              <span>แตะเพื่อเลือกรูป</span>
+            </div>
+            <div v-else class="upload-preview">
+              <img :src="idCardPreview" alt="ID Card" />
+              <button @click="removeFile('idCard')" class="remove-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <input ref="idCardInput" type="file" accept="image/*" hidden @change="handleFileSelect('idCard', $event)" />
+          </div>
+
+          <!-- License -->
+          <div class="upload-section">
+            <label class="label">รูปใบขับขี่</label>
+            <div v-if="!licensePreview" class="upload-box" @click="($refs.licenseInput as HTMLInputElement).click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 15h2M14 15h4"/>
+                <circle cx="9" cy="10" r="2"/>
+              </svg>
+              <span>แตะเพื่อเลือกรูป</span>
+            </div>
+            <div v-else class="upload-preview">
+              <img :src="licensePreview" alt="License" />
+              <button @click="removeFile('license')" class="remove-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <input ref="licenseInput" type="file" accept="image/*" hidden @change="handleFileSelect('license', $event)" />
+          </div>
+
+          <!-- Vehicle -->
+          <div class="upload-section">
+            <label class="label">รูปยานพาหนะ (เห็นทะเบียนชัด)</label>
+            <div v-if="!vehiclePreview" class="upload-box" @click="($refs.vehicleInput as HTMLInputElement).click()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="1" y="3" width="15" height="13" rx="2"/>
                 <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-                <circle cx="5.5" cy="18.5" r="2.5"/>
-                <circle cx="18.5" cy="18.5" r="2.5"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
               </svg>
+              <span>แตะเพื่อเลือกรูป</span>
             </div>
-            <div class="type-info">
-              <span class="type-title">คนขับรถ (Driver)</span>
-              <span class="type-desc">รับส่งผู้โดยสาร ด้วยรถยนต์</span>
+            <div v-else class="upload-preview">
+              <img :src="vehiclePreview" alt="Vehicle" />
+              <button @click="removeFile('vehicle')" class="remove-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
-            <div class="type-check">
-              <svg v-if="selectedType === 'driver'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </div>
-          </button>
-
-          <button 
-            @click="selectedType = 'rider'"
-            :class="['type-card', { 'type-card-active': selectedType === 'rider' }]"
-          >
-            <div class="type-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="18.5" cy="17.5" r="3.5"/>
-                <circle cx="5.5" cy="17.5" r="3.5"/>
-                <circle cx="15" cy="5" r="1"/>
-                <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
-              </svg>
-            </div>
-            <div class="type-info">
-              <span class="type-title">ไรเดอร์ (Rider)</span>
-              <span class="type-desc">ส่งอาหาร ส่งพัสดุ ด้วยมอเตอร์ไซค์</span>
-            </div>
-            <div class="type-check">
-              <svg v-if="selectedType === 'rider'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </div>
-          </button>
-        </div>
-
-        <div class="benefits-card">
-          <h3>สิทธิประโยชน์</h3>
-          <ul>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              รายได้ดี ถอนเงินได้ทุกวัน
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              เลือกเวลาทำงานได้เอง
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              ประกันอุบัติเหตุฟรี
-            </li>
-          </ul>
-        </div>
-
-        <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
-          ถัดไป
-        </button>
-      </div>
-
-      <!-- Step 2: Vehicle Info -->
-      <div v-if="step === 2" class="step-content">
-        <h2 class="step-title">ข้อมูลยานพาหนะ</h2>
-        <p class="step-desc">กรอกข้อมูลรถที่จะใช้ให้บริการ</p>
-
-        <div class="form-group">
-          <label class="label">ประเภทยานพาหนะ</label>
-          <div class="vehicle-options">
-            <button 
-              v-for="option in currentVehicleOptions" 
-              :key="option.value"
-              @click="vehicleType = option.value"
-              :class="['vehicle-btn', { 'vehicle-btn-active': vehicleType === option.value }]"
-            >
-              {{ option.label }}
-            </button>
+            <input ref="vehicleInput" type="file" accept="image/*" hidden @change="handleFileSelect('vehicle', $event)" />
           </div>
-        </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="label">ยี่ห้อ</label>
-            <input v-model="vehicleBrand" type="text" placeholder="เช่น Toyota, Honda" class="input-field" />
-          </div>
-          <div class="form-group">
-            <label class="label">รุ่น</label>
-            <input v-model="vehicleModel" type="text" placeholder="เช่น Vios, City" class="input-field" />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="label">ปี (ค.ศ.)</label>
-            <input v-model="vehicleYear" type="text" inputmode="numeric" maxlength="4" placeholder="2020" class="input-field" />
-          </div>
-          <div class="form-group">
-            <label class="label">ทะเบียนรถ</label>
-            <input v-model="licensePlate" type="text" placeholder="กข 1234" class="input-field" />
-          </div>
-        </div>
-
-        <div class="button-group">
-          <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-          <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">ถัดไป</button>
-        </div>
-      </div>
-
-      <!-- Step 3: License Info -->
-      <div v-if="step === 3" class="step-content">
-        <h2 class="step-title">ข้อมูลส่วนตัวและใบขับขี่</h2>
-        <p class="step-desc">กรอกข้อมูลเพื่อยืนยันตัวตน</p>
-
-        <!-- Thai National ID -->
-        <div class="form-group">
-          <label class="label">เลขบัตรประชาชน 13 หลัก</label>
-          <div class="id-input-wrapper">
-            <input 
-              v-model="nationalId" 
-              type="text" 
-              inputmode="numeric"
-              maxlength="13"
-              placeholder="x-xxxx-xxxxx-xx-x" 
-              :class="['input-field', { 
-                'input-valid': nationalIdValid, 
-                'input-error': nationalIdError && nationalId.length > 0 
-              }]" 
-            />
-            <div v-if="nationalIdValid" class="input-icon valid">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </div>
-            <div v-else-if="nationalIdError && nationalId.length > 0" class="input-icon error">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
-              </svg>
-            </div>
-          </div>
-          <span v-if="nationalId.length > 0" :class="['field-hint', { 'hint-error': nationalIdError, 'hint-valid': nationalIdValid }]">
-            {{ nationalIdError || (nationalIdValid ? 'เลขบัตรถูกต้อง' : '') }}
-          </span>
-          <span class="field-format">{{ formattedNationalId }}</span>
-        </div>
-
-        <div class="form-group">
-          <label class="label">เลขที่ใบอนุญาตขับขี่</label>
-          <input v-model="licenseNumber" type="text" placeholder="12345678" class="input-field" />
-        </div>
-
-        <div class="form-group">
-          <label class="label">วันหมดอายุใบขับขี่</label>
-          <input v-model="licenseExpiry" type="date" class="input-field" />
-        </div>
-
-        <div class="button-group">
-          <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-          <button @click="nextStep" :disabled="!canProceedStep3" class="btn-primary">ถัดไป</button>
-        </div>
-      </div>
-
-      <!-- Step 4: Document Upload & Submit -->
-      <div v-if="step === 4" class="step-content">
-        <h2 class="step-title">อัพโหลดเอกสาร</h2>
-        <p class="step-desc">อัพโหลดรูปเอกสารเพื่อยืนยันตัวตน</p>
-
-        <!-- OCR Progress -->
-        <div v-if="isProcessingOCR" class="ocr-progress-card">
-          <div class="ocr-progress-header">
-            <div class="ocr-spinner"></div>
-            <span>{{ ocrStatus }}</span>
-          </div>
-          <div class="ocr-progress-bar">
-            <div class="ocr-progress-fill" :style="{ width: `${ocrProgress}%` }"></div>
-          </div>
-          <span class="ocr-progress-text">{{ ocrProgress }}%</span>
-        </div>
-
-        <!-- ID Card Upload -->
-        <div class="upload-group">
-          <label class="label">รูปบัตรประชาชน</label>
-          <p class="upload-desc">ระบบจะอ่านเลขบัตรประชาชนอัตโนมัติ</p>
-          <div v-if="!idCardPreview" class="upload-box" @click="($refs.idCardInput as HTMLInputElement).click()">
+          <div class="info-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>
-              <circle cx="8" cy="15" r="1"/><path d="M14 15h4"/>
+              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
             </svg>
-            <span>แตะเพื่อเลือกรูป</span>
-            <span class="upload-hint">JPG, PNG ไม่เกิน 5MB</span>
+            <p>หลังจากสมัคร ทีมงานจะตรวจสอบและติดต่อกลับภายใน 1-3 วันทำการ</p>
           </div>
-          <div v-else class="upload-preview">
-            <img :src="idCardPreview" alt="ID Card" />
-            <button @click="removeFile('idCard')" class="remove-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
+
+          <label class="terms-check">
+            <input v-model="acceptTerms" type="checkbox" />
+            <span class="checkmark"></span>
+            <span class="terms-text">ฉันยอมรับ <a href="#">ข้อกำหนดสำหรับผู้ให้บริการ</a> และยืนยันว่าข้อมูลทั้งหมดเป็นความจริง</span>
+          </label>
+
+          <!-- Upload Progress -->
+          <div v-if="isLoading && uploadProgress > 0" class="progress-bar">
+            <div class="progress-fill" :style="{ width: `${uploadProgress}%` }"></div>
+            <span>กำลังอัพโหลด {{ uploadProgress }}%</span>
+          </div>
+
+          <div class="btn-group">
+            <button @click="prevStep" :disabled="isLoading" class="btn-secondary">ย้อนกลับ</button>
+            <button @click="submitApplication" :disabled="!canSubmit || isLoading" class="btn-primary">
+              <span v-if="isLoading" class="loading">
+                <span class="spinner"></span> กำลังส่ง
+              </span>
+              <span v-else>ส่งใบสมัคร</span>
             </button>
           </div>
-          <input ref="idCardInput" type="file" accept="image/*" hidden @change="handleFileSelect('idCard', $event)" />
-        </div>
-
-        <!-- License Upload -->
-        <div class="upload-group">
-          <label class="label">รูปใบขับขี่</label>
-          <div v-if="!licensePreview" class="upload-box" @click="($refs.licenseInput as HTMLInputElement).click()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>
-              <path d="M7 15h2M14 15h4"/>
-            </svg>
-            <span>แตะเพื่อเลือกรูป</span>
-            <span class="upload-hint">JPG, PNG ไม่เกิน 5MB</span>
-          </div>
-          <div v-else class="upload-preview">
-            <img :src="licensePreview" alt="License" />
-            <button @click="removeFile('license')" class="remove-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <input ref="licenseInput" type="file" accept="image/*" hidden @change="handleFileSelect('license', $event)" />
-        </div>
-
-        <!-- Vehicle Upload -->
-        <div class="upload-group">
-          <label class="label">รูปยานพาหนะ (เห็นทะเบียนชัด)</label>
-          <div v-if="!vehiclePreview" class="upload-box" @click="($refs.vehicleInput as HTMLInputElement).click()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="3" width="15" height="13" rx="2"/>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
-            <span>แตะเพื่อเลือกรูป</span>
-            <span class="upload-hint">JPG, PNG ไม่เกิน 5MB</span>
-          </div>
-          <div v-else class="upload-preview">
-            <img :src="vehiclePreview" alt="Vehicle" />
-            <button @click="removeFile('vehicle')" class="remove-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <input ref="vehicleInput" type="file" accept="image/*" hidden @change="handleFileSelect('vehicle', $event)" />
-        </div>
-
-        <div class="info-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
-          </svg>
-          <p>หลังจากสมัคร ทีมงานจะตรวจสอบเอกสารและติดต่อกลับภายใน 1-3 วันทำการ</p>
-        </div>
-
-        <label class="terms-checkbox">
-          <input v-model="acceptTerms" type="checkbox" />
-          <span class="checkmark"></span>
-          <span class="terms-text">
-            ฉันยอมรับ <a href="#" @click.prevent>ข้อกำหนดสำหรับผู้ให้บริการ</a> และยืนยันว่าข้อมูลและเอกสารทั้งหมดเป็นความจริง
-          </span>
-        </label>
-
-        <!-- Upload Progress -->
-        <div v-if="isLoading && uploadProgress > 0" class="upload-progress">
-          <div class="progress-track">
-            <div class="progress-bar-fill" :style="{ width: `${uploadProgress}%` }"></div>
-          </div>
-          <span>กำลังอัพโหลด {{ uploadProgress }}%</span>
-        </div>
-
-        <div class="button-group">
-          <button @click="prevStep" :disabled="isLoading" class="btn-secondary">ย้อนกลับ</button>
-          <button @click="submitApplication" :disabled="!canSubmit || isLoading" class="btn-primary">
-            <span v-if="isLoading" class="btn-loading">
-              <span class="spinner"></span>
-              กำลังส่ง
-            </span>
-            <span v-else>ส่งใบสมัคร</span>
-          </button>
         </div>
       </div>
     </div>
@@ -735,18 +762,147 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.provider-register-page {
+.register-page {
   min-height: 100vh;
-  background-color: #FFFFFF;
+  background: #FFFFFF;
 }
 
+/* Success Screen */
+.success-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #E8F5EF 0%, #FFFFFF 50%);
+}
+
+.success-content {
+  text-align: center;
+  max-width: 360px;
+}
+
+.success-icon {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 24px;
+  background: #00A86B;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: scaleIn 0.5s ease;
+}
+
+@keyframes scaleIn {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.success-icon svg {
+  width: 50px;
+  height: 50px;
+  color: #FFFFFF;
+}
+
+.success-content h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1A1A1A;
+  margin-bottom: 12px;
+}
+
+.success-content p {
+  font-size: 15px;
+  color: #666666;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.success-steps {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.success-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.success-step .step-dot {
+  width: 16px;
+  height: 16px;
+  background: #E8E8E8;
+  border-radius: 50%;
+  position: relative;
+}
+
+.success-step.done .step-dot {
+  background: #00A86B;
+}
+
+.success-step.done .step-dot::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.success-step.active .step-dot {
+  background: #F59E0B;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+
+.success-step span:last-child {
+  font-size: 12px;
+  color: #666666;
+}
+
+.success-step.done span:last-child { color: #00A86B; }
+.success-step.active span:last-child { color: #F59E0B; }
+
+.success-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #E8F5EF;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.success-info svg {
+  width: 20px;
+  height: 20px;
+  color: #00A86B;
+}
+
+.success-info span {
+  font-size: 13px;
+  color: #008F5B;
+}
+
+/* Header */
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
-  background-color: #000000;
-  color: #FFFFFF;
+  padding: 16px 20px;
+  background: transparent;
 }
 
 .back-btn {
@@ -755,67 +911,151 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
+  background: #F5F5F5;
   border: none;
-  color: #FFFFFF;
+  border-radius: 12px;
   cursor: pointer;
 }
 
 .back-btn svg {
   width: 24px;
   height: 24px;
+  color: #1A1A1A;
 }
 
-.header-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.header-spacer {
-  width: 40px;
-}
-
-.progress-bar {
-  height: 4px;
-  background-color: #E5E5E5;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: #000000;
-  transition: width 0.3s ease;
-}
-
-.page-content {
-  padding: 24px 16px;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.message {
+.header-logo {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 16px;
+  gap: 8px;
 }
 
-.message svg {
+.logo-text {
+  font-size: 20px;
+  font-weight: 800;
+  color: #00A86B;
+}
+
+.logo-badge {
+  padding: 4px 8px;
+  background: #00A86B;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.header-spacer { width: 40px; }
+
+/* Step Indicator */
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: #F5F5F5;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  max-width: 80px;
+}
+
+.step-circle {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #E8E8E8;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 600;
+  color: #999999;
+  transition: all 0.3s ease;
+}
+
+.step-item.active .step-circle {
+  background: #00A86B;
+  color: #FFFFFF;
+}
+
+.step-item.done .step-circle {
+  background: #00A86B;
+  color: #FFFFFF;
+}
+
+.step-item.done .step-circle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.step-label {
+  font-size: 11px;
+  color: #999999;
+  font-weight: 500;
+}
+
+.step-item.active .step-label,
+.step-item.done .step-label {
+  color: #00A86B;
+}
+
+/* Error & OCR Status */
+.error-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 20px;
+  padding: 12px 16px;
+  background: #FEE2E2;
+  border-radius: 12px;
+  color: #E53935;
+  font-size: 14px;
+}
+
+.error-msg svg {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
 }
 
-.error-message {
-  background-color: rgba(225, 25, 0, 0.1);
-  color: #E11900;
+.ocr-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 20px;
+  padding: 12px;
+  background: #E8F5EF;
+  border-radius: 12px;
 }
 
-.success-message {
-  background-color: rgba(39, 110, 241, 0.1);
-  color: #276EF1;
+.ocr-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #E8E8E8;
+  border-top-color: #00A86B;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ocr-status span {
+  font-size: 14px;
+  color: #00A86B;
+  font-weight: 500;
+}
+
+/* Form Content */
+.form-content {
+  padding: 24px 20px;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 .step-content {
@@ -830,18 +1070,18 @@ onMounted(() => {
 .step-title {
   font-size: 24px;
   font-weight: 700;
-  color: #000000;
+  color: #1A1A1A;
   margin-bottom: 8px;
 }
 
 .step-desc {
   font-size: 14px;
-  color: #6B6B6B;
+  color: #666666;
   margin-bottom: 24px;
 }
 
-/* Type Selection */
-.type-options {
+/* Type Cards */
+.type-cards {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -853,21 +1093,19 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 20px;
-  background-color: #F6F6F6;
+  background: #F5F5F5;
   border: 2px solid transparent;
-  border-radius: 12px;
+  border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
   text-align: left;
+  transition: all 0.2s ease;
 }
 
-.type-card:hover {
-  background-color: #EBEBEB;
-}
+.type-card:hover { background: #EBEBEB; }
 
-.type-card-active {
-  background-color: #FFFFFF;
-  border-color: #000000;
+.type-card.active {
+  background: #E8F5EF;
+  border-color: #00A86B;
 }
 
 .type-icon {
@@ -876,12 +1114,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #FFFFFF;
-  border-radius: 12px;
+  background: #FFFFFF;
+  border-radius: 14px;
 }
 
-.type-card-active .type-icon {
-  background-color: #000000;
+.type-card.active .type-icon {
+  background: #00A86B;
   color: #FFFFFF;
 }
 
@@ -897,116 +1135,119 @@ onMounted(() => {
   gap: 4px;
 }
 
-.type-title {
+.type-name {
   font-size: 16px;
   font-weight: 600;
-  color: #000000;
+  color: #1A1A1A;
 }
 
 .type-desc {
   font-size: 13px;
-  color: #6B6B6B;
+  color: #666666;
 }
 
 .type-check {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #E5E5E5;
+  border: 2px solid #E8E8E8;
   border-radius: 50%;
 }
 
-.type-card-active .type-check {
-  background-color: #000000;
-  border-color: #000000;
+.type-card.active .type-check {
+  background: #00A86B;
+  border-color: #00A86B;
   color: #FFFFFF;
 }
 
 .type-check svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
-/* Benefits Card */
-.benefits-card {
+/* Benefits Box */
+.benefits-box {
   padding: 20px;
-  background-color: #F6F6F6;
-  border-radius: 12px;
+  background: #F5F5F5;
+  border-radius: 16px;
   margin-bottom: 24px;
 }
 
-.benefits-card h3 {
+.benefits-box h4 {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 12px;
 }
 
-.benefits-card ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.benefits-card li {
+.benefit-item {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 14px;
-  color: #000000;
+  color: #1A1A1A;
+  padding: 6px 0;
 }
 
-.benefits-card li svg {
-  width: 18px;
-  height: 18px;
-  color: #276EF1;
+.benefit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
-/* Form Styles */
+.benefit-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: #00A86B;
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 20px;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.form-group {
-  margin-bottom: 16px;
-}
-
 .label {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #000000;
+  color: #1A1A1A;
   margin-bottom: 8px;
 }
 
-.input-field {
+.input {
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid #E5E5E5;
-  border-radius: 8px;
+  border: 2px solid #E8E8E8;
+  border-radius: 12px;
   font-size: 16px;
   transition: all 0.2s ease;
-  background-color: #FFFFFF;
+  background: #FFFFFF;
 }
 
-.input-field:focus {
+.input:focus {
   outline: none;
-  border-color: #000000;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  border-color: #00A86B;
 }
 
-.input-field::placeholder {
-  color: #CCCCCC;
+.input::placeholder {
+  color: #999999;
 }
 
-/* Vehicle Options */
-.vehicle-options {
+.input.valid { border-color: #00A86B; }
+.input.error { border-color: #E53935; }
+
+/* Vehicle Buttons */
+.vehicle-btns {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -1014,175 +1255,111 @@ onMounted(() => {
 
 .vehicle-btn {
   padding: 12px 20px;
-  background-color: #F6F6F6;
+  background: #F5F5F5;
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.vehicle-btn:hover {
-  background-color: #EBEBEB;
-}
+.vehicle-btn:hover { background: #EBEBEB; }
 
-.vehicle-btn-active {
-  background-color: #000000;
+.vehicle-btn.active {
+  background: #00A86B;
   color: #FFFFFF;
-  border-color: #000000;
 }
 
-/* Info Card */
-.info-card {
+/* Color Options */
+.color-options {
   display: flex;
-  gap: 12px;
-  padding: 16px;
-  background-color: #F6F6F6;
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.info-card svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  color: #6B6B6B;
-}
-
-.info-card p {
-  font-size: 13px;
-  color: #6B6B6B;
-  line-height: 1.5;
-}
-
-/* Terms Checkbox */
-.terms-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 24px;
-  cursor: pointer;
-}
-
-.terms-checkbox input {
-  display: none;
-}
-
-.checkmark {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #E5E5E5;
-  border-radius: 4px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.terms-checkbox input:checked + .checkmark {
-  background-color: #000000;
-  border-color: #000000;
-}
-
-.terms-checkbox input:checked + .checkmark::after {
-  content: '';
-  width: 6px;
-  height: 10px;
-  border: solid #FFFFFF;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  margin-bottom: 2px;
-}
-
-.terms-text {
-  font-size: 14px;
-  color: #6B6B6B;
-  line-height: 1.5;
-}
-
-.terms-text a {
-  color: #000000;
-  text-decoration: underline;
-}
-
-/* Buttons */
-.button-group {
-  display: flex;
-  gap: 12px;
-}
-
-.button-group .btn-secondary,
-.button-group .btn-primary {
-  flex: 1;
-}
-
-.btn-primary {
-  width: 100%;
-  padding: 14px 24px;
-  background-color: #000000;
-  color: #FFFFFF;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.btn-primary:disabled {
-  background-color: #CCCCCC;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  padding: 14px 24px;
-  background-color: #F6F6F6;
-  color: #000000;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background-color: #EBEBEB;
-}
-
-.btn-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.spinner {
+.color-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #F5F5F5;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.color-btn:hover { background: #EBEBEB; }
+
+.color-btn.active {
+  border-color: #00A86B;
+  background: #E8F5EF;
+}
+
+.color-dot {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #FFFFFF;
+  background: var(--color);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  border: 1px solid #E8E8E8;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+/* ID Input */
+.id-input-wrap {
+  position: relative;
 }
 
-/* Upload Styles */
-.upload-group {
+.id-input-wrap .input {
+  padding-right: 44px;
+}
+
+.input-status {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+}
+
+.input-status.valid { color: #00A86B; }
+.input-status.error { color: #E53935; }
+
+.input-status svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hint {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+  color: #666666;
+}
+
+.hint-error { color: #E53935; }
+.hint-valid { color: #00A86B; }
+
+.id-format {
+  display: block;
+  font-size: 13px;
+  color: #999999;
+  margin-top: 4px;
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+
+/* Upload Section */
+.upload-section {
   margin-bottom: 20px;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #666666;
+  margin-bottom: 8px;
 }
 
 .upload-box {
@@ -1192,39 +1369,33 @@ onMounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 32px 16px;
-  background-color: #F6F6F6;
-  border: 2px dashed #E5E5E5;
-  border-radius: 12px;
+  background: #F5F5F5;
+  border: 2px dashed #E8E8E8;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .upload-box:hover {
-  border-color: #000000;
-  background-color: #EBEBEB;
+  border-color: #00A86B;
+  background: #E8F5EF;
 }
 
 .upload-box svg {
-  width: 32px;
-  height: 32px;
-  color: #6B6B6B;
+  width: 36px;
+  height: 36px;
+  color: #666666;
 }
 
 .upload-box span {
   font-size: 14px;
-  color: #000000;
+  color: #1A1A1A;
   font-weight: 500;
-}
-
-.upload-hint {
-  font-size: 12px !important;
-  color: #6B6B6B !important;
-  font-weight: 400 !important;
 }
 
 .upload-preview {
   position: relative;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -1232,19 +1403,18 @@ onMounted(() => {
   width: 100%;
   height: 160px;
   object-fit: cover;
-  border-radius: 12px;
 }
 
 .remove-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.7);
   border: none;
   border-radius: 50%;
   cursor: pointer;
@@ -1256,154 +1426,192 @@ onMounted(() => {
   height: 16px;
 }
 
-.upload-progress {
+/* Info Box */
+.info-box {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.progress-track {
-  height: 8px;
-  background-color: #E5E5E5;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background-color: #276EF1;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.upload-progress span {
-  font-size: 13px;
-  color: #6B6B6B;
-  text-align: center;
-}
-
-@media (max-width: 400px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Thai ID Input */
-.id-input-wrapper {
-  position: relative;
-}
-
-.id-input-wrapper .input-field {
-  padding-right: 44px;
-}
-
-.input-icon {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
-}
-
-.input-icon.valid {
-  color: #05944F;
-}
-
-.input-icon.error {
-  color: #E11900;
-}
-
-.input-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.input-field.input-valid {
-  border-color: #05944F;
-}
-
-.input-field.input-error {
-  border-color: #E11900;
-}
-
-.field-hint {
-  display: block;
-  font-size: 12px;
-  margin-top: 6px;
-  color: #6B6B6B;
-}
-
-.field-hint.hint-error {
-  color: #E11900;
-}
-
-.field-hint.hint-valid {
-  color: #05944F;
-}
-
-.field-format {
-  display: block;
-  font-size: 13px;
-  color: #999;
-  margin-top: 4px;
-  font-family: monospace;
-  letter-spacing: 1px;
-}
-
-/* OCR Progress */
-.ocr-progress-card {
+  gap: 12px;
   padding: 16px;
-  background: #F6F6F6;
+  background: #F5F5F5;
   border-radius: 12px;
   margin-bottom: 20px;
 }
 
-.ocr-progress-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.ocr-spinner {
+.info-box svg {
   width: 20px;
   height: 20px;
-  border: 2px solid #E5E5E5;
-  border-top-color: #000;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+  color: #666666;
 }
 
-.ocr-progress-header span {
+.info-box p {
+  font-size: 13px;
+  color: #666666;
+  line-height: 1.5;
+}
+
+/* Terms Checkbox */
+.terms-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 24px;
+  cursor: pointer;
+}
+
+.terms-check input { display: none; }
+
+.checkmark {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #E8E8E8;
+  border-radius: 6px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.terms-check input:checked + .checkmark {
+  background: #00A86B;
+  border-color: #00A86B;
+}
+
+.terms-check input:checked + .checkmark::after {
+  content: '✓';
+  color: #FFFFFF;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: bold;
 }
 
-.ocr-progress-bar {
-  height: 6px;
-  background: #E5E5E5;
-  border-radius: 3px;
+.terms-text {
+  font-size: 14px;
+  color: #666666;
+  line-height: 1.5;
+}
+
+.terms-text a {
+  color: #00A86B;
+  text-decoration: underline;
+}
+
+/* Progress Bar */
+.progress-bar {
+  margin-bottom: 20px;
+}
+
+.progress-bar > div:first-child {
+  height: 8px;
+  background: #E8E8E8;
+  border-radius: 4px;
   overflow: hidden;
   margin-bottom: 8px;
 }
 
-.ocr-progress-fill {
+.progress-fill {
   height: 100%;
-  background: #000;
-  border-radius: 3px;
+  background: #00A86B;
+  border-radius: 4px;
   transition: width 0.3s ease;
 }
 
-.ocr-progress-text {
-  font-size: 12px;
-  color: #6B6B6B;
+.progress-bar span {
+  font-size: 13px;
+  color: #666666;
+  text-align: center;
+  display: block;
 }
 
-.upload-desc {
-  font-size: 12px;
-  color: #6B6B6B;
-  margin-bottom: 8px;
+/* Buttons */
+.btn-group {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-group .btn-secondary,
+.btn-group .btn-primary {
+  flex: 1;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 24px;
+  background: #00A86B;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #008F5B;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  background: #CCCCCC;
+  cursor: not-allowed;
+}
+
+.btn-primary svg {
+  width: 20px;
+  height: 20px;
+}
+
+.btn-secondary {
+  padding: 16px 24px;
+  background: #F5F5F5;
+  color: #1A1A1A;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #EBEBEB;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .color-options {
+    gap: 6px;
+  }
+  
+  .color-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }
 </style>

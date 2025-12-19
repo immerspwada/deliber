@@ -33,10 +33,46 @@ const pickupTime = ref('')
 const estimatedWeight = ref<number | null>(null)
 const notes = ref('')
 
+// Exit confirmation
+const showExitConfirm = ref(false)
+
 // Set minimum date to today
 const today = new Date().toISOString().split('T')[0]
 
+// Haptic feedback
+const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
+  if ('vibrate' in navigator) {
+    const patterns = { light: 10, medium: 25, heavy: 50 }
+    navigator.vibrate(patterns[type])
+  }
+}
+
+// Check if user has entered any data
+const hasEnteredData = computed(() => {
+  return selectedServices.value.length > 0 || pickupAddress.value || pickupDate.value || notes.value
+})
+
 const goBack = () => router.back()
+
+const goHome = () => {
+  triggerHaptic('medium')
+  if (hasEnteredData.value) {
+    showExitConfirm.value = true
+  } else {
+    router.push('/customer')
+  }
+}
+
+const confirmExit = () => {
+  triggerHaptic('heavy')
+  showExitConfirm.value = false
+  router.push('/customer')
+}
+
+const cancelExit = () => {
+  triggerHaptic('light')
+  showExitConfirm.value = false
+}
 
 const toggleService = (id: LaundryService) => {
   const index = selectedServices.value.indexOf(id)
@@ -153,7 +189,11 @@ const formatPrice = (price: number) => {
         </svg>
       </button>
       <h1>บริการซักผ้า</h1>
-      <div class="spacer"></div>
+      <button class="home-btn" @click="goHome" title="กลับหน้าหลัก">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        </svg>
+      </button>
     </div>
 
     <div class="content">
@@ -286,6 +326,27 @@ const formatPrice = (price: number) => {
       </button>
     </div>
 
+    <!-- Exit Confirmation Modal -->
+    <Transition name="modal">
+      <div v-if="showExitConfirm" class="modal-overlay" @click.self="cancelExit">
+        <div class="modal-content exit-modal">
+          <div class="exit-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h3>ออกจากหน้านี้?</h3>
+          <p class="exit-message">ข้อมูลที่กรอกไว้จะหายไป</p>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="cancelExit">ยกเลิก</button>
+            <button class="btn-exit" @click="confirmExit">ออก</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Confirmation Modal -->
     <div v-if="showConfirmation" class="modal-overlay" @click.self="cancelConfirmation">
       <div class="modal-content">
@@ -363,15 +424,35 @@ const formatPrice = (price: number) => {
   color: #1A1A1A;
 }
 
+.home-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 168, 107, 0.1);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.home-btn svg {
+  width: 22px;
+  height: 22px;
+  color: #00A86B;
+}
+
+.home-btn:active {
+  transform: scale(0.95);
+  background: rgba(0, 168, 107, 0.2);
+}
+
 .header h1 {
   font-size: 18px;
   font-weight: 700;
   color: #1A1A1A;
   margin: 0;
-}
-
-.spacer {
-  width: 40px;
 }
 
 .content {
@@ -762,5 +843,65 @@ const formatPrice = (price: number) => {
 .btn-confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Exit Modal */
+.exit-modal {
+  text-align: center;
+}
+
+.exit-icon {
+  width: 56px;
+  height: 56px;
+  background: #FFF3E0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.exit-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.exit-message {
+  font-size: 14px;
+  color: #666666;
+  margin: 8px 0 20px;
+}
+
+.btn-exit {
+  flex: 1;
+  padding: 14px;
+  background: #E53935;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Modal Transition */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: transform 0.2s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .modal-content,
+.modal-leave-to .modal-content {
+  transform: scale(0.9);
 }
 </style>

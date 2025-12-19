@@ -51,6 +51,7 @@ const menuItems = [
   { path: '/admin/notifications', label: 'การแจ้งเตือน', icon: 'notification' },
   { path: '/admin/payments', label: 'การเงิน', icon: 'payment' },
   { path: '/admin/wallets', label: 'กระเป๋าเงิน', icon: 'wallet' },
+  { path: '/admin/topup-requests', label: 'คำขอเติมเงิน', icon: 'topup' },
   { path: '/admin/wallet-transactions', label: 'ประวัติ Wallet', icon: 'transaction' },
   { path: '/admin/withdrawals', label: 'การถอนเงิน', icon: 'withdrawal' },
   { path: '/admin/fraud-alerts', label: 'แจ้งเตือนทุจริต', icon: 'fraud' },
@@ -185,6 +186,10 @@ const logout = () => {
           <!-- Wallet -->
           <svg v-else-if="item.icon === 'wallet'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 100 4h4v-4h-4z"/>
+          </svg>
+          <!-- Topup -->
+          <svg v-else-if="item.icon === 'topup'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
           </svg>
           <!-- Support -->
           <svg v-else-if="item.icon === 'support'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

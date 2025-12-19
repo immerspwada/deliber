@@ -72,7 +72,8 @@ export const useRideStore = defineStore('ride', () => {
     const minimumFare = rideType === 'premium' ? 80 : rideType === 'shared' ? 40 : 50
     
     const calculatedFare = baseFare + (distanceKm * perKmRate)
-    return Math.max(calculatedFare, minimumFare)
+    // ปัดเศษให้เป็นจำนวนเต็ม
+    return Math.round(Math.max(calculatedFare, minimumFare))
   }
 
   // Helper function to calculate distance using Haversine formula

@@ -141,12 +141,34 @@ const goBack = () => {
 }
 
 const confirmExit = () => {
+  triggerHaptic('heavy')
   showExitConfirm.value = false
   router.back()
 }
 
 const cancelExit = () => {
+  triggerHaptic('light')
   showExitConfirm.value = false
+}
+
+// Check if user has entered any data
+const hasEnteredData = computed(() => {
+  return selectedCategory.value || placeName.value || placeAddress.value || queueDetails.value || selectedDate.value
+})
+
+const goHome = () => {
+  triggerHaptic('medium')
+  if (hasEnteredData.value) {
+    showExitConfirm.value = true
+  } else {
+    router.push('/customer')
+  }
+}
+
+const confirmExitToHome = () => {
+  triggerHaptic('heavy')
+  showExitConfirm.value = false
+  router.push('/customer')
 }
 
 // Step navigation
@@ -342,7 +364,11 @@ const serviceFee = 50
         </svg>
       </button>
       <h1>จองคิว</h1>
-      <div class="spacer"></div>
+      <button class="home-btn" @click="goHome" title="กลับหน้าหลัก">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Progress Steps -->
@@ -843,15 +869,35 @@ const serviceFee = 50
   color: #1A1A1A;
 }
 
+.home-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 168, 107, 0.1);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.home-btn svg {
+  width: 22px;
+  height: 22px;
+  color: #00A86B;
+}
+
+.home-btn:active {
+  transform: scale(0.95);
+  background: rgba(0, 168, 107, 0.2);
+}
+
 .header h1 {
   font-size: 18px;
   font-weight: 700;
   color: #1A1A1A;
   margin: 0;
-}
-
-.spacer {
-  width: 40px;
 }
 
 /* Progress Bar */
@@ -1295,8 +1341,14 @@ const serviceFee = 50
   display: flex;
   gap: 12px;
   margin-top: 24px;
-  padding-top: 20px;
+  padding: 20px 0;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
   border-top: 1px solid #F0F0F0;
+  background: #FFFFFF;
+  /* Sticky CTA - ติดด้านล่างเสมอ */
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 
 .btn-secondary {

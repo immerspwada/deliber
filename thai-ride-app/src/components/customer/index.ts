@@ -24,6 +24,7 @@ export { default as ProviderCTA } from './ProviderCTA.vue'
 export { default as BottomNavigation } from './BottomNavigation.vue'
 export { default as LoyaltyCard } from './LoyaltyCard.vue'
 export { default as FloatingActionButton } from './FloatingActionButton.vue'
+export { default as ChatWidget } from './ChatWidget.vue'
 
 // Re-export composables for convenience
 export { useHapticFeedback } from '../../composables/useHapticFeedback'

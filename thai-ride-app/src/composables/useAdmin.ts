@@ -280,13 +280,76 @@ export function useAdmin() {
       let query = supabase.from('service_providers').select('*, users(name, email, phone)', { count: 'exact' })
       
       if (filter?.type) query = query.eq('provider_type', filter.type)
-      if (filter?.status === 'verified') query = query.eq('is_verified', true)
-      if (filter?.status === 'pending') query = query.eq('is_verified', false)
+      if (filter?.status) query = query.eq('status', filter.status)
       
       const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
       return { data: data || [], total: count || 0 }
     } catch {
       return { data: generateMockProviders(), total: 30 }
+    }
+  }
+
+  // Fetch provider status history
+  const fetchProviderStatusHistory = async (providerId: string) => {
+    try {
+      const { data, error } = await (supabase as any)
+        .rpc('get_provider_status_history', { p_provider_id: providerId })
+      
+      if (error) {
+        // Fallback: query directly
+        const { data: historyData } = await (supabase
+          .from('provider_status_history') as any)
+          .select('*')
+          .eq('provider_id', providerId)
+          .order('created_at', { ascending: false })
+        return historyData || []
+      }
+      return data || []
+    } catch {
+      return []
+    }
+  }
+
+  // Update provider status with reason
+  const updateProviderStatusWithReason = async (
+    providerId: string, 
+    newStatus: string, 
+    reason?: string,
+    adminId?: string
+  ) => {
+    try {
+      // Update provider status
+      const updateData: any = { status: newStatus }
+      if (newStatus === 'approved') {
+        updateData.is_verified = true
+      } else if (newStatus === 'rejected') {
+        updateData.is_verified = false
+        if (reason) updateData.rejection_reason = reason
+      } else if (newStatus === 'suspended') {
+        updateData.is_available = false
+      }
+
+      const { error } = await (supabase
+        .from('service_providers') as any)
+        .update(updateData)
+        .eq('id', providerId)
+
+      if (error) throw error
+
+      // Log to history (trigger will also do this, but we can add admin info)
+      if (adminId) {
+        await (supabase.from('provider_status_history') as any).insert({
+          provider_id: providerId,
+          new_status: newStatus,
+          reason: reason || '',
+          changed_by: adminId,
+          changed_by_role: 'admin'
+        })
+      }
+
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
     }
   }
 
@@ -1200,6 +1263,7 @@ export function useAdmin() {
   return {
     loading, error, stats, recentOrders, recentUsers, recentPayments,
     fetchDashboardStats, fetchRecentOrders, fetchUsers, fetchProviders,
+    fetchProviderStatusHistory, updateProviderStatusWithReason,
     fetchPayments, fetchSupportTickets, fetchPromoCodes,
     updateUserStatus, updateProviderStatus, updateTicketStatus, createPromoCode, updatePromoCode,
     verifyUser,

@@ -41,6 +41,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { hideNavigation: true, public: true }
   },
   {
+    path: '/tracking',
+    name: 'TrackingLanding',
+    component: () => import('../views/TrackingLandingView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  {
     path: '/tracking/:trackingId',
     name: 'OrderTracking',
     component: () => import('../views/OrderTrackingView.vue'),
@@ -94,6 +100,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/ride',
     name: 'CustomerRide',
+    component: () => import('../views/RideViewV2.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/ride-legacy',
+    name: 'CustomerRideLegacy',
     component: () => import('../views/RideView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
@@ -160,6 +172,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/wallet',
     name: 'CustomerWallet',
+    component: () => import('../views/WalletViewV2.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
+  },
+  {
+    path: '/customer/wallet-legacy',
+    name: 'CustomerWalletLegacy',
     component: () => import('../views/WalletView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
@@ -274,6 +292,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider/profile',
     name: 'ProviderProfile',
     component: () => import('../views/provider/ProviderProfileView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/onboarding',
+    name: 'ProviderOnboarding',
+    component: () => import('../views/ProviderOnboardingView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
@@ -498,6 +522,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/wallets',
     name: 'AdminWallets',
     component: () => import('../views/AdminWalletsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/topup-requests',
+    name: 'AdminTopupRequests',
+    component: () => import('../views/AdminTopupRequestsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {

@@ -453,7 +453,7 @@ onUnmounted(() => {
 
       <!-- Provider CTA -->
       <section class="provider-section">
-        <ProviderCTA @click="navigateTo('/provider')" />
+        <ProviderCTA />
       </section>
     </main>
 

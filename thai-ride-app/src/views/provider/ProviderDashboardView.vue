@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useLocation } from '../../composables/useLocation'
+
+const router = useRouter()
 import { useProvider } from '../../composables/useProvider'
 import { useProviderTracking } from '../../composables/useProviderTracking'
 import ProviderLayout from '../../components/ProviderLayout.vue'
@@ -304,7 +307,29 @@ const handleRatingClose = () => {
 // Initialize
 onMounted(async () => {
   // Always await fetchProfile to ensure profile is ready before toggle
-  await fetchProfile()
+  const providerProfile = await fetchProfile()
+  
+  // Check if user is a registered provider
+  if (!providerProfile && !isDemoMode.value) {
+    // Not a provider, redirect to onboarding
+    router.replace('/provider/onboarding')
+    return
+  }
+  
+  // Check provider status
+  if (providerProfile && !isDemoMode.value) {
+    const status = (providerProfile as any).status
+    if (status === 'pending') {
+      // Application pending, redirect to onboarding to show status
+      router.replace('/provider/onboarding')
+      return
+    } else if (status === 'rejected') {
+      // Application rejected, redirect to onboarding
+      router.replace('/provider/onboarding')
+      return
+    }
+  }
+  
   fetchEarnings() // Can run in background
   
   // Initialize GPS tracking after profile is loaded

@@ -53,6 +53,19 @@ const isFullScreenPage = computed(() => {
   return ['/customer/services', '/customer/ride'].includes(route.path)
 })
 
+// Pages that should hide bottom navigation to focus on the feature
+const hideBottomNav = computed(() => {
+  const pagesWithoutNav = [
+    '/customer/ride',
+    '/customer/delivery',
+    '/customer/shopping',
+    '/customer/queue-booking',
+    '/customer/moving',
+    '/customer/laundry'
+  ]
+  return pagesWithoutNav.includes(route.path)
+})
+
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/customer/services': 'บริการ',
@@ -78,6 +91,11 @@ const canGoBack = computed(() => {
 const goBack = () => {
   router.back()
 }
+
+// Quick back to home for pages without bottom nav
+const goToHome = () => {
+  router.push('/customer')
+}
 </script>
 
 <template>
@@ -93,15 +111,28 @@ const goBack = () => {
           <span class="logo-text">GOBEAR</span>
         </div>
         <h1 v-if="canGoBack" class="header-title">{{ pageTitle }}</h1>
-        <div class="header-spacer"></div>
+        <!-- Quick Home Button - แสดงเมื่อซ่อน BottomNavigation -->
+        <button 
+          v-if="hideBottomNav" 
+          class="header-home-btn"
+          @click="goToHome"
+          aria-label="กลับหน้าหลัก"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          </svg>
+        </button>
+        <div v-else class="header-spacer"></div>
       </div>
     </header>
 
-    <main class="main-content" :class="{ 'no-header': !showHeader, 'full-screen': isFullScreenPage }">
+    <main class="main-content" :class="{ 'no-header': !showHeader, 'full-screen': isFullScreenPage, 'no-bottom-nav': hideBottomNav }">
       <slot />
     </main>
 
-    <nav class="bottom-nav">
+    <!-- Bottom Navigation with Transition -->
+    <Transition name="slide-up">
+      <nav v-if="!hideBottomNav" class="bottom-nav">
       <div class="nav-container">
         <button
           v-for="(item, index) in navigationItems"
@@ -130,7 +161,8 @@ const goBack = () => {
           <span class="nav-label">{{ item.name }}</span>
         </button>
       </div>
-    </nav>
+      </nav>
+    </Transition>
   </div>
 </template>
 
@@ -216,6 +248,10 @@ const goBack = () => {
 }
 
 .main-content.full-screen {
+  padding-bottom: 0;
+}
+
+.main-content.no-bottom-nav {
   padding-bottom: 0;
 }
 
@@ -328,4 +364,57 @@ const goBack = () => {
   margin-top: 4px;
   letter-spacing: -0.2px;
 }
+
+/* Header Home Button - ปุ่มกลับหน้าหลักใน Header */
+.header-home-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  margin-right: -8px;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.header-home-btn:hover {
+  background-color: var(--color-secondary);
+}
+
+.header-home-btn:active {
+  transform: scale(0.92);
+  background-color: var(--color-secondary);
+}
+
+.header-home-btn svg {
+  width: 22px;
+  height: 22px;
+  color: #00A86B;
+}
+
+/* Bottom Nav Slide Up Transition */
+.slide-up-enter-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.slide-up-leave-active {
+  transition: all 0.25s ease-in;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+
 </style>
