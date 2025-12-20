@@ -396,10 +396,14 @@ const goToOnboarding = () => {
 
 // Check for existing provider registration
 const checkExistingProvider = async () => {
+  // Wait for auth to be ready
   if (!authStore.user?.id) {
+    console.log('[ProviderRegister] No user ID, skipping check')
     checkingExisting.value = false
     return
   }
+  
+  console.log('[ProviderRegister] Checking existing provider for user:', authStore.user.id)
   
   try {
     const { data, error: queryError } = await supabase
@@ -410,20 +414,30 @@ const checkExistingProvider = async () => {
     
     if (queryError && queryError.code !== 'PGRST116') {
       // PGRST116 = no rows found, which is expected for new users
-      console.error('Error checking existing provider:', queryError)
+      console.error('[ProviderRegister] Error checking existing provider:', queryError)
     }
+    
+    console.log('[ProviderRegister] Query result:', data)
     
     if (data) {
       existingProvider.value = data as any
       
       // If approved, redirect to dashboard
       if (data.status === 'approved') {
+        console.log('[ProviderRegister] Provider approved, redirecting to dashboard')
         router.push('/provider/dashboard')
         return
       }
+      
+      // If pending, show waiting screen (handled in template)
+      if (data.status === 'pending') {
+        console.log('[ProviderRegister] Provider pending, showing waiting screen')
+      }
+    } else {
+      console.log('[ProviderRegister] No existing provider found, showing registration form')
     }
   } catch (err) {
-    console.error('Error checking existing provider:', err)
+    console.error('[ProviderRegister] Error checking existing provider:', err)
   } finally {
     checkingExisting.value = false
   }
@@ -436,7 +450,10 @@ const retryRegistration = () => {
 }
 
 onMounted(async () => {
+  console.log('[ProviderRegister] Component mounted, user:', authStore.user?.id)
+  
   if (!authStore.user) {
+    console.log('[ProviderRegister] No user, redirecting to login')
     router.push('/login')
     return
   }
