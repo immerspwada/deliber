@@ -1,6 +1,8 @@
 /**
  * Feature: Role Switch - Customer to Provider
  * ให้ลูกค้าสามารถอัพเกรดเป็นผู้ให้บริการได้โดยใช้บัญชีเดิม
+ * 
+ * ใช้ Direct Insert แทน RPC function เพื่อความเสถียร
  */
 
 import { ref, computed } from 'vue'
@@ -42,7 +44,7 @@ export function useRoleSwitch() {
     providers.value.filter(p => p.is_verified && p.status === 'approved')
   )
 
-  // Check if user can switch to provider mode
+  // Check if user can switch to provider mode - ใช้ direct query แทน RPC
   const checkProviderStatus = async () => {
     if (!authStore.user?.id) return
 
@@ -50,18 +52,30 @@ export function useRoleSwitch() {
     error.value = null
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('can_switch_to_provider', {
-        p_user_id: authStore.user.id
-      })
+      // Query providers directly from database
+      const { data: providerData, error: queryError } = await supabase
+        .from('service_providers')
+        .select('id, provider_type, is_verified, status')
+        .eq('user_id', authStore.user.id)
 
-      if (rpcError) throw rpcError
+      if (queryError) throw queryError
 
-      if (data?.providers) {
-        providers.value = data.providers
+      // Map to ProviderInfo format
+      providers.value = (providerData || []).map(p => ({
+        id: p.id,
+        type: p.provider_type,
+        is_verified: p.is_verified || false,
+        status: p.status || 'pending'
+      }))
+
+      const canSwitch = providers.value.some(p => p.is_verified && p.status === 'approved')
+
+      return {
+        can_switch: canSwitch,
+        providers: providers.value
       }
-
-      return data
     } catch (err: any) {
+      console.error('[checkProviderStatus] Error:', err)
       error.value = err.message
       return null
     } finally {
@@ -69,7 +83,7 @@ export function useRoleSwitch() {
     }
   }
 
-  // Upgrade customer to provider
+  // Upgrade customer to provider - ใช้ direct insert แทน RPC
   const upgradeToProvider = async (upgradeData: UpgradeData) => {
     if (!authStore.user?.id) {
       error.value = 'กรุณาเข้าสู่ระบบก่อน'
@@ -80,28 +94,77 @@ export function useRoleSwitch() {
     error.value = null
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('upgrade_customer_to_provider', {
-        p_user_id: authStore.user.id,
-        p_provider_type: upgradeData.provider_type,
-        p_vehicle_type: upgradeData.vehicle_type || null,
-        p_vehicle_plate: upgradeData.vehicle_plate || null,
-        p_vehicle_color: upgradeData.vehicle_color || null,
-        p_license_number: upgradeData.license_number || null
-      })
+      const userId = authStore.user.id
 
-      if (rpcError) throw rpcError
+      // Check if already registered for this type
+      const { data: existing } = await supabase
+        .from('service_providers')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('provider_type', upgradeData.provider_type)
+        .single()
 
-      if (data?.success) {
-        // Refresh provider status
-        await checkProviderStatus()
-      } else {
-        error.value = data?.error || 'เกิดข้อผิดพลาด'
+      if (existing) {
+        error.value = 'คุณสมัครประเภทนี้แล้ว'
+        return { success: false, error: 'คุณสมัครประเภทนี้แล้ว', provider_id: (existing as any).id }
       }
 
-      return data
+      // Create new provider record - use type assertion for flexibility
+      const { data: newProvider, error: insertError } = await (supabase
+        .from('service_providers') as any)
+        .insert({
+          user_id: userId,
+          provider_type: upgradeData.provider_type,
+          vehicle_type: upgradeData.vehicle_type || null,
+          vehicle_plate: upgradeData.vehicle_plate || null,
+          vehicle_color: upgradeData.vehicle_color || null,
+          license_number: upgradeData.license_number || null,
+          status: 'pending',
+          is_verified: false,
+          is_available: false,
+          documents: {},
+          rating: 5.0,
+          total_trips: 0
+        })
+        .select('id')
+        .single()
+
+      if (insertError) {
+        // Handle duplicate key error
+        if (insertError.code === '23505') {
+          error.value = 'คุณสมัครประเภทนี้แล้ว'
+          return { success: false, error: 'คุณสมัครประเภทนี้แล้ว' }
+        }
+        throw insertError
+      }
+
+      // Create notification for user
+      try {
+        await (supabase.from('user_notifications') as any).insert({
+          user_id: userId,
+          type: 'system',
+          title: 'สมัครเป็นผู้ให้บริการสำเร็จ',
+          message: 'กรุณาอัพโหลดเอกสารเพื่อรอการอนุมัติ',
+          action_url: '/provider/documents',
+          is_read: false
+        })
+      } catch (notifErr) {
+        console.warn('[upgradeToProvider] Notification insert failed:', notifErr)
+        // Continue even if notification fails
+      }
+
+      // Refresh provider status
+      await checkProviderStatus()
+
+      return {
+        success: true,
+        provider_id: newProvider?.id || null,
+        message: 'สมัครสำเร็จ กรุณาอัพโหลดเอกสาร'
+      }
     } catch (err: any) {
-      error.value = err.message
-      return null
+      console.error('[upgradeToProvider] Error:', err)
+      error.value = err.message || 'เกิดข้อผิดพลาด'
+      return { success: false, error: err.message }
     } finally {
       loading.value = false
     }

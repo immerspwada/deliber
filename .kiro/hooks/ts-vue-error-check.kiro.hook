@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "TypeScript/Vue Error Check",
+  "description": "Automatically checks for TypeScript and Vue compilation errors when you save .ts or .vue files",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.ts",
+      "*.vue"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Check the file I just saved for any TypeScript or Vue compilation errors. Look for type errors, missing imports, syntax issues, and Vue component problems. If you find errors, explain them clearly and suggest fixes."
+  }
+}

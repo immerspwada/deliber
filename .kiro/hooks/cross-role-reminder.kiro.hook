@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Cross-Role Integration Reminder",
+  "description": "Reminds you to check cross-role integration (Customer, Provider, Admin) when saving views or composables to ensure all roles work together properly",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/views/**/*.vue",
+      "**/composables/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "I just saved a view or composable file. Please remind me to check cross-role integration:\n\n1. **Customer Side**: Does the customer have proper UI and functionality?\n2. **Provider Side**: Can providers receive/update/complete this action?\n3. **Admin Side**: Can admin view/manage/edit this feature?\n4. **Realtime Sync**: Are all roles synced in real-time?\n5. **Notifications**: Are all relevant parties notified?\n\nReview the file I just saved and provide specific reminders about what needs to be checked or implemented for complete cross-role integration."
+  }
+}

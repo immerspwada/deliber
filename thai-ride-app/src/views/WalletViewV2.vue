@@ -2,14 +2,18 @@
 /**
  * WalletViewV2 - Complete Wallet with Top-up Approval System
  * Feature: F05 - Wallet/Balance (Enhanced)
+ * Supports: Customer (top-up/pay) and Provider (view balance, link to earnings)
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWalletV2 } from '../composables/useWalletV2'
+import { useAuthStore } from '../stores/auth'
+import { supabase } from '../lib/supabase'
 import PullToRefresh from '../components/PullToRefresh.vue'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const {
   balance, transactions, topupRequests, loading, hasPendingTopup, pendingTopupAmount,
   fetchBalance, fetchTransactions, fetchTopupRequests, createTopupRequest, cancelTopupRequest,
@@ -18,6 +22,27 @@ const {
 } = useWalletV2()
 
 import type { Refund } from '../composables/useWalletV2'
+
+// Role detection
+const isProvider = ref(false)
+const isApprovedProvider = ref(false)
+const checkProviderStatus = async () => {
+  if (!authStore.user?.id) return
+  try {
+    const { data } = await supabase
+      .from('service_providers')
+      .select('id, status, is_verified')
+      .eq('user_id', authStore.user.id)
+      .single()
+    
+    if (data) {
+      isProvider.value = true
+      isApprovedProvider.value = data.status === 'approved' && data.is_verified
+    }
+  } catch {
+    isProvider.value = false
+  }
+}
 
 const activeTab = ref<'balance' | 'history' | 'topups' | 'refunds'>('balance')
 const refunds = ref<Refund[]>([])
@@ -36,6 +61,7 @@ const topUpAmounts = [100, 200, 500, 1000, 2000, 5000]
 let subscription: { unsubscribe: () => void } | null = null
 
 onMounted(async () => {
+  await checkProviderStatus()
   await Promise.all([fetchBalance(), fetchTransactions(), fetchTopupRequests()])
   refunds.value = await fetchUserRefunds()
   subscription = subscribeToWallet()
@@ -48,6 +74,9 @@ const handleRefresh = async () => {
   refunds.value = await fetchUserRefunds()
   isRefreshing.value = false
 }
+
+// Navigation for provider
+const goToProviderEarnings = () => router.push('/provider/earnings')
 
 const formatServiceType = (type: string): string => {
   const types: Record<string, string> = {
@@ -170,6 +199,35 @@ const goBack = () => router.back()
             </svg>
             เติมเงิน
           </button>
+        </div>
+
+        <!-- Provider Earnings Card (for approved providers) -->
+        <div v-if="isApprovedProvider" class="provider-earnings-card" @click="goToProviderEarnings">
+          <div class="provider-card-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div class="provider-card-content">
+            <span class="provider-card-title">รายได้จากการให้บริการ</span>
+            <span class="provider-card-desc">ดูรายได้และถอนเงินจากการวิ่งงาน</span>
+          </div>
+          <svg class="provider-card-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </div>
+
+        <!-- Provider Pending Notice (for pending providers) -->
+        <div v-else-if="isProvider && !isApprovedProvider" class="provider-pending-card">
+          <div class="provider-pending-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div class="provider-pending-content">
+            <span class="provider-pending-title">รอการอนุมัติผู้ให้บริการ</span>
+            <span class="provider-pending-desc">เมื่อได้รับการอนุมัติแล้ว คุณจะสามารถดูรายได้และถอนเงินได้ที่นี่</span>
+          </div>
         </div>
 
         <!-- Tabs -->
@@ -551,4 +609,113 @@ const goBack = () => router.back()
 .refund-reason { font-size: 12px; color: #6B6B6B; padding: 8px; background: #F5F5F5; border-radius: 6px; }
 .reason-label { font-weight: 500; }
 .refund-date { font-size: 12px; color: #999; }
+
+/* Provider Earnings Card */
+.provider-earnings-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #E8F5EF 0%, #D4EDDA 100%);
+  border: 2px solid #00A86B;
+  border-radius: 16px;
+  padding: 18px 16px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.provider-earnings-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2);
+}
+
+.provider-card-icon {
+  width: 48px;
+  height: 48px;
+  background: #00A86B;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.provider-card-icon svg {
+  width: 24px;
+  height: 24px;
+  color: #fff;
+}
+
+.provider-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.provider-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.provider-card-desc {
+  font-size: 13px;
+  color: #166534;
+}
+
+.provider-card-arrow {
+  width: 20px;
+  height: 20px;
+  color: #00A86B;
+  flex-shrink: 0;
+}
+
+/* Provider Pending Card */
+.provider-pending-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.provider-pending-icon {
+  width: 44px;
+  height: 44px;
+  background: #F59E0B;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.provider-pending-icon svg {
+  width: 22px;
+  height: 22px;
+  color: #fff;
+}
+
+.provider-pending-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.provider-pending-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400E;
+}
+
+.provider-pending-desc {
+  font-size: 12px;
+  color: #B45309;
+  line-height: 1.4;
+}
 </style>

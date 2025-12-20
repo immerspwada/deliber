@@ -88,7 +88,7 @@ const checkProviderStatus = async () => {
   }
 }
 
-// Navigation
+// Navigation - กลับหน้าหลัก
 const goBack = () => {
   router.push('/customer')
 }
@@ -202,7 +202,7 @@ onMounted(() => {
           <li>ศึกษาวิธีการใช้งานแอป</li>
         </ul>
       </div>
-      <button @click="goBack" class="btn-secondary">กลับหน้าหลัก</button>
+      <button type="button" @click="goBack" class="btn-secondary">กลับหน้าหลัก</button>
     </div>
 
     <!-- Rejected Status -->
@@ -215,8 +215,8 @@ onMounted(() => {
       </div>
       <h2>ใบสมัครไม่ผ่าน</h2>
       <p>ขออภัย ใบสมัครของคุณไม่ผ่านการอนุมัติ<br/>กรุณาตรวจสอบเอกสารและลองสมัครใหม่</p>
-      <button @click="startRegistration" class="btn-primary">สมัครใหม่</button>
-      <button @click="goBack" class="btn-secondary">กลับหน้าหลัก</button>
+      <button type="button" @click="startRegistration" class="btn-primary">สมัครใหม่</button>
+      <button type="button" @click="goBack" class="btn-secondary">กลับหน้าหลัก</button>
     </div>
 
     <!-- Onboarding Content -->
@@ -891,6 +891,15 @@ onMounted(() => {
   border-radius: 14px;
   cursor: pointer;
   margin-top: 12px;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #E8E8E8;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
 }
 
 .cta-note {

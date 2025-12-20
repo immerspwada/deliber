@@ -225,7 +225,7 @@ export function useRideHistory() {
               tracking_id,
               users:user_id (name)
             ),
-            rating:queue_ratings (rating)
+            rating:queue_ratings!booking_id (rating)
           `)
           .eq('user_id', userId)
           .in('status', ['completed', 'cancelled'])
@@ -274,7 +274,7 @@ export function useRideHistory() {
               vehicle_type,
               users:user_id (name)
             ),
-            rating:moving_ratings (rating)
+            rating:moving_ratings!request_id (rating)
           `)
           .eq('user_id', userId)
           .in('status', ['completed', 'cancelled'])
@@ -323,7 +323,7 @@ export function useRideHistory() {
               tracking_id,
               users:user_id (name)
             ),
-            rating:laundry_ratings (rating)
+            rating:laundry_ratings!request_id (rating)
           `)
           .eq('user_id', userId)
           .in('status', ['delivered', 'completed', 'cancelled'])

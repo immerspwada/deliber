@@ -176,13 +176,13 @@ export const routes: RouteRecordRaw[] = [
     path: '/customer/wallet',
     name: 'CustomerWallet',
     component: () => import('../views/WalletViewV2.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true }  // Shared route - accessible by all authenticated users
   },
   {
     path: '/customer/wallet-legacy',
     name: 'CustomerWalletLegacy',
     component: () => import('../views/WalletView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true }
   },
   {
     path: '/customer/promotions',
@@ -252,9 +252,7 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/customer/become-provider',
-    name: 'BecomeProvider',
-    component: () => import('../views/BecomeProviderView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
+    redirect: '/provider/onboarding'
   },
   // Tracking Views for New Services
   {
@@ -290,6 +288,10 @@ export const routes: RouteRecordRaw[] = [
     name: 'ProviderDashboardLegacy',
     component: () => import('../views/provider/ProviderDashboardView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/wallet',
+    redirect: '/customer/wallet'  // Shared wallet - redirect to main wallet page
   },
   {
     path: '/provider/earnings',
@@ -783,7 +785,7 @@ router.beforeEach(async (to, from, next) => {
 
       if (error) {
         console.error('[Router] Provider check error:', error)
-        return next('/customer/become-provider')
+        return next('/provider/onboarding')
       }
 
       const result = Array.isArray(data) ? data[0] : data
@@ -791,24 +793,15 @@ router.beforeEach(async (to, from, next) => {
       if (!result?.can_access) {
         console.warn('[Router] Provider access denied:', result?.message)
         
-        // Redirect based on status
-        if (!result?.provider_id) {
-          // No provider account - redirect to become provider
-          return next('/customer/become-provider')
-        } else if (!result?.is_verified || result?.status !== 'approved') {
-          // Provider exists but not approved - redirect to onboarding
-          return next('/provider/onboarding')
-        } else {
-          // Other issues - redirect to become provider
-          return next('/customer/become-provider')
-        }
+        // Redirect based on status - all go to onboarding
+        return next('/provider/onboarding')
       }
 
       // Access granted
       console.log('[Router] Provider access granted')
     } catch (err) {
       console.error('[Router] Provider check exception:', err)
-      return next('/customer/become-provider')
+      return next('/provider/onboarding')
     }
   }
 
@@ -818,29 +811,9 @@ router.beforeEach(async (to, from, next) => {
       return next('/login')
     }
 
-    // Check if user is a provider trying to access customer routes
-    try {
-      const { data: provider, error } = await supabase
-        .from('service_providers')
-        .select('id, is_verified, status, provider_type')
-        .eq('user_id', authStore.user?.id)
-        .single()
-
-      // If user has a provider account, check if they should be redirected
-      if (!error && provider) {
-        // If provider is not verified or not approved, redirect to onboarding
-        if (!provider.is_verified || provider.status !== 'approved') {
-          console.log('[Router] Provider not approved, redirecting to onboarding')
-          return next('/provider/onboarding')
-        }
-        
-        // If provider is approved, they can access both customer and provider routes
-        // No redirect needed - let them use customer features
-      }
-    } catch (err) {
-      console.error('[Router] Provider check error:', err)
-      // On error, allow access to customer routes (fail open)
-    }
+    // Allow all authenticated users to access customer routes
+    // Even providers (approved or pending) can use customer features
+    // No redirect needed - customer routes are accessible to everyone
   }
 
   // Check if route requires admin access

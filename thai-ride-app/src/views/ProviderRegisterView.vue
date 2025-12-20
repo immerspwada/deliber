@@ -22,6 +22,16 @@ const error = ref('')
 const step = ref(1)
 const showSuccess = ref(false)
 
+// Existing provider check
+const checkingExisting = ref(true)
+const existingProvider = ref<{
+  id: string
+  status: string
+  provider_type: string
+  created_at: string
+  rejection_reason?: string
+} | null>(null)
+
 // Form data - ไม่ต้องเลือกประเภทงานแล้ว Admin จะเปิดสิทธิ์ให้ทีหลัง
 const vehicleType = ref('')
 const vehicleBrand = ref('')
@@ -384,13 +394,152 @@ const goToOnboarding = () => {
   router.push('/provider/onboarding')
 }
 
-onMounted(() => {
-  if (!authStore.user) router.push('/login')
+// Check for existing provider registration
+const checkExistingProvider = async () => {
+  if (!authStore.user?.id) {
+    checkingExisting.value = false
+    return
+  }
+  
+  try {
+    const { data, error: queryError } = await supabase
+      .from('service_providers')
+      .select('id, status, provider_type, created_at, rejection_reason')
+      .eq('user_id', authStore.user.id)
+      .single()
+    
+    if (queryError && queryError.code !== 'PGRST116') {
+      // PGRST116 = no rows found, which is expected for new users
+      console.error('Error checking existing provider:', queryError)
+    }
+    
+    if (data) {
+      existingProvider.value = data as any
+      
+      // If approved, redirect to dashboard
+      if (data.status === 'approved') {
+        router.push('/provider/dashboard')
+        return
+      }
+    }
+  } catch (err) {
+    console.error('Error checking existing provider:', err)
+  } finally {
+    checkingExisting.value = false
+  }
+}
+
+// Retry registration (for rejected applications)
+const retryRegistration = () => {
+  existingProvider.value = null
+  step.value = 1
+}
+
+onMounted(async () => {
+  if (!authStore.user) {
+    router.push('/login')
+    return
+  }
+  await checkExistingProvider()
 })
 </script>
 
 <template>
   <div class="register-page">
+    <!-- Loading Check -->
+    <div v-if="checkingExisting" class="loading-screen">
+      <div class="loading-spinner"></div>
+      <p>กำลังตรวจสอบ...</p>
+    </div>
+
+    <!-- Pending Approval Screen -->
+    <div v-else-if="existingProvider && existingProvider.status === 'pending'" class="status-screen pending-screen">
+      <div class="status-content">
+        <div class="status-icon pending">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <h1>รอการอนุมัติ</h1>
+        <p>ใบสมัครของคุณอยู่ระหว่างการตรวจสอบ<br/>ทีมงานจะแจ้งผลภายใน 1-3 วันทำการ</p>
+        
+        <div class="status-timeline">
+          <div class="timeline-item done">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+              <span class="timeline-title">ส่งใบสมัคร</span>
+              <span class="timeline-date">{{ new Date(existingProvider.created_at).toLocaleDateString('th-TH') }}</span>
+            </div>
+          </div>
+          <div class="timeline-item active">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+              <span class="timeline-title">รอตรวจสอบเอกสาร</span>
+              <span class="timeline-date">กำลังดำเนินการ</span>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+              <span class="timeline-title">อนุมัติ</span>
+              <span class="timeline-date">-</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="status-info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span>เราจะแจ้งเตือนคุณทันทีเมื่อมีการอัพเดท</span>
+        </div>
+        
+        <button @click="goToOnboarding" class="btn-primary">กลับหน้าหลัก</button>
+      </div>
+    </div>
+
+    <!-- Rejected Screen -->
+    <div v-else-if="existingProvider && existingProvider.status === 'rejected'" class="status-screen rejected-screen">
+      <div class="status-content">
+        <div class="status-icon rejected">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M15 9l-6 6M9 9l6 6"/>
+          </svg>
+        </div>
+        <h1>ใบสมัครถูกปฏิเสธ</h1>
+        <p v-if="existingProvider.rejection_reason">
+          เหตุผล: {{ existingProvider.rejection_reason }}
+        </p>
+        <p v-else>
+          กรุณาตรวจสอบข้อมูลและเอกสารของคุณ<br/>แล้วลองสมัครใหม่อีกครั้ง
+        </p>
+        
+        <div class="btn-group-vertical">
+          <button @click="retryRegistration" class="btn-primary">สมัครใหม่</button>
+          <button @click="goToOnboarding" class="btn-secondary">กลับหน้าหลัก</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suspended Screen -->
+    <div v-else-if="existingProvider && existingProvider.status === 'suspended'" class="status-screen suspended-screen">
+      <div class="status-content">
+        <div class="status-icon suspended">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <h1>บัญชีถูกระงับ</h1>
+        <p>บัญชีผู้ให้บริการของคุณถูกระงับชั่วคราว<br/>กรุณาติดต่อทีมงานเพื่อขอข้อมูลเพิ่มเติม</p>
+        
+        <button @click="goToOnboarding" class="btn-primary">กลับหน้าหลัก</button>
+      </div>
+    </div>
+
     <!-- Success Screen -->
     <div v-if="showSuccess" class="success-screen">
       <div class="success-content">
@@ -1530,5 +1679,228 @@ onMounted(() => {
     padding: 8px 12px;
     font-size: 12px;
   }
+}
+
+/* Loading Screen */
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #FFFFFF;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E8E8E8;
+  border-top-color: #00A86B;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-screen p {
+  font-size: 16px;
+  color: #666666;
+}
+
+/* Status Screens (Pending, Rejected, Suspended) */
+.status-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.pending-screen {
+  background: linear-gradient(180deg, #FEF3C7 0%, #FFFFFF 50%);
+}
+
+.rejected-screen {
+  background: linear-gradient(180deg, #FEE2E2 0%, #FFFFFF 50%);
+}
+
+.suspended-screen {
+  background: linear-gradient(180deg, #FEE2E2 0%, #FFFFFF 50%);
+}
+
+.status-content {
+  text-align: center;
+  max-width: 360px;
+}
+
+.status-icon {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: scaleIn 0.5s ease;
+}
+
+.status-icon.pending {
+  background: #F59E0B;
+}
+
+.status-icon.rejected {
+  background: #E53935;
+}
+
+.status-icon.suspended {
+  background: #E53935;
+}
+
+.status-icon svg {
+  width: 50px;
+  height: 50px;
+  color: #FFFFFF;
+}
+
+.status-content h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1A1A1A;
+  margin-bottom: 12px;
+}
+
+.status-content p {
+  font-size: 15px;
+  color: #666666;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+/* Timeline */
+.status-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 24px;
+  text-align: left;
+  padding-left: 20px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 24px;
+}
+
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 20px;
+  bottom: 0;
+  width: 2px;
+  background: #E8E8E8;
+}
+
+.timeline-item:last-child::before {
+  display: none;
+}
+
+.timeline-item.done::before {
+  background: #00A86B;
+}
+
+.timeline-dot {
+  width: 16px;
+  height: 16px;
+  background: #E8E8E8;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.timeline-item.done .timeline-dot {
+  background: #00A86B;
+}
+
+.timeline-item.done .timeline-dot::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.timeline-item.active .timeline-dot {
+  background: #F59E0B;
+  animation: pulse 2s infinite;
+}
+
+.timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.timeline-item.done .timeline-title {
+  color: #00A86B;
+}
+
+.timeline-item.active .timeline-title {
+  color: #F59E0B;
+}
+
+.timeline-date {
+  font-size: 12px;
+  color: #999999;
+}
+
+/* Status Info */
+.status-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #E8F5EF;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.status-info svg {
+  width: 20px;
+  height: 20px;
+  color: #00A86B;
+}
+
+.status-info span {
+  font-size: 13px;
+  color: #008F5B;
+}
+
+/* Button Group Vertical */
+.btn-group-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-group-vertical .btn-primary,
+.btn-group-vertical .btn-secondary {
+  width: 100%;
 }
 </style>

@@ -55,23 +55,36 @@ const getDocStatusColor = (status: string) => {
   return colors[status] || '#666666'
 }
 
+// Check if document needs upload (not verified yet)
+const needsUpload = (docType: string) => {
+  const docs = provider.value?.documents || {}
+  const status = docs[docType]
+  return !status || status === 'pending' || status === 'rejected'
+}
+
 const getRejectionReason = (docType: string) => {
   const reasons = provider.value?.rejection_reasons || {}
   return reasons[docType] || ''
 }
 
-// Check if any document needs re-upload
-const hasRejectedDocs = computed(() => {
+// Check if any document needs upload (pending or rejected)
+const hasDocumentsToUpload = computed(() => {
   const docs = provider.value?.documents || {}
-  return ['id_card', 'license', 'vehicle'].some(key => docs[key] === 'rejected')
+  return ['id_card', 'license', 'vehicle'].some(key => 
+    !docs[key] || docs[key] === 'pending' || docs[key] === 'rejected'
+  )
 })
 
 const canSubmit = computed(() => {
   const docs = provider.value?.documents || {}
-  // Can submit if there's at least one new file for a rejected document
-  return (docs.id_card === 'rejected' && newIdCard.value) ||
-         (docs.license === 'rejected' && newLicense.value) ||
-         (docs.vehicle === 'rejected' && newVehicle.value)
+  // Can submit if there's at least one new file for a pending or rejected document
+  const idCardNeedsUpload = !docs.id_card || docs.id_card === 'pending' || docs.id_card === 'rejected'
+  const licenseNeedsUpload = !docs.license || docs.license === 'pending' || docs.license === 'rejected'
+  const vehicleNeedsUpload = !docs.vehicle || docs.vehicle === 'pending' || docs.vehicle === 'rejected'
+  
+  return (idCardNeedsUpload && newIdCard.value) ||
+         (licenseNeedsUpload && newLicense.value) ||
+         (vehicleNeedsUpload && newVehicle.value)
 })
 
 // Load provider data
@@ -190,7 +203,7 @@ const uploadToStorage = async (file: File, path: string): Promise<string> => {
   return urlData.publicUrl
 }
 
-// Submit re-uploaded documents
+// Submit documents (first upload or re-upload)
 const submitDocuments = async () => {
   if (!provider.value || !canSubmit.value) return
   
@@ -204,18 +217,18 @@ const submitDocuments = async () => {
     const currentDocs = provider.value.documents || {}
     const updatedDocs = { ...currentDocs }
     
-    // Upload new files
-    if (newIdCard.value && currentDocs.id_card === 'rejected') {
+    // Upload new files for pending or rejected documents
+    if (newIdCard.value && needsUpload('id_card')) {
       updatedDocs.id_card = await uploadToStorage(newIdCard.value, `${userId}/id_card`)
     }
-    if (newLicense.value && currentDocs.license === 'rejected') {
+    if (newLicense.value && needsUpload('license')) {
       updatedDocs.license = await uploadToStorage(newLicense.value, `${userId}/license`)
     }
-    if (newVehicle.value && currentDocs.vehicle === 'rejected') {
+    if (newVehicle.value && needsUpload('vehicle')) {
       updatedDocs.vehicle = await uploadToStorage(newVehicle.value, `${userId}/vehicle`)
     }
     
-    // Update provider record - set status back to pending for review
+    // Update provider record - keep status as pending for review
     const { error: updateError } = await supabase
       .from('service_providers')
       .update({
@@ -233,7 +246,7 @@ const submitDocuments = async () => {
     newLicense.value = null
     newVehicle.value = null
     
-    success.value = 'อัพโหลดเอกสารใหม่สำเร็จ! รอการตรวจสอบจากทีมงาน'
+    success.value = 'อัพโหลดเอกสารสำเร็จ! รอการตรวจสอบจากทีมงาน'
     haptic.success()
     
     // Reload data
@@ -293,7 +306,8 @@ onMounted(() => {
         </svg>
         <div>
           <strong>รอการตรวจสอบ</strong>
-          <p>ทีมงานกำลังตรวจสอบเอกสารของคุณ</p>
+          <p v-if="hasDocumentsToUpload">กรุณาอัพโหลดเอกสารให้ครบเพื่อรอการอนุมัติ</p>
+          <p v-else>ทีมงานกำลังตรวจสอบเอกสารของคุณ</p>
         </div>
       </div>
 
@@ -348,14 +362,14 @@ onMounted(() => {
             <img :src="idCardPreview" alt="ID Card" />
           </div>
           
-          <div v-if="getDocStatus('id_card') === 'rejected'" class="upload-area">
+          <div v-if="needsUpload('id_card')" class="upload-area">
             <input type="file" accept="image/*" @change="handleFileSelect('idCard', $event)" :id="'idCard'" hidden />
             <label :for="'idCard'" class="upload-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              {{ newIdCard ? 'เปลี่ยนรูป' : 'อัพโหลดใหม่' }}
+              {{ newIdCard ? 'เปลี่ยนรูป' : (getDocStatus('id_card') === 'rejected' ? 'อัพโหลดใหม่' : 'อัพโหลด') }}
             </label>
           </div>
         </div>
@@ -385,14 +399,14 @@ onMounted(() => {
             <img :src="licensePreview" alt="License" />
           </div>
           
-          <div v-if="getDocStatus('license') === 'rejected'" class="upload-area">
+          <div v-if="needsUpload('license')" class="upload-area">
             <input type="file" accept="image/*" @change="handleFileSelect('license', $event)" :id="'license'" hidden />
             <label :for="'license'" class="upload-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              {{ newLicense ? 'เปลี่ยนรูป' : 'อัพโหลดใหม่' }}
+              {{ newLicense ? 'เปลี่ยนรูป' : (getDocStatus('license') === 'rejected' ? 'อัพโหลดใหม่' : 'อัพโหลด') }}
             </label>
           </div>
         </div>
@@ -423,25 +437,25 @@ onMounted(() => {
             <img :src="vehiclePreview" alt="Vehicle" />
           </div>
           
-          <div v-if="getDocStatus('vehicle') === 'rejected'" class="upload-area">
+          <div v-if="needsUpload('vehicle')" class="upload-area">
             <input type="file" accept="image/*" @change="handleFileSelect('vehicle', $event)" :id="'vehicle'" hidden />
             <label :for="'vehicle'" class="upload-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              {{ newVehicle ? 'เปลี่ยนรูป' : 'อัพโหลดใหม่' }}
+              {{ newVehicle ? 'เปลี่ยนรูป' : (getDocStatus('vehicle') === 'rejected' ? 'อัพโหลดใหม่' : 'อัพโหลด') }}
             </label>
           </div>
         </div>
       </div>
 
       <!-- Submit Button -->
-      <button v-if="hasRejectedDocs" @click="submitDocuments" :disabled="!canSubmit || saving" class="submit-btn">
+      <button v-if="hasDocumentsToUpload" @click="submitDocuments" :disabled="!canSubmit || saving" class="submit-btn">
         <span v-if="saving" class="loading">
           <span class="spinner-small"></span> กำลังอัพโหลด...
         </span>
-        <span v-else>ส่งเอกสารใหม่</span>
+        <span v-else>ส่งเอกสาร</span>
       </button>
     </div>
 

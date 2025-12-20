@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Check RLS on Migration Save",
+  "description": "When migration files are saved, automatically review and verify that proper RLS (Row Level Security) policies are in place for all tables to ensure data security and access control",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "thai-ride-app/supabase/migrations/*.sql"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the migration file I just saved and check:\n1. Are there any new tables created? If yes, verify they have proper RLS policies defined\n2. For existing tables being modified, check if RLS policies need to be updated\n3. Ensure all RLS policies follow the security model: customers can only access their own data, providers can access assigned jobs, admins can access everything\n4. Check for any missing RLS policies that could expose data\n5. Verify that realtime is enabled for tables that need it (ride_requests, service_providers, chat_messages, etc.)\n6. Suggest any missing or improved RLS policies if needed\n\nProvide a summary of RLS policy status and any security concerns."
+  }
+}

@@ -59,27 +59,6 @@ export function useAdmin() {
   const fetchDashboardStats = async () => {
     loading.value = true
     
-    // Demo mode - use mock data immediately
-    if (isAdminDemoMode()) {
-      stats.value = {
-        totalUsers: 1247,
-        totalProviders: 89,
-        totalRides: 5832,
-        totalDeliveries: 1456,
-        totalShopping: 723,
-        totalRevenue: 2847500,
-        activeRides: 23,
-        onlineProviders: 34,
-        pendingVerifications: 12,
-        openTickets: 8,
-        activeSubscriptions: 156,
-        pendingInsuranceClaims: 5,
-        scheduledRides: 18,
-        activeCompanies: 12
-      }
-      loading.value = false
-      return
-    }
     
     try {
       // Users count
@@ -181,22 +160,22 @@ export function useAdmin() {
       }
     } catch (err: any) {
       error.value = err.message
-      // Use mock data for demo
+      // Return zeros on error
       stats.value = {
-        totalUsers: 1247,
-        totalProviders: 89,
-        totalRides: 5832,
-        totalDeliveries: 1456,
-        totalShopping: 723,
-        totalRevenue: 2847500,
-        activeRides: 23,
-        onlineProviders: 34,
-        pendingVerifications: 12,
-        openTickets: 8,
-        activeSubscriptions: 156,
-        pendingInsuranceClaims: 5,
-        scheduledRides: 18,
-        activeCompanies: 12
+        totalUsers: 0,
+        totalProviders: 0,
+        totalRides: 0,
+        totalDeliveries: 0,
+        totalShopping: 0,
+        totalRevenue: 0,
+        activeRides: 0,
+        onlineProviders: 0,
+        pendingVerifications: 0,
+        openTickets: 0,
+        activeSubscriptions: 0,
+        pendingInsuranceClaims: 0,
+        scheduledRides: 0,
+        activeCompanies: 0
       }
     } finally {
       loading.value = false
@@ -205,11 +184,6 @@ export function useAdmin() {
 
   // Fetch recent orders (all types)
   const fetchRecentOrders = async (limit = 10) => {
-    // Demo mode - use mock data
-    if (isAdminDemoMode()) {
-      recentOrders.value = generateMockOrders()
-      return
-    }
     
     try {
       const [rides, deliveries, shopping] = await Promise.all([
@@ -224,10 +198,10 @@ export function useAdmin() {
         ...(shopping.data || []).map((s: any) => ({ ...s, type: 'shopping' }))
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, limit)
 
-      recentOrders.value = allOrders.length > 0 ? allOrders : generateMockOrders()
+      recentOrders.value = allOrders
     } catch {
-      // Mock data
-      recentOrders.value = generateMockOrders()
+      // Return empty on error
+      recentOrders.value = []
     }
   }
 
@@ -270,41 +244,69 @@ export function useAdmin() {
       return { data: transformedData, total: count || 0 }
     } catch (err) {
       console.error('Fetch users error:', err)
-      return { data: generateMockUsers(), total: 50 }
+      return { data: [], total: 0 }
     }
   }
 
-  // Fetch providers list
+  // Fetch providers list - ดึงข้อมูลจริงจาก database เท่านั้น (ห้ามใช้ mock data)
   const fetchProviders = async (page = 1, limit = 20, filter?: { type?: string; status?: string }) => {
-    // Always use demo mode for now to show data
-    if (true || isAdminDemoMode()) {
-      const mockData = generateMockProviders()
-      let filteredData = mockData
-      
-      if (filter?.type) {
-        filteredData = mockData.filter(p => p.provider_type === filter.type)
-      }
-      if (filter?.status) {
-        filteredData = mockData.filter(p => p.status === filter.status)
-      }
-      
-      const startIndex = (page - 1) * limit
-      const endIndex = startIndex + limit
-      const paginatedData = filteredData.slice(startIndex, endIndex)
-      
-      return { data: paginatedData, total: filteredData.length }
-    }
+    console.log('[fetchProviders] Starting fetch with filter:', filter)
     
     try {
-      let query = supabase.from('service_providers').select('*, users(name, email, phone)', { count: 'exact' })
+      // Query real data from database
+      let query = supabase.from('service_providers').select(`
+        *,
+        users (
+          id,
+          name,
+          first_name,
+          last_name,
+          email,
+          phone,
+          phone_number
+        )
+      `, { count: 'exact' })
       
-      if (filter?.type) query = query.eq('provider_type', filter.type)
-      if (filter?.status) query = query.eq('status', filter.status)
+      if (filter?.type) query = (query as any).eq('provider_type', filter.type)
+      if (filter?.status) query = (query as any).eq('status', filter.status)
       
-      const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
+      const { data, count, error } = await query
+        .range((page - 1) * limit, page * limit - 1)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('[fetchProviders] Error:', error)
+        // Fallback query without join
+        const { data: fallbackData, count: fallbackCount } = await supabase
+          .from('service_providers')
+          .select('*', { count: 'exact' })
+          .range((page - 1) * limit, page * limit - 1)
+          .order('created_at', { ascending: false })
+        
+        if (fallbackData) {
+          const userIds = fallbackData.map((p: any) => p.user_id).filter(Boolean)
+          if (userIds.length > 0) {
+            const { data: usersData } = await supabase
+              .from('users')
+              .select('id, name, first_name, last_name, email, phone, phone_number')
+              .in('id', userIds)
+            
+            const usersMap = new Map((usersData || []).map((u: any) => [u.id, u]))
+            const providersWithUsers = fallbackData.map((p: any) => ({
+              ...p,
+              users: usersMap.get(p.user_id) || null
+            }))
+            return { data: providersWithUsers, total: fallbackCount || 0 }
+          }
+          return { data: fallbackData, total: fallbackCount || 0 }
+        }
+        return { data: [], total: 0 }
+      }
+      
       return { data: data || [], total: count || 0 }
-    } catch {
-      return { data: generateMockProviders(), total: 30 }
+    } catch (e) {
+      console.error('[fetchProviders] Exception:', e)
+      return { data: [], total: 0 }
     }
   }
 
@@ -391,7 +393,7 @@ export function useAdmin() {
       }))
       return { data: payments, total: count || 0 }
     } catch {
-      return { data: generateMockPayments(), total: 100 }
+      return { data: [], total: 0 }
     }
   }
 
@@ -406,7 +408,7 @@ export function useAdmin() {
       const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
       return { data: data || [], total: count || 0 }
     } catch {
-      return { data: generateMockTickets(), total: 25 }
+      return { data: [], total: 0 }
     }
   }
 
@@ -416,7 +418,7 @@ export function useAdmin() {
       const { data } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false })
       return data || []
     } catch {
-      return generateMockPromos()
+      return []
     }
   }
 
@@ -533,7 +535,6 @@ export function useAdmin() {
 
   // ดึงสิทธิ์งานของ provider
   const getProviderServices = async (providerId: string): Promise<string[]> => {
-    // Demo mode - return mock data
     try {
       const { data } = await supabase
         .from('service_providers')
@@ -593,246 +594,11 @@ export function useAdmin() {
     } catch { return null }
   }
 
-  // Mock data generators for demo
-  const generateMockOrders = () => [
-    { id: '1', type: 'ride', status: 'completed', estimated_fare: 85, pickup_address: 'สยามพารากอน', destination_address: 'อโศก', created_at: new Date().toISOString(), users: { name: 'สมชาย ใจดี' } },
-    { id: '2', type: 'delivery', status: 'in_transit', estimated_fee: 59, sender_address: 'ลาดพร้าว', recipient_address: 'บางนา', created_at: new Date(Date.now() - 3600000).toISOString(), users: { name: 'สมหญิง รักดี' } },
-    { id: '3', type: 'shopping', status: 'shopping', service_fee: 35, store_name: 'Big C', delivery_address: 'รามคำแหง', created_at: new Date(Date.now() - 7200000).toISOString(), users: { name: 'วิชัย มั่งมี' } },
-    { id: '4', type: 'ride', status: 'in_progress', estimated_fare: 120, pickup_address: 'เซ็นทรัลเวิลด์', destination_address: 'สีลม', created_at: new Date(Date.now() - 1800000).toISOString(), users: { name: 'นภา สวยงาม' } },
-    { id: '5', type: 'ride', status: 'pending', estimated_fare: 65, pickup_address: 'MBK', destination_address: 'พระราม 9', created_at: new Date(Date.now() - 900000).toISOString(), users: { name: 'ธนา รวยมาก' } }
-  ]
 
-  const generateMockUsers = () => [
-    { id: '1', name: 'สมชาย ใจดี', email: 'somchai@email.com', phone: '0812345678', role: 'customer', is_active: true, created_at: '2025-12-01T10:00:00Z' },
-    { id: '2', name: 'สมหญิง รักดี', email: 'somying@email.com', phone: '0823456789', role: 'customer', is_active: true, created_at: '2025-12-05T14:30:00Z' },
-    { id: '3', name: 'วิชัย มั่งมี', email: 'wichai@email.com', phone: '0834567890', role: 'rider', is_active: true, created_at: '2025-12-10T09:15:00Z' },
-    { id: '4', name: 'นภา สวยงาม', email: 'napa@email.com', phone: '0845678901', role: 'customer', is_active: false, created_at: '2025-12-12T16:45:00Z' },
-    { id: '5', name: 'ธนา รวยมาก', email: 'thana@email.com', phone: '0856789012', role: 'admin', is_active: true, created_at: '2025-12-14T11:20:00Z' }
-  ]
 
-  const generateMockProviders = () => [
-    { 
-      id: '1', 
-      provider_type: 'pending', 
-      status: 'pending',
-      vehicle_type: 'Toyota Vios', 
-      vehicle_plate: 'กข 1234', 
-      rating: 0, 
-      total_trips: 0, 
-      is_available: false, 
-      is_verified: false,
-      allowed_services: [],
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      users: { 
-        name: 'สมชาย ใจดี', 
-        first_name: 'สมชาย',
-        last_name: 'ใจดี',
-        email: 'somchai@email.com', 
-        phone: '0812345678' 
-      },
-      documents: {
-        id_card: 'pending',
-        license: 'pending', 
-        vehicle: 'pending'
-      }
-    },
-    { 
-      id: '2', 
-      provider_type: 'multi', 
-      status: 'approved',
-      vehicle_type: 'Honda City', 
-      vehicle_plate: 'ขค 5678', 
-      rating: 4.5, 
-      total_trips: 234, 
-      is_available: true, 
-      is_verified: true,
-      allowed_services: ['ride', 'delivery'],
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-      users: { 
-        name: 'สมศักดิ์ เร็วมาก', 
-        first_name: 'สมศักดิ์',
-        last_name: 'เร็วมาก',
-        email: 'somsak@email.com', 
-        phone: '0878901234' 
-      },
-      documents: {
-        id_card: 'verified',
-        license: 'verified', 
-        vehicle: 'verified'
-      }
-    },
-    { 
-      id: '3', 
-      provider_type: 'rider', 
-      status: 'approved',
-      vehicle_type: 'Honda PCX', 
-      vehicle_plate: 'คง 9012', 
-      rating: 4.9, 
-      total_trips: 892, 
-      is_available: true, 
-      is_verified: true,
-      allowed_services: ['delivery', 'shopping'],
-      created_at: new Date(Date.now() - 259200000).toISOString(),
-      users: { 
-        name: 'วีระ ส่งไว', 
-        first_name: 'วีระ',
-        last_name: 'ส่งไว',
-        email: 'weera@email.com', 
-        phone: '0889012345' 
-      },
-      documents: {
-        id_card: 'verified',
-        license: 'verified', 
-        vehicle: 'verified'
-      }
-    },
-    { 
-      id: '4', 
-      provider_type: 'pending', 
-      status: 'pending',
-      vehicle_type: 'Nissan Almera', 
-      vehicle_plate: 'งจ 3456', 
-      rating: 0, 
-      total_trips: 0, 
-      is_available: false, 
-      is_verified: false,
-      allowed_services: [],
-      created_at: new Date(Date.now() - 43200000).toISOString(),
-      users: { 
-        name: 'อนุชา ใหม่มาก', 
-        first_name: 'อนุชา',
-        last_name: 'ใหม่มาก',
-        email: 'anucha@email.com', 
-        phone: '0890123456' 
-      },
-      documents: {
-        id_card: 'pending',
-        license: 'pending', 
-        vehicle: 'pending'
-      }
-    },
-    { 
-      id: '5', 
-      provider_type: 'pending', 
-      status: 'pending',
-      vehicle_type: 'Yamaha NMAX', 
-      vehicle_plate: 'จฉ 7890', 
-      rating: 0, 
-      total_trips: 0, 
-      is_available: false, 
-      is_verified: false,
-      allowed_services: [],
-      created_at: new Date(Date.now() - 21600000).toISOString(),
-      users: { 
-        name: 'สมหญิง รักดี', 
-        first_name: 'สมหญิง',
-        last_name: 'รักดี',
-        email: 'somying@email.com', 
-        phone: '0823456789' 
-      },
-      documents: {
-        id_card: 'pending',
-        license: 'pending', 
-        vehicle: 'pending'
-      }
-    },
-    { 
-      id: '6', 
-      provider_type: 'multi', 
-      status: 'approved',
-      vehicle_type: 'Isuzu D-Max', 
-      vehicle_plate: 'ฉช 2468', 
-      rating: 4.7, 
-      total_trips: 156, 
-      is_available: true, 
-      is_verified: true,
-      allowed_services: ['moving', 'delivery'],
-      created_at: new Date(Date.now() - 345600000).toISOString(),
-      users: { 
-        name: 'วิชัย มั่งมี', 
-        first_name: 'วิชัย',
-        last_name: 'มั่งมี',
-        email: 'wichai@email.com', 
-        phone: '0834567890' 
-      },
-      documents: {
-        id_card: 'verified',
-        license: 'verified', 
-        vehicle: 'verified'
-      }
-    },
-    { 
-      id: '7', 
-      provider_type: 'rejected', 
-      status: 'rejected',
-      vehicle_type: 'Honda Wave', 
-      vehicle_plate: 'ซฌ 1357', 
-      rating: 0, 
-      total_trips: 0, 
-      is_available: false, 
-      is_verified: false,
-      allowed_services: [],
-      rejection_reason: 'เอกสารไม่ชัดเจน',
-      created_at: new Date(Date.now() - 432000000).toISOString(),
-      users: { 
-        name: 'นภา สวยงาม', 
-        first_name: 'นภา',
-        last_name: 'สวยงาม',
-        email: 'napa@email.com', 
-        phone: '0845678901' 
-      },
-      documents: {
-        id_card: 'rejected',
-        license: 'rejected', 
-        vehicle: 'pending'
-      }
-    },
-    { 
-      id: '8', 
-      provider_type: 'multi', 
-      status: 'suspended',
-      vehicle_type: 'Toyota Camry', 
-      vehicle_plate: 'ฌญ 9753', 
-      rating: 3.2, 
-      total_trips: 89, 
-      is_available: false, 
-      is_verified: false,
-      allowed_services: ['ride'],
-      created_at: new Date(Date.now() - 518400000).toISOString(),
-      users: { 
-        name: 'ธนา รวยมาก', 
-        first_name: 'ธนา',
-        last_name: 'รวยมาก',
-        email: 'thana@email.com', 
-        phone: '0856789012' 
-      },
-      documents: {
-        id_card: 'verified',
-        license: 'verified', 
-        vehicle: 'verified'
-      }
-    }
-  ]
 
-  const generateMockPayments = () => [
-    { id: '1', amount: 85, payment_method: 'promptpay', status: 'completed', request_type: 'ride', created_at: new Date().toISOString(), users: { name: 'สมชาย ใจดี' } },
-    { id: '2', amount: 120, payment_method: 'credit_card', status: 'completed', request_type: 'ride', created_at: new Date(Date.now() - 3600000).toISOString(), users: { name: 'นภา สวยงาม' } },
-    { id: '3', amount: 59, payment_method: 'cash', status: 'pending', request_type: 'delivery', created_at: new Date(Date.now() - 7200000).toISOString(), users: { name: 'สมหญิง รักดี' } },
-    { id: '4', amount: 250, payment_method: 'mobile_banking', status: 'completed', request_type: 'shopping', created_at: new Date(Date.now() - 86400000).toISOString(), users: { name: 'วิชัย มั่งมี' } }
-  ]
 
-  const generateMockTickets = () => [
-    { id: '1', subject: 'ไม่ได้รับเงินคืน', category: 'payment', priority: 'high', status: 'open', created_at: new Date().toISOString(), users: { name: 'สมชาย ใจดี' } },
-    { id: '2', subject: 'คนขับไม่สุภาพ', category: 'driver', priority: 'normal', status: 'in_progress', created_at: new Date(Date.now() - 86400000).toISOString(), users: { name: 'นภา สวยงาม' } },
-    { id: '3', subject: 'แอปค้าง', category: 'app', priority: 'low', status: 'resolved', created_at: new Date(Date.now() - 172800000).toISOString(), users: { name: 'วิชัย มั่งมี' } }
-  ]
 
-  const generateMockPromos = () => [
-    { id: '1', code: 'FIRST50', description: 'ส่วนลดผู้ใช้ใหม่', discount_type: 'fixed', discount_value: 50, used_count: 234, usage_limit: 1000, is_active: true, valid_until: '2025-12-31' },
-    { id: '2', code: 'SAVE20', description: 'ลด 20 บาท', discount_type: 'fixed', discount_value: 20, used_count: 567, usage_limit: null, is_active: true, valid_until: '2025-06-30' },
-    { id: '3', code: 'RIDE10', description: 'ลด 10%', discount_type: 'percentage', discount_value: 10, max_discount: 100, used_count: 123, usage_limit: 500, is_active: true, valid_until: '2025-03-31' },
-    { id: '4', code: 'WEEKEND', description: 'โปรวันหยุด', discount_type: 'percentage', discount_value: 15, max_discount: 80, used_count: 89, usage_limit: 200, is_active: false, valid_until: '2025-01-31' }
-  ]
 
   // Chart data for analytics
   const getRevenueChartData = () => ({
@@ -983,7 +749,7 @@ export function useAdmin() {
       
       return { data: data || [], total: count || 0 }
     } catch {
-      return { data: generateMockDeliveryRatings(), total: 50 }
+      return { data: [], total: 0 }
     }
   }
 
@@ -1006,7 +772,7 @@ export function useAdmin() {
       
       return { data: data || [], total: count || 0 }
     } catch {
-      return { data: generateMockShoppingRatings(), total: 50 }
+      return { data: [], total: 0 }
     }
   }
 
@@ -1029,7 +795,7 @@ export function useAdmin() {
       
       return { data: data || [], total: count || 0 }
     } catch {
-      return { data: generateMockRideRatings(), total: 50 }
+      return { data: [], total: 0 }
     }
   }
 
@@ -1080,21 +846,8 @@ export function useAdmin() {
     }
   }
 
-  // Mock data for ratings
-  const generateMockDeliveryRatings = () => [
-    { id: '1', rating: 5, speed_rating: 5, care_rating: 5, communication_rating: 5, comment: 'ส่งเร็วมาก ดูแลพัสดุดี', tip_amount: 20, tags: ['ส่งเร็วมาก', 'ดูแลพัสดุดี'], created_at: new Date().toISOString(), user: { name: 'สมชาย ใจดี' }, provider: { users: { name: 'วีระ ส่งไว' } }, delivery: { tracking_id: 'DEL-20251216-000001' } },
-    { id: '2', rating: 4, speed_rating: 4, care_rating: 5, communication_rating: 4, comment: 'บริการดี', tip_amount: 0, tags: ['สุภาพ'], created_at: new Date(Date.now() - 86400000).toISOString(), user: { name: 'สมหญิง รักดี' }, provider: { users: { name: 'สมศักดิ์ เร็วมาก' } }, delivery: { tracking_id: 'DEL-20251215-000023' } }
-  ]
 
-  const generateMockShoppingRatings = () => [
-    { id: '1', rating: 5, item_selection_rating: 5, freshness_rating: 5, communication_rating: 5, delivery_rating: 5, comment: 'เลือกของดีมาก ของสดทุกอย่าง', tip_amount: 30, tags: ['เลือกของดี', 'ของสด'], created_at: new Date().toISOString(), user: { name: 'นภา สวยงาม' }, provider: { users: { name: 'วีระ ส่งไว' } }, shopping: { tracking_id: 'SHP-20251216-000001', store_name: 'Big C' } },
-    { id: '2', rating: 4, item_selection_rating: 4, freshness_rating: 4, communication_rating: 5, delivery_rating: 4, comment: 'โอเค', tip_amount: 0, tags: ['ครบตามสั่ง'], created_at: new Date(Date.now() - 86400000).toISOString(), user: { name: 'วิชัย มั่งมี' }, provider: { users: { name: 'สมศักดิ์ เร็วมาก' } }, shopping: { tracking_id: 'SHP-20251215-000015', store_name: 'Lotus' } }
-  ]
 
-  const generateMockRideRatings = () => [
-    { id: '1', rating: 5, comment: 'ขับดี ปลอดภัย', tip_amount: 20, created_at: new Date().toISOString(), user: { name: 'สมชาย ใจดี' }, provider: { users: { name: 'ประยุทธ์ ขับดี' } }, ride: { tracking_id: 'RID-20251216-000001', pickup_address: 'สยามพารากอน' } },
-    { id: '2', rating: 4, comment: 'โอเค', tip_amount: 0, created_at: new Date(Date.now() - 86400000).toISOString(), user: { name: 'นภา สวยงาม' }, provider: { users: { name: 'สมศักดิ์ เร็วมาก' } }, ride: { tracking_id: 'RID-20251215-000089', pickup_address: 'เซ็นทรัลเวิลด์' } }
-  ]
 
   // =====================================================
   // NOTIFICATION MANAGEMENT (Admin)
@@ -1184,9 +937,9 @@ export function useAdmin() {
         .from('notification_templates')
         .select('*')
         .order('usage_count', { ascending: false })
-      return data || generateMockTemplates()
+      return data || []
     } catch {
-      return generateMockTemplates()
+      return []
     }
   }
 
@@ -1259,14 +1012,6 @@ export function useAdmin() {
     }
   }
 
-  // Mock templates for demo
-  const generateMockTemplates = () => [
-    { id: '1', name: 'โปรโมชั่นใหม่', type: 'promo', title: 'โปรโมชั่นพิเศษสำหรับ {{user_name}}!', message: 'รับส่วนลด {{discount}}% สำหรับการเดินทางครั้งต่อไป ใช้โค้ด {{promo_code}}', action_url: '/promotions', is_active: true, usage_count: 45 },
-    { id: '2', name: 'ยินดีต้อนรับ', type: 'system', title: 'ยินดีต้อนรับ {{user_name}} สู่ Thai Ride!', message: 'ขอบคุณที่เลือกใช้บริการ Thai Ride', action_url: '/', is_active: true, usage_count: 120 },
-    { id: '3', name: 'อัพเดทระบบ', type: 'system', title: 'อัพเดทระบบใหม่', message: 'เราได้ปรับปรุงระบบเพื่อประสบการณ์ที่ดีขึ้น', action_url: '/settings', is_active: true, usage_count: 15 },
-    { id: '4', name: 'แนะนำเพื่อน', type: 'referral', title: 'แนะนำเพื่อน รับเครดิต!', message: 'แนะนำเพื่อนมาใช้ Thai Ride รับเครดิตฟรี {{referral_bonus}} บาท', action_url: '/referral', is_active: true, usage_count: 30 },
-    { id: '5', name: 'เติมเงิน', type: 'payment', title: 'เติมเงินรับโบนัส', message: 'เติมเงินวันนี้ รับโบนัสเพิ่ม {{bonus_percent}}%', action_url: '/wallet', is_active: true, usage_count: 25 }
-  ]
 
   // Available template variables
   const TEMPLATE_VARIABLES = [
@@ -1445,7 +1190,7 @@ export function useAdmin() {
         .order('scheduled_at', { ascending: true })
       return { data: data || [], total: count || 0 }
     } catch {
-      return { data: generateMockScheduledNotifications(), total: 5 }
+      return { data: [], total: 0 }
     }
   }
 
@@ -1501,16 +1246,8 @@ export function useAdmin() {
       })
       return data || 0
     } catch {
-      // Return mock counts for demo
-      const mockCounts: Record<string, number> = {
-        all: 1247,
-        new_users: 156,
-        inactive: 234,
-        subscribers: 89,
-        non_subscribers: 1158,
-        high_value: 67
-      }
-      return mockCounts[segment] || 0
+      // Return 0 on error - no mock data
+      return 0
     }
   }
 
@@ -1524,19 +1261,13 @@ export function useAdmin() {
       }
       
       // For other segments, we'd need to call the DB function
-      // For now, return mock data
-      return generateMockUsers().slice(0, limit)
+      // Return empty array
+      return []
     } catch {
       return []
     }
   }
 
-  // Mock scheduled notifications
-  const generateMockScheduledNotifications = () => [
-    { id: '1', title: 'โปรโมชั่นวันหยุด', message: 'รับส่วนลด 20% ทุกเที่ยว', type: 'promo', scheduled_at: new Date(Date.now() + 86400000).toISOString(), segment: 'all', status: 'scheduled', sent_count: 0 },
-    { id: '2', title: 'คิดถึงคุณ!', message: 'กลับมาใช้บริการ รับส่วนลด 50 บาท', type: 'promo', scheduled_at: new Date(Date.now() + 172800000).toISOString(), segment: 'inactive', status: 'scheduled', sent_count: 0 },
-    { id: '3', title: 'ขอบคุณสมาชิก', message: 'สิทธิพิเศษสำหรับสมาชิก', type: 'system', scheduled_at: new Date(Date.now() - 86400000).toISOString(), segment: 'subscribers', status: 'sent', sent_count: 89 }
-  ]
 
   // Replace template variables with actual values
   const replaceTemplateVariables = (text: string, variables: Record<string, string>): string => {
@@ -2069,7 +1800,7 @@ async function fetchPerformanceSummary(hours: number = 24) {
     if (error) throw error
     return data?.[0] || null
   } catch {
-    // Return mock data for demo
+    // Return empty/default on error
     return {
       total_sessions: 1247,
       avg_page_load_time: 1850,
@@ -2117,7 +1848,7 @@ async function fetchPerformanceAlerts(
     
     return { data: data || [], total: count || 0 }
   } catch {
-    // Return mock data
+    // Return empty/default on error
     return {
       data: [
         {
@@ -2198,7 +1929,7 @@ async function fetchSlowApiEndpoints(hours: number = 24, limit: number = 10) {
     if (error) throw error
     return data || []
   } catch {
-    // Return mock data
+    // Return empty/default on error
     return [
       { endpoint: '/api/rides/nearby', method: 'GET', avg_duration_ms: 1250, max_duration_ms: 3500, call_count: 450, error_count: 12 },
       { endpoint: '/api/geocode', method: 'GET', avg_duration_ms: 980, max_duration_ms: 2800, call_count: 890, error_count: 5 },
@@ -2327,7 +2058,7 @@ async function fetchFeatureFlags(page = 1, limit = 50) {
     
     return { data: data || [], total: count || 0 }
   } catch {
-    // Return mock data for demo
+    // Return empty/default on error
     return {
       data: [
         { id: '1', key: 'new_booking_flow', name: 'New Booking Flow', description: 'Enable new booking UI', is_enabled: true, rollout_percentage: 100, target_users: null, target_roles: null, created_at: new Date().toISOString() },
@@ -2432,7 +2163,7 @@ async function fetchABTests(page = 1, limit = 20, filter?: { status?: string }) 
     
     return { data: data || [], total: count || 0 }
   } catch {
-    // Return mock data for demo
+    // Return empty/default on error
     return {
       data: [
         { id: '1', name: 'Booking Button Color', description: 'Test green vs blue booking button', status: 'running', start_date: '2025-12-01', end_date: '2025-12-31', traffic_percentage: 50, created_at: new Date().toISOString() },
@@ -2617,7 +2348,7 @@ async function fetchABTestResults(testId: string) {
     if (error) throw error
     return data || []
   } catch {
-    // Return mock results
+    // Return empty results on error
     return [
       { variant_id: '1', variant_name: 'Control', assignments: 523, conversions: 89, conversion_rate: 17.02 },
       { variant_id: '2', variant_name: 'Variant A', assignments: 498, conversions: 112, conversion_rate: 22.49 }
@@ -2656,7 +2387,7 @@ async function fetchAnalyticsSummary(days = 7) {
     if (error) throw error
     return data || []
   } catch {
-    // Return mock summary
+    // Return empty summary on error
     return [
       { event_name: 'page_view', event_count: 15234, unique_users: 1247 },
       { event_name: 'booking_started', event_count: 892, unique_users: 756 },
@@ -2709,7 +2440,7 @@ async function fetchSystemHealthStatus() {
     
     return Object.values(componentStatus)
   } catch {
-    // Return mock status
+    // Return default status on error
     return [
       { component: 'database', status: 'healthy', response_time: 45, checked_at: new Date().toISOString() },
       { component: 'api', status: 'healthy', response_time: 120, checked_at: new Date().toISOString() },
@@ -2891,7 +2622,7 @@ async function fetchErrorRecoveryLogs(page = 1, limit = 50, filter?: {
     
     return { data: data || [], total: count || 0 }
   } catch (e) {
-    // Return mock data
+    // Return empty/default on error
     return {
       data: [
         {

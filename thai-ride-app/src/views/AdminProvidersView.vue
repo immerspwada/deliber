@@ -156,7 +156,25 @@ const approveWithChecklist = async () => {
 
 const loadProviders = async () => {
   loading.value = true
+  console.log('[AdminProvidersView] Loading providers with filters:', { type: typeFilter.value, status: statusFilter.value })
+  
+  // Check Supabase session
+  const { data: sessionData } = await supabase.auth.getSession()
+  console.log('[AdminProvidersView] Supabase session:', sessionData?.session ? 'Active' : 'No session')
+  
   const result = await fetchProviders(1, 50, { type: typeFilter.value || undefined, status: statusFilter.value || undefined })
+  
+  console.log('[AdminProvidersView] Received providers:', {
+    count: result.data?.length || 0,
+    total: result.total,
+    providers: result.data?.map((p: any) => ({ 
+      id: p.id, 
+      status: p.status, 
+      provider_type: p.provider_type,
+      email: p.users?.email 
+    }))
+  })
+  
   providers.value = result.data
   total.value = result.total
   loading.value = false
@@ -282,6 +300,28 @@ const saveProviderServices = async () => {
 const getServiceName = (serviceId: string) => {
   const service = SERVICE_TYPES.find(s => s.id === serviceId)
   return service?.name_th || serviceId
+}
+
+// Get provider display name - แสดงชื่อหรือ email ถ้าไม่มีชื่อ
+const getProviderDisplayName = (provider: any) => {
+  const firstName = provider.users?.first_name
+  const lastName = provider.users?.last_name
+  const email = provider.users?.email
+  
+  if (firstName || lastName) {
+    return `${firstName || ''} ${lastName || ''}`.trim()
+  }
+  
+  if (email) {
+    // แสดง email โดยซ่อนบางส่วน เช่น asa***@gmail.com
+    const [localPart, domain] = email.split('@')
+    if (localPart && localPart.length > 3) {
+      return `${localPart.slice(0, 3)}***@${domain}`
+    }
+    return email
+  }
+  
+  return 'ไม่ระบุชื่อ'
 }
 
 onMounted(loadProviders)
@@ -465,7 +505,18 @@ const getStatusText = (status: string) => {
   return texts[status] || status
 }
 
-const getTypeText = (t: string) => ({ driver: 'คนขับ', rider: 'ไรเดอร์', delivery: 'ส่งของ', both: 'ทั้งสอง' }[t] || t)
+const getTypeText = (t: string) => ({ 
+  driver: 'คนขับ', 
+  rider: 'ไรเดอร์', 
+  delivery: 'ส่งของ', 
+  shopping: 'ซื้อของ',
+  shopper: 'ซื้อของ',
+  moving: 'ขนย้าย',
+  laundry: 'ซักผ้า',
+  both: 'ทั้งสอง',
+  multi: 'หลายประเภท',
+  pending: 'รอระบุ'
+}[t] || t)
 
 // Open image preview modal
 const openImagePreview = (src: string, title: string) => {
@@ -770,8 +821,8 @@ const confirmRejectDocument = async () => {
               </svg>
             </div>
             <div class="provider-info">
-              <span class="provider-name">{{ p.users?.name }}</span>
-              <span class="provider-email">{{ p.users?.email }}</span>
+              <span class="provider-name">{{ getProviderDisplayName(p) }}</span>
+              <span class="provider-email">{{ p.users?.email || '-' }}</span>
             </div>
             <span class="provider-type">{{ getTypeText(p.provider_type) }}</span>
           </div>
@@ -872,9 +923,9 @@ const confirmRejectDocument = async () => {
             <div class="detail-section">
               <h3>ข้อมูลส่วนตัว</h3>
               <div class="detail-grid">
-                <div><span>ชื่อ:</span> {{ selectedProvider.users?.name }}</div>
+                <div><span>ชื่อ:</span> {{ getProviderDisplayName(selectedProvider) }}</div>
                 <div><span>อีเมล:</span> {{ selectedProvider.users?.email }}</div>
-                <div><span>โทร:</span> {{ selectedProvider.users?.phone || '-' }}</div>
+                <div><span>โทร:</span> {{ selectedProvider.users?.phone_number || selectedProvider.users?.phone || '-' }}</div>
                 <div><span>ประเภท:</span> {{ getTypeText(selectedProvider.provider_type) }}</div>
               </div>
             </div>
@@ -998,7 +1049,7 @@ const confirmRejectDocument = async () => {
           
           <div class="modal-body">
             <div class="provider-summary">
-              <span class="provider-name">{{ selectedProvider.users?.name || 'ไม่ระบุชื่อ' }}</span>
+              <span class="provider-name">{{ getProviderDisplayName(selectedProvider) }}</span>
               <span class="provider-type-badge">{{ getTypeText(selectedProvider.provider_type) }}</span>
               <span class="status-badge" :style="{ color: getStatusColor(selectedProvider.status || 'pending') }">
                 <span class="status-dot" :style="{ background: getStatusColor(selectedProvider.status || 'pending') }"></span>
@@ -1062,10 +1113,10 @@ const confirmRejectDocument = async () => {
           <div class="modal-body">
             <div class="provider-info-header">
               <div class="provider-avatar">
-                {{ selectedProvider.users?.first_name?.charAt(0) || 'P' }}
+                {{ getProviderDisplayName(selectedProvider).charAt(0) || 'P' }}
               </div>
               <div>
-                <h3>{{ selectedProvider.users?.first_name }} {{ selectedProvider.users?.last_name }}</h3>
+                <h3>{{ getProviderDisplayName(selectedProvider) }}</h3>
                 <p>{{ selectedProvider.vehicle_type }} - {{ selectedProvider.vehicle_plate }}</p>
               </div>
             </div>
@@ -1236,7 +1287,7 @@ const confirmRejectDocument = async () => {
           
           <div class="modal-body">
             <div class="provider-summary">
-              <span class="provider-name">{{ selectedProvider.users?.name || 'ไม่ระบุชื่อ' }}</span>
+              <span class="provider-name">{{ getProviderDisplayName(selectedProvider) }}</span>
               <span class="provider-type-badge">{{ getTypeText(selectedProvider.provider_type) }}</span>
             </div>
 

@@ -1,29 +1,19 @@
 {
   "mcpServers": {
-    "supabase": {
+    "filesystem": {
       "command": "npx",
       "args": [
         "-y",
-        "@supabase/mcp-server-supabase@latest",
-        "--access-token",
-        "sbp_ee5e137d9d542480201df8564aef19278fef5e82"
+        "@modelcontextprotocol/server-filesystem@latest",
+        "./thai-ride-app"
       ],
       "disabled": false,
       "autoApprove": [
-        "list_tables",
-        "list_projects",
-        "execute_sql",
-        "get_project",
-        "list_extensions",
-        "apply_migration",
-        "get_project_url",
-        "get_publishable_keys",
-        "get_logs",
-        "deploy_edge_function",
-        "list_migrations",
-        "get_advisors",
-        "list_edge_functions",
-        "search_docs"
+        "read_file",
+        "read_multiple_files",
+        "list_directory",
+        "search_files",
+        "get_file_info"
       ]
     }
   }
