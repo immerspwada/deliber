@@ -1,7 +1,18 @@
 <script setup lang="ts">
+/**
+ * Admin Live Map View
+ * ดูตำแหน่ง providers แบบ realtime
+ * 
+ * Memory Optimization: Task 36
+ * - Cleans up providers array and subscriptions on unmount
+ * - Resets filters
+ */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useProviderHeatmap } from '../composables/useProviderHeatmap'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup, addSubscription } = useAdminCleanup()
 
 const { 
   loading, 
@@ -40,6 +51,17 @@ let unsubscribe: (() => void) | null = null
 onMounted(async () => {
   await fetchProviders()
   unsubscribe = subscribeToUpdates()
+  if (unsubscribe) {
+    addSubscription({ unsubscribe } as any)
+  }
+})
+
+// Cleanup on unmount - Task 36
+addCleanup(() => {
+  filterType.value = 'all'
+  showAvailableOnly.value = false
+  viewMode.value = 'markers'
+  console.log('[AdminLiveMapView] Cleanup complete')
 })
 
 onUnmounted(() => {

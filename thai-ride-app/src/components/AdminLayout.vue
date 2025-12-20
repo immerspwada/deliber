@@ -1,10 +1,58 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { supabase } from '../lib/supabase'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
+
+// Pending provider count for badge
+const pendingProviderCount = ref(0)
+let providerSubscription: any = null
+
+// Fetch pending provider count
+const fetchPendingProviderCount = async () => {
+  try {
+    const { data, error } = await supabase.rpc('get_pending_provider_count')
+    if (!error && data !== null) {
+      pendingProviderCount.value = data
+    }
+  } catch (err) {
+    console.error('Error fetching pending provider count:', err)
+  }
+}
+
+// Setup realtime subscription for provider status changes
+const setupProviderSubscription = () => {
+  providerSubscription = supabase
+    .channel('admin-provider-status')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'service_providers',
+        filter: 'status=eq.pending'
+      },
+      () => {
+        // Refetch count when providers change
+        fetchPendingProviderCount()
+      }
+    )
+    .subscribe()
+}
+
+onMounted(() => {
+  fetchPendingProviderCount()
+  setupProviderSubscription()
+})
+
+onUnmounted(() => {
+  if (providerSubscription) {
+    supabase.removeChannel(providerSubscription)
+  }
+})
 
 // ✅ FIX 1: Session check moved to global router guard (see router/index.ts)
 // No longer checking on every mount - reduces localStorage access from 3,600 to 1
@@ -23,7 +71,7 @@ const menuSections = computed(() => [
     title: 'ผู้ใช้',
     items: [
       { path: '/admin/customers', label: 'ลูกค้า', icon: 'customer' },
-      { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car' },
+      { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car', badgeKey: 'pendingProviders' },
       { path: '/admin/verification-queue', label: 'คิวตรวจสอบ', icon: 'users' }
     ]
   },
@@ -88,13 +136,27 @@ const menuSections = computed(() => [
       { path: '/admin/service-areas', label: 'พื้นที่บริการ', icon: 'map' },
       { path: '/admin/surge', label: 'Surge Pricing', icon: 'surge' },
       { path: '/admin/system-health', label: 'สุขภาพระบบ', icon: 'health' },
-      { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' }
+      { path: '/admin/security', label: 'ความปลอดภัย', icon: 'security' },
+      { path: '/admin/production-dashboard', label: 'Production KPIs', icon: 'dashboard' },
+      { path: '/admin/cross-role-monitor', label: 'Cross-Role Monitor', icon: 'monitor' },
+      { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' },
+      { path: '/admin/alerting', label: 'Alerts', icon: 'alert' },
+      { path: '/admin/deployment', label: 'Deployment', icon: 'deploy' },
+      { path: '/admin/data-management', label: 'Data Management', icon: 'data' },
+      { path: '/admin/compliance', label: 'Compliance', icon: 'compliance' },
+      { path: '/admin/incidents', label: 'Incidents', icon: 'incident' },
+      { path: '/admin/readiness', label: 'Readiness Check', icon: 'checklist' }
     ]
   }
 ])
 
 // ✅ FIX 3: Memoize flattened menu items
 const menuItems = computed(() => menuSections.value.flatMap(section => section.items))
+
+// Badge counts for menu items
+const badgeCounts = computed(() => ({
+  pendingProviders: pendingProviderCount.value
+}))
 
 // ✅ FIX 4: Memoize isActive function
 const isActive = (path: string) => {
@@ -374,7 +436,58 @@ onUnmounted(() => {
             <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
             <circle cx="12" cy="12" r="3"/>
           </svg>
+          <!-- Alert -->
+          <svg v-else-if="item.icon === 'alert'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 01-3.46 0"/>
+            <circle cx="12" cy="2" r="1"/>
+          </svg>
+          <!-- Deploy -->
+          <svg v-else-if="item.icon === 'deploy'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <!-- Data -->
+          <svg v-else-if="item.icon === 'data'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+          <!-- Monitor -->
+          <svg v-else-if="item.icon === 'monitor'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+          <!-- Security -->
+          <svg v-else-if="item.icon === 'security'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+          <!-- Compliance -->
+          <svg v-else-if="item.icon === 'compliance'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+          <!-- Incident -->
+          <svg v-else-if="item.icon === 'incident'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <!-- Checklist -->
+          <svg v-else-if="item.icon === 'checklist'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
           <span>{{ item.label }}</span>
+          <!-- Badge for pending items -->
+          <span 
+            v-if="item.badgeKey && badgeCounts[item.badgeKey] > 0" 
+            class="menu-badge"
+          >
+            {{ badgeCounts[item.badgeKey] > 99 ? '99+' : badgeCounts[item.badgeKey] }}
+          </span>
           </button>
         </div>
       </nav>
@@ -545,6 +658,32 @@ onUnmounted(() => {
 .nav-item.active {
   background: #000;
   color: #fff;
+}
+
+.nav-item.active .menu-badge {
+  background: #00A86B;
+  color: #fff;
+}
+
+.menu-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: #00A86B;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 .sidebar-footer {

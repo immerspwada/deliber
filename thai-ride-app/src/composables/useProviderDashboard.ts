@@ -299,15 +299,23 @@ export function useProviderDashboard() {
       }
 
       const data = await retryWithBackoff(async () => {
+        // Use maybeSingle() to avoid 406 error when user is not a provider
         const { data, error: fetchError } = await (supabase
           .from('service_providers') as any)
           .select('*')
           .eq('user_id', authStore.user!.id)
-          .single()
+          .maybeSingle()
         
         if (fetchError) throw fetchError
         return data
       })
+
+      // User is not a provider yet
+      if (!data) {
+        profile.value = null
+        isOnline.value = false
+        return null
+      }
 
       profile.value = data as ProviderProfile
       isOnline.value = data?.is_available || false
@@ -493,6 +501,44 @@ export function useProviderDashboard() {
           distance: undefined,
           customer_name: d.users ? `${d.users.first_name} ${d.users.last_name}`.trim() : 'ลูกค้า',
           created_at: d.created_at
+        })))
+      }
+
+      // Fetch shopping requests
+      const { data: shopping } = await (supabase
+        .from('shopping_requests') as any)
+        .select(`
+          id,
+          tracking_id,
+          store_name,
+          store_address,
+          delivery_address,
+          service_fee,
+          budget_limit,
+          items,
+          item_list,
+          created_at,
+          users:user_id (
+            first_name,
+            last_name
+          )
+        `)
+        .eq('status', 'pending')
+        .is('provider_id', null)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      
+      if (shopping?.length) {
+        results.push(...shopping.map((s: any) => ({
+          id: s.id,
+          tracking_id: s.tracking_id,
+          type: 'shopping' as const,
+          pickup_address: s.store_address || s.store_name || 'ร้านค้า (ไม่ระบุ)',
+          destination_address: s.delivery_address,
+          estimated_fare: s.service_fee || 0,
+          distance: undefined,
+          customer_name: s.users ? `${s.users.first_name} ${s.users.last_name}`.trim() : 'ลูกค้า',
+          created_at: s.created_at
         })))
       }
 
@@ -825,15 +871,38 @@ export function useProviderDashboard() {
     unsubscribeFromRequests()
 
     requestsChannel = supabase.channel('provider_requests_' + profile.value.id)
+      // Ride requests
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'ride_requests'
-      }, handleNewRequest)
+      }, (payload) => handleNewRequest(payload, 'ride'))
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'ride_requests'
+      }, handleRequestUpdate)
+      // Delivery requests
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'delivery_requests'
+      }, (payload) => handleNewRequest(payload, 'delivery'))
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'delivery_requests'
+      }, handleRequestUpdate)
+      // Shopping requests
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'shopping_requests'
+      }, (payload) => handleNewRequest(payload, 'shopping'))
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'shopping_requests'
       }, handleRequestUpdate)
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR') {
@@ -855,22 +924,49 @@ export function useProviderDashboard() {
     cleanup.addInterval(pollingInterval)
   }
 
-  function handleNewRequest(payload: any) {
+  function handleNewRequest(payload: any, type: 'ride' | 'delivery' | 'shopping' = 'ride') {
     const request = payload.new as any
     if (request.status !== 'pending' || request.provider_id) return
 
     // Check if already exists
     if (pendingRequests.value.some(r => r.id === request.id)) return
 
-    const newRequest: PendingRequest = {
-      id: request.id,
-      tracking_id: request.tracking_id,
-      type: 'ride',
-      pickup_address: request.pickup_address,
-      destination_address: request.destination_address,
-      estimated_fare: request.estimated_fare || 0,
-      customer_name: 'ผู้โดยสาร',
-      created_at: request.created_at
+    let newRequest: PendingRequest
+
+    if (type === 'ride') {
+      newRequest = {
+        id: request.id,
+        tracking_id: request.tracking_id,
+        type: 'ride',
+        pickup_address: request.pickup_address,
+        destination_address: request.destination_address,
+        estimated_fare: request.estimated_fare || 0,
+        customer_name: 'ผู้โดยสาร',
+        created_at: request.created_at
+      }
+    } else if (type === 'delivery') {
+      newRequest = {
+        id: request.id,
+        tracking_id: request.tracking_id,
+        type: 'delivery',
+        pickup_address: request.sender_address,
+        destination_address: request.recipient_address,
+        estimated_fare: request.estimated_fee || 0,
+        customer_name: 'ลูกค้า',
+        created_at: request.created_at
+      }
+    } else {
+      // shopping
+      newRequest = {
+        id: request.id,
+        tracking_id: request.tracking_id,
+        type: 'shopping',
+        pickup_address: request.store_address || request.store_name || 'ร้านค้า',
+        destination_address: request.delivery_address,
+        estimated_fare: request.service_fee || 0,
+        customer_name: 'ลูกค้า',
+        created_at: request.created_at
+      }
     }
 
     pendingRequests.value = [newRequest, ...pendingRequests.value]

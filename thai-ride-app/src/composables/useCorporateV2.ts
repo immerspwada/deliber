@@ -173,14 +173,14 @@ export function useCorporateV2() {
     if (!authStore.user?.id) return
 
     try {
-      // Get employee record
+      // Get employee record - use maybeSingle() to avoid 406 error
       const { data: empData, error: empErr } = await supabase
         .from('company_employees')
         .select('*, company:companies(*), department:company_departments(*)')
         .eq('user_id', authStore.user.id)
-        .single()
+        .maybeSingle()
 
-      if (empErr && empErr.code !== 'PGRST116') throw empErr
+      if (empErr) throw empErr
       
       if (empData) {
         employee.value = empData

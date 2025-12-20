@@ -116,11 +116,12 @@ export function useWalletV2() {
     }
 
     try {
+      // Use maybeSingle() instead of single() to avoid 406 error when no row exists
       const { data, error: err } = await (supabase
         .from('user_wallets') as any)
         .select('balance, total_earned, total_spent')
         .eq('user_id', authStore.user.id)
-        .single()
+        .maybeSingle()
 
       if (!err && data) {
         balance.value = {
@@ -128,6 +129,9 @@ export function useWalletV2() {
           total_earned: data.total_earned || 0,
           total_spent: data.total_spent || 0
         }
+      } else {
+        // No wallet exists yet - return default values
+        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
       }
       return balance.value
     } catch (err) {

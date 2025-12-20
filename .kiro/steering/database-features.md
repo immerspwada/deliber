@@ -10,6 +10,102 @@
 
 ---
 
+## 🔄 Dual-Role System (Customer + Provider) - กฎสำคัญที่สุด
+
+### หลักการ
+**1 User ID สามารถเป็นทั้งลูกค้าและผู้ให้บริการ (Provider/Rider)**
+
+### โครงสร้างความสัมพันธ์
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DUAL-ROLE ARCHITECTURE                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  users (ทุกคนเริ่มต้นที่นี่)                                  │
+│  ├── id (UUID) ─────────────────┐                           │
+│  ├── member_uid (TRD-XXXXXXXX)  │                           │
+│  ├── first_name                 │                           │
+│  ├── last_name                  │                           │
+│  ├── phone_number               │                           │
+│  └── email                      │                           │
+│                                 │                           │
+│                                 ▼                           │
+│  service_providers (เมื่อสมัครเป็น Provider)                 │
+│  ├── id (UUID)                                              │
+│  ├── user_id (FK → users.id) ◄──┘                           │
+│  ├── provider_uid (PRV-XXXXXXXX)                            │
+│  ├── provider_type (rider/driver/shopper)                   │
+│  ├── status (pending/approved/rejected/suspended)           │
+│  ├── is_verified                                            │
+│  └── application_count                                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### UID System
+| UID Type | Format | ตาราง | ใช้สำหรับ |
+|----------|--------|-------|----------|
+| **Member UID** | `TRD-XXXXXXXX` | `users.member_uid` | ติดตามลูกค้า |
+| **Provider UID** | `PRV-XXXXXXXX` | `service_providers.provider_uid` | ติดตาม Provider |
+
+### Status Flow ของ Provider
+```
+ลูกค้าสมัครเป็น Provider
+        ↓
+    [pending] ──────────────────────────────────────┐
+        ↓                                           │
+   Admin ตรวจสอบ                                    │
+        ↓                                           │
+  ┌─────┴─────┐                                     │
+  ↓           ↓                                     │
+[approved] [rejected] ──→ สมัครใหม่ได้ ─────────────┘
+  ↓
+[active] ←→ [suspended] (Admin ระงับ/ปลดระงับ)
+```
+
+### Functions สำคัญ
+| Function | รายละเอียด |
+|----------|------------|
+| `get_user_roles(user_id)` | ตรวจสอบว่า User มี Role อะไรบ้าง |
+| `apply_as_provider(...)` | สมัครเป็น Provider |
+| `admin_review_provider(...)` | Admin อนุมัติ/ปฏิเสธ/ระงับ |
+| `can_access_provider_routes(user_id)` | ตรวจสอบสิทธิ์เข้า Provider routes |
+
+### กฎการใช้งาน
+
+#### 1. ทุกคนเริ่มต้นเป็นลูกค้า
+- สร้าง record ใน `users` table
+- ได้รับ `member_uid` อัตโนมัติ
+- สามารถใช้บริการทุกอย่างในฐานะลูกค้า
+
+#### 2. เมื่อสมัครเป็น Provider
+- สร้าง record ใน `service_providers` table
+- เชื่อมกับ `users` ผ่าน `user_id`
+- ได้รับ `provider_uid` อัตโนมัติ
+- status เริ่มต้นเป็น `pending`
+
+#### 3. การเข้าถึง Routes
+- **Customer routes** (`/customer/*`): ทุกคนเข้าได้
+- **Provider routes** (`/provider/*`): เฉพาะ approved/active providers
+- **Provider onboarding** (`/provider/onboarding`): ทุกคนเข้าได้
+
+#### 4. Admin ต้องเห็นทั้งสอง Role
+- ใช้ `admin_user_provider_view` เพื่อดูข้อมูลรวม
+- แสดง Member UID และ Provider UID
+- สามารถจัดการทั้งสอง Role แยกกัน
+
+### ⚠️ ข้อห้าม
+- ❌ **ห้ามสร้าง Provider โดยไม่มี User** - ต้องมี user_id เสมอ
+- ❌ **ห้ามใช้ provider.id แทน user.id** - ใช้ user_id เป็น key หลัก
+- ❌ **ห้ามลบ User ที่เป็น Provider** - ต้อง suspend แทน
+- ❌ **ห้ามให้ pending provider เข้า Dashboard** - ต้อง approved ก่อน
+
+### Migration ที่เกี่ยวข้อง
+- `027_user_member_uid.sql` - Member UID system
+- `122_dual_role_user_provider_system.sql` - Provider UID และ Dual-Role functions
+
+---
+
 ## 🚫 กฎห้ามใช้ Mock Data (CRITICAL)
 
 ### หลักการ
@@ -308,6 +404,15 @@ const providers = [
 | **F171** | Service Quality Metrics | `useServiceQuality.ts` | `service_quality_metrics` | 043 |
 | **F172** | Customer Notes & Tags | `useCustomerManagement.ts` | `customer_notes`, `customer_tags`, `customer_tag_assignments` | 080 |
 | **F173** | Admin RBAC System | `useAdminRBAC.ts`, `PermissionGuard.vue`, `DoubleConfirmModal.vue` | `admin_audit_log`, `admin_sessions`, `admin_roles` | 081 |
+
+### Cross-Role Integration (F174-F176)
+
+| รหัส | ฟีเจอร์ | Composable/Component | รายละเอียด |
+|------|---------|---------------------|------------|
+| **F174** | Cross-Role Event Bus | `crossRoleEventBus.ts`, `useCrossRoleEvents()` | ระบบ Event กลางสำหรับสื่อสารระหว่าง Customer, Provider, Admin |
+| **F175** | Cross-Role Sync | `useCrossRoleSync.ts` | Real-time sync ข้อมูลข้าม Role พร้อม location tracking |
+| **F176** | Role-Aware Notifications | `useRoleAwareNotifications.ts` | ระบบแจ้งเตือนที่ปรับตาม Role พร้อม templates |
+| **F177** | Admin Cross-Role Monitor | `AdminCrossRoleMonitorView.vue` | Dashboard สำหรับ Admin ดู events และ status ทุก Role |
 
 ### Delivery Enhancements (F03 Extensions)
 
@@ -761,6 +866,9 @@ customer_notes          → F172 (Customer Notes) - user_id, admin_id, note, is_
 | `044_performance_metrics.sql` | Performance metrics & monitoring | F172-F201 |
 | `045_advanced_system.sql` | Feature flags, A/B testing, user preferences, analytics, system health | F202, F203, F204, F237, F251 |
 | `054_queue_favorites_and_wait_time.sql` | Queue favorite places & estimated wait time | F158a |
+| `117_fix_shopping_nullable_columns.sql` | Allow store info to be nullable in shopping_requests | F04 |
+| `118_shopping_favorite_lists.sql` | Shopping favorite lists table | F04 |
+| `119_shopping_reference_images.sql` | Add reference_images column to shopping_requests | F04 |
 
 ---
 

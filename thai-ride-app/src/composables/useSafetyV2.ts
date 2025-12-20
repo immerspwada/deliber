@@ -136,13 +136,14 @@ export function useSafetyV2() {
     if (!authStore.user?.id) return
 
     try {
+      // Use maybeSingle() to avoid 406 error when profile doesn't exist
       const { data, error: err } = await supabase
         .from('safety_profiles')
         .select('*')
         .eq('user_id', authStore.user.id)
-        .single()
+        .maybeSingle()
 
-      if (err && err.code !== 'PGRST116') throw err
+      if (err) throw err
       profile.value = data
     } catch (e: any) {
       console.error('Fetch profile error:', e)

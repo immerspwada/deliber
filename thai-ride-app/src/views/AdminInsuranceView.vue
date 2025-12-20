@@ -2,10 +2,17 @@
 /**
  * Feature: F20 - Admin Insurance Plans Management
  * Tables: insurance_plans, user_insurance, insurance_claims
+ * 
+ * Memory Optimization: Task 36
+ * - Cleans up plans, claims, and user insurances on unmount
+ * - Resets filters and modals
  */
 import { ref, onMounted, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 interface InsurancePlan {
   id: string
@@ -91,6 +98,21 @@ const filteredClaims = computed(() => {
 })
 
 onMounted(() => { fetchPlans(); fetchUserInsurances(); fetchClaims() })
+
+// Cleanup on unmount - Task 36
+addCleanup(() => {
+  plans.value = []
+  userInsurances.value = []
+  claims.value = []
+  showPlanModal.value = false
+  showClaimModal.value = false
+  editingPlan.value = null
+  selectedClaim.value = null
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  activeTab.value = 'plans'
+  console.log('[AdminInsuranceView] Cleanup complete')
+})
 
 const fetchPlans = async () => {
   loading.value = true

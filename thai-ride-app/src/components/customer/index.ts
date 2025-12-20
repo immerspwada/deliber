@@ -26,6 +26,14 @@ export { default as LoyaltyCard } from './LoyaltyCard.vue'
 export { default as FloatingActionButton } from './FloatingActionButton.vue'
 export { default as ChatWidget } from './ChatWidget.vue'
 
+// Cross-Role Integration Components (F174-F177)
+export { default as LiveProviderTracker } from './LiveProviderTracker.vue'
+export { default as StatusUpdateBanner } from './StatusUpdateBanner.vue'
+export { default as ETACountdown } from './ETACountdown.vue'
+
+// Re-export cross-role utilities
+export { useCrossRoleEvents, CrossRoleEvents, eventBus } from '../../lib/crossRoleEventBus'
+
 // Re-export composables for convenience
 export { useHapticFeedback } from '../../composables/useHapticFeedback'
 

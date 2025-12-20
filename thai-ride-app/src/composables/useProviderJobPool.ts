@@ -229,12 +229,12 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Get provider location
+    // Get provider location - use maybeSingle() to avoid 406 error
     const { data: provider } = await supabase
       .from('service_providers')
       .select('current_lat, current_lng, enabled_services')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!provider) return
 
@@ -356,11 +356,12 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Use maybeSingle() to avoid 406 error
       const { data: provider } = await supabase
         .from('service_providers')
         .select('current_lat, current_lng')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
       if (provider) {
         providerLocation.value = { lat: provider.current_lat, lng: provider.current_lng }

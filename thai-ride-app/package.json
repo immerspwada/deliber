@@ -14,6 +14,8 @@
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "lint": "eslint src --ext .vue,.js,.ts",
+    "lint:fix": "eslint src --ext .vue,.js,.ts --fix",
     "lint:secrets": "node scripts/check-secrets.js",
     "prepare": "cd .. && husky install .husky || true"
   },
@@ -43,12 +45,15 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/google.maps": "^3.58.1",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
+    "eslint": "^9.17.0",
+    "eslint-plugin-vue": "^9.32.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "typescript": "~5.9.3",

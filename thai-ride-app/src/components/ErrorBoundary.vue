@@ -1,257 +1,237 @@
 <script setup lang="ts">
 /**
- * Error Boundary Component
- * จัดการ errors ที่ไม่คาดคิดและแสดง fallback UI
+ * ErrorBoundary Component
+ * 
+ * Catches and handles errors gracefully, especially:
+ * - 406 "Not Acceptable" errors from Supabase .single() queries
+ * - Network errors
+ * - Unexpected runtime errors
+ * 
+ * Usage:
+ * <ErrorBoundary>
+ *   <YourComponent />
+ * </ErrorBoundary>
  */
+
 import { ref, onErrorCaptured, provide } from 'vue'
 
-const props = withDefaults(defineProps<{
+interface Props {
   fallbackMessage?: string
   showRetry?: boolean
-  showDetails?: boolean
-}>(), {
+  onError?: (error: Error) => void
+}
+
+const props = withDefaults(defineProps<Props>(), {
   fallbackMessage: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
-  showRetry: true,
-  showDetails: false
+  showRetry: true
 })
 
 const emit = defineEmits<{
-  error: [error: Error, info: string]
+  (e: 'error', error: Error): void
+  (e: 'retry'): void
 }>()
 
 const hasError = ref(false)
 const errorMessage = ref('')
-const errorStack = ref('')
+const errorCode = ref<string | null>(null)
+const retryCount = ref(0)
 
-// Capture errors from child components
-onErrorCaptured((error: Error, _instance, info: string) => {
-  hasError.value = true
-  errorMessage.value = error.message || 'Unknown error'
-  errorStack.value = error.stack || ''
-  
-  // Emit error for logging
-  emit('error', error, info)
-  
-  // Log to console in development
-  if (import.meta.env.DEV) {
-    console.error('[ErrorBoundary] Caught error:', error)
-    console.error('[ErrorBoundary] Component info:', info)
+// Error type detection
+const is406Error = (error: any): boolean => {
+  return error?.code === 'PGRST116' || 
+         error?.message?.includes('406') ||
+         error?.message?.includes('Not Acceptable') ||
+         error?.status === 406
+}
+
+const isNetworkError = (error: any): boolean => {
+  return error?.message?.includes('network') ||
+         error?.message?.includes('fetch') ||
+         error?.name === 'TypeError'
+}
+
+const getErrorInfo = (error: any): { message: string; code: string | null } => {
+  if (is406Error(error)) {
+    return {
+      message: 'ไม่พบข้อมูล กรุณาลองใหม่',
+      code: '406'
+    }
   }
   
-  // Prevent error from propagating
+  if (isNetworkError(error)) {
+    return {
+      message: 'ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบอินเทอร์เน็ต',
+      code: 'NETWORK'
+    }
+  }
+  
+  return {
+    message: error?.message || props.fallbackMessage,
+    code: error?.code || null
+  }
+}
+
+// Capture errors from child components
+onErrorCaptured((error: Error, instance, info) => {
+  console.error('[ErrorBoundary] Caught error:', error, info)
+  
+  const errorInfo = getErrorInfo(error)
+  hasError.value = true
+  errorMessage.value = errorInfo.message
+  errorCode.value = errorInfo.code
+  
+  // Emit error event
+  emit('error', error)
+  props.onError?.(error)
+  
+  // Return false to stop error propagation
   return false
 })
 
-// Reset error state
-const reset = () => {
+// Retry handler
+const handleRetry = () => {
+  retryCount.value++
   hasError.value = false
   errorMessage.value = ''
-  errorStack.value = ''
+  errorCode.value = null
+  emit('retry')
+}
+
+// Reset error state
+const resetError = () => {
+  hasError.value = false
+  errorMessage.value = ''
+  errorCode.value = null
 }
 
 // Provide reset function to children
-provide('resetErrorBoundary', reset)
+provide('resetErrorBoundary', resetError)
 
-// Reload page
-const reloadPage = () => {
-  window.location.reload()
-}
-
-// Go back
-const goBack = () => {
-  window.history.back()
-}
+defineExpose({
+  hasError,
+  resetError,
+  retryCount
+})
 </script>
 
 <template>
-  <div v-if="hasError" class="error-boundary">
-    <div class="error-content">
-      <div class="error-icon">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-        </svg>
-      </div>
-      
-      <h2 class="error-title">เกิดข้อผิดพลาด</h2>
-      <p class="error-message">{{ fallbackMessage }}</p>
-      
-      <div v-if="showDetails && errorMessage" class="error-details">
-        <p class="error-detail-text">{{ errorMessage }}</p>
-        <pre v-if="errorStack" class="error-stack">{{ errorStack }}</pre>
-      </div>
-      
-      <div v-if="showRetry" class="error-actions">
-        <button @click="reset" class="btn-primary">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+  <div class="error-boundary">
+    <!-- Error State -->
+    <div v-if="hasError" class="error-fallback">
+      <div class="error-content">
+        <!-- Error Icon -->
+        <div class="error-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        </div>
+        
+        <!-- Error Message -->
+        <p class="error-message">{{ errorMessage }}</p>
+        
+        <!-- Error Code (for debugging) -->
+        <p v-if="errorCode" class="error-code">รหัส: {{ errorCode }}</p>
+        
+        <!-- Retry Button -->
+        <button 
+          v-if="showRetry" 
+          @click="handleRetry"
+          class="retry-button"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
           </svg>
           ลองใหม่
         </button>
-        <button @click="goBack" class="btn-secondary">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-          ย้อนกลับ
-        </button>
-        <button @click="reloadPage" class="btn-text">
-          รีโหลดหน้า
-        </button>
+        
+        <!-- Retry count indicator -->
+        <p v-if="retryCount > 0" class="retry-count">
+          ลองแล้ว {{ retryCount }} ครั้ง
+        </p>
       </div>
     </div>
+    
+    <!-- Normal Content -->
+    <slot v-else />
   </div>
-  
-  <slot v-else />
 </template>
 
 <style scoped>
 .error-boundary {
-  min-height: 300px;
+  width: 100%;
+  height: 100%;
+}
+
+.error-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 200px;
   padding: 24px;
-  background: #F6F6F6;
 }
 
 .error-content {
   text-align: center;
-  max-width: 400px;
+  max-width: 300px;
 }
 
 .error-icon {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 20px;
-  background: #FEE2E2;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  color: #F5A623;
 }
 
 .error-icon svg {
-  width: 40px;
-  height: 40px;
-  color: #E11900;
-}
-
-.error-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #000;
-  margin-bottom: 8px;
+  width: 100%;
+  height: 100%;
 }
 
 .error-message {
-  font-size: 14px;
-  color: #6B6B6B;
-  margin-bottom: 24px;
-  line-height: 1.5;
-}
-
-.error-details {
-  background: #fff;
-  border: 1px solid #E5E5E5;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 24px;
-  text-align: left;
-}
-
-.error-detail-text {
-  font-size: 13px;
-  color: #E11900;
+  font-size: 16px;
+  color: #1A1A1A;
   margin-bottom: 8px;
-}
-
-.error-stack {
-  font-size: 11px;
-  color: #6B6B6B;
-  background: #F6F6F6;
-  padding: 8px;
-  border-radius: 4px;
-  overflow-x: auto;
-  max-height: 150px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.error-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.btn-primary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 14px 24px;
-  background: #000;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.btn-primary:hover {
-  opacity: 0.9;
+.error-code {
+  font-size: 12px;
+  color: #999999;
+  margin-bottom: 16px;
+  font-family: monospace;
 }
 
-.btn-primary:active {
-  transform: scale(0.98);
-}
-
-.btn-primary svg {
-  width: 20px;
-  height: 20px;
-}
-
-.btn-secondary {
-  display: flex;
+.retry-button {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  width: 100%;
-  padding: 14px 24px;
-  background: #F6F6F6;
-  color: #000;
+  padding: 12px 24px;
+  background-color: #00A86B;
+  color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background: #EBEBEB;
-}
-
-.btn-secondary:active {
-  transform: scale(0.98);
-}
-
-.btn-secondary svg {
-  width: 20px;
-  height: 20px;
-}
-
-.btn-text {
-  background: none;
-  border: none;
-  color: #6B6B6B;
+  border-radius: 12px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  padding: 8px;
+  transition: background-color 0.2s;
 }
 
-.btn-text:hover {
-  color: #000;
+.retry-button:hover {
+  background-color: #008F5B;
+}
+
+.retry-button:active {
+  transform: scale(0.98);
+}
+
+.retry-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.retry-count {
+  font-size: 12px;
+  color: #999999;
+  margin-top: 12px;
 }
 </style>

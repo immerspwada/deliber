@@ -2,14 +2,21 @@
 /**
  * Admin A/B Tests View (F203)
  * จัดการ A/B Testing สำหรับ Admin
+ * 
+ * Memory Optimization: Task 36
+ * - Cleans up tests array on unmount
+ * - Resets form state and modals
  */
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { 
   fetchABTests, fetchABTestWithVariants, createABTest, updateABTest, 
   deleteABTest, startABTest, stopABTest, createABTestVariant,
   deleteABTestVariant, fetchABTestResults
 } from '../composables/useAdmin'
+
+const { addCleanup } = useAdminCleanup()
 
 interface ABTest {
   id: string
@@ -197,6 +204,20 @@ const removeVariant = async (variantId: string) => {
 }
 
 onMounted(loadTests)
+
+// Cleanup on unmount - Task 36
+addCleanup(() => {
+  tests.value = []
+  variants.value = []
+  results.value = []
+  showModal.value = false
+  showResultsModal.value = false
+  editingTest.value = null
+  selectedTest.value = null
+  form.value = { name: '', description: '', trafficPercentage: 50, startDate: '', endDate: '' }
+  variantForm.value = { name: '', description: '', weight: 50 }
+  console.log('[AdminABTestsView] Cleanup complete')
+})
 </script>
 
 <template>

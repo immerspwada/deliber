@@ -76,18 +76,18 @@ const upcomingRides = computed(() => {
 onMounted(async () => {
   loadingPlaces.value = true
   
-  // Timeout protection - stop loading after 3 seconds max
+  // Shorter timeout - 2 seconds max
   const timeoutId = setTimeout(() => {
     if (loadingPlaces.value) {
       console.warn('Loading timeout - stopping spinner')
       loadingPlaces.value = false
     }
-  }, 3000)
+  }, 2000)
   
   try {
-    // Wait for auth store to initialize if loading
+    // Wait for auth store to initialize - max 1 second
     let waitCount = 0
-    while (authStore.loading && waitCount < 10) {
+    while (authStore.loading && waitCount < 5) {
       await new Promise(resolve => setTimeout(resolve, 200))
       waitCount++
     }
@@ -97,6 +97,14 @@ onMounted(async () => {
       isAuthenticated: authStore.isAuthenticated,
       loading: authStore.loading
     })
+    
+    // If no user, stop loading immediately
+    if (!authStore.user?.id) {
+      console.log('No user ID, skipping data fetch')
+      loadingPlaces.value = false
+      clearTimeout(timeoutId)
+      return
+    }
     
     // Fetch data in parallel with individual error handling
     const results = await Promise.allSettled([
@@ -134,8 +142,8 @@ const fetchRecentPlaces = async () => {
   }
   
   try {
-    const { data, error: err } = await supabase
-      .from('recent_places')
+    const { data, error: err } = await (supabase
+      .from('recent_places') as any)
       .select('*')
       .eq('user_id', authStore.user.id)
       .order('last_used_at', { ascending: false })
@@ -143,12 +151,14 @@ const fetchRecentPlaces = async () => {
     
     if (err) {
       console.error('fetchRecentPlaces error:', err.message)
+      recentPlaces.value = []
       return
     }
     recentPlaces.value = data || []
     console.log('Recent places loaded:', recentPlaces.value.length)
   } catch (e) {
     console.error('fetchRecentPlaces exception:', e)
+    recentPlaces.value = []
   }
 }
 
@@ -167,14 +177,15 @@ const fetchSavedPlaces = async () => {
   }
   
   try {
-    const { data, error: err } = await supabase
-      .from('saved_places')
+    const { data, error: err } = await (supabase
+      .from('saved_places') as any)
       .select('*')
       .eq('user_id', authStore.user.id)
       .limit(10)
     
     if (err) {
       console.error('fetchSavedPlaces error:', err.message)
+      savedPlaces.value = []
       return
     }
     
@@ -182,6 +193,7 @@ const fetchSavedPlaces = async () => {
     console.log('Saved places loaded:', savedPlaces.value.length)
   } catch (e) {
     console.error('fetchSavedPlaces exception:', e)
+    savedPlaces.value = []
   }
 }
 
@@ -251,9 +263,8 @@ const saveNewPlace = async () => {
   
   savingPlace.value = true
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: err } = await supabase
-      .from('saved_places')
+    const { error: err } = await (supabase
+      .from('saved_places') as any)
       .insert({
         user_id: authStore.user.id,
         name: newPlace.value.name.trim(),
@@ -261,7 +272,7 @@ const saveNewPlace = async () => {
         type: newPlace.value.type,
         lat: 13.7563,
         lng: 100.5018
-      } as any)
+      })
     
     if (err) {
       console.error('Error saving place to DB:', err.message)

@@ -2,8 +2,14 @@
 /**
  * CustomerHomeView - หน้าแรกลูกค้าแบบน่ารัก
  * MUNEEF Style: สีเขียว #00A86B, ใส่ใจทุกรายละเอียด
+ * 
+ * Performance Optimizations:
+ * - Progressive loading: แสดง UI ทันที ไม่รอ data
+ * - Lazy load components: โหลด non-critical components ทีหลัง
+ * - Cached data: ใช้ localStorage cache สำหรับ instant display
+ * - Deferred fetching: โหลด data ที่ไม่สำคัญทีหลัง
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useNotifications } from '../composables/useNotifications'
@@ -14,20 +20,35 @@ import { useServices } from '../composables/useServices'
 import { useRideStore } from '../stores/ride'
 import { useRideHistory } from '../composables/useRideHistory'
 import { useToast } from '../composables/useToast'
+import { usePerformanceMetrics } from '../composables/usePerformanceMetrics'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
-// Components
+// Critical Components - โหลดทันที
 import WelcomeHeader from '../components/customer/WelcomeHeader.vue'
 import QuickDestinationSearch from '../components/customer/QuickDestinationSearch.vue'
 import CuteServiceGrid from '../components/customer/CuteServiceGrid.vue'
-import ActiveOrderCard from '../components/customer/ActiveOrderCard.vue'
-import SavedPlacesRow from '../components/customer/SavedPlacesRow.vue'
-import QuickShortcuts from '../components/customer/QuickShortcuts.vue'
-import PromoBanner from '../components/customer/PromoBanner.vue'
-import RecentDestinations from '../components/customer/RecentDestinations.vue'
-import ProviderCTA from '../components/customer/ProviderCTA.vue'
 import BottomNavigation from '../components/customer/BottomNavigation.vue'
+
+// Non-critical Components - Lazy load
+const ActiveOrderCard = defineAsyncComponent(() => 
+  import('../components/customer/ActiveOrderCard.vue')
+)
+const SavedPlacesRow = defineAsyncComponent(() => 
+  import('../components/customer/SavedPlacesRow.vue')
+)
+const QuickShortcuts = defineAsyncComponent(() => 
+  import('../components/customer/QuickShortcuts.vue')
+)
+const PromoBanner = defineAsyncComponent(() => 
+  import('../components/customer/PromoBanner.vue')
+)
+const RecentDestinations = defineAsyncComponent(() => 
+  import('../components/customer/RecentDestinations.vue')
+)
+const ProviderCTA = defineAsyncComponent(() => 
+  import('../components/customer/ProviderCTA.vue')
+)
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -40,13 +61,48 @@ const { history: recentPlaces, fetchHistory: fetchRecentPlaces } = useSearchHist
 const { homePlace, workPlace, fetchSavedPlaces } = useServices()
 const { unratedRidesCount, fetchUnratedRides } = useRideHistory()
 
-// State
-const isLoaded = ref(false)
+// Performance Metrics - เก็บ Web Vitals
+const { startCollecting, stopCollecting } = usePerformanceMetrics()
+
+// =====================================================
+// CACHE KEYS & HELPERS
+// =====================================================
+const CACHE_KEYS = {
+  wallet: 'customer_wallet_cache',
+  loyalty: 'customer_loyalty_cache',
+  orders: 'customer_orders_cache'
+}
+
+const getCache = <T>(key: string): T | null => {
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    const { data, timestamp } = JSON.parse(cached)
+    // Cache valid for 5 minutes
+    if (Date.now() - timestamp > 5 * 60 * 1000) return null
+    return data
+  } catch { return null }
+}
+
+const setCache = (key: string, data: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }))
+  } catch { /* ignore */ }
+}
+
+// =====================================================
+// STATE - แสดง UI ทันทีด้วย cached data
+// =====================================================
 const isRefreshing = ref(false)
 const pullDistance = ref(0)
 const isPulling = ref(false)
 const startY = ref(0)
 const PULL_THRESHOLD = 80
+
+// Load cached data immediately for instant display
+const cachedWallet = getCache<number>(CACHE_KEYS.wallet)
+const cachedLoyalty = getCache<number>(CACHE_KEYS.loyalty)
+const cachedOrders = getCache<ActiveOrder[]>(CACHE_KEYS.orders)
 
 // Active orders
 interface ActiveOrder {
@@ -60,18 +116,34 @@ interface ActiveOrder {
   trackingPath: string
 }
 
-const activeOrders = ref<ActiveOrder[]>([])
-const loadingOrders = ref(true)
+// Active orders - ใช้ cached data ก่อน
+const activeOrders = ref<ActiveOrder[]>(cachedOrders || [])
+const loadingOrders = ref(!cachedOrders) // ไม่ loading ถ้ามี cache
 let realtimeChannel: RealtimeChannel | null = null
 
-// Computed
+// Computed - ใช้ cached values สำหรับ instant display
 const userName = computed(() => {
   if (authStore.user?.name) return authStore.user.name
   return 'คุณ'
 })
 
-const walletBalance = computed(() => balance.value?.balance || 0)
-const loyaltyPoints = computed(() => loyaltySummary.value?.current_points || 0)
+const walletBalance = computed(() => {
+  const live = balance.value?.balance
+  if (live !== undefined && live !== null) {
+    setCache(CACHE_KEYS.wallet, live)
+    return live
+  }
+  return cachedWallet || 0
+})
+
+const loyaltyPoints = computed(() => {
+  const live = loyaltySummary.value?.current_points
+  if (live !== undefined && live !== null) {
+    setCache(CACHE_KEYS.loyalty, live)
+    return live
+  }
+  return cachedLoyalty || 0
+})
 
 const recentDestinations = computed(() => {
   if (recentPlaces.value && recentPlaces.value.length > 0) {
@@ -125,84 +197,97 @@ const getStatusText = (type: string, status: string): string => {
   return statusMap[type]?.[status] || status
 }
 
-// Fetch active orders
+// Fetch active orders - optimized with single combined query
 const fetchActiveOrders = async () => {
   if (!authStore.user?.id) return
-  loadingOrders.value = true
+  
+  // ไม่ set loading ถ้ามี cached data อยู่แล้ว
+  if (activeOrders.value.length === 0) {
+    loadingOrders.value = true
+  }
   
   try {
     const userId = authStore.user.id
     const orders: ActiveOrder[] = []
     
-    // Fetch active rides
-    const { data: rides } = await (supabase.from('ride_requests') as any)
-      .select('id, status, pickup_address, destination_address')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'matched', 'arrived', 'in_progress'])
-      .limit(3)
+    // Parallel fetch all order types - ใช้ Promise.allSettled เพื่อไม่ให้ error หนึ่งทำให้ทั้งหมดล้ม
+    const [ridesResult, deliveriesResult, shoppingResult, queuesResult] = await Promise.allSettled([
+      (supabase.from('ride_requests') as any)
+        .select('id, status, pickup_address, destination_address')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'matched', 'arrived', 'in_progress'])
+        .limit(3),
+      (supabase.from('delivery_requests') as any)
+        .select('id, status, sender_address, recipient_address')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'matched', 'picked_up', 'in_transit'])
+        .limit(3),
+      (supabase.from('shopping_requests') as any)
+        .select('id, status, store_name, delivery_address')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'matched', 'purchased', 'delivering'])
+        .limit(3),
+      (supabase.from('queue_bookings') as any)
+        .select('id, status, service_name, location_name')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'confirmed', 'in_progress'])
+        .limit(3)
+    ])
     
-    rides?.forEach((r: any) => {
-      orders.push({
-        id: r.id, type: 'ride', typeName: 'เรียกรถ', status: r.status,
-        statusText: getStatusText('ride', r.status),
-        from: r.pickup_address?.split(',')[0] || '',
-        to: r.destination_address?.split(',')[0] || '',
-        trackingPath: `/customer/ride`
+    // Process rides
+    if (ridesResult.status === 'fulfilled' && ridesResult.value.data) {
+      ridesResult.value.data.forEach((r: any) => {
+        orders.push({
+          id: r.id, type: 'ride', typeName: 'เรียกรถ', status: r.status,
+          statusText: getStatusText('ride', r.status),
+          from: r.pickup_address?.split(',')[0] || '',
+          to: r.destination_address?.split(',')[0] || '',
+          trackingPath: `/customer/ride`
+        })
       })
-    })
+    }
     
-    // Fetch active deliveries
-    const { data: deliveries } = await (supabase.from('delivery_requests') as any)
-      .select('id, status, sender_address, recipient_address')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'matched', 'picked_up', 'in_transit'])
-      .limit(3)
-    
-    deliveries?.forEach((d: any) => {
-      orders.push({
-        id: d.id, type: 'delivery', typeName: 'ส่งของ', status: d.status,
-        statusText: getStatusText('delivery', d.status),
-        from: d.sender_address?.split(',')[0] || '',
-        to: d.recipient_address?.split(',')[0] || '',
-        trackingPath: `/tracking/${d.id}`
+    // Process deliveries
+    if (deliveriesResult.status === 'fulfilled' && deliveriesResult.value.data) {
+      deliveriesResult.value.data.forEach((d: any) => {
+        orders.push({
+          id: d.id, type: 'delivery', typeName: 'ส่งของ', status: d.status,
+          statusText: getStatusText('delivery', d.status),
+          from: d.sender_address?.split(',')[0] || '',
+          to: d.recipient_address?.split(',')[0] || '',
+          trackingPath: `/tracking/${d.id}`
+        })
       })
-    })
+    }
 
-    // Fetch active shopping
-    const { data: shopping } = await (supabase.from('shopping_requests') as any)
-      .select('id, status, store_name, delivery_address')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'matched', 'purchased', 'delivering'])
-      .limit(3)
-    
-    shopping?.forEach((s: any) => {
-      orders.push({
-        id: s.id, type: 'shopping', typeName: 'ซื้อของ', status: s.status,
-        statusText: getStatusText('shopping', s.status),
-        from: s.store_name || 'ร้านค้า',
-        to: s.delivery_address?.split(',')[0] || '',
-        trackingPath: `/tracking/${s.id}`
+    // Process shopping
+    if (shoppingResult.status === 'fulfilled' && shoppingResult.value.data) {
+      shoppingResult.value.data.forEach((s: any) => {
+        orders.push({
+          id: s.id, type: 'shopping', typeName: 'ซื้อของ', status: s.status,
+          statusText: getStatusText('shopping', s.status),
+          from: s.store_name || 'ร้านค้า',
+          to: s.delivery_address?.split(',')[0] || '',
+          trackingPath: `/tracking/${s.id}`
+        })
       })
-    })
+    }
 
-    // Fetch active queue bookings
-    const { data: queues } = await (supabase.from('queue_bookings') as any)
-      .select('id, status, service_name, location_name')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'confirmed', 'in_progress'])
-      .limit(3)
-    
-    queues?.forEach((q: any) => {
-      orders.push({
-        id: q.id, type: 'queue', typeName: 'จองคิว', status: q.status,
-        statusText: getStatusText('queue', q.status),
-        from: q.service_name || '',
-        to: q.location_name || '',
-        trackingPath: `/customer/queue-booking/${q.id}`
+    // Process queues
+    if (queuesResult.status === 'fulfilled' && queuesResult.value.data) {
+      queuesResult.value.data.forEach((q: any) => {
+        orders.push({
+          id: q.id, type: 'queue', typeName: 'จองคิว', status: q.status,
+          statusText: getStatusText('queue', q.status),
+          from: q.service_name || '',
+          to: q.location_name || '',
+          trackingPath: `/customer/queue-booking/${q.id}`
+        })
       })
-    })
+    }
     
     activeOrders.value = orders.slice(0, 3)
+    setCache(CACHE_KEYS.orders, activeOrders.value)
   } catch (err) {
     console.error('Error fetching active orders:', err)
   } finally {
@@ -312,20 +397,50 @@ const handleDestinationClick = (dest: any) => {
   }
 }
 
-// Lifecycle
-onMounted(async () => {
-  await Promise.all([
-    fetchNotifications().catch(() => {}),
-    fetchLoyaltySummary().catch(() => {}),
-    fetchBalance().catch(() => {}),
-    fetchRecentPlaces().catch(() => {}),
-    fetchSavedPlaces().catch(() => {}),
-    fetchUnratedRides().catch(() => {}),
-    fetchActiveOrders()
-  ])
+// Lifecycle - Progressive Loading Strategy
+onMounted(() => {
+  // Start performance tracking
+  startCollecting('/customer')
   
-  setupRealtimeSubscription()
-  isLoaded.value = true
+  // Phase 1: Critical data (active orders) - โหลดทันที
+  fetchActiveOrders()
+  
+  // Phase 2: Important data - โหลดหลังจาก UI render แล้ว
+  requestAnimationFrame(() => {
+    Promise.all([
+      fetchBalance().catch(() => {}),
+      fetchSavedPlaces().catch(() => {})
+    ])
+  })
+  
+  // Phase 3: Non-critical data - โหลดเมื่อ idle
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => {
+      fetchNotifications().catch(() => {})
+      fetchLoyaltySummary().catch(() => {})
+      fetchRecentPlaces().catch(() => {})
+      fetchUnratedRides().catch(() => {})
+      
+      // Stop performance tracking after all data loaded
+      stopCollecting(true)
+    }, { timeout: 2000 })
+  } else {
+    // Fallback สำหรับ browser ที่ไม่รองรับ
+    setTimeout(() => {
+      fetchNotifications().catch(() => {})
+      fetchLoyaltySummary().catch(() => {})
+      fetchRecentPlaces().catch(() => {})
+      fetchUnratedRides().catch(() => {})
+      
+      // Stop performance tracking
+      stopCollecting(true)
+    }, 500)
+  }
+  
+  // Phase 4: Realtime subscriptions - โหลดหลังสุด
+  setTimeout(() => {
+    setupRealtimeSubscription()
+  }, 1000)
 })
 
 onUnmounted(() => {
@@ -336,7 +451,6 @@ onUnmounted(() => {
 <template>
   <div 
     class="customer-home"
-    :class="{ loaded: isLoaded }"
     @touchstart="handleTouchStart"
     @touchmove="handleTouchMove"
     @touchend="handleTouchEnd"
@@ -472,12 +586,7 @@ onUnmounted(() => {
   min-height: 100dvh;
   background: #F5F5F5;
   padding-bottom: 90px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.customer-home.loaded {
-  opacity: 1;
+  /* ลบ opacity transition - แสดง UI ทันที */
 }
 
 /* Pull to Refresh */

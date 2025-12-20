@@ -80,12 +80,43 @@ const filteredRides = computed(() => {
 
 const fetchRides = async () => {
   try {
-    const { data } = await (supabase.from('scheduled_rides') as any)
-      .select('*, user:users(name, email, phone)')
+    // Query scheduled rides without nested relations to avoid 400 errors
+    const { data, error: err } = await (supabase.from('scheduled_rides') as any)
+      .select('*')
       .order('scheduled_datetime', { ascending: true })
-    rides.value = data || []
+    
+    if (err) {
+      console.error('Error fetching scheduled rides:', err)
+      rides.value = []
+      return
+    }
+    
+    // Fetch user info separately for each ride
+    const ridesWithUsers = await Promise.all(
+      (data || []).map(async (ride: any) => {
+        if (ride.user_id) {
+          const { data: userData } = await (supabase.from('users') as any)
+            .select('first_name, last_name, email, phone_number')
+            .eq('id', ride.user_id)
+            .maybeSingle()
+          
+          return {
+            ...ride,
+            user: userData ? {
+              name: [userData.first_name, userData.last_name].filter(Boolean).join(' ') || 'ไม่ระบุชื่อ',
+              email: userData.email,
+              phone: userData.phone_number
+            } : null
+          }
+        }
+        return { ...ride, user: null }
+      })
+    )
+    
+    rides.value = ridesWithUsers
   } catch (err) {
     console.error('Error fetching scheduled rides:', err)
+    rides.value = []
   } finally {
     loading.value = false
   }

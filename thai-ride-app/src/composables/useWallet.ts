@@ -49,6 +49,7 @@ export function useWallet() {
   const loading = ref(false)
 
   // Fetch wallet balance
+  // ใช้ maybeSingle() แทน single() เพื่อหลีกเลี่ยง 406 error เมื่อไม่มี wallet
   const fetchBalance = async () => {
     if (!authStore.user?.id) {
       balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
@@ -56,11 +57,12 @@ export function useWallet() {
     }
 
     try {
+      // ใช้ maybeSingle() - returns null ถ้าไม่พบ row (ไม่ throw 406)
       const { data, error } = await (supabase
         .from('user_wallets') as any)
         .select('balance, total_earned, total_spent')
         .eq('user_id', authStore.user.id)
-        .single()
+        .maybeSingle()
 
       if (!error && data) {
         balance.value = {
@@ -68,6 +70,9 @@ export function useWallet() {
           total_earned: data.total_earned || 0,
           total_spent: data.total_spent || 0
         }
+      } else {
+        // ไม่มี wallet - ใช้ค่า default (user ใหม่)
+        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
       }
       return balance.value
     } catch (err) {

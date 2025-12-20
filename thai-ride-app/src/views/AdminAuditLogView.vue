@@ -1,7 +1,18 @@
 <script setup lang="ts">
+/**
+ * Admin Audit Log View (F30)
+ * ประวัติการเปลี่ยนสถานะทั้งหมดในระบบ
+ * 
+ * Memory Optimization: Task 36
+ * - Cleans up audit logs array on unmount
+ * - Resets filters
+ */
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAuditLog } from '../composables/useAuditLog'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const {
   loading,
@@ -99,6 +110,13 @@ onMounted(async () => {
     fetchRecentLogs(100),
     fetchStats()
   ])
+})
+
+// Cleanup on unmount - Task 36
+addCleanup(() => {
+  selectedEntityType.value = ''
+  selectedTimeRange.value = '7d'
+  console.log('[AdminAuditLogView] Cleanup complete')
 })
 </script>
 

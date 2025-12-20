@@ -8,8 +8,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminRideMonitoring } from '../composables/useAdminRideMonitoring'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const router = useRouter()
+const { addCleanup } = useAdminCleanup()
 
 const {
   activeRides,
@@ -85,6 +87,16 @@ const formatFare = (fare: number) => `฿${fare.toLocaleString()}`
 onMounted(async () => {
   await loadActiveRides()
   await subscribeToAllActiveRides()
+})
+
+// Register cleanup
+addCleanup(() => {
+  activeRides.value = []
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  isLoading.value = false
+  error.value = null
+  console.log('[AdminRideMonitoringViewV3] Cleanup complete')
 })
 </script>
 

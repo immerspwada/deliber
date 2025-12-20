@@ -125,7 +125,12 @@ export function useShopping() {
         .select()
         .single()
 
-      if (!error && shopping) {
+      if (error) {
+        console.error('Supabase error creating shopping:', error)
+        return null
+      }
+      
+      if (shopping) {
         currentShopping.value = shopping as ShoppingRequest
         return shopping
       }

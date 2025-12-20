@@ -211,13 +211,20 @@ export function usePaymentGateway() {
     const result = await createTransaction('wallet', amount, requestId, requestType, description)
     if (!result.success) return result
     
-    // Check wallet balance
+    // Get current user
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      return { success: false, error: 'Not authenticated' }
+    }
+    
+    // Check wallet balance - use maybeSingle() to avoid 406 error when wallet doesn't exist
     const { data: walletData } = await supabase
       .from('user_wallets')
       .select('balance')
-      .single()
+      .eq('user_id', userData.user.id)
+      .maybeSingle()
     
-    if (!walletData || walletData.balance < amount) {
+    if (!walletData || (walletData.balance || 0) < amount) {
       await (supabase.rpc as any)('fail_payment', {
         p_transaction_id: result.transactionId,
         p_reason: 'ยอดเงินในกระเป๋าไม่เพียงพอ'
@@ -225,10 +232,9 @@ export function usePaymentGateway() {
       return { success: false, error: 'ยอดเงินในกระเป๋าไม่เพียงพอ' }
     }
     
-    // Deduct from wallet and complete
-    const { data: userData } = await supabase.auth.getUser()
+    // Deduct from wallet and complete (reuse userData from above)
     await (supabase.rpc as any)('add_wallet_transaction', {
-      p_user_id: userData.user?.id,
+      p_user_id: userData.user.id,
       p_amount: -amount,
       p_type: 'payment',
       p_description: description || 'ชำระเงิน'

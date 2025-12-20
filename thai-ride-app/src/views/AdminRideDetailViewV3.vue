@@ -8,9 +8,11 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAdminRideMonitoring } from '../composables/useAdminRideMonitoring'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const router = useRouter()
 const route = useRoute()
+const { addCleanup } = useAdminCleanup()
 
 const {
   isLoading,
@@ -72,6 +74,17 @@ onMounted(async () => {
       rideDetails.value = details
     }
   }
+})
+
+// Register cleanup
+addCleanup(() => {
+  rideDetails.value = null
+  showCancelModal.value = false
+  cancelReason.value = ''
+  isCancelling.value = false
+  isLoading.value = false
+  error.value = null
+  console.log('[AdminRideDetailViewV3] Cleanup complete')
 })
 </script>
 

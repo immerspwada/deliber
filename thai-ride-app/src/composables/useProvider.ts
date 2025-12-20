@@ -193,7 +193,8 @@ export function useProvider() {
         return profile.value
       }
       if (!authStore.user?.id) { profile.value = null; return null }
-      const { data } = await (supabase.from('service_providers') as any).select('*').eq('user_id', authStore.user.id).single()
+      // Use maybeSingle() to avoid 406 error when user is not a provider
+      const { data } = await (supabase.from('service_providers') as any).select('*').eq('user_id', authStore.user.id).maybeSingle()
       if (!data) { profile.value = null; return null }
       profile.value = data as ProviderProfile
       isOnline.value = data.is_available || false
@@ -988,6 +989,145 @@ export function useProvider() {
     ])
   }
 
+  // =====================================================
+  // SCHEDULED RIDES - Provider Functions (F15)
+  // =====================================================
+  
+  interface ScheduledRideForProvider {
+    id: string
+    tracking_id?: string
+    user_id: string
+    scheduled_datetime: string
+    pickup_address: string
+    destination_address: string
+    pickup_lat: number
+    pickup_lng: number
+    destination_lat: number
+    destination_lng: number
+    ride_type: string
+    estimated_fare?: number
+    notes?: string
+    status: string
+    customer_name?: string
+    customer_phone?: string
+  }
+  
+  const upcomingScheduledRides = ref<ScheduledRideForProvider[]>([])
+  
+  // Fetch upcoming scheduled rides that are confirmed and need a driver
+  const fetchUpcomingScheduledRides = async () => {
+    if (!profile.value?.id) return
+    
+    try {
+      // Get scheduled rides that are confirmed and within next 2 hours
+      const twoHoursFromNow = new Date()
+      twoHoursFromNow.setHours(twoHoursFromNow.getHours() + 2)
+      
+      const { data, error: err } = await (supabase
+        .from('scheduled_rides') as any)
+        .select('*')
+        .eq('status', 'confirmed')
+        .gte('scheduled_datetime', new Date().toISOString())
+        .lte('scheduled_datetime', twoHoursFromNow.toISOString())
+        .order('scheduled_datetime', { ascending: true })
+      
+      if (err) {
+        console.error('Error fetching scheduled rides:', err)
+        return
+      }
+      
+      // Fetch customer info separately
+      const ridesWithCustomer = await Promise.all(
+        (data || []).map(async (ride: any) => {
+          if (ride.user_id) {
+            const { data: userData } = await (supabase
+              .from('users') as any)
+              .select('first_name, last_name, phone_number')
+              .eq('id', ride.user_id)
+              .maybeSingle()
+            
+            return {
+              ...ride,
+              customer_name: userData ? [userData.first_name, userData.last_name].filter(Boolean).join(' ') : undefined,
+              customer_phone: userData?.phone_number
+            }
+          }
+          return ride
+        })
+      )
+      
+      upcomingScheduledRides.value = ridesWithCustomer
+    } catch (e) {
+      console.error('Error fetching scheduled rides:', e)
+    }
+  }
+  
+  // Accept a scheduled ride (convert to active ride)
+  const acceptScheduledRide = async (scheduledRideId: string): Promise<{ success: boolean; rideId?: string; error?: string }> => {
+    if (!profile.value?.id) {
+      return { success: false, error: 'ไม่พบข้อมูลผู้ให้บริการ' }
+    }
+    
+    try {
+      // Get the scheduled ride
+      const { data: scheduledRide, error: fetchErr } = await (supabase
+        .from('scheduled_rides') as any)
+        .select('*')
+        .eq('id', scheduledRideId)
+        .eq('status', 'confirmed')
+        .maybeSingle()
+      
+      if (fetchErr || !scheduledRide) {
+        return { success: false, error: 'ไม่พบการจองนี้หรือถูกรับไปแล้ว' }
+      }
+      
+      // Create actual ride request from scheduled ride
+      const { data: newRide, error: createErr } = await (supabase
+        .from('ride_requests') as any)
+        .insert({
+          user_id: scheduledRide.user_id,
+          provider_id: profile.value.id,
+          pickup_lat: scheduledRide.pickup_lat,
+          pickup_lng: scheduledRide.pickup_lng,
+          pickup_address: scheduledRide.pickup_address,
+          destination_lat: scheduledRide.destination_lat,
+          destination_lng: scheduledRide.destination_lng,
+          destination_address: scheduledRide.destination_address,
+          ride_type: scheduledRide.ride_type || 'standard',
+          estimated_fare: scheduledRide.estimated_fare,
+          notes: scheduledRide.notes,
+          status: 'matched',
+          scheduled_ride_id: scheduledRideId
+        })
+        .select()
+        .single()
+      
+      if (createErr) {
+        console.error('Error creating ride from scheduled:', createErr)
+        return { success: false, error: 'ไม่สามารถสร้างงานได้' }
+      }
+      
+      // Update scheduled ride status
+      await (supabase
+        .from('scheduled_rides') as any)
+        .update({ 
+          status: 'completed',
+          provider_id: profile.value.id,
+          actual_ride_id: newRide.id
+        })
+        .eq('id', scheduledRideId)
+      
+      // Refresh lists
+      await fetchUpcomingScheduledRides()
+      await fetchPendingRequests()
+      
+      return { success: true, rideId: newRide.id }
+    } catch (e: any) {
+      console.error('Error accepting scheduled ride:', e)
+      return { success: false, error: e.message || 'เกิดข้อผิดพลาด' }
+    }
+  }
+
   onUnmounted(() => {
     unsubscribeFromRequests()
     unsubscribeFromRide()
@@ -1014,6 +1154,8 @@ export function useProvider() {
     pendingDeliveries, pendingShopping, activeJob,
     // New Services state (F158, F159, F160)
     pendingQueueJobs, pendingMovingJobs, pendingLaundryJobs,
+    // Scheduled Rides state (F15)
+    upcomingScheduledRides,
     // Service permissions
     allowedServices, canSeeService,
     // Computed
@@ -1032,6 +1174,8 @@ export function useProvider() {
     fetchPendingMovingJobs, acceptMovingRequest, updateMovingStatus,
     // Laundry functions (F160)
     fetchPendingLaundryJobs, acceptLaundryRequest, updateLaundryStatus,
+    // Scheduled Rides functions (F15)
+    fetchUpcomingScheduledRides, acceptScheduledRide,
     // Delivery Proof Photo & Signature (F03 Enhancement)
     uploadDeliveryProof, completeDeliveryWithProof, saveDeliverySignature, completeDeliveryWithFullProof,
     // All jobs

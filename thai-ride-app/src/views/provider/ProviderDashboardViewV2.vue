@@ -418,6 +418,22 @@ onMounted(async () => {
           <span class="rating-label">คะแนนเฉลี่ย</span>
         </div>
 
+        <!-- Scheduled Rides Shortcut -->
+        <button class="scheduled-rides-btn" @click="router.push('/provider/scheduled-rides')">
+          <div class="scheduled-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <div class="scheduled-info">
+            <span class="scheduled-title">งานจองล่วงหน้า</span>
+            <span class="scheduled-desc">ดูงานที่ลูกค้าจองไว้</span>
+          </div>
+          <svg class="arrow-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+
         <!-- Earnings Chart -->
         <EarningsChart 
           :today-earnings="earnings.today"
@@ -785,6 +801,36 @@ onMounted(async () => {
 .star-icon { width: 24px; height: 24px; color: #F59E0B; }
 .rating-value { font-size: 24px; font-weight: 700; }
 .rating-label { font-size: 14px; color: #6B6B6B; }
+
+/* Scheduled Rides Button */
+.scheduled-rides-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  background: #E8F5EF;
+  border: none;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.scheduled-rides-btn:hover { background: #D0EBE0; }
+.scheduled-icon {
+  width: 44px;
+  height: 44px;
+  background: #00A86B;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scheduled-icon svg { width: 22px; height: 22px; color: #fff; }
+.scheduled-info { flex: 1; text-align: left; }
+.scheduled-title { display: block; font-size: 15px; font-weight: 600; color: #1A1A1A; }
+.scheduled-desc { display: block; font-size: 12px; color: #6B6B6B; }
+.scheduled-rides-btn .arrow-icon { width: 20px; height: 20px; color: #00A86B; }
 
 /* Requests Section */
 .requests-section { margin-top: 8px; }

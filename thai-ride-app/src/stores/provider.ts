@@ -32,6 +32,7 @@ export const useProviderStore = defineStore('provider', () => {
   const hasActiveRequest = computed(() => activeRequest.value !== null)
 
   // Fetch provider profile
+  // ใช้ maybeSingle() เพื่อหลีกเลี่ยง 406 error เมื่อ user ยังไม่ได้เป็น provider
   const fetchProviderProfile = async (userId: string) => {
     loading.value = true
     error.value = null
@@ -41,10 +42,17 @@ export const useProviderStore = defineStore('provider', () => {
         .from('service_providers')
         .select('*')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
       
       if (fetchError) {
         error.value = fetchError.message
+        return null
+      }
+      
+      // User ยังไม่ได้เป็น provider
+      if (!data) {
+        provider.value = null
+        isOnline.value = false
         return null
       }
       

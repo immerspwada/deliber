@@ -419,6 +419,7 @@ export function useCustomerManagement() {
       const customer = transformCustomer(data)
       
       // Fetch additional stats in parallel
+      // Use maybeSingle() instead of single() to avoid 406 errors when records don't exist
       const [ridesResult, walletResult, loyaltyResult] = await Promise.allSettled([
         supabase
           .from('ride_requests')
@@ -429,12 +430,12 @@ export function useCustomerManagement() {
           .from('user_wallets')
           .select('balance')
           .eq('user_id', id)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('user_loyalty')
           .select('current_points')
           .eq('user_id', id)
-          .single()
+          .maybeSingle()
       ])
       
       // Safely extract results

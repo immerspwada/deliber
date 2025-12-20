@@ -275,14 +275,20 @@
 /**
  * Admin Error Recovery View (F236)
  * จัดการและตรวจสอบระบบการกู้คืนข้อผิดพลาดอัตโนมัติ
+ * 
+ * Memory Optimization: Task 36
+ * - Cleans up error logs and settings on unmount
  */
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { 
   fetchErrorRecoveryStats, 
   fetchErrorRecoveryLogs, 
   updateErrorRecoverySettings
 } from '../composables/useAdmin'
+
+const { addCleanup } = useAdminCleanup()
 
 const loading = ref(false)
 const showSettings = ref(false)
@@ -408,6 +414,16 @@ const getStatusLabel = (status: string) => {
 
 onMounted(() => {
   refreshData()
+})
+
+// Cleanup on unmount - Task 36
+addCleanup(() => {
+  errorLogs.value = []
+  showSettings.value = false
+  selectedErrorType.value = ''
+  selectedRecoveryStatus.value = ''
+  recoveryStats.value = { totalErrors: 0, recoveredErrors: 0, criticalErrors: 0, recoveryRate: 0 }
+  console.log('[AdminErrorRecoveryView] Cleanup complete')
 })
 </script>
 

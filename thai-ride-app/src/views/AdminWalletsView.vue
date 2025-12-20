@@ -7,6 +7,9 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup, addSubscription } = useAdminCleanup()
 
 interface UserWallet {
   id: string
@@ -118,6 +121,10 @@ const setupRealtime = () => {
       fetchWallets() // Update balances too
     })
     .subscribe()
+
+  // Track subscriptions for cleanup
+  if (walletsChannel) addSubscription(walletsChannel)
+  if (transactionsChannel) addSubscription(transactionsChannel)
 }
 
 onMounted(async () => {
@@ -126,10 +133,21 @@ onMounted(async () => {
   setupRealtime()
 })
 
-onUnmounted(() => {
-  if (walletsChannel) supabase.removeChannel(walletsChannel)
-  if (transactionsChannel) supabase.removeChannel(transactionsChannel)
+// Register cleanup - replaces manual onUnmounted
+addCleanup(() => {
+  wallets.value = []
+  transactions.value = []
+  searchQuery.value = ''
+  selectedWallet.value = null
+  showAdjustModal.value = false
+  adjustAmount.value = 0
+  adjustReason.value = ''
+  activeTab.value = 'wallets'
+  loading.value = false
+  console.log('[AdminWalletsView] Cleanup complete')
 })
+
+// Remove manual onUnmounted since useAdminCleanup handles it
 
 const openAdjustModal = (wallet: UserWallet) => {
   selectedWallet.value = wallet

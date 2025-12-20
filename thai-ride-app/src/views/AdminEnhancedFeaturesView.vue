@@ -171,6 +171,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const activeTab = ref('loyalty')
 const tabs = [
@@ -325,6 +328,19 @@ const refreshAll = async () => {
 
 onMounted(() => {
   refreshAll()
+})
+
+// Cleanup on unmount - Task 36
+addCleanup(() => {
+  activeTab.value = 'loyalty'
+  zones.value = []
+  safetyAlerts.value = []
+  translationStats.value = []
+  loyaltyStats.value = { activeChallenges: 0, totalBadges: 0, avgStreak: 0 }
+  safetyStats.value = { critical: 0, active: 0, resolved: 0, liveTracking: 0 }
+  corporateStats.value = { companies: 0, employees: 0, pendingApprovals: 0 }
+  syncStats.value = { pending: 0, failed: 0, conflicts: 0, devices: 0 }
+  console.log('[AdminEnhancedFeaturesView] Cleanup complete')
 })
 </script>
 

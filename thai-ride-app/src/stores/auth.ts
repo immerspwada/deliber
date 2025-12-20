@@ -134,11 +134,12 @@ export const useAuthStore = defineStore('auth', () => {
         setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 3000)
       })
       
+      // Use maybeSingle() to avoid 406 error if user profile doesn't exist yet
       const fetchPromise = supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
       
       const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise])
       

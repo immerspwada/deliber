@@ -2,11 +2,24 @@
 /**
  * Feature: F151 - Admin Components View
  * Admin view to browse all UI components
+ * 
+ * Memory Optimization: Task 36
+ * - Cleans up search and filter state on unmount
  */
 import { ref } from 'vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const searchQuery = ref('')
 const selectedCategory = ref('all')
+
+// Cleanup on unmount
+addCleanup(() => {
+  searchQuery.value = ''
+  selectedCategory.value = 'all'
+  console.log('[AdminComponentsView] Cleanup complete')
+})
 
 const categories = [
   { key: 'all', label: 'ทั้งหมด' },

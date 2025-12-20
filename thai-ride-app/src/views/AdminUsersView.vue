@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const { fetchUsers, updateUserStatus, verifyUser } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const users = ref<any[]>([])
 const total = ref(0)
@@ -41,6 +43,21 @@ const loadUsers = async () => {
 }
 
 onMounted(loadUsers)
+
+// Register cleanup
+addCleanup(() => {
+  users.value = []
+  total.value = 0
+  page.value = 1
+  search.value = ''
+  statusFilter.value = ''
+  roleFilter.value = ''
+  verificationFilter.value = ''
+  selectedUser.value = null
+  showDetailModal.value = false
+  loading.value = false
+  console.log('[AdminUsersView] Cleanup complete')
+})
 
 const handleSearch = () => { page.value = 1; loadUsers() }
 const handleFilter = () => { page.value = 1; loadUsers() }

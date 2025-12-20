@@ -979,11 +979,11 @@ const handleSubmit = async () => {
             ></textarea>
           </div>
 
-          <!-- Continue Button -->
-          <Transition name="slide-up">
+          <!-- Continue Button - Fixed at Bottom -->
+          <div class="continue-btn-container">
             <button 
-              v-if="itemList.trim() && budgetLimit" 
               class="continue-btn primary"
+              :disabled="!itemList.trim() || !budgetLimit"
               @click="currentStep = 'confirm'; triggerHaptic('medium')"
             >
               <span>ดูสรุปและยืนยัน</span>
@@ -991,7 +991,7 @@ const handleSubmit = async () => {
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
             </button>
-          </Transition>
+          </div>
         </div>
       </template>
 
@@ -1078,18 +1078,20 @@ const handleSubmit = async () => {
             <p class="price-note">* ไม่รวมราคาสินค้า จ่ายเพิ่มตามจริง</p>
           </div>
 
-          <!-- Submit Button -->
-          <button 
-            class="submit-btn"
-            :disabled="loading || !canSubmit"
-            @click="handleSubmit"
-          >
-            <span v-if="loading" class="spinner"></span>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 13l4 4L19 7"/>
-            </svg>
-            {{ loading ? 'กำลังสร้าง...' : 'ยืนยันคำสั่งซื้อ' }}
-          </button>
+          <!-- Submit Button - Fixed at Bottom -->
+          <div class="submit-btn-container">
+            <button 
+              class="submit-btn"
+              :disabled="loading || !canSubmit"
+              @click="handleSubmit"
+            >
+              <span v-if="loading" class="spinner"></span>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 13l4 4L19 7"/>
+              </svg>
+              {{ loading ? 'กำลังสร้าง...' : 'ยืนยันคำสั่งซื้อ' }}
+            </button>
+          </div>
         </div>
       </template>
     </div>
@@ -1366,7 +1368,21 @@ const handleSubmit = async () => {
 }
 
 .step-content.scrollable {
-  padding-bottom: 100px;
+  padding-bottom: 24px;
+}
+
+/* Submit/Continue Button Container - At bottom of content, not floating */
+.submit-btn-container,
+.continue-btn-container {
+  padding: 16px 0;
+  margin-top: 16px;
+}
+
+.continue-btn-container .continue-btn:disabled {
+  background: #E8E8E8;
+  color: #999999;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .animate-step {
@@ -1439,16 +1455,18 @@ const handleSubmit = async () => {
 }
 
 .step-header-text h2 {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 600;
   color: #1A1A1A;
   margin: 0;
+  line-height: 1.3;
 }
 
 .step-header-text p {
-  font-size: 14px;
-  color: #666666;
-  margin: 2px 0 0;
+  font-size: 13px;
+  color: #999999;
+  margin: 4px 0 0;
+  line-height: 1.4;
 }
 
 /* Quick Actions Grid */

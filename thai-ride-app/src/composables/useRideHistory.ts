@@ -3,6 +3,7 @@
  * 
  * Feature: F11 - Ride History
  * Tables: ride_requests, delivery_requests, shopping_requests, ride_ratings, delivery_ratings, shopping_ratings
+ * View: order_history_view (unified view with provider info)
  * 
  * @description
  * Fetches and manages order history for all service types (ride, delivery, shopping)
@@ -31,12 +32,99 @@ export interface RideHistoryItem {
   created_at?: string  // For sorting
 }
 
+export interface ProviderInfo {
+  id: string
+  tracking_id: string | null
+  name: string | null
+  phone: string | null
+  avatar_url: string | null
+  vehicle_type: string | null
+  vehicle_plate: string | null
+  vehicle_color: string | null
+  rating: number | null
+}
+
 export function useRideHistory() {
   const authStore = useAuthStore()
   const history = ref<RideHistoryItem[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const unratedRidesCount = ref(0)
+
+  // Cache for provider info
+  const providerCache = new Map<string, ProviderInfo>()
+
+  // Fetch provider info by ID (with caching)
+  const fetchProviderInfo = async (providerId: string): Promise<ProviderInfo | null> => {
+    if (!providerId) return null
+
+    // Check cache first
+    if (providerCache.has(providerId)) {
+      return providerCache.get(providerId) || null
+    }
+
+    try {
+      const { data, error: err } = await (supabase
+        .from('service_providers') as any)
+        .select(`
+          id,
+          tracking_id,
+          vehicle_type,
+          vehicle_plate,
+          vehicle_color,
+          rating,
+          user_id
+        `)
+        .eq('id', providerId)
+        .maybeSingle()
+
+      if (err || !data) return null
+
+      // Fetch user info separately
+      let userName = null
+      let userPhone = null
+      let userAvatar = null
+
+      if (data.user_id) {
+        const { data: userData } = await (supabase
+          .from('users') as any)
+          .select('name, phone_number, avatar_url')
+          .eq('id', data.user_id)
+          .maybeSingle()
+
+        if (userData) {
+          userName = userData.name
+          userPhone = userData.phone_number
+          userAvatar = userData.avatar_url
+        }
+      }
+
+      const providerInfo: ProviderInfo = {
+        id: data.id,
+        tracking_id: data.tracking_id,
+        name: userName,
+        phone: userPhone,
+        avatar_url: userAvatar,
+        vehicle_type: data.vehicle_type,
+        vehicle_plate: data.vehicle_plate,
+        vehicle_color: data.vehicle_color,
+        rating: data.rating
+      }
+
+      // Cache the result
+      providerCache.set(providerId, providerInfo)
+
+      return providerInfo
+    } catch (err) {
+      console.error('Error fetching provider info:', err)
+      return null
+    }
+  }
+
+  // Clear provider cache
+  const clearProviderCache = () => {
+    providerCache.clear()
+  }
 
   // Fetch all order history (ride, delivery, shopping, queue, moving, laundry)
   const fetchHistory = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
@@ -67,13 +155,7 @@ export function useRideHistory() {
             status,
             created_at,
             completed_at,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              users:user_id (name)
-            ),
-            rating:ride_ratings (rating)
+            provider_id
           `)
           .eq('user_id', userId)
           .in('status', ['completed', 'cancelled'])
@@ -93,10 +175,10 @@ export function useRideHistory() {
               time: formatTime(item.created_at),
               fare: item.final_fare || item.estimated_fare || 0,
               status: item.status === 'completed' ? 'completed' : 'cancelled',
-              rating: item.rating?.[0]?.rating || null,
-              driver_name: item.provider?.users?.name,
-              driver_tracking_id: item.provider?.tracking_id,
-              vehicle: item.provider?.vehicle_type,
+              rating: null,
+              driver_name: undefined,
+              driver_tracking_id: undefined,
+              vehicle: item.ride_type,
               created_at: item.created_at
             })
           })
@@ -117,13 +199,7 @@ export function useRideHistory() {
             status,
             created_at,
             delivered_at,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              users:user_id (name)
-            ),
-            rating:delivery_ratings (rating)
+            provider_id
           `)
           .eq('user_id', userId)
           .in('status', ['delivered', 'completed', 'cancelled', 'failed'])
@@ -143,10 +219,10 @@ export function useRideHistory() {
               time: formatTime(item.created_at),
               fare: item.final_fee || item.estimated_fee || 0,
               status: ['delivered', 'completed'].includes(item.status) ? 'completed' : 'cancelled',
-              rating: item.rating?.[0]?.rating || null,
-              driver_name: item.provider?.users?.name,
-              driver_tracking_id: item.provider?.tracking_id,
-              vehicle: item.provider?.vehicle_type,
+              rating: null,
+              driver_name: undefined,
+              driver_tracking_id: undefined,
+              vehicle: undefined,
               created_at: item.created_at
             })
           })
@@ -168,13 +244,7 @@ export function useRideHistory() {
             status,
             created_at,
             delivered_at,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              users:user_id (name)
-            ),
-            rating:shopping_ratings (rating)
+            provider_id
           `)
           .eq('user_id', userId)
           .in('status', ['completed', 'cancelled'])
@@ -194,10 +264,10 @@ export function useRideHistory() {
               time: formatTime(item.created_at),
               fare: item.total_cost || item.service_fee || 0,
               status: item.status === 'completed' ? 'completed' : 'cancelled',
-              rating: item.rating?.[0]?.rating || null,
-              driver_name: item.provider?.users?.name,
-              driver_tracking_id: item.provider?.tracking_id,
-              vehicle: item.provider?.vehicle_type,
+              rating: null,
+              driver_name: undefined,
+              driver_tracking_id: undefined,
+              vehicle: undefined,
               created_at: item.created_at
             })
           })
@@ -211,21 +281,17 @@ export function useRideHistory() {
           .select(`
             id,
             tracking_id,
-            service_name,
-            location_name,
-            location_address,
-            booking_date,
-            booking_time,
-            estimated_price,
-            final_price,
+            category,
+            place_name,
+            place_address,
+            scheduled_date,
+            scheduled_time,
+            service_fee,
+            final_fee,
             status,
             created_at,
             completed_at,
-            provider:provider_id (
-              tracking_id,
-              users:user_id (name)
-            ),
-            rating:queue_ratings!booking_id (rating)
+            provider_id
           `)
           .eq('user_id', userId)
           .in('status', ['completed', 'cancelled'])
@@ -239,15 +305,15 @@ export function useRideHistory() {
               tracking_id: item.tracking_id || `QUE-${formatDateForId(item.created_at)}-000000`,
               type: 'queue',
               typeName: 'จองคิว',
-              from: item.service_name || 'บริการ',
-              to: item.location_name || item.location_address?.split(',')[0] || 'ไม่ระบุ',
+              from: item.category || 'บริการ',
+              to: item.place_name || item.place_address?.split(',')[0] || 'ไม่ระบุ',
               date: formatDate(item.created_at),
               time: formatTime(item.created_at),
-              fare: item.final_price || item.estimated_price || 0,
+              fare: item.final_fee || item.service_fee || 0,
               status: item.status === 'completed' ? 'completed' : 'cancelled',
-              rating: item.rating?.[0]?.rating || null,
-              driver_name: item.provider?.users?.name,
-              driver_tracking_id: item.provider?.tracking_id,
+              rating: null,
+              driver_name: undefined,
+              driver_tracking_id: undefined,
               created_at: item.created_at
             })
           })
@@ -269,12 +335,7 @@ export function useRideHistory() {
             status,
             created_at,
             completed_at,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              users:user_id (name)
-            ),
-            rating:moving_ratings!request_id (rating)
+            provider_id
           `)
           .eq('user_id', userId)
           .in('status', ['completed', 'cancelled'])
@@ -294,10 +355,10 @@ export function useRideHistory() {
               time: formatTime(item.created_at),
               fare: item.final_price || item.estimated_price || 0,
               status: item.status === 'completed' ? 'completed' : 'cancelled',
-              rating: item.rating?.[0]?.rating || null,
-              driver_name: item.provider?.users?.name,
-              driver_tracking_id: item.provider?.tracking_id,
-              vehicle: item.provider?.vehicle_type,
+              rating: null,
+              driver_name: undefined,
+              driver_tracking_id: undefined,
+              vehicle: item.service_type,
               created_at: item.created_at
             })
           })
@@ -312,18 +373,13 @@ export function useRideHistory() {
             id,
             tracking_id,
             pickup_address,
-            delivery_address,
-            service_type,
+            services,
             estimated_price,
             final_price,
             status,
             created_at,
             delivered_at,
-            provider:provider_id (
-              tracking_id,
-              users:user_id (name)
-            ),
-            rating:laundry_ratings!request_id (rating)
+            provider_id
           `)
           .eq('user_id', userId)
           .in('status', ['delivered', 'completed', 'cancelled'])
@@ -338,14 +394,14 @@ export function useRideHistory() {
               type: 'laundry',
               typeName: 'ซักรีด',
               from: item.pickup_address?.split(',')[0] || 'ไม่ระบุ',
-              to: item.delivery_address?.split(',')[0] || 'ไม่ระบุ',
+              to: 'บริการซักรีด',
               date: formatDate(item.created_at),
               time: formatTime(item.created_at),
               fare: item.final_price || item.estimated_price || 0,
               status: ['delivered', 'completed'].includes(item.status) ? 'completed' : 'cancelled',
-              rating: item.rating?.[0]?.rating || null,
-              driver_name: item.provider?.users?.name,
-              driver_tracking_id: item.provider?.tracking_id,
+              rating: null,
+              driver_name: undefined,
+              driver_tracking_id: undefined,
               created_at: item.created_at
             })
           })
@@ -378,17 +434,7 @@ export function useRideHistory() {
       if (orderType === 'ride') {
         const { data } = await (supabase
           .from('ride_requests') as any)
-          .select(`
-            *,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              rating,
-              users:user_id (name, avatar_url, phone)
-            ),
-            rating:ride_ratings (rating, comment, tip_amount)
-          `)
+          .select('*')
           .eq('id', orderId)
           .single()
         return data ? { ...data, orderType: 'ride' } : null
@@ -397,17 +443,7 @@ export function useRideHistory() {
       if (orderType === 'delivery') {
         const { data } = await (supabase
           .from('delivery_requests') as any)
-          .select(`
-            *,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              rating,
-              users:user_id (name, avatar_url, phone)
-            ),
-            rating:delivery_ratings (rating, comment, tip_amount)
-          `)
+          .select('*')
           .eq('id', orderId)
           .single()
         return data ? { ...data, orderType: 'delivery' } : null
@@ -416,17 +452,7 @@ export function useRideHistory() {
       if (orderType === 'shopping') {
         const { data } = await (supabase
           .from('shopping_requests') as any)
-          .select(`
-            *,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              rating,
-              users:user_id (name, avatar_url, phone)
-            ),
-            rating:shopping_ratings (rating, comment, tip_amount)
-          `)
+          .select('*')
           .eq('id', orderId)
           .single()
         return data ? { ...data, orderType: 'shopping' } : null
@@ -437,21 +463,21 @@ export function useRideHistory() {
         .from('ride_requests') as any)
         .select('*')
         .eq('id', orderId)
-        .single()
+        .maybeSingle()
       if (ride) return { ...ride, orderType: 'ride' }
 
       const { data: delivery } = await (supabase
         .from('delivery_requests') as any)
         .select('*')
         .eq('id', orderId)
-        .single()
+        .maybeSingle()
       if (delivery) return { ...delivery, orderType: 'delivery' }
 
       const { data: shopping } = await (supabase
         .from('shopping_requests') as any)
         .select('*')
         .eq('id', orderId)
-        .single()
+        .maybeSingle()
       if (shopping) return { ...shopping, orderType: 'shopping' }
 
       return null
@@ -468,61 +494,27 @@ export function useRideHistory() {
       if (trackingId.startsWith('RID-')) {
         const { data } = await (supabase
           .from('ride_requests') as any)
-          .select(`
-            *,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              vehicle_color,
-              rating,
-              current_lat,
-              current_lng,
-              users:user_id (name, avatar_url, phone)
-            )
-          `)
+          .select('*')
           .eq('tracking_id', trackingId)
-          .single()
+          .maybeSingle()
         return data ? { ...data, orderType: 'ride' } : null
       }
 
       if (trackingId.startsWith('DEL-')) {
         const { data } = await (supabase
           .from('delivery_requests') as any)
-          .select(`
-            *,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              rating,
-              current_lat,
-              current_lng,
-              users:user_id (name, avatar_url, phone)
-            )
-          `)
+          .select('*')
           .eq('tracking_id', trackingId)
-          .single()
+          .maybeSingle()
         return data ? { ...data, orderType: 'delivery' } : null
       }
 
       if (trackingId.startsWith('SHP-')) {
         const { data } = await (supabase
           .from('shopping_requests') as any)
-          .select(`
-            *,
-            provider:provider_id (
-              tracking_id,
-              vehicle_type,
-              vehicle_plate,
-              rating,
-              current_lat,
-              current_lng,
-              users:user_id (name, avatar_url, phone)
-            )
-          `)
+          .select('*')
           .eq('tracking_id', trackingId)
-          .single()
+          .maybeSingle()
         return data ? { ...data, orderType: 'shopping' } : null
       }
 
@@ -620,10 +612,7 @@ export function useRideHistory() {
           destination_address,
           final_fare,
           estimated_fare,
-          created_at,
-          provider:provider_id (
-            users:user_id (name)
-          )
+          created_at
         `)
         .eq('user_id', userId)
         .eq('status', 'completed')
@@ -641,7 +630,7 @@ export function useRideHistory() {
             to: r.destination_address?.split(',')[0] || 'ไม่ระบุ',
             date: formatDate(r.created_at),
             fare: r.final_fare || r.estimated_fare || 0,
-            driverName: r.provider?.users?.name
+            driverName: undefined
           })
         })
       }
@@ -655,10 +644,7 @@ export function useRideHistory() {
           recipient_address,
           final_fee,
           estimated_fee,
-          created_at,
-          provider:provider_id (
-            users:user_id (name)
-          )
+          created_at
         `)
         .eq('user_id', userId)
         .in('status', ['delivered', 'completed'])
@@ -676,7 +662,7 @@ export function useRideHistory() {
             to: d.recipient_address?.split(',')[0] || 'ไม่ระบุ',
             date: formatDate(d.created_at),
             fare: d.final_fee || d.estimated_fee || 0,
-            driverName: d.provider?.users?.name
+            driverName: undefined
           })
         })
       }
@@ -690,10 +676,7 @@ export function useRideHistory() {
           delivery_address,
           total_cost,
           service_fee,
-          created_at,
-          provider:provider_id (
-            users:user_id (name)
-          )
+          created_at
         `)
         .eq('user_id', userId)
         .eq('status', 'completed')
@@ -711,7 +694,7 @@ export function useRideHistory() {
             to: s.delivery_address?.split(',')[0] || 'ไม่ระบุ',
             date: formatDate(s.created_at),
             fare: s.total_cost || s.service_fee || 0,
-            driverName: s.provider?.users?.name
+            driverName: undefined
           })
         })
       }
@@ -804,12 +787,84 @@ export function useRideHistory() {
     }
   }
 
+  // Fetch history using the unified view (more efficient)
+  const fetchHistoryFromView = async (
+    filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry',
+    limit = 30
+  ) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      if (!authStore.user?.id) {
+        history.value = []
+        return history.value
+      }
+
+      const serviceType = filter === 'all' ? null : filter
+      const statuses = ['completed', 'cancelled', 'delivered']
+
+      const { data, error: err } = await (supabase.rpc as any)('get_user_order_history', {
+        p_user_id: authStore.user.id,
+        p_service_type: serviceType,
+        p_status: statuses,
+        p_limit: limit
+      })
+
+      if (err) {
+        console.warn('View query failed, falling back to direct queries:', err)
+        // Fallback to direct queries
+        return fetchHistory(filter)
+      }
+
+      if (data) {
+        const typeNames: Record<string, string> = {
+          ride: 'เรียกรถ',
+          delivery: 'ส่งของ',
+          shopping: 'ซื้อของ',
+          queue: 'จองคิว',
+          moving: 'ขนย้าย',
+          laundry: 'ซักรีด'
+        }
+
+        history.value = (data as any[]).map((item: any) => ({
+          id: item.id,
+          tracking_id: item.tracking_id,
+          type: item.service_type,
+          typeName: typeNames[item.service_type] || item.service_type,
+          from: item.from_address?.split(',')[0] || 'ไม่ระบุ',
+          to: item.to_address?.split(',')[0] || 'ไม่ระบุ',
+          date: formatDate(item.created_at),
+          time: formatTime(item.created_at),
+          fare: item.final_price || 0,
+          status: ['completed', 'delivered'].includes(item.status) ? 'completed' : 'cancelled',
+          rating: item.customer_rating || null,
+          driver_name: item.provider_name,
+          driver_tracking_id: item.provider_tracking_id,
+          vehicle: item.vehicle_type || item.service_subtype,
+          created_at: item.created_at
+        }))
+      }
+
+      return history.value
+    } catch (err: any) {
+      console.error('Error fetching history from view:', err)
+      // Fallback to direct queries
+      return fetchHistory(filter)
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     history,
     loading,
     error,
     unratedRidesCount,
     fetchHistory,
+    fetchHistoryFromView,
+    fetchProviderInfo,
+    clearProviderCache,
     fetchUnratedRides,
     fetchUnratedOrdersDetails,
     submitRating,

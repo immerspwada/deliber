@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
 import { useExternalNotifications } from '../composables/useExternalNotifications'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { supabase } from '../lib/supabase'
 
-const { fetchProviders, SERVICE_TYPES, updateProviderServices, getProviderServices } = useAdmin()
+const { fetchProviders, searchProviders, SERVICE_TYPES, updateProviderServices, getProviderServices } = useAdmin()
 const { 
   sendProviderApprovalNotification, 
   sendProviderRejectionNotification,
@@ -20,6 +20,15 @@ const loading = ref(true)
 const typeFilter = ref('')
 const statusFilter = ref('')
 const searchQuery = ref('')
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+// Watch searchQuery with debounce
+watch(searchQuery, (newVal) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    loadProviders()
+  }, 300)
+})
 
 // Modal state
 const showDetailModal = ref(false)
@@ -156,13 +165,20 @@ const approveWithChecklist = async () => {
 
 const loadProviders = async () => {
   loading.value = true
-  console.log('[AdminProvidersView] Loading providers with filters:', { type: typeFilter.value, status: statusFilter.value })
+  console.log('[AdminProvidersView] Loading providers with filters:', { type: typeFilter.value, status: statusFilter.value, search: searchQuery.value })
   
   // Check Supabase session
   const { data: sessionData } = await supabase.auth.getSession()
   console.log('[AdminProvidersView] Supabase session:', sessionData?.session ? 'Active' : 'No session')
   
-  const result = await fetchProviders(1, 50, { type: typeFilter.value || undefined, status: statusFilter.value || undefined })
+  let result
+  
+  // If search query exists, use search function
+  if (searchQuery.value && searchQuery.value.trim().length >= 2) {
+    result = await searchProviders(searchQuery.value.trim())
+  } else {
+    result = await fetchProviders(1, 50, { type: typeFilter.value || undefined, status: statusFilter.value || undefined })
+  }
   
   console.log('[AdminProvidersView] Received providers:', {
     count: result.data?.length || 0,
@@ -302,7 +318,7 @@ const getServiceName = (serviceId: string) => {
   return service?.name_th || serviceId
 }
 
-// Get provider display name - แสดงชื่อหรือ email ถ้าไม่มีชื่อ
+// Get provider display name - แสดงชื่อหรือ email ถ้าไม่มีชื่อ (Admin เห็น email เต็ม)
 const getProviderDisplayName = (provider: any) => {
   const firstName = provider.users?.first_name
   const lastName = provider.users?.last_name
@@ -312,12 +328,8 @@ const getProviderDisplayName = (provider: any) => {
     return `${firstName || ''} ${lastName || ''}`.trim()
   }
   
+  // Admin เห็น email เต็ม ไม่ต้องซ่อน
   if (email) {
-    // แสดง email โดยซ่อนบางส่วน เช่น asa***@gmail.com
-    const [localPart, domain] = email.split('@')
-    if (localPart && localPart.length > 3) {
-      return `${localPart.slice(0, 3)}***@${domain}`
-    }
     return email
   }
   
@@ -823,6 +835,7 @@ const confirmRejectDocument = async () => {
             <div class="provider-info">
               <span class="provider-name">{{ getProviderDisplayName(p) }}</span>
               <span class="provider-email">{{ p.users?.email || '-' }}</span>
+              <span v-if="p.provider_uid" class="provider-uid">{{ p.provider_uid }}</span>
             </div>
             <span class="provider-type">{{ getTypeText(p.provider_type) }}</span>
           </div>
@@ -851,6 +864,7 @@ const confirmRejectDocument = async () => {
               <span class="status-dot" :style="{ background: getStatusColor(p.status || 'pending') }"></span>
               {{ getStatusText(p.status || 'pending') }}
             </div>
+            <div v-if="p.provider_uid" class="uid-badge">{{ p.provider_uid }}</div>
             <div class="online-status" :class="{ online: p.is_available }">
               {{ p.is_available ? 'พร้อมรับงาน' : 'ไม่พร้อม' }}
             </div>
@@ -1417,7 +1431,8 @@ const confirmRejectDocument = async () => {
 .provider-avatar { width: 48px; height: 48px; border-radius: 12px; background: #f6f6f6; display: flex; align-items: center; justify-content: center; color: #000; }
 .provider-info { flex: 1; }
 .provider-name { display: block; font-weight: 600; font-size: 15px; }
-.provider-email { display: block; font-size: 11px; color: #999; }
+.provider-email { display: block; font-size: 12px; color: #666; margin-top: 2px; }
+.provider-uid { display: block; font-size: 10px; color: #00A86B; font-family: monospace; margin-top: 2px; }
 .provider-type { font-size: 12px; padding: 4px 10px; background: #f6f6f6; border-radius: 20px; font-weight: 500; }
 
 .provider-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; }
@@ -1428,6 +1443,7 @@ const confirmRejectDocument = async () => {
 .provider-footer { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .status-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.uid-badge { font-size: 10px; color: #00A86B; background: #E8F5EF; padding: 2px 8px; border-radius: 10px; font-family: monospace; }
 .online-status { font-size: 12px; color: #999; }
 .online-status.online { color: #05944f; }
 .gps-status { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #05944f; background: #e8f5e9; padding: 2px 8px; border-radius: 10px; }

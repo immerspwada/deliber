@@ -8,6 +8,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAdminRideMonitoring } from '../composables/useAdminRideMonitoring'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const {
   isLoading,
@@ -135,6 +138,17 @@ const getCancellationRateColor = (rate: number) => {
 
 onMounted(async () => {
   await loadProviders()
+})
+
+// Register cleanup
+addCleanup(() => {
+  providers.value = []
+  selectedProviderId.value = null
+  cancellations.value = []
+  searchQuery.value = ''
+  isLoading.value = false
+  error.value = null
+  console.log('[AdminProviderCancellationsViewV3] Cleanup complete')
 })
 </script>
 

@@ -209,6 +209,159 @@
           </div>
         </div>
       </div>
+
+      <!-- Web Vitals Summary (from usePerformanceMetrics) -->
+      <div class="web-vitals-section">
+        <div class="section-header-row">
+          <h2 class="section-title">Web Vitals Summary (User Data)</h2>
+          <div class="time-range-selector">
+            <button 
+              v-for="hours in [1, 6, 24, 168]" 
+              :key="hours"
+              @click="changeTimeRange(hours)"
+              :class="{ active: selectedTimeRange === hours }"
+              class="time-btn"
+            >
+              {{ hours === 1 ? '1 ชม.' : hours === 6 ? '6 ชม.' : hours === 24 ? '24 ชม.' : '7 วัน' }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="loadingWebVitals" class="loading-state">
+          <div class="spinner"></div>
+          <span>กำลังโหลดข้อมูล...</span>
+        </div>
+
+        <div v-else-if="webVitalsSummary" class="web-vitals-content">
+          <!-- Summary Stats -->
+          <div class="vitals-summary-grid">
+            <div class="vitals-stat-card">
+              <div class="stat-label">Total Page Loads</div>
+              <div class="stat-value">{{ webVitalsSummary.totalPageLoads.toLocaleString() }}</div>
+            </div>
+            <div class="vitals-stat-card good">
+              <div class="stat-label">Good</div>
+              <div class="stat-value">{{ webVitalsSummary.goodPercentage }}%</div>
+            </div>
+            <div class="vitals-stat-card warning">
+              <div class="stat-label">Needs Improvement</div>
+              <div class="stat-value">{{ webVitalsSummary.needsImprovementPercentage }}%</div>
+            </div>
+            <div class="vitals-stat-card poor">
+              <div class="stat-label">Poor</div>
+              <div class="stat-value">{{ webVitalsSummary.poorPercentage }}%</div>
+            </div>
+          </div>
+
+          <!-- Detailed Metrics -->
+          <div class="vitals-metrics-grid">
+            <div class="vitals-metric-card">
+              <div class="metric-name">FCP</div>
+              <div class="metric-desc">{{ getMetricLabelThai('fcp') }}</div>
+              <div class="metric-value-large" :style="{ color: getRatingColor(getRating('fcp', webVitalsSummary.avgFcp)) }">
+                {{ webVitalsSummary.avgFcp }} ms
+              </div>
+              <div class="metric-rating" :style="{ backgroundColor: getRatingColor(getRating('fcp', webVitalsSummary.avgFcp)) + '20', color: getRatingColor(getRating('fcp', webVitalsSummary.avgFcp)) }">
+                {{ getRatingText(getRating('fcp', webVitalsSummary.avgFcp)) }}
+              </div>
+              <div class="metric-threshold">เป้าหมาย: &lt; {{ THRESHOLDS.fcp.good }} ms</div>
+            </div>
+
+            <div class="vitals-metric-card">
+              <div class="metric-name">LCP</div>
+              <div class="metric-desc">{{ getMetricLabelThai('lcp') }}</div>
+              <div class="metric-value-large" :style="{ color: getRatingColor(getRating('lcp', webVitalsSummary.avgLcp)) }">
+                {{ webVitalsSummary.avgLcp }} ms
+              </div>
+              <div class="metric-rating" :style="{ backgroundColor: getRatingColor(getRating('lcp', webVitalsSummary.avgLcp)) + '20', color: getRatingColor(getRating('lcp', webVitalsSummary.avgLcp)) }">
+                {{ getRatingText(getRating('lcp', webVitalsSummary.avgLcp)) }}
+              </div>
+              <div class="metric-threshold">เป้าหมาย: &lt; {{ THRESHOLDS.lcp.good }} ms</div>
+            </div>
+
+            <div class="vitals-metric-card">
+              <div class="metric-name">TTI</div>
+              <div class="metric-desc">{{ getMetricLabelThai('tti') }}</div>
+              <div class="metric-value-large" :style="{ color: getRatingColor(getRating('tti', webVitalsSummary.avgTti)) }">
+                {{ webVitalsSummary.avgTti }} ms
+              </div>
+              <div class="metric-rating" :style="{ backgroundColor: getRatingColor(getRating('tti', webVitalsSummary.avgTti)) + '20', color: getRatingColor(getRating('tti', webVitalsSummary.avgTti)) }">
+                {{ getRatingText(getRating('tti', webVitalsSummary.avgTti)) }}
+              </div>
+              <div class="metric-threshold">เป้าหมาย: &lt; {{ THRESHOLDS.tti.good }} ms</div>
+            </div>
+
+            <div class="vitals-metric-card">
+              <div class="metric-name">FID</div>
+              <div class="metric-desc">{{ getMetricLabelThai('fid') }}</div>
+              <div class="metric-value-large" :style="{ color: getRatingColor(getRating('fid', webVitalsSummary.avgFid)) }">
+                {{ webVitalsSummary.avgFid }} ms
+              </div>
+              <div class="metric-rating" :style="{ backgroundColor: getRatingColor(getRating('fid', webVitalsSummary.avgFid)) + '20', color: getRatingColor(getRating('fid', webVitalsSummary.avgFid)) }">
+                {{ getRatingText(getRating('fid', webVitalsSummary.avgFid)) }}
+              </div>
+              <div class="metric-threshold">เป้าหมาย: &lt; {{ THRESHOLDS.fid.good }} ms</div>
+            </div>
+
+            <div class="vitals-metric-card">
+              <div class="metric-name">CLS</div>
+              <div class="metric-desc">{{ getMetricLabelThai('cls') }}</div>
+              <div class="metric-value-large" :style="{ color: getRatingColor(getRating('cls', webVitalsSummary.avgCls)) }">
+                {{ webVitalsSummary.avgCls }}
+              </div>
+              <div class="metric-rating" :style="{ backgroundColor: getRatingColor(getRating('cls', webVitalsSummary.avgCls)) + '20', color: getRatingColor(getRating('cls', webVitalsSummary.avgCls)) }">
+                {{ getRatingText(getRating('cls', webVitalsSummary.avgCls)) }}
+              </div>
+              <div class="metric-threshold">เป้าหมาย: &lt; {{ THRESHOLDS.cls.good }}</div>
+            </div>
+
+            <div class="vitals-metric-card">
+              <div class="metric-name">TTFB</div>
+              <div class="metric-desc">{{ getMetricLabelThai('ttfb') }}</div>
+              <div class="metric-value-large" :style="{ color: getRatingColor(getRating('ttfb', webVitalsSummary.avgTtfb)) }">
+                {{ webVitalsSummary.avgTtfb }} ms
+              </div>
+              <div class="metric-rating" :style="{ backgroundColor: getRatingColor(getRating('ttfb', webVitalsSummary.avgTtfb)) + '20', color: getRatingColor(getRating('ttfb', webVitalsSummary.avgTtfb)) }">
+                {{ getRatingText(getRating('ttfb', webVitalsSummary.avgTtfb)) }}
+              </div>
+              <div class="metric-threshold">เป้าหมาย: &lt; {{ THRESHOLDS.ttfb.good }} ms</div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="empty-state">
+          <p>ยังไม่มีข้อมูล Web Vitals</p>
+          <p class="empty-hint">ข้อมูลจะถูกเก็บเมื่อผู้ใช้เข้าใช้งานแอป</p>
+        </div>
+      </div>
+
+      <!-- Page Performance Breakdown -->
+      <div class="page-performance-section" v-if="pageMetrics.length > 0">
+        <h2 class="section-title">Performance by Page</h2>
+        <div class="page-table">
+          <div class="page-table-header">
+            <span class="col-page">หน้า</span>
+            <span class="col-count">จำนวนครั้ง</span>
+            <span class="col-lcp">Avg LCP</span>
+            <span class="col-rating">สถานะ</span>
+          </div>
+          <div 
+            v-for="page in pageMetrics" 
+            :key="page.page" 
+            class="page-table-row"
+          >
+            <span class="col-page">{{ page.page }}</span>
+            <span class="col-count">{{ page.count.toLocaleString() }}</span>
+            <span class="col-lcp">{{ page.avgLcp }} ms</span>
+            <span 
+              class="col-rating rating-badge"
+              :style="{ backgroundColor: getRatingColor(page.rating) + '20', color: getRatingColor(page.rating) }"
+            >
+              {{ getRatingText(page.rating) }}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   </AdminLayout>
 </template>
@@ -221,10 +374,13 @@
  * Memory Optimization: Task 35
  * - Cleans up performance metrics on unmount
  * - Stops monitoring interval
+ * 
+ * Enhanced with usePerformanceMetrics for Web Vitals tracking
  */
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { usePerformanceMonitoring } from '../composables/usePerformanceMonitoring'
+import { usePerformanceMetrics, type PerformanceSummary } from '../composables/usePerformanceMetrics'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const { addCleanup } = useAdminCleanup()
@@ -239,21 +395,62 @@ const {
   generateReport
 } = usePerformanceMonitoring()
 
+// Web Vitals from usePerformanceMetrics
+const {
+  getPerformanceSummary,
+  getMetricsByPage,
+  getRating,
+  formatMetricValue,
+  getMetricLabelThai,
+  getRatingColor,
+  getRatingText,
+  THRESHOLDS
+} = usePerformanceMetrics()
+
+// Web Vitals State
+const webVitalsSummary = ref<PerformanceSummary | null>(null)
+const pageMetrics = ref<Array<{ page: string; count: number; avgLcp: number; rating: string }>>([])
+const selectedTimeRange = ref(24) // hours
+const loadingWebVitals = ref(false)
+
 const loading = ref(false)
 const scoreTrend = ref(2.5) // Mock trend data
 
 const performanceScore = computed(() => getPerformanceScore.value)
 const performanceGrade = computed(() => getPerformanceGrade.value)
 
+// Fetch Web Vitals data
+const fetchWebVitals = async () => {
+  loadingWebVitals.value = true
+  try {
+    const [summary, pages] = await Promise.all([
+      getPerformanceSummary(selectedTimeRange.value),
+      getMetricsByPage(selectedTimeRange.value)
+    ])
+    webVitalsSummary.value = summary
+    pageMetrics.value = pages
+  } catch (e) {
+    console.error('Error fetching web vitals:', e)
+  } finally {
+    loadingWebVitals.value = false
+  }
+}
+
 const refreshMetrics = async () => {
   loading.value = true
   try {
     // Restart monitoring to get fresh metrics
     startMonitoring()
+    await fetchWebVitals()
     await new Promise(resolve => setTimeout(resolve, 1000)) // Wait for metrics to update
   } finally {
     loading.value = false
   }
+}
+
+const changeTimeRange = async (hours: number) => {
+  selectedTimeRange.value = hours
+  await fetchWebVitals()
 }
 
 const exportReport = () => {
@@ -333,11 +530,14 @@ const formatTime = (timestamp: number) => {
 addCleanup(() => {
   loading.value = false
   scoreTrend.value = 0
+  webVitalsSummary.value = null
+  pageMetrics.value = []
   console.log('[AdminPerformanceView] Cleanup complete')
 })
 
 onMounted(() => {
   startMonitoring()
+  fetchWebVitals()
 })
 </script>
 
@@ -738,5 +938,233 @@ onMounted(() => {
 .network-value {
   font-weight: 600;
   color: #1A1A1A;
+}
+
+/* Web Vitals Section */
+.web-vitals-section {
+  margin-bottom: 32px;
+}
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.time-range-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.time-btn {
+  padding: 8px 16px;
+  border: 1px solid #E8E8E8;
+  background: white;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.time-btn:hover {
+  border-color: #00A86B;
+}
+
+.time-btn.active {
+  background: #00A86B;
+  color: white;
+  border-color: #00A86B;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #F0F0F0;
+  color: #666666;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #F0F0F0;
+  border-top-color: #00A86B;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.vitals-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.vitals-stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #F0F0F0;
+  text-align: center;
+}
+
+.vitals-stat-card.good { border-left: 4px solid #00A86B; }
+.vitals-stat-card.warning { border-left: 4px solid #F5A623; }
+.vitals-stat-card.poor { border-left: 4px solid #E53935; }
+
+.stat-label {
+  font-size: 14px;
+  color: #666666;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.vitals-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.vitals-metric-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #F0F0F0;
+  text-align: center;
+}
+
+.metric-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin-bottom: 4px;
+}
+
+.metric-desc {
+  font-size: 12px;
+  color: #999999;
+  margin-bottom: 12px;
+}
+
+.metric-value-large {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.metric-rating {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.metric-threshold {
+  font-size: 11px;
+  color: #999999;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #F0F0F0;
+  color: #666666;
+}
+
+.empty-hint {
+  font-size: 14px;
+  color: #999999;
+  margin-top: 8px;
+}
+
+/* Page Performance Section */
+.page-performance-section {
+  margin-bottom: 32px;
+}
+
+.page-table {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #F0F0F0;
+  overflow: hidden;
+}
+
+.page-table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 16px 20px;
+  background: #F5F5F5;
+  font-weight: 600;
+  font-size: 14px;
+  color: #666666;
+}
+
+.page-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 16px 20px;
+  border-top: 1px solid #F0F0F0;
+  align-items: center;
+}
+
+.page-table-row:hover {
+  background: #FAFAFA;
+}
+
+.col-page {
+  font-weight: 500;
+  color: #1A1A1A;
+}
+
+.col-count, .col-lcp {
+  color: #666666;
+}
+
+.rating-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .vitals-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .section-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .page-table-header,
+  .page-table-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .col-lcp, .col-rating {
+    display: none;
+  }
 }
 </style>

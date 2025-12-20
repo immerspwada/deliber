@@ -3,8 +3,10 @@ import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useProviderVerification } from '../composables/useProviderVerification'
 import { useAuthStore } from '../stores/auth'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const auth = useAuthStore()
+const { addCleanup } = useAdminCleanup()
 const {
   loading,
   queue,
@@ -37,6 +39,17 @@ const filteredQueue = computed(() => {
 
 onMounted(async () => {
   await Promise.all([fetchQueue(), fetchQueueStats()])
+})
+
+// Register cleanup
+addCleanup(() => {
+  queue.value = []
+  currentItem.value = null
+  activeTab.value = 'pending'
+  showVerificationModal.value = false
+  verificationNotes.value = ''
+  actionLoading.value = false
+  console.log('[AdminVerificationQueueView] Cleanup complete')
 })
 
 const handleStartVerification = async (item: any) => {

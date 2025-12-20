@@ -294,7 +294,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/queue-booking',
     name: 'CustomerQueueBooking',
-    component: () => import('../views/QueueBookingView.vue'),
+    component: () => import('../views/QueueBookingViewV2.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
   {
@@ -410,6 +410,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider/jobs',
     name: 'ProviderJobs',
     component: () => import('../views/provider/ProviderJobsView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/scheduled-rides',
+    name: 'ProviderScheduledRides',
+    component: () => import('../views/provider/ProviderScheduledRidesView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
@@ -544,6 +550,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/audit-log',
     name: 'AdminAuditLog',
     component: () => import('../views/AdminAuditLogView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/cross-role-monitor',
+    name: 'AdminCrossRoleMonitor',
+    component: () => import('../views/AdminCrossRoleMonitorView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
@@ -727,13 +739,61 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/system-health',
     name: 'AdminSystemHealth',
     component: () => import('../views/AdminSystemHealthView.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/security',
+    name: 'AdminSecurity',
+    component: () => import('../views/AdminSecurityView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/production-dashboard',
+    name: 'AdminProductionDashboard',
+    component: () => import('../views/AdminProductionDashboardView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
   },
 
   {
     path: '/admin/analytics-events',
     name: 'AdminAnalyticsEvents',
     component: () => import('../views/AdminAnalyticsEventsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/data-management',
+    name: 'AdminDataManagement',
+    component: () => import('../views/AdminDataManagementView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/alerting',
+    name: 'AdminAlerting',
+    component: () => import('../views/AdminAlertingView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/deployment',
+    name: 'AdminDeployment',
+    component: () => import('../views/AdminDeploymentView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/compliance',
+    name: 'AdminCompliance',
+    component: () => import('../views/AdminComplianceView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/incidents',
+    name: 'AdminIncidents',
+    component: () => import('../views/AdminIncidentsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/readiness',
+    name: 'AdminReadiness',
+    component: () => import('../views/AdminReadinessChecklistView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
@@ -838,13 +898,16 @@ router.beforeEach(async (to, from, next) => {
       '/provider/documents'
     ]
     
+    // For onboarding page, let the view handle the redirect logic
+    // This prevents infinite redirect loops
     if (allowedWithoutProvider.includes(to.path)) {
       return next()
     }
 
     // Check if user has provider account and can access
     try {
-      const { data, error } = await supabase.rpc('can_access_provider_routes', {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('can_access_provider_routes', {
         p_user_id: authStore.user?.id
       })
 
@@ -853,17 +916,34 @@ router.beforeEach(async (to, from, next) => {
         return next('/provider/onboarding')
       }
 
-      const result = Array.isArray(data) ? data[0] : data
-
-      if (!result?.can_access) {
-        console.warn('[Router] Provider access denied:', result?.message)
-        
-        // Redirect based on status - all go to onboarding
+      if (!data) {
+        console.warn('[Router] No data returned from provider check')
         return next('/provider/onboarding')
       }
 
-      // Access granted
-      console.log('[Router] Provider access granted')
+      // Handle both array and object responses
+      // Function returns JSON: { can_access: boolean, message: string, status: string }
+      const result = Array.isArray(data) ? data[0] : data as { can_access: boolean; message?: string; status?: string }
+
+      console.log('[Router] Provider check result:', result)
+
+      // Check can_access field from JSON response
+      const canAccess = result?.can_access === true
+      const providerStatus = result?.status || 'unknown'
+
+      if (!canAccess) {
+        console.warn('[Router] Provider access denied:', result?.message, 'status:', providerStatus)
+        return next('/provider/onboarding')
+      }
+
+      // For pending providers, redirect to onboarding (not dashboard)
+      if (providerStatus === 'pending' && to.path === '/provider') {
+        console.log('[Router] Pending provider - redirecting to onboarding')
+        return next('/provider/onboarding')
+      }
+
+      // Access granted for approved/active providers
+      console.log('[Router] Provider access granted, status:', providerStatus)
     } catch (err) {
       console.error('[Router] Provider check exception:', err)
       return next('/provider/onboarding')
