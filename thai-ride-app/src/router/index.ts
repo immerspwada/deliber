@@ -240,7 +240,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/wallet',
     name: 'CustomerWallet',
-    component: () => import('../views/WalletViewV2.vue'),
+    component: () => import('../views/WalletViewV3.vue'),
     meta: { requiresAuth: true }  // Shared route - accessible by all authenticated users
   },
   {

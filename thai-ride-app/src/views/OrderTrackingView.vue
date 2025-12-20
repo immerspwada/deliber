@@ -416,8 +416,8 @@ const mapDestination = computed(() => {
   return { lat, lng }
 })
 
-// Default map center (Bangkok) when no coordinates available
-const defaultMapCenter = { lat: 13.7563, lng: 100.5018 }
+// Default map center (Su-ngai Kolok) when no coordinates available
+const defaultMapCenter = { lat: 6.0296, lng: 101.9653 }
 </script>
 
 <template>

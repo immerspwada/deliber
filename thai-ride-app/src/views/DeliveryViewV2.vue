@@ -1,118 +1,214 @@
 <script setup lang="ts">
 /**
- * DeliveryViewV2 - Enhanced UX with Delightful Map Details
- * Feature: F03 - Delivery Service
+ * DeliveryViewV2 - Streamlined Delivery UX
+ * Design: "2 Steps to Send" - ง่าย รวดเร็ว ไหลลื่น
+ * MUNEEF Style: Green accent, clean, modern
  * 
- * Design Philosophy: "Feel Good Delivery"
- * - Animated markers with pulse effects
- * - Smooth route animations
- * - Micro-interactions on every touch
- * - Visual feedback for every action
+ * @syncs-with
+ * - Provider: useProvider.ts (acceptDelivery, updateDeliveryStatus)
+ * - Admin: useAdmin.ts (ดู/จัดการ delivery orders)
  */
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import MapView from '../components/MapView.vue'
+import LocationPicker from '../components/LocationPicker.vue'
+import AddressSearchInput from '../components/AddressSearchInput.vue'
 import { useLocation, type GeoLocation } from '../composables/useLocation'
-import { useDelivery } from '../composables/useDelivery'
+import { useDelivery, type DeliveryRequest, QUALITY_PRESETS, type ImageQuality } from '../composables/useDelivery'
 import { useServices } from '../composables/useServices'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const { calculateDistance, getCurrentPosition } = useLocation()
-const { createDeliveryRequest, calculateFee, calculateTimeRange, loading, error: deliveryError, clearError } = useDelivery()
+const { 
+  createDeliveryRequest, 
+  calculateFee, 
+  calculateTimeRange, 
+  fetchDeliveryHistory,
+  formatStatus,
+  uploadPackagePhoto,
+  compressImage,
+  deliveryHistory,
+  loading, 
+  error: deliveryError, 
+  clearError 
+} = useDelivery()
 const { homePlace, workPlace, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
 
-// Flow state - simplified to 2 main states
-type FlowState = 'location' | 'details'
-const flowState = ref<FlowState>('location')
+// UI State
+const currentStep = ref<'locations' | 'details'>('locations')
+const isGettingLocation = ref(false)
+const showPickupPicker = ref(false)
+const showDropoffPicker = ref(false)
+const showConfirmSheet = ref(false)
+const showHistory = ref(false)
+const historyLoading = ref(false)
+const isAnimating = ref(false)
 
-// Location state
+// Locations
 const pickupLocation = ref<GeoLocation | null>(null)
 const pickupAddress = ref('')
 const dropoffLocation = ref<GeoLocation | null>(null)
 const dropoffAddress = ref('')
-const activeInput = ref<'pickup' | 'dropoff'>('pickup')
 
-// Details state
+// Package & Recipient
 const recipientPhone = ref('')
 const packageType = ref<'document' | 'small' | 'medium' | 'large'>('small')
-const specialNote = ref('')
+const notes = ref('')
 
-// UI state
-const isGettingLocation = ref(false)
-const showLocationPicker = ref(false)
-const mapReady = ref(false)
-const routeAnimating = ref(false)
+// Package Photo
+const packagePhoto = ref<string | null>(null)
+const packagePhotoFile = ref<File | null>(null)
+const isUploadingPhoto = ref(false)
+const photoInputRef = ref<HTMLInputElement | null>(null)
+const selectedQuality = ref<ImageQuality>('medium')
 
-// Calculated values
-const estimatedDistance = ref(0)
-const estimatedTime = ref({ min: 15, max: 30 })
-const deliveryFee = ref(0)
+// Photo handling functions
+const triggerPhotoUpload = () => {
+  photoInputRef.value?.click()
+}
 
-// Nearby riders count (simulated for delight)
-const nearbyRiders = ref(Math.floor(Math.random() * 5) + 3)
+const handlePhotoSelect = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
 
-// Package types
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    alert('กรุณาเลือกไฟล์รูปภาพ')
+    return
+  }
+
+  // Validate file size (max 10MB before compression)
+  if (file.size > 10 * 1024 * 1024) {
+    alert('ไฟล์ใหญ่เกินไป (สูงสุด 10MB)')
+    return
+  }
+
+  haptic('light')
+  isUploadingPhoto.value = true
+
+  try {
+    // Compress image
+    const compressed = await compressImage(file, selectedQuality.value)
+    packagePhotoFile.value = compressed
+
+    // Create preview URL
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      packagePhoto.value = e.target?.result as string
+    }
+    reader.readAsDataURL(compressed)
+    haptic('medium')
+  } catch (err) {
+    console.error('Error processing photo:', err)
+    alert('ไม่สามารถประมวลผลรูปภาพได้')
+  } finally {
+    isUploadingPhoto.value = false
+    // Reset input
+    input.value = ''
+  }
+}
+
+const removePhoto = () => {
+  haptic('light')
+  packagePhoto.value = null
+  packagePhotoFile.value = null
+}
+
+// Calculated
+const distance = ref(0)
+const fee = ref(0)
+const timeRange = ref({ min: 15, max: 30 })
+
 const packageTypes = [
-  { value: 'document', label: 'เอกสาร', icon: 'document', price: '฿25+' },
-  { value: 'small', label: 'เล็ก', icon: 'small', price: '฿35+' },
-  { value: 'medium', label: 'กลาง', icon: 'medium', price: '฿55+' },
-  { value: 'large', label: 'ใหญ่', icon: 'large', price: '฿85+' }
+  { value: 'document', label: 'เอกสาร', icon: 'doc', price: 25 },
+  { value: 'small', label: 'เล็ก', icon: 'small', price: 35 },
+  { value: 'medium', label: 'กลาง', icon: 'medium', price: 50 },
+  { value: 'large', label: 'ใหญ่', icon: 'large', price: 80 }
 ] as const
 
-// Haptic feedback
+const hasRoute = computed(() => !!(pickupLocation.value && dropoffLocation.value))
+const canProceed = computed(() => pickupLocation.value && dropoffLocation.value)
+const canSubmit = computed(() => canProceed.value && recipientPhone.value.length >= 9)
+
+// Auto-calculate when locations change
+watch([pickupLocation, dropoffLocation, packageType], () => {
+  if (pickupLocation.value && dropoffLocation.value) {
+    distance.value = calculateDistance(
+      pickupLocation.value.lat, pickupLocation.value.lng,
+      dropoffLocation.value.lat, dropoffLocation.value.lng
+    )
+    fee.value = calculateFee(distance.value, packageType.value)
+    timeRange.value = calculateTimeRange(distance.value)
+  }
+})
+
+onMounted(async () => {
+  fetchSavedPlaces()
+  fetchRecentPlaces()
+  // Pre-fill sender phone
+  if (authStore.user) {
+    recipientPhone.value = ''
+  }
+})
+
+// Load delivery history
+const loadHistory = async () => {
+  if (deliveryHistory.value.length > 0) {
+    showHistory.value = true
+    return
+  }
+  historyLoading.value = true
+  await fetchDeliveryHistory(10)
+  historyLoading.value = false
+  showHistory.value = true
+}
+
+// Format date
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (days === 0) return 'วันนี้'
+  if (days === 1) return 'เมื่อวาน'
+  if (days < 7) return `${days} วันที่แล้ว`
+  return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+}
+
+// Get status color
+const getStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    pending: '#F5A623',
+    matched: '#2196F3',
+    pickup: '#2196F3',
+    in_transit: '#00A86B',
+    delivered: '#00A86B',
+    failed: '#E53935',
+    cancelled: '#999999'
+  }
+  return colors[status] || '#666666'
+}
+
+// Haptic
 const haptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
   if ('vibrate' in navigator) {
     navigator.vibrate({ light: 10, medium: 25, heavy: 50 }[type])
   }
 }
 
-// Auto-calculate when both locations set
-watch([pickupLocation, dropoffLocation], () => {
-  if (pickupLocation.value && dropoffLocation.value) {
-    routeAnimating.value = true
-    
-    estimatedDistance.value = calculateDistance(
-      pickupLocation.value.lat, pickupLocation.value.lng,
-      dropoffLocation.value.lat, dropoffLocation.value.lng
-    )
-    estimatedTime.value = calculateTimeRange(estimatedDistance.value)
-    deliveryFee.value = calculateFee(estimatedDistance.value, packageType.value)
-    
-    // Animate route drawing
-    setTimeout(() => {
-      routeAnimating.value = false
-    }, 800)
-  }
-})
-
-// Recalculate fee when package type changes
-watch(packageType, () => {
-  if (estimatedDistance.value > 0) {
-    deliveryFee.value = calculateFee(estimatedDistance.value, packageType.value)
-  }
-})
-
-const hasRoute = computed(() => !!(pickupLocation.value && dropoffLocation.value))
-
-const canProceed = computed(() => {
-  if (flowState.value === 'location') {
-    return pickupLocation.value && dropoffLocation.value
-  }
-  return recipientPhone.value.length >= 9
-})
-
-// Get current location
+// Use current location for pickup
 const useCurrentLocation = async () => {
   isGettingLocation.value = true
   haptic('medium')
-  
   try {
     const loc = await getCurrentPosition()
     if (loc) {
       pickupLocation.value = loc
       pickupAddress.value = loc.address || 'ตำแหน่งปัจจุบัน'
-      activeInput.value = 'dropoff'
       haptic('heavy')
     }
   } catch {
@@ -125,54 +221,76 @@ const useCurrentLocation = async () => {
 // Select saved place
 const selectPlace = (place: any, type: 'pickup' | 'dropoff') => {
   haptic('light')
-  const location = { lat: place.lat, lng: place.lng, address: place.address }
-  
+  const loc = { lat: place.lat, lng: place.lng, address: place.address }
   if (type === 'pickup') {
-    pickupLocation.value = location
+    pickupLocation.value = loc
     pickupAddress.value = place.name
-    activeInput.value = 'dropoff'
   } else {
-    dropoffLocation.value = location
+    dropoffLocation.value = loc
     dropoffAddress.value = place.name
   }
 }
 
-// Clear location
-const clearLocation = (type: 'pickup' | 'dropoff') => {
-  haptic('light')
+// Handle map picker confirm
+const handlePickerConfirm = (loc: GeoLocation, type: 'pickup' | 'dropoff') => {
+  haptic('heavy')
   if (type === 'pickup') {
-    pickupLocation.value = null
-    pickupAddress.value = ''
+    pickupLocation.value = loc
+    pickupAddress.value = loc.address || 'ตำแหน่งที่เลือก'
+    showPickupPicker.value = false
   } else {
-    dropoffLocation.value = null
-    dropoffAddress.value = ''
+    dropoffLocation.value = loc
+    dropoffAddress.value = loc.address || 'ตำแหน่งที่เลือก'
+    showDropoffPicker.value = false
   }
 }
 
-// Proceed to next step
-const proceed = () => {
-  haptic('medium')
-  if (flowState.value === 'location' && canProceed.value) {
-    flowState.value = 'details'
-  }
-}
-
-// Go back
-const goBack = () => {
+// Handle address search select
+const handleAddressSelect = (place: any, type: 'pickup' | 'dropoff') => {
   haptic('light')
-  if (flowState.value === 'details') {
-    flowState.value = 'location'
+  const loc = { lat: place.lat, lng: place.lng, address: place.address }
+  if (type === 'pickup') {
+    pickupLocation.value = loc
+    pickupAddress.value = place.name || place.address
   } else {
-    router.push('/customer')
+    dropoffLocation.value = loc
+    dropoffAddress.value = place.name || place.address
   }
+}
+
+// Proceed to details with animation
+const goToDetails = async () => {
+  if (!canProceed.value) return
+  haptic('medium')
+  isAnimating.value = true
+  await nextTick()
+  currentStep.value = 'details'
+  setTimeout(() => { isAnimating.value = false }, 300)
 }
 
 // Submit delivery
-const submitDelivery = async () => {
-  if (!pickupLocation.value || !dropoffLocation.value) return
-  
+const handleSubmit = async () => {
+  if (!canSubmit.value || !pickupLocation.value || !dropoffLocation.value) return
+  clearError()
   haptic('heavy')
-  
+
+  // Upload photo if exists
+  let photoUrl: string | undefined
+  if (packagePhotoFile.value) {
+    isUploadingPhoto.value = true
+    try {
+      const url = await uploadPackagePhoto(packagePhotoFile.value)
+      if (url) {
+        photoUrl = url
+      }
+    } catch (err) {
+      console.error('Error uploading photo:', err)
+      // Continue without photo if upload fails
+    } finally {
+      isUploadingPhoto.value = false
+    }
+  }
+
   const result = await createDeliveryRequest({
     senderName: authStore.user?.name || 'ผู้ส่ง',
     senderPhone: (authStore.user as any)?.phone_number || '',
@@ -184,974 +302,1029 @@ const submitDelivery = async () => {
     recipientLocation: dropoffLocation.value,
     packageType: packageType.value,
     packageWeight: 1,
-    packageDescription: specialNote.value,
-    distanceKm: estimatedDistance.value
+    packageDescription: notes.value,
+    packagePhoto: photoUrl,
+    distanceKm: distance.value
   })
-  
+
   if (result) {
     router.push(`/tracking/${result.tracking_id}`)
   }
 }
 
-onMounted(() => {
-  fetchSavedPlaces()
-  fetchRecentPlaces()
-  
-  // Simulate map ready
-  setTimeout(() => {
-    mapReady.value = true
-  }, 500)
-})
+const goBack = async () => {
+  haptic('light')
+  if (showHistory.value) {
+    showHistory.value = false
+    return
+  }
+  if (currentStep.value === 'details') {
+    isAnimating.value = true
+    await nextTick()
+    currentStep.value = 'locations'
+    setTimeout(() => { isAnimating.value = false }, 300)
+  } else {
+    router.push('/customer')
+  }
+}
+
+const clearLocation = (type: 'pickup' | 'dropoff') => {
+  haptic('light')
+  if (type === 'pickup') {
+    pickupLocation.value = null
+    pickupAddress.value = ''
+  } else {
+    dropoffLocation.value = null
+    dropoffAddress.value = ''
+  }
+}
 </script>
 
 <template>
-  <div class="delivery-v2">
-    <!-- Animated Map Section -->
-    <div class="map-container" :class="{ 'map-expanded': flowState === 'location' }">
-      <!-- Map Background with Gradient Overlay -->
-      <div class="map-bg">
-        <div class="map-grid"></div>
-        
-        <!-- Animated Pulse Ring at Center (when no location) -->
-        <div v-if="!pickupLocation && mapReady" class="center-pulse">
-          <div class="pulse-ring pulse-1"></div>
-          <div class="pulse-ring pulse-2"></div>
-          <div class="pulse-ring pulse-3"></div>
-          <div class="center-dot"></div>
-        </div>
-        
-        <!-- Pickup Marker -->
-        <Transition name="marker-pop">
-          <div v-if="pickupLocation" class="map-marker pickup-marker" :style="{ left: '35%', top: '40%' }">
-            <div class="marker-pulse"></div>
-            <div class="marker-pin">
-              <div class="marker-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </div>
-            </div>
-            <div class="marker-shadow"></div>
-            <div class="marker-label">รับพัสดุ</div>
-          </div>
-        </Transition>
-        
-        <!-- Dropoff Marker -->
-        <Transition name="marker-pop">
-          <div v-if="dropoffLocation" class="map-marker dropoff-marker" :style="{ left: '65%', top: '55%' }">
-            <div class="marker-pulse red"></div>
-            <div class="marker-pin red">
-              <div class="marker-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                </svg>
-              </div>
-            </div>
-            <div class="marker-shadow"></div>
-            <div class="marker-label red">ส่งพัสดุ</div>
-          </div>
-        </Transition>
-        
-        <!-- Animated Route Line -->
-        <svg v-if="hasRoute" class="route-line" :class="{ animating: routeAnimating }">
-          <defs>
-            <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" style="stop-color:#00A86B"/>
-              <stop offset="100%" style="stop-color:#E53935"/>
-            </linearGradient>
-          </defs>
-          <path 
-            class="route-path"
-            d="M 140 160 Q 200 120 260 220"
-            fill="none"
-            stroke="url(#routeGradient)"
-            stroke-width="4"
-            stroke-linecap="round"
-            stroke-dasharray="8 4"
-          />
-          <!-- Animated dot on route -->
-          <circle class="route-dot" r="6" fill="#00A86B">
-            <animateMotion dur="2s" repeatCount="indefinite" path="M 140 160 Q 200 120 260 220"/>
-          </circle>
+  <div class="delivery-page">
+    <!-- Header -->
+    <header class="header" :class="{ 'header-solid': showHistory }">
+      <button class="back-btn" @click="goBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 18l-6-6 6-6"/>
         </svg>
-        
-        <!-- Nearby Riders Animation -->
-        <div v-if="mapReady && !hasRoute" class="nearby-riders">
-          <div v-for="i in 3" :key="i" class="rider-dot" :style="{ 
-            left: `${20 + i * 25}%`, 
-            top: `${30 + (i % 2) * 30}%`,
-            animationDelay: `${i * 0.5}s`
-          }">
-            <svg viewBox="0 0 24 24" fill="#00A86B">
-              <circle cx="12" cy="12" r="8"/>
-            </svg>
-          </div>
-        </div>
-        
-        <!-- Distance Badge -->
-        <Transition name="badge-pop">
-          <div v-if="hasRoute && estimatedDistance > 0" class="distance-badge">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M13 17l5-5-5-5M6 17l5-5-5-5"/>
-            </svg>
-            <span>{{ estimatedDistance.toFixed(1) }} km</span>
-          </div>
-        </Transition>
-      </div>
-      
-      <!-- Map Overlay Info -->
-      <div class="map-overlay-top">
-        <button class="back-btn" @click="goBack">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-        </button>
-        <span class="page-title">ส่งพัสดุ</span>
-        <div class="riders-badge" v-if="!hasRoute">
-          <div class="riders-dot"></div>
-          <span>{{ nearbyRiders }} ไรเดอร์ใกล้คุณ</span>
+      </button>
+      <div class="header-center">
+        <h1 class="title">{{ showHistory ? 'ประวัติการส่ง' : 'ส่งพัสดุ' }}</h1>
+        <!-- Step Indicator -->
+        <div v-if="!showHistory" class="step-indicator">
+          <div :class="['step-dot', { active: currentStep === 'locations' }]"></div>
+          <div class="step-line"></div>
+          <div :class="['step-dot', { active: currentStep === 'details' }]"></div>
         </div>
       </div>
-    </div>
-
-    <!-- Bottom Panel -->
-    <div class="bottom-panel" :class="{ expanded: flowState === 'details' }">
-      <div class="panel-handle"></div>
-      
-      <!-- Location Flow -->
-      <template v-if="flowState === 'location'">
-        <div class="location-section">
-          <!-- Route Card -->
-          <div class="route-card">
-            <!-- Pickup Input -->
-            <div class="location-input" :class="{ active: activeInput === 'pickup', filled: pickupLocation }">
-              <div class="input-dot green">
-                <div class="dot-inner" :class="{ pulse: !pickupLocation }"></div>
-              </div>
-              <div class="input-content" @click="activeInput = 'pickup'">
-                <span class="input-label">รับพัสดุที่</span>
-                <span class="input-value" v-if="pickupAddress">{{ pickupAddress }}</span>
-                <span class="input-placeholder" v-else>เลือกจุดรับ</span>
-              </div>
-              <button v-if="pickupLocation" class="clear-btn" @click.stop="clearLocation('pickup')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-            
-            <!-- Connector Line -->
-            <div class="route-connector">
-              <div class="connector-line"></div>
-              <div class="connector-dots">
-                <span></span><span></span><span></span>
-              </div>
-            </div>
-            
-            <!-- Dropoff Input -->
-            <div class="location-input" :class="{ active: activeInput === 'dropoff', filled: dropoffLocation }">
-              <div class="input-dot red">
-                <div class="dot-inner"></div>
-              </div>
-              <div class="input-content" @click="activeInput = 'dropoff'">
-                <span class="input-label">ส่งพัสดุที่</span>
-                <span class="input-value" v-if="dropoffAddress">{{ dropoffAddress }}</span>
-                <span class="input-placeholder" v-else>เลือกจุดส่ง</span>
-              </div>
-              <button v-if="dropoffLocation" class="clear-btn" @click.stop="clearLocation('dropoff')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Quick Actions -->
-          <div class="quick-actions" v-if="activeInput === 'pickup' && !pickupLocation">
-            <button class="action-btn primary" @click="useCurrentLocation" :disabled="isGettingLocation">
-              <div class="action-icon">
-                <div v-if="isGettingLocation" class="spinner"></div>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-                </svg>
-              </div>
-              <span>{{ isGettingLocation ? 'กำลังค้นหา...' : 'ใช้ตำแหน่งปัจจุบัน' }}</span>
-            </button>
-          </div>
-          
-          <!-- Saved Places -->
-          <div class="saved-places" v-if="(homePlace || workPlace) && !pickupLocation">
-            <h4 class="section-title">สถานที่บันทึกไว้</h4>
-            <div class="places-row">
-              <button v-if="homePlace" class="place-chip" @click="selectPlace(homePlace, activeInput)">
-                <div class="chip-icon home">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                    <polyline points="9,22 9,12 15,12 15,22"/>
-                  </svg>
-                </div>
-                <span>บ้าน</span>
-              </button>
-              <button v-if="workPlace" class="place-chip" @click="selectPlace(workPlace, activeInput)">
-                <div class="chip-icon work">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="7" width="20" height="14" rx="2"/>
-                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
-                  </svg>
-                </div>
-                <span>ที่ทำงาน</span>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Recent Places -->
-          <div class="recent-places" v-if="recentPlaces.length > 0 && !dropoffLocation">
-            <h4 class="section-title">ล่าสุด</h4>
-            <div class="places-list">
-              <button 
-                v-for="place in recentPlaces.slice(0, 3)" 
-                :key="place.id"
-                class="place-item"
-                @click="selectPlace(place, activeInput)"
-              >
-                <div class="place-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12,6 12,12 16,14"/>
-                  </svg>
-                </div>
-                <div class="place-info">
-                  <span class="place-name">{{ place.name }}</span>
-                  <span class="place-address">{{ place.address }}</span>
-                </div>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Continue Button -->
-          <Transition name="slide-up">
-            <button v-if="canProceed" class="continue-btn" @click="proceed">
-              <span>เลือกประเภทพัสดุ</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-            </button>
-          </Transition>
-        </div>
-      </template>
-      
-      <!-- Details Flow -->
-      <template v-else>
-        <div class="details-section">
-          <!-- Summary Card -->
-          <div class="summary-card">
-            <div class="summary-route">
-              <div class="summary-point">
-                <div class="point-dot green"></div>
-                <span>{{ pickupAddress }}</span>
-              </div>
-              <div class="summary-arrow">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </div>
-              <div class="summary-point">
-                <div class="point-dot red"></div>
-                <span>{{ dropoffAddress }}</span>
-              </div>
-            </div>
-            <div class="summary-stats">
-              <div class="stat">
-                <span class="stat-value">{{ estimatedDistance.toFixed(1) }}</span>
-                <span class="stat-label">กม.</span>
-              </div>
-              <div class="stat-divider"></div>
-              <div class="stat">
-                <span class="stat-value">{{ estimatedTime.min }}-{{ estimatedTime.max }}</span>
-                <span class="stat-label">นาที</span>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Package Type -->
-          <div class="package-section">
-            <h4 class="section-title">ประเภทพัสดุ</h4>
-            <div class="package-grid">
-              <button 
-                v-for="pkg in packageTypes" 
-                :key="pkg.value"
-                :class="['package-card', { selected: packageType === pkg.value }]"
-                @click="packageType = pkg.value; haptic('light')"
-              >
-                <div class="package-icon">
-                  <svg v-if="pkg.value === 'document'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                    <polyline points="14,2 14,8 20,8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                  </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                    <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
-                    <line x1="12" y1="22.08" x2="12" y2="12"/>
-                  </svg>
-                </div>
-                <span class="package-label">{{ pkg.label }}</span>
-                <span class="package-price">{{ pkg.price }}</span>
-                <div v-if="packageType === pkg.value" class="selected-check">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
-                </div>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Recipient Phone -->
-          <div class="input-section">
-            <label class="input-label-text">เบอร์ผู้รับ</label>
-            <div class="phone-input">
-              <div class="phone-prefix">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-                </svg>
-              </div>
-              <input 
-                v-model="recipientPhone" 
-                type="tel" 
-                placeholder="0812345678"
-                maxlength="10"
-              />
-            </div>
-          </div>
-          
-          <!-- Special Note -->
-          <div class="input-section">
-            <label class="input-label-text">หมายเหตุ (ไม่บังคับ)</label>
-            <textarea 
-              v-model="specialNote" 
-              placeholder="เช่น ฝากไว้หน้าบ้าน, โทรก่อนส่ง"
-              rows="2"
-            ></textarea>
-          </div>
-          
-          <!-- Price Summary -->
-          <div class="price-card">
-            <div class="price-row">
-              <span>ค่าส่ง</span>
-              <span class="price-value">฿{{ deliveryFee }}</span>
-            </div>
-            <div class="price-note">ชำระเงินสดกับไรเดอร์</div>
-          </div>
-          
-          <!-- Submit Button -->
-          <button 
-            class="submit-btn" 
-            :disabled="!canProceed || loading"
-            @click="submitDelivery"
-          >
-            <span v-if="loading">กำลังสร้างออเดอร์...</span>
-            <span v-else>ส่งเลย ฿{{ deliveryFee }}</span>
-          </button>
-        </div>
-      </template>
-    </div>
-    
-    <!-- Error Toast -->
-    <Transition name="toast">
-      <div v-if="deliveryError" class="error-toast" @click="clearError">
+      <button v-if="!showHistory" class="history-btn" @click="loadHistory">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4m0 4h.01"/>
+          <polyline points="12,6 12,12 16,14"/>
         </svg>
-        <span>{{ deliveryError }}</span>
+      </button>
+      <div v-else class="header-spacer"></div>
+    </header>
+
+    <!-- Map -->
+    <div v-if="!showHistory" class="map-container">
+      <MapView
+        :pickup="pickupLocation"
+        :destination="dropoffLocation"
+        :show-route="hasRoute"
+        height="100%"
+      />
+    </div>
+
+    <!-- History Panel -->
+    <Transition name="fade-slide">
+      <div v-if="showHistory" class="history-panel">
+        <!-- Loading Skeleton -->
+        <div v-if="historyLoading" class="history-skeleton">
+          <div v-for="i in 4" :key="i" class="skeleton-item">
+            <div class="skeleton-icon"></div>
+            <div class="skeleton-content">
+              <div class="skeleton-line w-60"></div>
+              <div class="skeleton-line w-80"></div>
+              <div class="skeleton-line w-40"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="deliveryHistory.length === 0" class="empty-state">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+              <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          </div>
+          <p class="empty-text">ยังไม่มีประวัติการส่งพัสดุ</p>
+          <button class="empty-btn" @click="showHistory = false">ส่งพัสดุเลย</button>
+        </div>
+
+        <!-- History List -->
+        <div v-else class="history-list">
+          <button 
+            v-for="item in deliveryHistory" 
+            :key="item.id"
+            class="history-item"
+            @click="router.push(`/tracking/${item.tracking_id}`)"
+          >
+            <div class="history-icon" :style="{ background: getStatusColor(item.status) + '20' }">
+              <svg viewBox="0 0 24 24" fill="none" :stroke="getStatusColor(item.status)" stroke-width="2">
+                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+              </svg>
+            </div>
+            <div class="history-info">
+              <div class="history-header">
+                <span class="history-tracking">{{ item.tracking_id }}</span>
+                <span class="history-date">{{ formatDate(item.created_at) }}</span>
+              </div>
+              <p class="history-route">{{ item.sender_address }} → {{ item.recipient_address }}</p>
+              <div class="history-footer">
+                <span class="history-status" :style="{ color: getStatusColor(item.status) }">
+                  {{ formatStatus(item.status) }}
+                </span>
+                <span class="history-fee">฿{{ item.estimated_fee }}</span>
+              </div>
+            </div>
+            <svg class="history-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </Transition>
+
+    <!-- Bottom Sheet -->
+    <div v-if="!showHistory" class="bottom-sheet" :class="{ expanded: currentStep === 'details', animating: isAnimating }">
+      <div class="sheet-handle"></div>
+
+      <!-- Step 1: Locations -->
+      <Transition name="step-fade" mode="out-in">
+        <div v-if="currentStep === 'locations'" key="locations" class="step-content">
+        <!-- Route Card -->
+        <div class="route-card">
+          <!-- Pickup -->
+          <div class="location-row">
+            <div class="location-number pickup">1</div>
+            <div class="location-input-wrapper">
+              <div v-if="pickupLocation" class="location-selected" @click="showPickupPicker = true">
+                <span class="location-text">{{ pickupAddress }}</span>
+                <button class="clear-btn" @click.stop="clearLocation('pickup')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+              <button v-else class="location-placeholder" @click="showPickupPicker = true">
+                <span>จุดรับพัสดุ</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="route-line"></div>
+
+          <!-- Dropoff -->
+          <div class="location-row">
+            <div class="location-number dropoff">2</div>
+            <div class="location-input-wrapper">
+              <div v-if="dropoffLocation" class="location-selected" @click="showDropoffPicker = true">
+                <span class="location-text">{{ dropoffAddress }}</span>
+                <button class="clear-btn" @click.stop="clearLocation('dropoff')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+              <button v-else class="location-placeholder" @click="showDropoffPicker = true">
+                <span>จุดส่งพัสดุ</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <button class="quick-btn" @click="useCurrentLocation" :disabled="isGettingLocation">
+            <div class="quick-icon gps">
+              <svg v-if="!isGettingLocation" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+              </svg>
+              <div v-else class="spinner-small"></div>
+            </div>
+            <span>ตำแหน่งปัจจุบัน</span>
+          </button>
+          <button v-if="homePlace" class="quick-btn" @click="selectPlace(homePlace, pickupLocation ? 'dropoff' : 'pickup')">
+            <div class="quick-icon home">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                <polyline points="9,22 9,12 15,12 15,22"/>
+              </svg>
+            </div>
+            <span>บ้าน</span>
+          </button>
+          <button v-if="workPlace" class="quick-btn" @click="selectPlace(workPlace, pickupLocation ? 'dropoff' : 'pickup')">
+            <div class="quick-icon work">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2"/>
+                <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+              </svg>
+            </div>
+            <span>ที่ทำงาน</span>
+          </button>
+        </div>
+
+        <!-- Recent Places -->
+        <div v-if="recentPlaces.length > 0" class="recent-section">
+          <h4 class="section-title">ล่าสุด</h4>
+          <div class="recent-list">
+            <button 
+              v-for="place in recentPlaces.slice(0, 4)" 
+              :key="place.id"
+              class="recent-item"
+              @click="selectPlace(place, pickupLocation ? 'dropoff' : 'pickup')"
+            >
+              <div class="recent-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12,6 12,12 16,14"/>
+                </svg>
+              </div>
+              <div class="recent-info">
+                <span class="recent-name">{{ place.name }}</span>
+                <span class="recent-address">{{ place.address }}</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary & Continue - Always show but disabled when not ready -->
+        <div class="summary-bar" :class="{ ready: hasRoute }">
+          <div class="summary-info">
+            <span v-if="hasRoute" class="summary-distance">{{ distance.toFixed(1) }} km</span>
+            <span v-else class="summary-hint">เลือกจุดรับและจุดส่ง</span>
+            <span v-if="hasRoute" class="summary-time">~{{ timeRange.min }}-{{ timeRange.max }} นาที</span>
+          </div>
+          <button class="continue-btn" :disabled="!canProceed" @click="goToDetails">
+            <span>ถัดไป</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+        </div>
+      </Transition>
+
+      <!-- Step 2: Details -->
+      <Transition name="step-fade" mode="out-in">
+        <div v-if="currentStep === 'details'" key="details" class="step-content details-step">
+        <!-- Route Summary -->
+        <div class="route-summary">
+          <div class="route-point">
+            <div class="point-dot pickup"></div>
+            <span>{{ pickupAddress }}</span>
+          </div>
+          <div class="route-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </div>
+          <div class="route-point">
+            <div class="point-dot dropoff"></div>
+            <span>{{ dropoffAddress }}</span>
+          </div>
+        </div>
+
+        <!-- Package Type -->
+        <div class="form-section">
+          <h4 class="section-title">ประเภทพัสดุ</h4>
+          <div class="package-grid">
+            <button 
+              v-for="pkg in packageTypes" 
+              :key="pkg.value"
+              :class="['package-btn', { active: packageType === pkg.value }]"
+              @click="packageType = pkg.value; haptic('light')"
+            >
+              <div class="package-icon">
+                <svg v-if="pkg.value === 'document'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                  <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+                  <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+              </div>
+              <span class="package-label">{{ pkg.label }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Package Photo Upload -->
+        <div class="form-section">
+          <h4 class="section-title">รูปพัสดุ (ไม่บังคับ)</h4>
+          <p class="section-hint">ถ่ายรูปพัสดุเพื่อให้ไรเดอร์เห็นก่อนรับงาน</p>
+          
+          <!-- Hidden file input -->
+          <input 
+            ref="photoInputRef"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="hidden-input"
+            @change="handlePhotoSelect"
+          />
+          
+          <!-- Photo Preview or Upload Button -->
+          <div v-if="packagePhoto" class="photo-preview">
+            <img :src="packagePhoto" alt="Package preview" class="preview-img" />
+            <div class="photo-overlay">
+              <button class="photo-action-btn change" @click="triggerPhotoUpload">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span>เปลี่ยน</span>
+              </button>
+              <button class="photo-action-btn remove" @click="removePhoto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+                <span>ลบ</span>
+              </button>
+            </div>
+          </div>
+          
+          <button 
+            v-else 
+            class="photo-upload-btn" 
+            :disabled="isUploadingPhoto"
+            @click="triggerPhotoUpload"
+          >
+            <div v-if="isUploadingPhoto" class="upload-loading">
+              <div class="spinner-small"></div>
+              <span>กำลังประมวลผล...</span>
+            </div>
+            <div v-else class="upload-content">
+              <div class="upload-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+              <span class="upload-text">ถ่ายรูปหรือเลือกจากอัลบั้ม</span>
+              <span class="upload-hint">ช่วยให้ไรเดอร์ตัดสินใจรับงานได้ง่ายขึ้น</span>
+            </div>
+          </button>
+          
+          <!-- Quality Selector -->
+          <div v-if="packagePhoto" class="quality-selector">
+            <span class="quality-label">คุณภาพรูป:</span>
+            <div class="quality-options">
+              <button 
+                v-for="(preset, key) in QUALITY_PRESETS" 
+                :key="key"
+                :class="['quality-btn', { active: selectedQuality === key }]"
+                @click="selectedQuality = key as ImageQuality"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recipient Phone -->
+        <div class="form-section">
+          <h4 class="section-title">เบอร์ผู้รับ</h4>
+          <input 
+            v-model="recipientPhone"
+            type="tel"
+            class="phone-input"
+            placeholder="0812345678"
+            maxlength="10"
+          />
+        </div>
+
+        <!-- Notes -->
+        <div class="form-section">
+          <h4 class="section-title">หมายเหตุ (ไม่บังคับ)</h4>
+          <textarea 
+            v-model="notes"
+            class="notes-input"
+            placeholder="เช่น ฝากไว้หน้าบ้าน, โทรก่อนส่ง"
+            rows="2"
+          ></textarea>
+        </div>
+
+        <!-- Error -->
+        <div v-if="deliveryError" class="error-msg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4m0 4h.01"/>
+          </svg>
+          <span>{{ deliveryError }}</span>
+        </div>
+
+        <!-- Submit -->
+        <div class="submit-section">
+          <div class="price-display">
+            <span class="price-label">ค่าส่ง</span>
+            <span class="price-value">฿{{ fee }}</span>
+          </div>
+          <button 
+            class="submit-btn" 
+            :disabled="!canSubmit || loading"
+            @click="handleSubmit"
+          >
+            <span v-if="loading">กำลังส่ง...</span>
+            <span v-else>ส่งเลย</span>
+          </button>
+        </div>
+        </div>
+      </Transition>
+    </div>
+
+    <!-- Location Picker Modal - Pickup -->
+    <Teleport to="body">
+      <Transition name="slide-up">
+        <div v-if="showPickupPicker" class="picker-modal">
+          <LocationPicker
+            title="เลือกจุดรับพัสดุ"
+            :initial-location="pickupLocation"
+            @confirm="(loc) => handlePickerConfirm(loc, 'pickup')"
+            @cancel="showPickupPicker = false"
+          />
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Location Picker Modal - Dropoff -->
+    <Teleport to="body">
+      <Transition name="slide-up">
+        <div v-if="showDropoffPicker" class="picker-modal">
+          <LocationPicker
+            title="เลือกจุดส่งพัสดุ"
+            :initial-location="dropoffLocation"
+            @confirm="(loc) => handlePickerConfirm(loc, 'dropoff')"
+            @cancel="showDropoffPicker = false"
+          />
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
-
 <style scoped>
-/* ========================================
-   DeliveryViewV2 - Delightful Map Styles
-   ======================================== */
+/* ===== Base Layout ===== */
+* {
+  box-sizing: border-box;
+}
 
-.delivery-v2 {
-  min-height: 100vh;
-  background: #F5F5F5;
+.delivery-page {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
+  background: #FFFFFF;
   overflow: hidden;
 }
 
-/* ========================================
-   Map Container
-   ======================================== */
+/* ===== Map ===== */
 .map-container {
-  position: relative;
-  height: 45vh;
-  transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-}
-
-.map-container.map-expanded {
-  height: 50vh;
-}
-
-.map-bg {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, #E8F5EF 0%, #F0F7F4 50%, #F5F5F5 100%);
-  overflow: hidden;
-}
-
-.map-grid {
-  position: absolute;
-  inset: 0;
-  background-image: 
-    linear-gradient(rgba(0, 168, 107, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 168, 107, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-  animation: gridMove 20s linear infinite;
-}
-
-@keyframes gridMove {
-  0% { transform: translate(0, 0); }
-  100% { transform: translate(40px, 40px); }
-}
-
-/* ========================================
-   Center Pulse Animation
-   ======================================== */
-.center-pulse {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.pulse-ring {
-  position: absolute;
-  width: 100px;
-  height: 100px;
-  border: 2px solid #00A86B;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: pulseRing 2s ease-out infinite;
-  opacity: 0;
-}
-
-.pulse-ring.pulse-1 { animation-delay: 0s; }
-.pulse-ring.pulse-2 { animation-delay: 0.6s; }
-.pulse-ring.pulse-3 { animation-delay: 1.2s; }
-
-@keyframes pulseRing {
-  0% {
-    width: 20px;
-    height: 20px;
-    opacity: 0.8;
-  }
-  100% {
-    width: 120px;
-    height: 120px;
-    opacity: 0;
-  }
-}
-
-.center-dot {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  background: #00A86B;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 20px rgba(0, 168, 107, 0.5);
-}
-
-/* ========================================
-   Map Markers
-   ======================================== */
-.map-marker {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  z-index: 10;
-}
-
-.marker-pulse {
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  width: 40px;
-  height: 40px;
-  background: rgba(0, 168, 107, 0.3);
-  border-radius: 50%;
-  transform: translateX(-50%);
-  animation: markerPulse 1.5s ease-out infinite;
-}
-
-.marker-pulse.red {
-  background: rgba(229, 57, 53, 0.3);
-}
-
-@keyframes markerPulse {
-  0% { transform: translateX(-50%) scale(0.5); opacity: 1; }
-  100% { transform: translateX(-50%) scale(1.5); opacity: 0; }
-}
-
-.marker-pin {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  background: #00A86B;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.4);
-}
-
-.marker-pin.red {
-  background: #E53935;
-  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
-}
-
-.marker-icon {
-  transform: rotate(45deg);
-  width: 24px;
-  height: 24px;
-  color: white;
-}
-
-.marker-shadow {
-  position: absolute;
-  bottom: -12px;
-  left: 50%;
-  width: 30px;
-  height: 8px;
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.marker-label {
-  position: absolute;
-  top: -28px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: white;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #00A86B;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.marker-label.red {
-  color: #E53935;
-}
-
-/* Marker Pop Animation */
-.marker-pop-enter-active {
-  animation: markerPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.marker-pop-leave-active {
-  animation: markerPop 0.3s ease-in reverse;
-}
-
-@keyframes markerPop {
-  0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
-  100% { transform: translate(-50%, -100%) scale(1); opacity: 1; }
-}
-
-/* ========================================
-   Route Line Animation
-   ======================================== */
-.route-line {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.route-path {
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 0.8s ease-out;
-}
-
-.route-line.animating .route-path {
-  stroke-dasharray: 200;
-  animation: drawRoute 0.8s ease-out forwards;
-}
-
-@keyframes drawRoute {
-  0% { stroke-dashoffset: 200; }
-  100% { stroke-dashoffset: 0; }
-}
-
-.route-dot {
-  filter: drop-shadow(0 2px 4px rgba(0, 168, 107, 0.5));
-}
-
-/* ========================================
-   Nearby Riders Animation
-   ======================================== */
-.nearby-riders {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.rider-dot {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  animation: riderFloat 3s ease-in-out infinite;
-}
-
-.rider-dot svg {
-  filter: drop-shadow(0 2px 4px rgba(0, 168, 107, 0.3));
-}
-
-@keyframes riderFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-/* ========================================
-   Distance Badge
-   ======================================== */
-.distance-badge {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: white;
-  padding: 8px 16px;
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  font-weight: 600;
-  color: #1A1A1A;
-}
-
-.distance-badge svg {
-  width: 18px;
-  height: 18px;
-  color: #00A86B;
-}
-
-.badge-pop-enter-active {
-  animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes badgePop {
-  0% { transform: translate(-50%, -50%) scale(0); }
-  100% { transform: translate(-50%, -50%) scale(1); }
-}
-
-/* ========================================
-   Map Overlay Top
-   ======================================== */
-.map-overlay-top {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, transparent 100%);
-  padding-top: max(16px, env(safe-area-inset-top));
+  height: 45vh;
+  z-index: 1;
 }
 
-.back-btn {
+/* ===== Header ===== */
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0));
+  background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0));
+}
+
+.header.header-solid {
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Step Indicator */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #E8E8E8;
+  transition: all 0.3s ease;
+}
+
+.step-dot.active {
+  background: #00A86B;
+  transform: scale(1.2);
+}
+
+.step-line {
+  width: 20px;
+  height: 2px;
+  background: #E8E8E8;
+}
+
+.back-btn,
+.history-btn {
   width: 40px;
   height: 40px;
-  background: white;
-  border: none;
   border-radius: 12px;
+  background: #FFFFFF;
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.back-btn:active {
+.back-btn:active,
+.history-btn:active {
   transform: scale(0.95);
 }
 
-.back-btn svg {
-  width: 24px;
-  height: 24px;
+.back-btn svg,
+.history-btn svg {
+  width: 20px;
+  height: 20px;
   color: #1A1A1A;
 }
 
-.page-title {
+.title {
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   color: #1A1A1A;
 }
 
-.riders-badge {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: white;
-  padding: 6px 12px;
-  border-radius: 16px;
-  font-size: 12px;
-  color: #666;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.riders-dot {
-  width: 8px;
-  height: 8px;
-  background: #00A86B;
-  border-radius: 50%;
-  animation: dotPulse 1.5s ease-in-out infinite;
-}
-
-@keyframes dotPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* ========================================
-   Bottom Panel
-   ======================================== */
-.bottom-panel {
-  flex: 1;
-  background: white;
-  border-radius: 24px 24px 0 0;
-  margin-top: -20px;
-  position: relative;
-  z-index: 20;
-  padding: 12px 20px 32px;
-  padding-bottom: max(32px, env(safe-area-inset-bottom));
-  overflow-y: auto;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.bottom-panel.expanded {
-  margin-top: -40vh;
-}
-
-.panel-handle {
+.header-spacer {
   width: 40px;
-  height: 4px;
-  background: #E8E8E8;
-  border-radius: 2px;
-  margin: 0 auto 16px;
 }
 
-/* ========================================
-   Location Section
-   ======================================== */
-.location-section {
+/* ===== History Panel ===== */
+.history-panel {
+  flex: 1;
+  padding: 80px 20px 20px;
+  overflow-y: auto;
+  background: #F8F9FA;
+}
+
+/* Skeleton Loading */
+.history-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
-.route-card {
-  background: #F8F8F8;
-  border-radius: 16px;
+.skeleton-item {
+  display: flex;
+  gap: 14px;
   padding: 16px;
+  background: #FFFFFF;
+  border-radius: 14px;
 }
 
-.location-input {
+.skeleton-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #E8E8E8 25%, #F5F5F5 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  flex-shrink: 0;
+}
+
+.skeleton-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #E8E8E8 25%, #F5F5F5 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.w-40 { width: 40%; }
+.skeleton-line.w-60 { width: 60%; }
+.skeleton-line.w-80 { width: 80%; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: #E8F5EF;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: white;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.empty-icon svg {
+  width: 40px;
+  height: 40px;
+  color: #00A86B;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: #666666;
+  margin-bottom: 20px;
+}
+
+.empty-btn {
+  padding: 14px 28px;
+  background: #00A86B;
+  color: #FFFFFF;
+  border: none;
   border-radius: 12px;
-  border: 2px solid transparent;
-  transition: all 0.2s;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.location-input.active {
-  border-color: #00A86B;
-  box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.1);
+.empty-btn:hover {
+  background: #008F5B;
 }
 
-.location-input.filled {
-  background: #E8F5EF;
+/* History List */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.input-dot {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.history-item:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.history-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.input-dot.green {
-  background: rgba(0, 168, 107, 0.15);
+.history-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
-.input-dot.red {
-  background: rgba(229, 57, 53, 0.15);
-}
-
-.dot-inner {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #00A86B;
-}
-
-.input-dot.red .dot-inner {
-  background: #E53935;
-}
-
-.dot-inner.pulse {
-  animation: dotInnerPulse 1.5s ease-in-out infinite;
-}
-
-@keyframes dotInnerPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-}
-
-.input-content {
+.history-info {
   flex: 1;
   min-width: 0;
 }
 
-.input-label {
-  display: block;
-  font-size: 11px;
-  color: #999;
-  margin-bottom: 2px;
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
-.input-value {
-  display: block;
+.history-tracking {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A1A1A;
+  font-family: monospace;
+}
+
+.history-date {
+  font-size: 12px;
+  color: #999999;
+}
+
+.history-route {
+  font-size: 13px;
+  color: #666666;
+  margin: 0 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-status {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.history-fee {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.history-arrow {
+  width: 18px;
+  height: 18px;
+  color: #CCCCCC;
+  flex-shrink: 0;
+}
+
+/* ===== Bottom Sheet ===== */
+.bottom-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 40vh;
+  background: #FFFFFF;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+  overflow-y: auto;
+  transition: top 0.3s ease;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+  z-index: 10;
+}
+
+.bottom-sheet.expanded {
+  top: 25vh;
+}
+
+.bottom-sheet.animating {
+  overflow: hidden;
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #E8E8E8;
+  border-radius: 2px;
+  margin: 12px auto;
+}
+
+.step-content {
+  padding: 0 20px 20px;
+}
+
+/* ===== Route Card ===== */
+.route-card {
+  background: #F8F9FA;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.location-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.location-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.location-dot.pickup {
+  background: #00A86B;
+}
+
+.location-dot.dropoff {
+  background: #E53935;
+}
+
+/* Location Number Badges */
+.location-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.location-number.pickup {
+  background: #00A86B;
+}
+
+.location-number.dropoff {
+  background: #E53935;
+}
+
+.route-line {
+  width: 2px;
+  height: 24px;
+  background: linear-gradient(to bottom, #00A86B, #E53935);
+  margin-left: 13px;
+  margin: 4px 0 4px 13px;
+}
+
+.location-input-wrapper {
+  flex: 1;
+}
+
+.location-placeholder {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #FFFFFF;
+  border: 2px solid #E8E8E8;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #999999;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.location-placeholder:hover {
+  border-color: #00A86B;
+}
+
+.location-placeholder svg {
+  width: 18px;
+  height: 18px;
+  color: #999999;
+}
+
+.location-selected {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #E8F5EF;
+  border: 2px solid #00A86B;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.location-text {
   font-size: 15px;
   font-weight: 500;
   color: #1A1A1A;
-  white-space: nowrap;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.input-placeholder {
-  display: block;
-  font-size: 15px;
-  color: #999;
+  white-space: nowrap;
 }
 
 .clear-btn {
-  width: 28px;
-  height: 28px;
-  background: rgba(0, 0, 0, 0.05);
-  border: none;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
+  background: rgba(0,0,0,0.1);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .clear-btn svg {
-  width: 16px;
-  height: 16px;
-  color: #999;
+  width: 14px;
+  height: 14px;
+  color: #666666;
 }
 
-.route-connector {
-  display: flex;
-  align-items: center;
-  padding: 4px 0 4px 26px;
-}
-
-.connector-line {
-  width: 2px;
-  height: 20px;
-  background: linear-gradient(180deg, #00A86B 0%, #E53935 100%);
-  border-radius: 1px;
-}
-
-.connector-dots {
-  display: none;
-}
-
-/* ========================================
-   Quick Actions
-   ======================================== */
+/* ===== Quick Actions ===== */
 .quick-actions {
   display: flex;
   gap: 12px;
+  margin-bottom: 20px;
 }
 
-.action-btn {
+.quick-btn {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 14px;
-  background: #F5F5F5;
-  border: none;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1A1A1A;
+  padding: 14px 8px;
+  background: #FFFFFF;
+  border: 1px solid #E8E8E8;
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.action-btn.primary {
-  background: #E8F5EF;
-  color: #00A86B;
+.quick-btn:hover {
+  border-color: #00A86B;
+  background: #F8FBF9;
 }
 
-.action-btn:active {
-  transform: scale(0.98);
-}
-
-.action-btn:disabled {
+.quick-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.action-icon {
-  width: 24px;
-  height: 24px;
+.quick-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.action-icon svg {
-  width: 20px;
-  height: 20px;
+.quick-icon.gps {
+  background: #E8F5EF;
 }
 
-.spinner {
+.quick-icon.home {
+  background: #FFF3E0;
+}
+
+.quick-icon.work {
+  background: #E3F2FD;
+}
+
+.quick-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.quick-icon.gps svg { color: #00A86B; }
+.quick-icon.home svg { color: #F5A623; }
+.quick-icon.work svg { color: #2196F3; }
+
+.quick-btn span {
+  font-size: 13px;
+  font-weight: 500;
+  color: #666666;
+}
+
+.spinner-small {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(0, 168, 107, 0.2);
+  border: 2px solid #E8E8E8;
   border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -1161,201 +1334,177 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* ========================================
-   Saved & Recent Places
-   ======================================== */
+/* ===== Recent Section ===== */
+.recent-section {
+  margin-bottom: 16px;
+}
+
 .section-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #666;
+  color: #666666;
   margin-bottom: 12px;
 }
 
-.places-row {
-  display: flex;
-  gap: 12px;
-}
-
-.place-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: #F5F5F5;
-  border: none;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1A1A1A;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.place-chip:active {
-  transform: scale(0.98);
-  background: #E8E8E8;
-}
-
-.chip-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chip-icon.home {
-  background: rgba(0, 168, 107, 0.15);
-  color: #00A86B;
-}
-
-.chip-icon.work {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3B82F6;
-}
-
-.chip-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.places-list {
+.recent-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.place-item {
+.recent-item {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #F8F8F8;
-  border: none;
+  background: #FFFFFF;
+  border: 1px solid #F0F0F0;
   border-radius: 12px;
-  text-align: left;
   cursor: pointer;
   transition: all 0.2s;
+  text-align: left;
 }
 
-.place-item:active {
-  background: #F0F0F0;
+.recent-item:hover {
+  border-color: #00A86B;
+  background: #F8FBF9;
 }
 
-.place-icon {
+.recent-icon {
   width: 36px;
   height: 36px;
-  background: white;
   border-radius: 10px;
+  background: #F5F5F5;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.place-icon svg {
+.recent-icon svg {
   width: 18px;
   height: 18px;
-  color: #666;
+  color: #666666;
 }
 
-.place-info {
+.recent-info {
   flex: 1;
   min-width: 0;
 }
 
-.place-name {
+.recent-name {
   display: block;
   font-size: 14px;
   font-weight: 500;
   color: #1A1A1A;
-}
-
-.place-address {
-  display: block;
-  font-size: 12px;
-  color: #999;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ========================================
-   Continue Button
-   ======================================== */
-.continue-btn {
-  width: 100%;
+.recent-address {
+  display: block;
+  font-size: 12px;
+  color: #999999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Summary Bar ===== */
+.summary-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: space-between;
   padding: 16px;
-  background: #00A86B;
-  border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
-  transition: all 0.2s;
+  background: #F8F9FA;
+  border-radius: 16px;
+  margin-top: auto;
+  transition: all 0.3s ease;
 }
 
-.continue-btn:active {
+.summary-bar.ready {
+  background: #E8F5EF;
+}
+
+.summary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-distance {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.summary-hint {
+  font-size: 14px;
+  color: #999999;
+}
+
+.summary-time {
+  font-size: 13px;
+  color: #666666;
+}
+
+.continue-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: #00A86B;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+}
+
+.continue-btn:hover:not(:disabled) {
+  background: #008F5B;
+}
+
+.continue-btn:active:not(:disabled) {
   transform: scale(0.98);
 }
 
+.continue-btn:disabled {
+  background: #CCCCCC;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 .continue-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
-.slide-up-enter-active {
-  animation: slideUp 0.3s ease-out;
+/* ===== Step 2: Details ===== */
+.details-step {
+  padding-top: 8px;
 }
 
-@keyframes slideUp {
-  0% { transform: translateY(20px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-
-/* ========================================
-   Details Section
-   ======================================== */
-.details-section {
+.route-summary {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #F8F9FA;
+  border-radius: 14px;
+  margin-bottom: 20px;
 }
 
-.summary-card {
-  background: #F8F8F8;
-  border-radius: 16px;
-  padding: 16px;
-}
-
-.summary-route {
+.route-point {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-}
-
-.summary-point {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   flex: 1;
   min-width: 0;
-}
-
-.summary-point span {
-  font-size: 13px;
-  color: #1A1A1A;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .point-dot {
@@ -1365,89 +1514,68 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.point-dot.green { background: #00A86B; }
-.point-dot.red { background: #E53935; }
+.point-dot.pickup { background: #00A86B; }
+.point-dot.dropoff { background: #E53935; }
 
-.summary-arrow {
+.route-point span {
+  font-size: 13px;
+  color: #666666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-arrow {
   flex-shrink: 0;
 }
 
-.summary-arrow svg {
-  width: 16px;
-  height: 16px;
+.route-arrow svg {
+  width: 18px;
+  height: 18px;
+  color: #999999;
 }
 
-.summary-stats {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  padding-top: 12px;
-  border-top: 1px solid #E8E8E8;
+/* ===== Form Sections ===== */
+.form-section {
+  margin-bottom: 20px;
 }
 
-.stat {
-  text-align: center;
+.form-section .section-title {
+  margin-bottom: 10px;
 }
 
-.stat-value {
-  display: block;
-  font-size: 20px;
-  font-weight: 700;
-  color: #1A1A1A;
-}
-
-.stat-label {
-  display: block;
-  font-size: 12px;
-  color: #999;
-}
-
-.stat-divider {
-  width: 1px;
-  height: 30px;
-  background: #E8E8E8;
-}
-
-/* ========================================
-   Package Section
-   ======================================== */
-.package-section {
-  margin-top: 4px;
-}
-
+/* Package Grid */
 .package-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 
-.package-card {
-  position: relative;
+.package-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 14px 8px;
-  background: #F8F8F8;
-  border: 2px solid transparent;
+  background: #FFFFFF;
+  border: 2px solid #E8E8E8;
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.package-card.selected {
-  background: #E8F5EF;
+.package-btn:hover {
   border-color: #00A86B;
 }
 
-.package-card:active {
-  transform: scale(0.98);
+.package-btn.active {
+  border-color: #00A86B;
+  background: #E8F5EF;
 }
 
 .package-icon {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1456,135 +1584,296 @@ onMounted(() => {
 .package-icon svg {
   width: 28px;
   height: 28px;
-  color: #666;
+  color: #666666;
 }
 
-.package-card.selected .package-icon svg {
+.package-btn.active .package-icon svg {
   color: #00A86B;
 }
 
 .package-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #666666;
 }
 
-.package-price {
-  font-size: 11px;
-  color: #999;
+.package-btn.active .package-label {
+  color: #00A86B;
 }
 
-.selected-check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 18px;
-  height: 18px;
-  background: #00A86B;
-  border-radius: 50%;
+/* Phone Input */
+.phone-input {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+  border: 2px solid #E8E8E8;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+  background: #FFFFFF;
+}
+
+.phone-input:focus {
+  border-color: #00A86B;
+}
+
+.phone-input::placeholder {
+  color: #999999;
+}
+
+/* Notes Input */
+.notes-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 2px solid #E8E8E8;
+  border-radius: 12px;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  background: #FFFFFF;
+}
+
+.notes-input:focus {
+  border-color: #00A86B;
+}
+
+.notes-input::placeholder {
+  color: #999999;
+}
+
+/* ===== Photo Upload Section ===== */
+.section-hint {
+  font-size: 13px;
+  color: #999999;
+  margin-bottom: 12px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.photo-upload-btn {
+  width: 100%;
+  padding: 20px;
+  background: #F8F9FA;
+  border: 2px dashed #E8E8E8;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.photo-upload-btn:hover:not(:disabled) {
+  border-color: #00A86B;
+  background: #F8FBF9;
+}
+
+.photo-upload-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.upload-loading span {
+  font-size: 14px;
+  color: #666666;
+}
+
+.upload-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #E8F5EF;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.selected-check svg {
-  width: 12px;
-  height: 12px;
-  color: white;
+.upload-icon svg {
+  width: 24px;
+  height: 24px;
+  color: #00A86B;
 }
 
-/* ========================================
-   Input Section
-   ======================================== */
-.input-section {
+.upload-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1A1A1A;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #999999;
+}
+
+/* Photo Preview */
+.photo-preview {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #F8F9FA;
+}
+
+.preview-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
-  flex-direction: column;
   gap: 8px;
+  padding: 12px;
+  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
 }
 
-.input-label-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: #666;
-}
-
-.phone-input {
+.photo-action-btn {
+  flex: 1;
   display: flex;
   align-items: center;
-  background: #F8F8F8;
-  border-radius: 12px;
-  border: 2px solid transparent;
-  transition: border-color 0.2s;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.phone-input:focus-within {
+.photo-action-btn.change {
+  background: rgba(255,255,255,0.9);
+  color: #1A1A1A;
+}
+
+.photo-action-btn.change:hover {
+  background: #FFFFFF;
+}
+
+.photo-action-btn.remove {
+  background: rgba(229,57,53,0.9);
+  color: #FFFFFF;
+}
+
+.photo-action-btn.remove:hover {
+  background: #E53935;
+}
+
+.photo-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Quality Selector */
+.quality-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #F8F9FA;
+  border-radius: 10px;
+}
+
+.quality-label {
+  font-size: 13px;
+  color: #666666;
+  white-space: nowrap;
+}
+
+.quality-options {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.quality-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: #FFFFFF;
+  border: 1px solid #E8E8E8;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quality-btn:hover {
   border-color: #00A86B;
 }
 
-.phone-prefix {
-  padding: 14px;
-  border-right: 1px solid #E8E8E8;
+.quality-btn.active {
+  background: #00A86B;
+  border-color: #00A86B;
+  color: #FFFFFF;
 }
 
-.phone-prefix svg {
+/* Error Message */
+.error-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #FFEBEE;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.error-msg svg {
   width: 20px;
   height: 20px;
-  color: #666;
+  color: #E53935;
+  flex-shrink: 0;
 }
 
-.phone-input input {
-  flex: 1;
-  padding: 14px;
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  color: #1A1A1A;
-  outline: none;
+.error-msg span {
+  font-size: 14px;
+  color: #C62828;
 }
 
-.phone-input input::placeholder {
-  color: #999;
-}
-
-.input-section textarea {
-  padding: 14px;
-  background: #F8F8F8;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  font-size: 15px;
-  color: #1A1A1A;
-  resize: none;
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.2s;
-}
-
-.input-section textarea:focus {
-  border-color: #00A86B;
-}
-
-.input-section textarea::placeholder {
-  color: #999;
-}
-
-/* ========================================
-   Price Card
-   ======================================== */
-.price-card {
-  background: #F8F8F8;
-  border-radius: 14px;
-  padding: 16px;
-}
-
-.price-row {
+/* ===== Submit Section ===== */
+.submit-section {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #F8F9FA;
+  border-radius: 16px;
+  margin-top: 8px;
 }
 
-.price-row span:first-child {
-  font-size: 15px;
-  color: #666;
+.price-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.price-label {
+  font-size: 13px;
+  color: #666666;
 }
 
 .price-value {
@@ -1593,90 +1882,108 @@ onMounted(() => {
   color: #00A86B;
 }
 
-.price-note {
-  font-size: 12px;
-  color: #999;
-  margin-top: 8px;
-}
-
-/* ========================================
-   Submit Button
-   ======================================== */
 .submit-btn {
-  width: 100%;
-  padding: 18px;
+  padding: 16px 32px;
   background: #00A86B;
+  color: #FFFFFF;
   border: none;
   border-radius: 14px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
-  color: white;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
   transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
-.submit-btn:active {
+.submit-btn:hover:not(:disabled) {
+  background: #008F5B;
+}
+
+.submit-btn:active:not(:disabled) {
   transform: scale(0.98);
 }
 
 .submit-btn:disabled {
-  background: #CCC;
+  background: #CCCCCC;
   box-shadow: none;
   cursor: not-allowed;
 }
 
-/* ========================================
-   Error Toast
-   ======================================== */
-.error-toast {
+/* ===== Picker Modal ===== */
+.picker-modal {
   position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
-  background: #E53935;
-  border-radius: 12px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 4px 16px rgba(229, 57, 53, 0.3);
-  cursor: pointer;
-  z-index: 100;
+  inset: 0;
+  z-index: 1000;
+  background: #FFFFFF;
 }
 
-.error-toast svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
+/* Transitions */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s ease;
 }
 
-.toast-enter-active {
-  animation: toastIn 0.3s ease-out;
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
 }
 
-.toast-leave-active {
-  animation: toastIn 0.2s ease-in reverse;
+/* Step Transition */
+.step-fade-enter-active,
+.step-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-@keyframes toastIn {
-  0% { transform: translateX(-50%) translateY(20px); opacity: 0; }
-  100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+.step-fade-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
 }
 
-/* ========================================
-   Responsive
-   ======================================== */
+.step-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* Fade Slide for History */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* Step Transition for Bottom Sheet */
+.step-transition-enter-active,
+.step-transition-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.step-transition-enter-from,
+.step-transition-leave-to {
+  opacity: 0;
+  transform: translateY(50px);
+}
+
+/* ===== Responsive ===== */
 @media (max-width: 360px) {
   .package-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .package-card {
-    padding: 12px;
+  .quick-actions {
+    flex-wrap: wrap;
+  }
+  
+  .quick-btn {
+    flex: 0 0 calc(50% - 6px);
   }
 }
 </style>

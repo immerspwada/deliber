@@ -59,8 +59,8 @@ const emit = defineEmits<{
   'close': []
 }>()
 
-// Default center: Bangkok
-const DEFAULT_CENTER = { lat: 13.7563, lng: 100.5018 }
+// Default center: Su-ngai Kolok, Narathiwat
+const DEFAULT_CENTER = { lat: 6.0296, lng: 101.9653 }
 
 const mapContainer = ref<HTMLElement | null>(null)
 const map = ref<L.Map | null>(null)

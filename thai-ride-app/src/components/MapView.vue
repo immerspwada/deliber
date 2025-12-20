@@ -224,8 +224,8 @@ const updateDriverMarker = (location: { lat: number; lng: number; heading?: numb
 onMounted(async () => {
   if (!mapContainer.value) return
 
-  // Default center (Bangkok)
-  let center = { lat: 13.7563, lng: 100.5018 }
+  // Default center (Su-ngai Kolok, Narathiwat)
+  let center = { lat: 6.0296, lng: 101.9653 }
   const defaultZoom = 18
 
   // Use pickup location if provided (priority)

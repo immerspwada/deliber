@@ -41,7 +41,8 @@ const showHeader = computed(() => {
     '/customer/laundry',
     '/customer/delivery',
     '/customer/saved-places',
-    '/customer/profile'
+    '/customer/profile',
+    '/customer/wallet'
   ]
   // Normalize path (remove trailing slash)
   const normalizedPath = route.path.replace(/\/$/, '') || '/'

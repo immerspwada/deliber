@@ -564,109 +564,92 @@ const clearDropoff = () => {
             </div>
           </div>
 
-          <!-- Quick Actions -->
-          <div class="quick-actions-grid">
+          <!-- Quick Location Cards -->
+          <div class="quick-location-cards">
             <button 
-              class="quick-action-card"
-              :class="{ 'is-loading': isGettingLocation, 'is-pressed': pressedButton === 'current-loc' }"
-              @mousedown="handleButtonPress('current-loc')"
-              @mouseup="handleButtonRelease"
-              @touchstart="handleButtonPress('current-loc')"
-              @touchend="handleButtonRelease"
+              class="location-card-btn current-location"
+              :class="{ 'is-loading': isGettingLocation }"
               @click="useCurrentLocationForPickup"
               :disabled="isGettingLocation"
             >
-              <div class="action-card-icon">
+              <div class="location-card-icon">
                 <template v-if="isGettingLocation">
-                  <div class="mini-spinner"></div>
+                  <div class="mini-spinner green"></div>
                 </template>
                 <template v-else>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="8"/>
                     <circle cx="12" cy="12" r="3"/>
-                    <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
                   </svg>
                 </template>
               </div>
-              <div class="action-card-content">
-                <span class="action-card-title">ตำแหน่งปัจจุบัน</span>
-                <span class="action-card-subtitle">{{ isGettingLocation ? 'กำลังค้นหา...' : 'ใช้ GPS ระบุตำแหน่ง' }}</span>
-              </div>
-              <div class="action-card-arrow">
+              <span class="location-card-label">ตำแหน่งปัจจุบัน</span>
+            </button>
+
+            <button 
+              v-if="homePlace"
+              class="location-card-btn home-location"
+              @click="selectSavedPlaceForPickup(homePlace)"
+            >
+              <div class="location-card-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6"/>
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                  <polyline points="9,22 9,12 15,12 15,22"/>
                 </svg>
               </div>
+              <span class="location-card-label">บ้าน</span>
             </button>
-            
+
             <button 
-              class="quick-action-card"
-              :class="{ 'is-pressed': pressedButton === 'map-picker' }"
-              @mousedown="handleButtonPress('map-picker')"
-              @mouseup="handleButtonRelease"
-              @touchstart="handleButtonPress('map-picker')"
-              @touchend="handleButtonRelease"
+              v-if="!homePlace"
+              class="location-card-btn nearby-location"
               @click="showPickupMapPicker = true; triggerHaptic('light')"
             >
-              <div class="action-card-icon map-icon">
+              <div class="location-card-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
                   <circle cx="12" cy="10" r="3"/>
                 </svg>
               </div>
-              <div class="action-card-content">
-                <span class="action-card-title">เลือกจากแผนที่</span>
-                <span class="action-card-subtitle">ปักหมุดตำแหน่งบนแผนที่</span>
-              </div>
-              <div class="action-card-arrow">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18l6-6-6-6"/>
-                </svg>
-              </div>
+              <span class="location-card-label">พื้นที่ใกล้เคียง</span>
             </button>
           </div>
 
-          <!-- Quick Saved Places -->
-          <div v-if="homePlace || workPlace" class="quick-destinations">
-            <h4 class="section-title-small">สถานที่บันทึกไว้</h4>
-            <div class="quick-dest-row">
-              <button 
-                v-if="homePlace" 
-                class="quick-dest-chip"
-                :class="{ 'is-pressed': pressedButton === 'home' }"
-                @mousedown="handleButtonPress('home')"
-                @mouseup="handleButtonRelease"
-                @touchstart="handleButtonPress('home')"
-                @touchend="handleButtonRelease"
-                @click="selectSavedPlaceForPickup(homePlace)"
-              >
-                <div class="chip-icon home">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                    <polyline points="9,22 9,12 15,12 15,22"/>
-                  </svg>
-                </div>
-                <span>บ้าน</span>
-              </button>
-              <button 
-                v-if="workPlace" 
-                class="quick-dest-chip"
-                :class="{ 'is-pressed': pressedButton === 'work' }"
-                @mousedown="handleButtonPress('work')"
-                @mouseup="handleButtonRelease"
-                @touchstart="handleButtonPress('work')"
-                @touchend="handleButtonRelease"
-                @click="selectSavedPlaceForPickup(workPlace)"
-              >
-                <div class="chip-icon work">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="7" width="20" height="14" rx="2"/>
-                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
-                  </svg>
-                </div>
-                <span>ที่ทำงาน</span>
-              </button>
+          <!-- Map Picker Button -->
+          <button 
+            class="map-picker-btn-full"
+            @click="showPickupMapPicker = true; triggerHaptic('light')"
+          >
+            <div class="map-picker-icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
             </div>
+            <div class="map-picker-text-content">
+              <span class="map-picker-title">เลือกจากแผนที่</span>
+              <span class="map-picker-subtitle">ปักหมุดตำแหน่งบนแผนที่</span>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="map-picker-arrow-icon">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+
+          <!-- Work Place (if available) -->
+          <div v-if="workPlace" class="quick-destinations-row">
+            <button 
+              class="quick-dest-chip-large"
+              @click="selectSavedPlaceForPickup(workPlace)"
+            >
+              <div class="chip-icon-large work">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2"/>
+                  <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+                </svg>
+              </div>
+              <span>ที่ทำงาน</span>
+            </button>
           </div>
 
           <!-- Recent Places -->
@@ -703,6 +686,7 @@ const clearDropoff = () => {
                 </svg>
               </div>
               <div class="location-marker pickup">
+                <div class="step-number">1</div>
                 <div class="marker-dot pulse"></div>
               </div>
               <div class="location-info">
@@ -754,7 +738,9 @@ const clearDropoff = () => {
           <!-- Route Preview -->
           <div class="route-preview-card">
             <div class="route-preview-item">
-              <div class="route-dot pickup"></div>
+              <div class="route-dot pickup">
+                <span class="route-step-number">1</span>
+              </div>
               <div class="route-preview-text">
                 <span class="route-preview-label">จุดรับ</span>
                 <span class="route-preview-value">{{ senderAddress }}</span>
@@ -768,7 +754,9 @@ const clearDropoff = () => {
             </div>
             <div class="route-connector-line"></div>
             <div class="route-preview-item destination-slot">
-              <div class="route-dot destination empty"></div>
+              <div class="route-dot destination empty">
+                <span class="route-step-number">2</span>
+              </div>
               <div class="route-preview-text">
                 <span class="route-preview-label">จุดส่ง</span>
                 <span class="route-preview-placeholder">เลือกจุดส่งด้านล่าง</span>
@@ -887,6 +875,7 @@ const clearDropoff = () => {
                 </svg>
               </div>
               <div class="location-marker destination">
+                <div class="step-number">2</div>
                 <div class="marker-dot"></div>
               </div>
               <div class="location-info">
@@ -947,7 +936,7 @@ const clearDropoff = () => {
             </div>
             <div class="route-summary-body">
               <div class="route-point-enhanced">
-                <div class="route-dot-enhanced pickup"></div>
+                <div class="route-number pickup">1</div>
                 <div class="route-point-text">
                   <span class="route-point-label">รับที่</span>
                   <span class="route-point-value">{{ senderAddress }}</span>
@@ -955,7 +944,7 @@ const clearDropoff = () => {
               </div>
               <div class="route-connector-enhanced"></div>
               <div class="route-point-enhanced">
-                <div class="route-dot-enhanced destination"></div>
+                <div class="route-number destination">2</div>
                 <div class="route-point-text">
                   <span class="route-point-label">ส่งที่</span>
                   <span class="route-point-value">{{ recipientAddress }}</span>
@@ -1743,17 +1732,85 @@ const clearDropoff = () => {
   margin: 0;
 }
 
-/* Quick Actions Grid */
-.quick-actions-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Quick Location Cards - New Design */
+.quick-location-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.quick-action-card {
+.location-card-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 16px;
+  background: #FFFFFF;
+  border: 2px solid #F0F0F0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 110px;
+}
+
+.location-card-btn:active {
+  transform: scale(0.97);
+}
+
+.location-card-btn.current-location {
+  border-color: #00A86B;
+  background: #F0FDF4;
+}
+
+.location-card-btn.current-location .location-card-icon {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.location-card-btn.home-location .location-card-icon {
+  background: #FFF3E0;
+  color: #F5A623;
+}
+
+.location-card-btn.nearby-location .location-card-icon {
+  background: #E3F2FD;
+  color: #1976D2;
+}
+
+.location-card-btn.is-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.location-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.location-card-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.location-card-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
+  text-align: center;
+}
+
+/* Map Picker Full Button */
+.map-picker-btn-full {
   display: flex;
   align-items: center;
   gap: 14px;
+  width: 100%;
   padding: 16px;
   background: #FFFFFF;
   border: 1.5px solid #E8E8E8;
@@ -1761,52 +1818,37 @@ const clearDropoff = () => {
   cursor: pointer;
   text-align: left;
   transition: all 0.2s ease;
+  margin-bottom: 16px;
 }
 
-.quick-action-card:hover {
-  border-color: #00A86B;
-  background: #FAFFFE;
-}
-
-.quick-action-card:active,
-.quick-action-card.is-pressed {
+.map-picker-btn-full:active {
   transform: scale(0.98);
-  background: #F0FDF4;
+  background: #F5F5F5;
 }
 
-.quick-action-card.is-loading {
-  opacity: 0.8;
-  pointer-events: none;
-}
-
-.action-card-icon {
+.map-picker-icon-wrapper {
   width: 44px;
   height: 44px;
-  background: #E8F5EF;
+  background: #E3F2FD;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00A86B;
+  color: #1976D2;
   flex-shrink: 0;
 }
 
-.action-card-icon svg {
+.map-picker-icon-wrapper svg {
   width: 22px;
   height: 22px;
 }
 
-.action-card-icon.map-icon {
-  background: #E3F2FD;
-  color: #1976D2;
-}
-
-.action-card-content {
+.map-picker-text-content {
   flex: 1;
   min-width: 0;
 }
 
-.action-card-title {
+.map-picker-title {
   display: block;
   font-size: 15px;
   font-weight: 600;
@@ -1814,22 +1856,64 @@ const clearDropoff = () => {
   margin-bottom: 2px;
 }
 
-.action-card-subtitle {
+.map-picker-subtitle {
   display: block;
   font-size: 12px;
   color: #666666;
 }
 
-.action-card-arrow {
+.map-picker-arrow-icon {
   width: 20px;
   height: 20px;
   color: #CCCCCC;
   flex-shrink: 0;
 }
 
-.action-card-arrow svg {
-  width: 100%;
-  height: 100%;
+/* Quick Destinations Row */
+.quick-destinations-row {
+  margin-bottom: 16px;
+}
+
+.quick-dest-chip-large {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #FFFFFF;
+  border: 1.5px solid #E8E8E8;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-dest-chip-large:active {
+  transform: scale(0.98);
+  background: #F5F5F5;
+}
+
+.chip-icon-large {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-icon-large svg {
+  width: 20px;
+  height: 20px;
+}
+
+.chip-icon-large.work {
+  background: #E8EAF6;
+  color: #5C6BC0;
+}
+
+.quick-dest-chip-large span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
 }
 
 /* Mini Spinner */
@@ -2083,17 +2167,43 @@ const clearDropoff = () => {
 }
 
 .location-marker {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;
+}
+
+.step-number {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.location-marker.pickup .step-number {
+  background: #00A86B;
+}
+
+.location-marker.destination .step-number {
+  background: #E53935;
 }
 
 .marker-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
 }
 
@@ -2221,10 +2331,20 @@ const clearDropoff = () => {
 }
 
 .route-dot {
-  width: 12px;
-  height: 12px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.route-step-number {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
 }
 
 .route-dot.pickup {
@@ -2238,6 +2358,10 @@ const clearDropoff = () => {
 .route-dot.destination.empty {
   background: transparent;
   border: 2px dashed #E53935;
+}
+
+.route-dot.destination.empty .route-step-number {
+  color: #E53935;
 }
 
 .route-preview-text {
@@ -2435,6 +2559,29 @@ const clearDropoff = () => {
 }
 
 .route-dot-enhanced.destination {
+  background: #E53935;
+}
+
+/* Route Number Badges */
+.route-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.route-number.pickup {
+  background: #00A86B;
+}
+
+.route-number.destination {
   background: #E53935;
 }
 

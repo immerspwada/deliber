@@ -93,7 +93,7 @@ const lastAutoAssignRun = ref<Date | null>(null)
 
 // Provider Map state
 const showProviderMap = ref(false)
-const mapCenter = ref({ lat: 13.7563, lng: 100.5018 }) // Bangkok default
+const mapCenter = ref({ lat: 6.0296, lng: 101.9653 }) // Su-ngai Kolok default
 const providerMarkers = ref<any[]>([])
 
 // Auto-Assignment Rules state

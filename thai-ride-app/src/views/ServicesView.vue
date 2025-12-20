@@ -34,7 +34,7 @@ const isPulling = ref(false)
 const startY = ref(0)
 const PULL_THRESHOLD = 80
 
-const DEFAULT_LOCATION = { lat: 13.7563, lng: 100.5018, address: 'กรุงเทพฯ' }
+const DEFAULT_LOCATION = { lat: 6.0296, lng: 101.9653, address: 'สุไหงโก-ลก' }
 
 // Active orders tracking
 interface ActiveOrder {
