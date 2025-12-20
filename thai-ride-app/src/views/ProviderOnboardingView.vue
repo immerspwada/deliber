@@ -61,26 +61,46 @@ const checkProviderStatus = async () => {
       return
     }
 
-    const { data } = await (supabase
+    console.log('[ProviderOnboarding] Checking status for user:', authStore.user.id)
+
+    const { data, error } = await (supabase
       .from('service_providers') as any)
-      .select('status')
+      .select('id, status, provider_type, created_at')
       .eq('user_id', authStore.user.id)
       .single()
 
+    console.log('[ProviderOnboarding] Query result:', { data, error })
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('[ProviderOnboarding] Query error:', error)
+    }
+
     if (data) {
+      console.log('[ProviderOnboarding] Found provider with status:', data.status)
+      
       if (data.status === 'approved' || data.status === 'active') {
         // Already approved, go to dashboard
+        console.log('[ProviderOnboarding] Approved - redirecting to dashboard')
         router.replace('/provider')
         return
       } else if (data.status === 'pending') {
+        console.log('[ProviderOnboarding] Pending - showing waiting screen')
         providerStatus.value = 'pending'
       } else if (data.status === 'rejected') {
+        console.log('[ProviderOnboarding] Rejected - showing retry option')
         providerStatus.value = 'rejected'
+      } else {
+        // Unknown status, treat as pending
+        console.log('[ProviderOnboarding] Unknown status:', data.status)
+        providerStatus.value = 'pending'
       }
     } else {
+      // No provider record found - show onboarding
+      console.log('[ProviderOnboarding] No provider record - showing onboarding')
       providerStatus.value = 'none'
     }
   } catch (e) {
+    console.error('[ProviderOnboarding] Exception:', e)
     // No provider record found
     providerStatus.value = 'none'
   } finally {
