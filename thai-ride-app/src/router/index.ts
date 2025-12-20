@@ -174,6 +174,12 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/delivery',
     name: 'CustomerDelivery',
+    component: () => import('../views/DeliveryViewV2.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
+  },
+  {
+    path: '/customer/delivery-legacy',
+    name: 'CustomerDeliveryLegacy',
     component: () => import('../views/DeliveryView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
   },
