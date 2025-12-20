@@ -5,6 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src')
+    }
+  },
   plugins: [
     vue(),
     VueDevTools(),

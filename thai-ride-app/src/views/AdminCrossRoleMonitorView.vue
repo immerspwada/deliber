@@ -189,7 +189,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import AdminLayout from '@/components/AdminLayout.vue'
+import AdminLayout from '../components/AdminLayout.vue'
 import { useCrossRoleSync } from '@/composables/useCrossRoleSync'
 import { useCrossRoleEvents, type CrossRoleEvent } from '@/lib/crossRoleEventBus'
 import { useAdminServiceManagement } from '@/composables/useAdminServiceManagement'
