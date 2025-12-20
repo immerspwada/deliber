@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useCustomerFeedback, type FeedbackType, type CustomerFeedback } from '../composables/useCustomerFeedback'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const { 
   loading, 
@@ -50,6 +53,17 @@ onMounted(async () => {
     getAllFeedback({ limit: 100 }),
     getFeedbackStats(30)
   ])
+})
+
+// Cleanup on unmount
+addCleanup(() => {
+  filterType.value = ''
+  filterResolved.value = 'all'
+  filterRating.value = null
+  showResponseModal.value = false
+  selectedFeedback.value = null
+  responseText.value = ''
+  console.log('[AdminFeedbackView] Cleanup complete')
 })
 
 // Open response modal

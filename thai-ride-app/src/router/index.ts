@@ -3,6 +3,65 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { supabase } from '../lib/supabase'
 
+// ========================================
+// Session Cache for Admin Auth (Task 2)
+// ========================================
+const ADMIN_SESSION_CACHE_TTL = 60000 // 1 minute
+let cachedAdminSessionValid: boolean | null = null
+let adminSessionCacheTime = 0
+
+/**
+ * Check if admin session is valid with 1-minute caching
+ * Reduces localStorage access from ~3600 to ~50 per session
+ */
+const isAdminSessionValid = (): boolean => {
+  const now = Date.now()
+  
+  // Return cached result if still valid
+  if (cachedAdminSessionValid !== null && 
+      (now - adminSessionCacheTime) < ADMIN_SESSION_CACHE_TTL) {
+    return cachedAdminSessionValid
+  }
+  
+  // Check session from localStorage
+  const adminToken = localStorage.getItem('admin_token')
+  const loginTime = localStorage.getItem('admin_login_time')
+  
+  if (!adminToken || !loginTime) {
+    cachedAdminSessionValid = false
+    adminSessionCacheTime = now
+    return false
+  }
+  
+  const elapsed = now - parseInt(loginTime)
+  const SESSION_TTL = 8 * 60 * 60 * 1000 // 8 hours
+  
+  if (elapsed > SESSION_TTL) {
+    // Clear expired session
+    localStorage.removeItem('admin_token')
+    localStorage.removeItem('admin_login_time')
+    localStorage.removeItem('admin_email')
+    localStorage.removeItem('admin_role')
+    localStorage.removeItem('admin_name')
+    
+    cachedAdminSessionValid = false
+    adminSessionCacheTime = now
+    return false
+  }
+  
+  cachedAdminSessionValid = true
+  adminSessionCacheTime = now
+  return true
+}
+
+/**
+ * Clear admin session cache (call when logging out)
+ */
+export const clearAdminSessionCache = () => {
+  cachedAdminSessionValid = null
+  adminSessionCacheTime = 0
+}
+
 export const routes: RouteRecordRaw[] = [
   // ========================================
   // Public routes (ไม่ต้อง login)
@@ -345,6 +404,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider/performance',
     name: 'ProviderPerformance',
     component: () => import('../views/provider/ProviderPerformanceView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/jobs',
+    name: 'ProviderJobs',
+    component: () => import('../views/provider/ProviderJobsView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
@@ -816,18 +881,44 @@ router.beforeEach(async (to, from, next) => {
     // No redirect needed - customer routes are accessible to everyone
   }
 
-  // Check if route requires admin access
+  // Check if route requires admin access (with session caching)
   if (to.meta.requiresAdmin) {
-    if (!authStore.isAuthenticated) {
-      return next('/admin/login')
-    }
-    
-    if (authStore.user?.role !== 'admin') {
-      return next('/customer')
+    // Use cached session validation for admin routes
+    if (!isAdminSessionValid()) {
+      // Fallback to auth store check
+      if (!authStore.isAuthenticated) {
+        return next('/admin/login')
+      }
+      
+      if (authStore.user?.role !== 'admin') {
+        return next('/customer')
+      }
     }
   }
 
   next()
+})
+
+// ========================================
+// Global afterEach guard for cleanup (Task 2.2)
+// ========================================
+router.afterEach((to, from) => {
+  if (from.path !== to.path) {
+    // Dispatch cleanup event for previous route
+    window.dispatchEvent(new CustomEvent('route-cleanup', {
+      detail: { from: from.path, to: to.path }
+    }))
+    
+    // Clear session cache if leaving admin routes
+    if (from.path.startsWith('/admin') && !to.path.startsWith('/admin')) {
+      clearAdminSessionCache()
+    }
+    
+    // Dev mode logging
+    if (import.meta.env.DEV) {
+      console.log(`[Router] Navigation: ${from.path} → ${to.path}`)
+    }
+  }
 })
 
 export default router

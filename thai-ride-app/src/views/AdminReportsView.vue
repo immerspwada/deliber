@@ -2,9 +2,29 @@
 /**
  * Feature: F75 - Admin Reports View
  * Export and generate reports
+ * 
+ * Memory Optimization: Task 32
+ * - Cleans up reports array on unmount
+ * - Resets form state and filters
  */
 import { ref, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  generatedReports.value = []
+  selectedReport.value = 'rides'
+  dateRange.value = 'month'
+  customStartDate.value = ''
+  customEndDate.value = ''
+  exportFormat.value = 'excel'
+  isGenerating.value = false
+  console.log('[AdminReportsView] Cleanup complete')
+})
 
 interface ReportType {
   id: string

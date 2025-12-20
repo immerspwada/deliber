@@ -217,10 +217,17 @@
 /**
  * Admin Performance View (F194)
  * จัดการและตรวจสอบประสิทธิภาพแอปพลิเคชัน
+ * 
+ * Memory Optimization: Task 35
+ * - Cleans up performance metrics on unmount
+ * - Stops monitoring interval
  */
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { usePerformanceMonitoring } from '../composables/usePerformanceMonitoring'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const {
   metrics,
@@ -321,6 +328,13 @@ const formatBytes = (bytes?: number) => {
 const formatTime = (timestamp: number) => {
   return new Date(timestamp).toLocaleTimeString('th-TH')
 }
+
+// Register cleanup - Task 35
+addCleanup(() => {
+  loading.value = false
+  scoreTrend.value = 0
+  console.log('[AdminPerformanceView] Cleanup complete')
+})
 
 onMounted(() => {
   startMonitoring()

@@ -10,12 +10,15 @@
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useWalletV2, type TopupRequest } from '../composables/useWalletV2'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import AdminLayout from '../components/AdminLayout.vue'
 
 const {
   pendingTopups, fetchPendingTopups, fetchAllTopupRequests, approveTopup, rejectTopup,
   getAdminStats, subscribeToPendingTopups, formatTopupStatus, formatPaymentMethod
 } = useWalletV2()
+
+const { addCleanup } = useAdminCleanup()
 
 const loading = ref(true)
 const allRequests = ref<TopupRequest[]>([])
@@ -39,6 +42,37 @@ onMounted(async () => {
 })
 
 onUnmounted(() => subscription?.unsubscribe())
+
+// Cleanup for memory stability (Task 11)
+addCleanup(() => {
+  // Clear all data arrays
+  allRequests.value = []
+  pendingTopups.value = []
+  stats.value = null
+  selectedRequest.value = null
+  
+  // Reset filters
+  activeTab.value = 'pending'
+  statusFilter.value = 'all'
+  
+  // Reset modal states
+  showApproveModal.value = false
+  showRejectModal.value = false
+  adminNote.value = ''
+  
+  // Reset loading states
+  loading.value = false
+  processing.value = null
+  resultMessage.value = { show: false, success: false, text: '' }
+  
+  // Unsubscribe realtime
+  if (subscription) {
+    subscription.unsubscribe()
+    subscription = null
+  }
+  
+  console.log('[AdminTopupRequestsView] Cleanup complete')
+})
 
 const loadData = async () => {
   loading.value = true

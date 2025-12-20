@@ -2,12 +2,18 @@
 /**
  * Feature: F158 - Queue Booking Admin Management
  * Admin view for managing queue bookings
+ * 
+ * Memory Optimization: Task 25
+ * - Cleans up bookings array on unmount
+ * - Resets filters and stats
  */
 import { ref, onMounted, computed } from 'vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import AdminLayout from '../components/AdminLayout.vue'
 
 const { fetchQueueBookings, updateQueueBooking, fetchQueueStats } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const bookings = ref<any[]>([])
 const total = ref(0)
@@ -66,6 +72,17 @@ const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name 
 const getStatusInfo = (id: string) => statuses.find(s => s.id === id) || { name: id, color: '#666' }
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
+
+// Register cleanup - Task 25
+addCleanup(() => {
+  bookings.value = []
+  total.value = 0
+  page.value = 1
+  stats.value = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 }
+  statusFilter.value = ''
+  categoryFilter.value = ''
+  console.log('[AdminQueueView] Cleanup complete')
+})
 
 onMounted(loadData)
 </script>

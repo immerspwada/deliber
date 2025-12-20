@@ -61,42 +61,57 @@ const checkProviderStatus = async () => {
       return
     }
 
-    console.log('[ProviderOnboarding] Checking status for user:', authStore.user.id)
+    const userId = authStore.user.id
+    const userEmail = authStore.user.email
+    console.log('[ProviderOnboarding] Checking status for user:', userId, 'email:', userEmail)
 
-    const { data, error } = await (supabase
-      .from('service_providers') as any)
-      .select('id, status, provider_type, created_at')
-      .eq('user_id', authStore.user.id)
-      .single()
+    // Query แบบ array แทน single เพื่อหลีกเลี่ยง error
+    const { data, error } = await supabase
+      .from('service_providers')
+      .select('*')
+      .eq('user_id', userId)
 
-    console.log('[ProviderOnboarding] Query result:', { data, error })
+    console.log('[ProviderOnboarding] Query result:', { 
+      data, 
+      dataLength: data?.length,
+      error: error?.message, 
+      errorCode: error?.code 
+    })
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error('[ProviderOnboarding] Query error:', error)
     }
 
-    if (data) {
-      console.log('[ProviderOnboarding] Found provider with status:', data.status)
+    // ตรวจสอบว่ามี data หรือไม่ (data เป็น array)
+    const providerRecord = data && data.length > 0 ? data[0] : null
+
+    if (providerRecord) {
+      console.log('[ProviderOnboarding] Found provider:', {
+        id: providerRecord.id,
+        status: providerRecord.status,
+        provider_type: providerRecord.provider_type,
+        user_id: providerRecord.user_id
+      })
       
-      if (data.status === 'approved' || data.status === 'active') {
+      if (providerRecord.status === 'approved' || providerRecord.status === 'active') {
         // Already approved, go to dashboard
         console.log('[ProviderOnboarding] Approved - redirecting to dashboard')
         router.replace('/provider')
         return
-      } else if (data.status === 'pending') {
+      } else if (providerRecord.status === 'pending') {
         console.log('[ProviderOnboarding] Pending - showing waiting screen')
         providerStatus.value = 'pending'
-      } else if (data.status === 'rejected') {
+      } else if (providerRecord.status === 'rejected') {
         console.log('[ProviderOnboarding] Rejected - showing retry option')
         providerStatus.value = 'rejected'
       } else {
         // Unknown status, treat as pending
-        console.log('[ProviderOnboarding] Unknown status:', data.status)
+        console.log('[ProviderOnboarding] Unknown status:', providerRecord.status, '- treating as pending')
         providerStatus.value = 'pending'
       }
     } else {
       // No provider record found - show onboarding
-      console.log('[ProviderOnboarding] No provider record - showing onboarding')
+      console.log('[ProviderOnboarding] No provider record - showing onboarding intro')
       providerStatus.value = 'none'
     }
   } catch (e) {

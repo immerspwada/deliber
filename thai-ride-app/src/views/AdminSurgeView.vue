@@ -2,12 +2,31 @@
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useSurgePricing } from '../composables/useSurgePricing'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 const { config, updateConfig, isPeakHour } = useSurgePricing()
 
 const localConfig = ref({ ...config.value })
 const saving = ref(false)
 const success = ref('')
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  localConfig.value = {
+    enabled: true,
+    minMultiplier: 1.0,
+    maxMultiplier: 2.5,
+    peakHours: [],
+    demandThreshold: 10,
+    supplyThreshold: 5
+  }
+  saving.value = false
+  success.value = ''
+  console.log('[AdminSurgeView] Cleanup complete')
+})
 
 // Peak hours selection
 const allHours = Array.from({ length: 24 }, (_, i) => i)

@@ -4,11 +4,16 @@
  * 
  * Feature: F53 - Admin Cancellation Management
  * 
- * Shows cancellation statistics, trends, and detailed records
+ * Memory Optimization: Task 28
+ * - Cleans up cancellations array on unmount
+ * - Resets filters and analytics data
  */
 import { ref, onMounted, computed } from 'vue'
 import { useCancellationAnalytics, type CancellationRecord } from '../composables/useCancellationAnalytics'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { AdminCard, AdminTable, AdminStatCard, AdminStatusBadge, AdminButton, AdminModal } from '../components/admin'
+
+const { addCleanup } = useAdminCleanup()
 
 const {
   loading,
@@ -140,6 +145,17 @@ const getServiceLabel = (type: string) => {
 const peakHour = computed(() => {
   if (!hourlyTrend.value.length) return null
   return hourlyTrend.value.reduce((max, h) => h.count > max.count ? h : max, hourlyTrend.value[0])
+})
+
+// Register cleanup - Task 28
+addCleanup(() => {
+  selectedService.value = 'all'
+  selectedPeriod.value = '30'
+  selectedCancelledBy.value = 'all'
+  searchQuery.value = ''
+  showDetail.value = false
+  selectedRecord.value = null
+  console.log('[AdminCancellationsView] Cleanup complete')
 })
 
 onMounted(loadData)

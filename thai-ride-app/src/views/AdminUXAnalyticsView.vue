@@ -25,6 +25,33 @@ import {
   fetchDeviceBreakdown, 
   fetchFeatureUsageStats 
 } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  uxMetrics.value = {
+    totalInteractions: 0,
+    avgSessionDuration: 0,
+    bounceRate: 0,
+    taskCompletionRate: 0,
+    hapticFeedbackUsage: 0,
+    pullToRefreshUsage: 0,
+    swipeNavigationUsage: 0,
+    smartSuggestionsAcceptance: 0
+  }
+  interactionTrends.value = { daily: [], weekly: [] }
+  topInteractions.value = []
+  userFeedback.value = []
+  featureUsage.value = []
+  deviceBreakdown.value = []
+  isLoading.value = false
+  hasRealData.value = false
+  selectedTimeRange.value = '7d'
+  console.log('[AdminUXAnalyticsView] Cleanup complete')
+})
 
 // UX Metrics - populated from real database
 const uxMetrics = ref({

@@ -3,10 +3,26 @@
  * Admin Analytics Events Dashboard (F237)
  * แสดง analytics events แบบ real-time พร้อม charts และ filters
  */
-import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { fetchAnalyticsEvents, fetchAnalyticsSummary } from '../composables/useAdmin'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup, addSubscription, addInterval } = useAdminCleanup()
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  events.value = []
+  summary.value = []
+  total.value = 0
+  page.value = 1
+  autoRefresh.value = false
+  filters.value = { eventName: '', dateRange: '7d', userId: '' }
+  loading.value = false
+  console.log('[AdminAnalyticsEventsView] Cleanup complete')
+})
 
 interface AnalyticsEvent {
   id: string
@@ -108,6 +124,8 @@ const toggleAutoRefresh = () => {
 const startAutoRefresh = () => {
   if (refreshInterval) clearInterval(refreshInterval)
   refreshInterval = setInterval(loadData, 10000) // Every 10 seconds
+  // Track interval for cleanup
+  addInterval(refreshInterval as unknown as number)
 }
 
 const stopAutoRefresh = () => {
@@ -154,19 +172,15 @@ const subscribeToRealtime = () => {
       if (events.value.length > 50) events.value.pop()
     })
     .subscribe()
+  
+  // Track subscription for cleanup
+  addSubscription(realtimeSubscription)
 }
 
 onMounted(() => {
   loadData()
   if (autoRefresh.value) startAutoRefresh()
   subscribeToRealtime()
-})
-
-onUnmounted(() => {
-  stopAutoRefresh()
-  if (realtimeSubscription) {
-    supabase.removeChannel(realtimeSubscription)
-  }
 })
 </script>
 

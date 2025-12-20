@@ -2,12 +2,18 @@
 /**
  * Feature: F160 - Laundry Service Admin Management
  * Admin view for managing laundry requests
+ * 
+ * Memory Optimization: Task 27
+ * - Cleans up requests array on unmount
+ * - Resets filters and stats
  */
 import { ref, onMounted, computed } from 'vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import AdminLayout from '../components/AdminLayout.vue'
 
 const { fetchLaundryRequests, updateLaundryRequest, fetchLaundryStats } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const requests = ref<any[]>([])
 const total = ref(0)
@@ -69,6 +75,16 @@ const formatServices = (services: string[]) => {
 const getStatusInfo = (id: string) => statuses.find(s => s.id === id) || { name: id, color: '#666' }
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
+
+// Register cleanup - Task 27
+addCleanup(() => {
+  requests.value = []
+  total.value = 0
+  page.value = 1
+  stats.value = { pending: 0, matched: 0, washing: 0, delivered: 0 }
+  statusFilter.value = ''
+  console.log('[AdminLaundryView] Cleanup complete')
+})
 
 onMounted(loadData)
 </script>

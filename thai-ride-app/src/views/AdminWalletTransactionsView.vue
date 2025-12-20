@@ -102,9 +102,21 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Admin Wallet Transactions View - F05
+ * ประวัติธุรกรรม Wallet
+ * 
+ * Memory Optimization: Task 15
+ * - Cleans up transactions array on unmount
+ * - Resets filters and stats
+ */
 import { ref, reactive, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 interface Transaction {
   id: string
@@ -208,6 +220,22 @@ const exportData = () => {
   a.download = `wallet_transactions_${new Date().toISOString().split('T')[0]}.csv`
   a.click()
 }
+
+// Register cleanup - Task 15
+addCleanup(() => {
+  transactions.value = []
+  totalCount.value = 0
+  currentPage.value = 1
+  filters.type = ''
+  filters.memberUid = ''
+  filters.startDate = ''
+  filters.endDate = ''
+  stats.totalIn = 0
+  stats.totalOut = 0
+  stats.totalCount = 0
+  loading.value = false
+  console.log('[AdminWalletTransactionsView] Cleanup complete')
+})
 
 onMounted(fetchTransactions)
 </script>

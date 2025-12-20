@@ -51,6 +51,9 @@
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const incentives = ref<any[]>([])
 const showCreateModal = ref(false)
@@ -72,4 +75,11 @@ const toggleActive = async (item: any) => {
 const formatDate = (d: string) => new Date(d).toLocaleDateString('th-TH')
 
 onMounted(fetchIncentives)
+
+// Cleanup on unmount
+addCleanup(() => {
+  incentives.value = []
+  showCreateModal.value = false
+  console.log('[AdminIncentivesView] Cleanup complete')
+})
 </script>

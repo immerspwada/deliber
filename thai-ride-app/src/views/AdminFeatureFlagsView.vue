@@ -6,6 +6,10 @@
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { fetchFeatureFlags, createFeatureFlag, updateFeatureFlag, deleteFeatureFlag, toggleFeatureFlag } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 interface FeatureFlag {
   id: string
@@ -36,6 +40,26 @@ const form = ref({
   isEnabled: false,
   rolloutPercentage: 100,
   targetRoles: [] as string[]
+})
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  flags.value = []
+  total.value = 0
+  page.value = 1
+  searchQuery.value = ''
+  showModal.value = false
+  editingFlag.value = null
+  form.value = {
+    key: '',
+    name: '',
+    description: '',
+    isEnabled: false,
+    rolloutPercentage: 100,
+    targetRoles: []
+  }
+  loading.value = false
+  console.log('[AdminFeatureFlagsView] Cleanup complete')
 })
 
 const availableRoles = ['customer', 'provider', 'admin', 'premium', 'vip']

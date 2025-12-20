@@ -7,6 +7,9 @@
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const { 
   loading,
@@ -96,6 +99,17 @@ const formatDate = (date: string) => {
 }
 
 onMounted(loadData)
+
+// Cleanup on unmount
+addCleanup(() => {
+  rideRatings.value = []
+  deliveryRatings.value = []
+  shoppingRatings.value = []
+  stats.value = null
+  filterRating.value = null
+  activeTab.value = 'all'
+  console.log('[AdminRatingsView] Cleanup complete')
+})
 </script>
 
 <template>

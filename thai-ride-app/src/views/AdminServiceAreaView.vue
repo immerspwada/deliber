@@ -2,6 +2,10 @@
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useServiceArea, type ServiceArea } from '../composables/useServiceArea'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 const { 
   loading, 
@@ -22,6 +26,21 @@ const editForm = ref({
   min_fare: 35,
   base_fare: 35,
   per_km_rate: 6.5
+})
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  showEditModal.value = false
+  editingArea.value = null
+  editForm.value = {
+    name: '',
+    is_active: true,
+    surge_multiplier: 1.0,
+    min_fare: 35,
+    base_fare: 35,
+    per_km_rate: 6.5
+  }
+  console.log('[AdminServiceAreaView] Cleanup complete')
 })
 
 // Load data

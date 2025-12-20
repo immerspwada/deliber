@@ -7,6 +7,10 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 const {
   loading,
@@ -78,6 +82,43 @@ const loadingSegmentCount = ref(false)
 
 // Template variables
 const templateVariables = ref<Record<string, string>>({})
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  notifications.value = []
+  stats.value = null
+  filterType.value = null
+  showBroadcastModal.value = false
+  activeTab.value = 'notifications'
+  pushStats.value = null
+  pushSubscriptions.value = []
+  pushQueue.value = []
+  showPushBroadcastModal.value = false
+  pushBroadcastForm.value = { title: '', body: '', url: '' }
+  sendingPush.value = false
+  processingQueue.value = false
+  templates.value = []
+  showTemplateModal.value = false
+  templateForm.value = { name: '', type: 'system', title: '', message: '', actionUrl: '' }
+  scheduledNotifications.value = []
+  broadcastForm.value = {
+    type: 'system',
+    title: '',
+    message: '',
+    actionUrl: '',
+    isScheduled: false,
+    scheduledDate: '',
+    scheduledTime: '09:00',
+    segment: 'all',
+    segmentConfig: {}
+  }
+  sendingBroadcast.value = false
+  segmentUserCount.value = 0
+  loadingSegmentCount.value = false
+  templateVariables.value = {}
+  console.log('[AdminNotificationsView] Cleanup complete')
+})
+
 const detectedVariables = computed(() => {
   const titleVars = extractTemplateVariables(broadcastForm.value.title)
   const messageVars = extractTemplateVariables(broadcastForm.value.message)

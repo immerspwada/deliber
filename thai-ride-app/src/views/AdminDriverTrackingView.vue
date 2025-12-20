@@ -283,15 +283,25 @@
 /**
  * Admin Driver Tracking View (F33)
  * จัดการและตรวจสอบการติดตามตำแหน่งคนขับแบบ Real-time
+ * 
+ * Memory Optimization: Task 20
+ * - Tracks realtime subscription for provider locations
+ * - Tracks 10-second polling interval
+ * - Cleans up drivers array, mapMarkers, selectedDriver on unmount
  */
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+import { supabase } from '../lib/supabase'
 import { 
   fetchDriverTrackingStats, 
   fetchLiveDriverLocations, 
   updateDriverTrackingSettings,
   getDriverTrackingAccuracyReport
 } from '../composables/useAdmin'
+
+// Initialize cleanup utility
+const { addCleanup, addSubscription, addInterval } = useAdminCleanup()
 
 const loading = ref(false)
 const showSettings = ref(false)
@@ -306,6 +316,8 @@ const trackingStats = ref({
 
 const liveDrivers = ref<any[]>([])
 const accuracyReports = ref<any[]>([])
+const selectedDriver = ref<any>(null)
+const mapMarkers = ref<any[]>([])
 
 const settings = ref({
   updateInterval: 5,
@@ -313,6 +325,9 @@ const settings = ref({
   maxAge: 10,
   enableBatteryOptimization: false
 })
+
+// Polling interval reference
+let pollingIntervalId: number | null = null
 
 const refreshData = async () => {
   loading.value = true
@@ -378,8 +393,74 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status
 }
 
+// Setup realtime subscription for provider locations
+const setupRealtimeSubscription = () => {
+  const channel = supabase
+    .channel('admin-driver-tracking')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'service_providers',
+        filter: 'is_available=eq.true'
+      },
+      (payload) => {
+        // Update driver location in real-time
+        if (payload.eventType === 'UPDATE' && payload.new) {
+          const updatedDriver = payload.new
+          const index = liveDrivers.value.findIndex(d => d.id === updatedDriver.id)
+          if (index !== -1) {
+            liveDrivers.value[index] = { ...liveDrivers.value[index], ...updatedDriver }
+          }
+        }
+      }
+    )
+    .subscribe()
+  
+  // Track subscription for cleanup
+  addSubscription(channel)
+}
+
+// Setup polling for periodic refresh (every 10 seconds)
+const setupPolling = () => {
+  pollingIntervalId = window.setInterval(() => {
+    refreshData()
+  }, 10000) // 10 seconds
+  
+  // Track interval for cleanup
+  addInterval(pollingIntervalId)
+}
+
+// Register cleanup for state reset
+addCleanup(() => {
+  // Clear arrays
+  liveDrivers.value = []
+  accuracyReports.value = []
+  mapMarkers.value = []
+  
+  // Clear selected driver
+  selectedDriver.value = null
+  
+  // Reset stats
+  trackingStats.value = {
+    activeDrivers: 0,
+    trackingAccuracy: 0,
+    averageETA: 0,
+    locationUpdates: 0
+  }
+  
+  // Reset UI state
+  loading.value = false
+  showSettings.value = false
+  
+  console.log('[AdminDriverTrackingView] Cleanup complete')
+})
+
 onMounted(() => {
   refreshData()
+  setupRealtimeSubscription()
+  setupPolling()
 })
 </script>
 

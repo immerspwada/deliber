@@ -199,6 +199,10 @@ import PermissionGuard from '../components/admin/PermissionGuard.vue'
 import DoubleConfirmModal from '../components/admin/DoubleConfirmModal.vue'
 import { useAppSettings } from '../composables/useAppSettings'
 import { useAdminRBAC } from '../composables/useAdminRBAC'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 // Composables
 const { loading, settings, fetchSettings, updateSettings, resetToDefaults, DEFAULT_SETTINGS } = useAppSettings()
@@ -227,6 +231,19 @@ const message = reactive({
 
 // Previous settings for rollback
 const previousSettings = ref({ ...DEFAULT_SETTINGS })
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  localSettings.value = { ...DEFAULT_SETTINGS }
+  previousSettings.value = { ...DEFAULT_SETTINGS }
+  saving.value = false
+  activeSection.value = 'pricing'
+  showAuditLog.value = false
+  showConfirmModal.value = false
+  pendingAction.value = null
+  message.text = ''
+  console.log('[AdminSettingsViewV2] Cleanup complete')
+})
 
 // Sections config
 const sections = [

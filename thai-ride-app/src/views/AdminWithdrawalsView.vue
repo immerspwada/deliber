@@ -1,8 +1,20 @@
 <script setup lang="ts">
+/**
+ * Admin Withdrawals View - F27
+ * จัดการการถอนเงินของ Provider
+ * 
+ * Memory Optimization: Task 16
+ * - Cleans up withdrawals array on unmount
+ * - Resets filters and modal state
+ */
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../composables/useToast'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 interface Withdrawal {
   id: string
@@ -285,6 +297,19 @@ const getStatusText = (status: string) => {
     default: return status
   }
 }
+
+// Register cleanup - Task 16
+addCleanup(() => {
+  withdrawals.value = []
+  stats.value = { pending: 0, processing: 0, completed: 0, totalPending: 0, totalCompleted: 0 }
+  selectedStatus.value = 'all'
+  searchQuery.value = ''
+  showDetailModal.value = false
+  selectedWithdrawal.value = null
+  processingId.value = null
+  loading.value = false
+  console.log('[AdminWithdrawalsView] Cleanup complete')
+})
 
 onMounted(fetchWithdrawals)
 </script>

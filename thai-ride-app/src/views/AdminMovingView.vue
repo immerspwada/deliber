@@ -2,12 +2,18 @@
 /**
  * Feature: F159 - Moving Service Admin Management
  * Admin view for managing moving requests
+ * 
+ * Memory Optimization: Task 26
+ * - Cleans up requests array on unmount
+ * - Resets filters and stats
  */
 import { ref, onMounted, computed } from 'vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 import AdminLayout from '../components/AdminLayout.vue'
 
 const { fetchMovingRequests, updateMovingRequest, fetchMovingStats } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const requests = ref<any[]>([])
 const total = ref(0)
@@ -65,6 +71,17 @@ const getServiceTypeName = (id: string) => serviceTypes.find(s => s.id === id)?.
 const getStatusInfo = (id: string) => statuses.find(s => s.id === id) || { name: id, color: '#666' }
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
+
+// Register cleanup - Task 26
+addCleanup(() => {
+  requests.value = []
+  total.value = 0
+  page.value = 1
+  stats.value = { pending: 0, matched: 0, inProgress: 0, completed: 0 }
+  statusFilter.value = ''
+  serviceTypeFilter.value = ''
+  console.log('[AdminMovingView] Cleanup complete')
+})
 
 onMounted(loadData)
 </script>

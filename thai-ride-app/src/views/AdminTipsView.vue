@@ -152,8 +152,20 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Admin Tips View - F60
+ * จัดการทิปสำหรับ Admin
+ * 
+ * Memory Optimization: Task 17
+ * - Cleans up tips data on unmount
+ * - Resets stats and filters
+ */
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 const dateRange = ref('week')
 
@@ -171,6 +183,16 @@ const tipDistribution = ref<any[]>([])
 const formatDate = (date: Date): string => {
   return date.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+
+// Register cleanup - Task 17
+addCleanup(() => {
+  stats.value = { totalTips: 0, tipCount: 0, averageTip: 0, tipRate: 0 }
+  topProviders.value = []
+  recentTips.value = []
+  tipDistribution.value = []
+  dateRange.value = 'week'
+  console.log('[AdminTipsView] Cleanup complete')
+})
 
 onMounted(() => {
   // Demo data

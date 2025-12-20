@@ -11,6 +11,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { EnhancedAdminLayout, AdminCard, AdminTable, AdminStatCard, AdminButton, AdminModal, AdminStatusBadge } from '../components/admin'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility - Task 13
+const { addCleanup } = useAdminCleanup()
 
 interface Refund {
   id: string
@@ -170,6 +174,20 @@ const formatDate = (dateStr: string) => {
   const d = new Date(dateStr)
   return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
 }
+
+// Register cleanup - Task 13
+addCleanup(() => {
+  refunds.value = []
+  stats.value = { total_refunds: 0, total_amount: 0, total_fees: 0, pending_count: 0 }
+  filterStatus.value = 'all'
+  filterService.value = 'all'
+  searchQuery.value = ''
+  dateRange.value = { start: '', end: '' }
+  showManualRefund.value = false
+  manualRefundForm.value = { userId: '', amount: 0, reason: '', serviceType: 'ride', serviceId: '' }
+  loading.value = false
+  console.log('[AdminRefundsView] Cleanup complete')
+})
 
 onMounted(async () => {
   await fetchRefunds()

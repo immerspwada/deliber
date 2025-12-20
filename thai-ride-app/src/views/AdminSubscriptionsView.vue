@@ -6,6 +6,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 interface SubscriptionPlan {
   id: string
@@ -90,6 +93,18 @@ const filteredSubscriptions = computed(() => {
 onMounted(() => {
   fetchPlans()
   fetchSubscriptions()
+})
+
+// Cleanup on unmount
+addCleanup(() => {
+  plans.value = []
+  subscriptions.value = []
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  showPlanModal.value = false
+  editingPlan.value = null
+  activeTab.value = 'plans'
+  console.log('[AdminSubscriptionsView] Cleanup complete')
 })
 
 const fetchPlans = async () => {

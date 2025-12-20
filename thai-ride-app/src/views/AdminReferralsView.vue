@@ -4,9 +4,12 @@
  * จัดการระบบแนะนำเพื่อนทั้งหมด
  * Tables: referral_codes, referrals
  */
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup, addSubscription } = useAdminCleanup()
 
 interface ReferralCode {
   id: string
@@ -118,6 +121,7 @@ const setupRealtime = () => {
       fetchReferralCodes()
     })
     .subscribe()
+  addSubscription(codesChannel)
 
   // Subscribe to referrals changes
   referralsChannel = supabase
@@ -126,6 +130,7 @@ const setupRealtime = () => {
       fetchReferrals()
     })
     .subscribe()
+  addSubscription(referralsChannel)
 }
 
 onMounted(async () => {
@@ -134,9 +139,14 @@ onMounted(async () => {
   setupRealtime()
 })
 
-onUnmounted(() => {
-  if (codesChannel) supabase.removeChannel(codesChannel)
-  if (referralsChannel) supabase.removeChannel(referralsChannel)
+// Cleanup on unmount
+addCleanup(() => {
+  referralCodes.value = []
+  referrals.value = []
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  activeTab.value = 'codes'
+  console.log('[AdminReferralsView] Cleanup complete')
 })
 
 const toggleCodeStatus = async (code: ReferralCode) => {

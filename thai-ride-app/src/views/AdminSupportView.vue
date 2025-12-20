@@ -2,8 +2,10 @@
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const { fetchSupportTickets, updateTicketStatus } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const tickets = ref<any[]>([])
 const total = ref(0)
@@ -22,6 +24,17 @@ const loadTickets = async () => {
 }
 
 onMounted(loadTickets)
+
+// Cleanup on unmount
+addCleanup(() => {
+  tickets.value = []
+  total.value = 0
+  statusFilter.value = ''
+  priorityFilter.value = ''
+  selectedTicket.value = null
+  resolution.value = ''
+  console.log('[AdminSupportView] Cleanup complete')
+})
 
 const handleResolve = async () => {
   if (!selectedTicket.value) return

@@ -2,10 +2,18 @@
 /**
  * Admin System Health View (F251)
  * ตรวจสอบสุขภาพระบบสำหรับ Admin
+ * 
+ * Memory Optimization: Task 34
+ * - Cleans up health status on unmount
+ * - Stops auto-refresh interval
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { fetchSystemHealthStatus, fetchSystemHealthLogs, recordSystemHealthCheck } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup, addInterval } = useAdminCleanup()
 
 interface HealthStatus {
   component: string
@@ -20,6 +28,15 @@ const healthStatus = ref<HealthStatus[]>([])
 const healthLogs = ref<any[]>([])
 const autoRefresh = ref(true)
 let refreshInterval: ReturnType<typeof setInterval> | null = null
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  healthStatus.value = []
+  healthLogs.value = []
+  autoRefresh.value = false
+  loading.value = false
+  console.log('[AdminSystemHealthView] Cleanup complete')
+})
 
 const statusColors: Record<string, string> = {
   healthy: '#00A86B',
@@ -95,6 +112,8 @@ const toggleAutoRefresh = () => {
 const startAutoRefresh = () => {
   if (refreshInterval) clearInterval(refreshInterval)
   refreshInterval = setInterval(loadHealthStatus, 30000) // Every 30 seconds
+  // Track interval for cleanup
+  addInterval(refreshInterval as unknown as number)
 }
 
 const stopAutoRefresh = () => {
@@ -121,10 +140,6 @@ const formatTime = (date: string) => {
 onMounted(() => {
   loadHealthStatus()
   if (autoRefresh.value) startAutoRefresh()
-})
-
-onUnmounted(() => {
-  stopAutoRefresh()
 })
 </script>
 

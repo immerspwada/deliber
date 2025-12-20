@@ -46,9 +46,21 @@
 
 
 <script setup lang="ts">
+/**
+ * Admin Revenue Dashboard View - F164
+ * Revenue analytics dashboard
+ * 
+ * Memory Optimization: Task 18
+ * - Cleans up revenue data on unmount
+ * - Resets date range and stats
+ */
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 const dateRange = ref(30)
 const revenueByService = ref<any[]>([])
@@ -80,6 +92,14 @@ const formatNumber = (num: number) => num?.toLocaleString('th-TH', { minimumFrac
 const formatServiceName = (type: string) => ({ ride: 'เรียกรถ', delivery: 'ส่งของ', shopping: 'ซื้อของ' }[type] || type)
 const getServiceColor = (type: string) => ({ ride: 'bg-blue-500', delivery: 'bg-orange-500', shopping: 'bg-purple-500' }[type] || 'bg-gray-500')
 const getServiceIcon = (type: string) => ({ ride: '🚗', delivery: '📦', shopping: '🛒' }[type] || '📋')
+
+// Register cleanup
+addCleanup(() => {
+  revenueByService.value = []
+  dateRange.value = 30
+  loading.value = false
+  console.log('[AdminRevenueDashboardView] Cleanup complete')
+})
 
 onMounted(fetchData)
 </script>

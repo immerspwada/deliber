@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 // Mock data
 const companies = ref([
@@ -35,6 +38,13 @@ const getStatusText = (status: string) => ({
   'pending': 'รออนุมัติ',
   'suspended': 'ระงับ'
 }[status] || status)
+
+// Cleanup on unmount
+addCleanup(() => {
+  statusFilter.value = 'all'
+  searchQuery.value = ''
+  console.log('[AdminCorporateView] Cleanup complete')
+})
 </script>
 
 <template>

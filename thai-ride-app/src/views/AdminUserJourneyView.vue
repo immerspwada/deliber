@@ -7,6 +7,27 @@
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
+
+// Register cleanup for memory optimization
+addCleanup(() => {
+  metrics.value = {
+    totalSignups: 0,
+    firstBookings: 0,
+    completedPayments: 0,
+    ratingsSubmitted: 0,
+    avgTimeToFirstBooking: '-',
+    avgTimeToPayment: '-',
+    overallConversion: 0
+  }
+  funnelSteps.value = []
+  loading.value = false
+  dateRange.value = '30d'
+  console.log('[AdminUserJourneyView] Cleanup complete')
+})
 
 interface FunnelStep {
   id: string

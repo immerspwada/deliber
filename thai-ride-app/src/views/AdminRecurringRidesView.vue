@@ -7,12 +7,27 @@
 -->
 
 <script setup lang="ts">
+/**
+ * AdminRecurringRidesView - จัดการการจองประจำ
+ * 
+ * Feature: F15 - Recurring Scheduled Rides (Admin)
+ * Tables: recurring_ride_templates, scheduled_ride_reminders
+ * Migration: 050_recurring_rides_and_notifications.sql
+ * 
+ * Memory Optimization: Task 22
+ * - Cleans up templates and reminders arrays on unmount
+ * - Resets filters and modal state
+ */
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { AdminModal, AdminButton, AdminStatusBadge } from '../components/admin'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const db = supabase as any
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 interface RecurringTemplate {
   id: string
@@ -191,6 +206,19 @@ const openDetail = (template: RecurringTemplate) => {
   selectedTemplate.value = template
   showDetailModal.value = true
 }
+
+// Register cleanup - Task 22
+addCleanup(() => {
+  templates.value = []
+  reminders.value = []
+  searchQuery.value = ''
+  statusFilter.value = ''
+  selectedTemplate.value = null
+  showDetailModal.value = false
+  actionLoading.value = false
+  loading.value = false
+  console.log('[AdminRecurringRidesView] Cleanup complete')
+})
 
 onMounted(fetchData)
 </script>

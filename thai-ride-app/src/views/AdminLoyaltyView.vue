@@ -6,6 +6,9 @@
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 interface LoyaltyTier { id: string; name: string; name_th: string; min_points: number; multiplier: number; benefits: string[]; badge_color: string; is_active: boolean }
 interface LoyaltyReward { id: string; name_th: string; type: string; points_required: number; value: number; value_type: string; is_active: boolean; quantity_redeemed: number }
@@ -30,6 +33,21 @@ void showRewardModal
 
 onMounted(async () => {
   await Promise.all([fetchStats(), fetchTiers(), fetchRewards(), fetchUserLoyalties()])
+})
+
+// Cleanup on unmount
+addCleanup(() => {
+  tiers.value = []
+  rewards.value = []
+  userLoyalties.value = []
+  stats.value = { totalUsers: 0, totalPoints: 0, totalRedeemed: 0, avgPoints: 0 }
+  showRewardModal.value = false
+  showAdjustModal.value = false
+  adjustingUser.value = null
+  adjustPoints.value = 0
+  adjustReason.value = ''
+  activeTab.value = 'overview'
+  console.log('[AdminLoyaltyView] Cleanup complete')
 })
 
 const fetchStats = async () => {

@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const { fetchPromoCodes, createPromoCode, updatePromoCode } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const promos = ref<any[]>([])
 const loading = ref(true)
@@ -82,6 +84,19 @@ const loadPromos = async () => {
 }
 
 onMounted(loadPromos)
+
+// Cleanup on unmount
+addCleanup(() => {
+  promos.value = []
+  showModal.value = false
+  showEditModal.value = false
+  editingPromo.value = null
+  filterCategory.value = 'all'
+  filterStatus.value = 'all'
+  searchQuery.value = ''
+  resetForm()
+  console.log('[AdminPromosView] Cleanup complete')
+})
 
 const handleCreate = async () => {
   const promo = { ...newPromo.value, code: newPromo.value.code.toUpperCase(), is_active: true, used_count: 0, valid_from: new Date().toISOString() }

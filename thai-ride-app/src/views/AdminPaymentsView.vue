@@ -1,15 +1,26 @@
 <script setup lang="ts">
+/**
+ * Admin Payments View - F08
+ * จัดการการเงินและการชำระเงิน
+ * 
+ * Memory Optimization: Task 12
+ * - Cleans up payments array on unmount
+ * - Resets filters and totals
+ */
 import { ref, onMounted, computed } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 const { fetchPayments } = useAdmin()
+const { addCleanup } = useAdminCleanup()
 
 const payments = ref<any[]>([])
 const total = ref(0)
 const loading = ref(true)
 const statusFilter = ref('')
 const methodFilter = ref('')
+const selectedPayment = ref<any>(null)
 
 const loadPayments = async () => {
   loading.value = true
@@ -18,6 +29,17 @@ const loadPayments = async () => {
   total.value = result.total
   loading.value = false
 }
+
+// Register cleanup
+addCleanup(() => {
+  payments.value = []
+  total.value = 0
+  selectedPayment.value = null
+  statusFilter.value = ''
+  methodFilter.value = ''
+  loading.value = false
+  console.log('[AdminPaymentsView] Cleanup complete')
+})
 
 onMounted(loadPayments)
 

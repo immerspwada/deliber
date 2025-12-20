@@ -109,41 +109,45 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Fetch user profile from database with timeout
+  // Fetch user profile from database - FAST VERSION
   const fetchUserProfile = async (userId: string) => {
     logger.log('fetchUserProfile started for:', userId)
+    
+    // IMMEDIATELY set user from session first (instant display)
+    const currentSession = session.value
+    if (currentSession?.user) {
+      logger.log('Setting user from session immediately')
+      user.value = {
+        id: currentSession.user.id,
+        email: currentSession.user.email || '',
+        name: currentSession.user.user_metadata?.name || currentSession.user.email?.split('@')[0] || '',
+        phone: currentSession.user.user_metadata?.phone || '',
+        role: currentSession.user.user_metadata?.role || 'customer',
+        is_active: true,
+        created_at: currentSession.user.created_at || new Date().toISOString()
+      } as User
+    }
+    
+    // Then try to fetch full profile in background (non-blocking)
     try {
-      // Create a timeout promise
       const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
-        setTimeout(() => {
-          logger.warn('fetchUserProfile TIMEOUT!')
-          resolve({ data: null, error: { message: 'Profile fetch timeout' } })
-        }, 5000)
+        setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 3000)
       })
       
-      // Create the fetch promise
       const fetchPromise = supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
       
-      // Race between fetch and timeout
       const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise])
       
-      logger.log('fetchUserProfile result:', { hasData: !!data, hasError: !!fetchError })
-      
-      if (fetchError) {
-        logger.error('fetchUserProfile error:', fetchError.message)
-        error.value = fetchError.message
-        return
+      if (data && !fetchError) {
+        user.value = data as User
+        logger.log('User profile updated from DB:', (data as any)?.email)
       }
-      
-      user.value = data as User
-      logger.log('User profile set:', (data as any)?.email, (data as any)?.role)
     } catch (err: any) {
-      logger.error('fetchUserProfile exception:', err)
-      error.value = err.message
+      logger.warn('fetchUserProfile background fetch failed:', err.message)
     }
   }
 

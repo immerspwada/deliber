@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAnalytics } from '../composables/useAnalytics'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 const { 
   loading, dailyStats, hourlyDemand, topProviders, revenueBreakdown,
@@ -18,6 +21,13 @@ onMounted(async () => {
     fetchRevenueBreakdown(30),
     fetchTopProviders(10)
   ])
+})
+
+// Cleanup on unmount
+addCleanup(() => {
+  selectedPeriod.value = 7
+  activeTab.value = 'overview'
+  console.log('[AdminAnalyticsView] Cleanup complete')
 })
 
 const summary = computed(() => getSummary())

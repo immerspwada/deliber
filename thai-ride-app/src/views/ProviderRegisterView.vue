@@ -317,6 +317,26 @@ const submitApplication = async () => {
   
   try {
     const userId = authStore.user.id
+    
+    // Check for existing provider record first (prevent duplicate)
+    console.log('[ProviderRegister] Checking for existing provider before insert...')
+    const { data: existingCheck, error: checkError } = await supabase
+      .from('service_providers')
+      .select('id, status')
+      .eq('user_id', userId)
+      .maybeSingle()
+    
+    if (checkError) {
+      console.error('[ProviderRegister] Error checking existing provider:', checkError)
+    }
+    
+    if (existingCheck) {
+      console.log('[ProviderRegister] Provider already exists:', existingCheck)
+      error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว กรุณารอการอนุมัติ'
+      isLoading.value = false
+      return
+    }
+    
     uploadProgress.value = 5
     
     // Upload documents to Storage (or use 'pending' status if storage fails)
@@ -403,50 +423,79 @@ const checkExistingProvider = async () => {
     return
   }
   
-  console.log('[ProviderRegister] Checking existing provider for user:', authStore.user.id)
+  const userId = authStore.user.id
+  const userEmail = authStore.user.email
+  console.log('[ProviderRegister] Checking existing provider for user:', userId, 'email:', userEmail)
   
   try {
+    // Try direct query first
+    let providerRecord: any = null
+    
     const { data, error: queryError } = await supabase
       .from('service_providers')
-      .select('id, status, provider_type, created_at, rejection_reason')
-      .eq('user_id', authStore.user.id)
-      .single()
+      .select('*')
+      .eq('user_id', userId)
     
-    if (queryError && queryError.code !== 'PGRST116') {
-      // PGRST116 = no rows found, which is expected for new users
-      console.error('[ProviderRegister] Error checking existing provider:', queryError)
+    console.log('[ProviderRegister] Direct query result:', { 
+      data, 
+      dataLength: data?.length,
+      error: queryError?.message, 
+      errorCode: queryError?.code 
+    })
+    
+    if (data && data.length > 0) {
+      providerRecord = data[0]
+    } else if (queryError) {
+      // Try RPC function as fallback
+      console.log('[ProviderRegister] Trying RPC fallback...')
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_provider_status')
+      console.log('[ProviderRegister] RPC result:', { rpcData, rpcError: rpcError?.message })
+      
+      if (rpcData && rpcData.length > 0) {
+        providerRecord = rpcData[0]
+      }
     }
     
-    console.log('[ProviderRegister] Query result:', data)
-    
-    if (data) {
-      console.log('[ProviderRegister] Found existing provider with status:', data.status)
+    if (providerRecord) {
+      console.log('[ProviderRegister] Found existing provider:', {
+        id: providerRecord.id || providerRecord.provider_id,
+        status: providerRecord.status,
+        provider_type: providerRecord.provider_type,
+        user_id: providerRecord.user_id
+      })
       
-      // If approved, redirect to dashboard
-      if (data.status === 'approved' || data.status === 'active') {
-        console.log('[ProviderRegister] Provider approved, redirecting to dashboard')
+      const status = providerRecord.status
+      
+      // If approved or active, redirect to dashboard
+      if (status === 'approved' || status === 'active') {
+        console.log('[ProviderRegister] Provider approved/active, redirecting to dashboard')
         router.replace('/provider')
         return
       }
       
       // If pending, redirect to onboarding to show waiting screen
-      if (data.status === 'pending') {
+      if (status === 'pending') {
         console.log('[ProviderRegister] Provider pending, redirecting to onboarding')
         router.replace('/provider/onboarding')
         return
       }
       
       // If rejected, allow re-registration (show form)
-      if (data.status === 'rejected') {
+      if (status === 'rejected') {
         console.log('[ProviderRegister] Provider rejected, allowing re-registration')
-        existingProvider.value = data as any
+        existingProvider.value = providerRecord as any
         // Don't redirect - show the form for re-registration
+      } else {
+        // Unknown status - treat as pending
+        console.log('[ProviderRegister] Unknown status:', status, '- redirecting to onboarding')
+        router.replace('/provider/onboarding')
+        return
       }
     } else {
       console.log('[ProviderRegister] No existing provider found, showing registration form')
     }
   } catch (err) {
-    console.error('[ProviderRegister] Error checking existing provider:', err)
+    console.error('[ProviderRegister] Exception checking existing provider:', err)
   } finally {
     checkingExisting.value = false
   }

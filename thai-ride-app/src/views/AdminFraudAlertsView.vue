@@ -54,6 +54,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+const { addCleanup } = useAdminCleanup()
 
 interface FraudAlert {
   id: string
@@ -105,4 +108,13 @@ const formatAlertType = (t: string) => ({ suspicious_topup: 'เติมเง�
 const formatDate = (d: string) => new Date(d).toLocaleString('th-TH')
 
 onMounted(fetchAlerts)
+
+// Cleanup on unmount
+addCleanup(() => {
+  alerts.value = []
+  stats.pending = 0
+  stats.reviewing = 0
+  stats.resolved = 0
+  console.log('[AdminFraudAlertsView] Cleanup complete')
+})
 </script>

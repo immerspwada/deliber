@@ -3,9 +3,17 @@
  * Admin Scheduled Rides View - F15
  * จัดการการจองล่วงหน้าทั้งหมด
  * Tables: scheduled_rides
+ * 
+ * Memory Optimization: Task 21
+ * - Cleans up rides array on unmount
+ * - Resets filters and modal state
  */
 import { ref, onMounted, computed } from 'vue'
 import { supabase } from '../lib/supabase'
+import { useAdminCleanup } from '../composables/useAdminCleanup'
+
+// Initialize cleanup utility
+const { addCleanup } = useAdminCleanup()
 
 interface ScheduledRide {
   id: string
@@ -82,6 +90,18 @@ const fetchRides = async () => {
     loading.value = false
   }
 }
+
+// Register cleanup - Task 21
+addCleanup(() => {
+  rides.value = []
+  statusFilter.value = 'all'
+  searchQuery.value = ''
+  selectedRide.value = null
+  showDetailModal.value = false
+  processing.value = false
+  loading.value = false
+  console.log('[AdminScheduledRidesView] Cleanup complete')
+})
 
 onMounted(fetchRides)
 
