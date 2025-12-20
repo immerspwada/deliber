@@ -284,20 +284,47 @@ onUnmounted(() => {
             </div>
             
             <div class="job-details">
-              <div v-if="job.pickup_address" class="detail-row">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                <span>{{ job.pickup_address }}</span>
-              </div>
-              <div v-if="job.delivery_address" class="detail-row">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                  <circle cx="12" cy="10" r="3"/>
-                </svg>
-                <span>{{ job.delivery_address }}</span>
-              </div>
+              <!-- For Queue Bookings -->
+              <template v-if="providerInfo?.provider_type === 'queue'">
+                <div v-if="job.place_name" class="detail-row">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span>{{ job.place_name }}</span>
+                </div>
+                <div v-if="job.scheduled_date" class="detail-row">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <path d="M16 2v4M8 2v4M3 10h18"/>
+                  </svg>
+                  <span>{{ new Date(job.scheduled_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) }} {{ job.scheduled_time?.substring(0, 5) }}</span>
+                </div>
+                <div v-if="job.category" class="detail-row">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18M9 21V9"/>
+                  </svg>
+                  <span>{{ job.category }}</span>
+                </div>
+              </template>
+              <!-- For other services -->
+              <template v-else>
+                <div v-if="job.pickup_address" class="detail-row">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <span>{{ job.pickup_address }}</span>
+                </div>
+                <div v-if="job.delivery_address" class="detail-row">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span>{{ job.delivery_address }}</span>
+                </div>
+              </template>
             </div>
 
             <button @click="acceptJob(job)" class="btn-accept">

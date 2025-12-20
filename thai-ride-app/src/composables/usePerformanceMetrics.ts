@@ -232,9 +232,24 @@ export function usePerformanceMetrics() {
         }
       })
       
-      observer.observe({ type: 'paint', buffered: true })
-    } catch (e) {
-      console.warn('FCP observer not supported')
+      // Use entryTypes array instead of deprecated type option
+      observer.observe({ entryTypes: ['paint'] })
+      
+      // Also check buffered entries manually
+      const paintEntries = performance.getEntriesByType('paint')
+      for (const entry of paintEntries) {
+        if (entry.name === 'first-contentful-paint') {
+          const fcp = entry.startTime
+          if (pageLoadMetrics.value && !pageLoadMetrics.value.fcp) {
+            pageLoadMetrics.value.fcp = Math.round(fcp)
+            addMetric('fcp', fcp)
+          }
+          observer.disconnect()
+          break
+        }
+      }
+    } catch {
+      // FCP observer not supported - silently ignore
     }
   }
 
@@ -253,9 +268,10 @@ export function usePerformanceMetrics() {
         }
       })
       
-      lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true })
-    } catch (e) {
-      console.warn('LCP observer not supported')
+      // Use entryTypes array instead of deprecated type option
+      lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] })
+    } catch {
+      // LCP observer not supported - silently ignore
     }
   }
 
@@ -277,9 +293,10 @@ export function usePerformanceMetrics() {
         }
       })
       
-      fidObserver.observe({ type: 'first-input', buffered: true })
-    } catch (e) {
-      console.warn('FID observer not supported')
+      // Use entryTypes array instead of deprecated type option
+      fidObserver.observe({ entryTypes: ['first-input'] })
+    } catch {
+      // FID observer not supported - silently ignore
     }
   }
 
@@ -303,9 +320,10 @@ export function usePerformanceMetrics() {
         }
       })
       
-      clsObserver.observe({ type: 'layout-shift', buffered: true })
-    } catch (e) {
-      console.warn('CLS observer not supported')
+      // Use entryTypes array instead of deprecated type option
+      clsObserver.observe({ entryTypes: ['layout-shift'] })
+    } catch {
+      // CLS observer not supported - silently ignore
     }
   }
 
@@ -360,9 +378,28 @@ export function usePerformanceMetrics() {
 
   /**
    * ส่ง metrics ไปเก็บที่ server
+   * Note: ใช้ try-catch เพื่อไม่ให้ error กระทบ UX
    */
   const sendMetricsToServer = async () => {
     if (!pageLoadMetrics.value) return
+    
+    // Skip if not logged in - analytics requires auth
+    if (!authStore.user?.id) {
+      // Store locally for later sync
+      try {
+        const localMetrics = JSON.parse(localStorage.getItem('pending_metrics') || '[]')
+        localMetrics.push({
+          ...pageLoadMetrics.value,
+          metrics: metrics.value,
+          timestamp: Date.now()
+        })
+        // Keep only last 10 entries
+        localStorage.setItem('pending_metrics', JSON.stringify(localMetrics.slice(-10)))
+      } catch {
+        // Ignore localStorage errors
+      }
+      return
+    }
     
     try {
       // ส่งไป analytics_events table
@@ -376,10 +413,10 @@ export function usePerformanceMetrics() {
         },
         page_url: window.location.pathname,
         device_type: pageLoadMetrics.value.deviceType,
-        user_id: authStore.user?.id || null
+        user_id: authStore.user.id
       })
-    } catch (e) {
-      console.warn('Failed to send metrics to server:', e)
+    } catch {
+      // Silently fail - don't spam console with analytics errors
     }
   }
 
@@ -393,6 +430,77 @@ export function usePerformanceMetrics() {
       sessionStorage.setItem('perf_session_id', sessionId)
     }
     return sessionId
+  }
+
+  /**
+   * Sync pending metrics ที่เก็บไว้ใน localStorage เมื่อ user login
+   * เรียกใช้หลังจาก login สำเร็จ
+   */
+  const syncPendingMetrics = async (): Promise<{ synced: number; failed: number }> => {
+    if (!authStore.user?.id) {
+      return { synced: 0, failed: 0 }
+    }
+
+    let synced = 0
+    let failed = 0
+
+    try {
+      const pendingMetrics = JSON.parse(localStorage.getItem('pending_metrics') || '[]')
+      
+      if (pendingMetrics.length === 0) {
+        return { synced: 0, failed: 0 }
+      }
+
+      // Process each pending metric
+      for (const metric of pendingMetrics) {
+        try {
+          await (supabase.from('analytics_events') as any).insert({
+            session_id: metric.session_id || getSessionId(),
+            event_name: 'page_performance',
+            event_category: 'performance',
+            properties: metric,
+            page_url: metric.page || 'unknown',
+            device_type: metric.deviceType || 'unknown',
+            user_id: authStore.user.id
+          })
+          synced++
+        } catch {
+          failed++
+        }
+      }
+
+      // Clear synced metrics
+      if (synced > 0) {
+        localStorage.removeItem('pending_metrics')
+      }
+    } catch {
+      // Ignore errors
+    }
+
+    return { synced, failed }
+  }
+
+  /**
+   * Get pending metrics count (for UI display)
+   */
+  const getPendingMetricsCount = (): number => {
+    try {
+      const pending = JSON.parse(localStorage.getItem('pending_metrics') || '[]')
+      return pending.length
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * Clear all pending metrics
+   */
+  const clearPendingMetrics = () => {
+    try {
+      localStorage.removeItem('pending_metrics')
+    } catch {
+      // Ignore
+    }
   }
 
   // =====================================================
@@ -583,6 +691,11 @@ export function usePerformanceMetrics() {
     // Admin
     getPerformanceSummary,
     getMetricsByPage,
+    
+    // Sync pending metrics
+    syncPendingMetrics,
+    getPendingMetricsCount,
+    clearPendingMetrics,
     
     // Helpers
     getRating,

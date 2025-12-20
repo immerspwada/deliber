@@ -33,14 +33,17 @@ const props = withDefaults(defineProps<{
   modelValue?: string
   placeholder?: string
   label?: string
+  title?: string
   type?: 'pickup' | 'destination'
-  initialLocation?: { lat: number; lng: number }
+  initialLocation?: { lat: number; lng: number } | null
   homePlace?: SavedPlace | null
   workPlace?: SavedPlace | null
 }>(), {
   modelValue: '',
   placeholder: 'เลือกตำแหน่งบนแผนที่',
+  title: '',
   type: 'pickup',
+  initialLocation: null,
   homePlace: null,
   workPlace: null
 })
@@ -57,6 +60,7 @@ const emit = defineEmits<{
   'confirm': [location: Location]
   'location-selected': [location: Location]
   'close': []
+  'cancel': []
 }>()
 
 // Default center: Su-ngai Kolok, Narathiwat
@@ -443,6 +447,7 @@ const confirmLocation = () => {
 // Close picker
 const closePicker = () => {
   emit('close')
+  emit('cancel')
 }
 
 // Initialize
@@ -486,7 +491,7 @@ watch(() => props.initialLocation, (newLoc) => {
           </svg>
         </button>
         <h3 class="modal-title">
-          {{ type === 'pickup' ? 'เลือกจุดรับ' : 'เลือกจุดหมาย' }}
+          {{ props.title || (type === 'pickup' ? 'เลือกจุดรับ' : 'เลือกจุดหมาย') }}
         </h3>
         <div style="width: 40px"></div>
       </div>

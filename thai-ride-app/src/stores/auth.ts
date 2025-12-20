@@ -147,8 +147,46 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = data as User
         logger.log('User profile updated from DB:', (data as any)?.email)
       }
+      
+      // Sync pending performance metrics after successful login (non-blocking)
+      syncPendingAnalytics()
     } catch (err: any) {
       logger.warn('fetchUserProfile background fetch failed:', err.message)
+    }
+  }
+  
+  // Sync pending analytics metrics (non-blocking background task)
+  const syncPendingAnalytics = async () => {
+    try {
+      const pendingMetrics = JSON.parse(localStorage.getItem('pending_metrics') || '[]')
+      if (pendingMetrics.length === 0) return
+      
+      const userId = user.value?.id
+      if (!userId) return
+      
+      let synced = 0
+      for (const metric of pendingMetrics) {
+        try {
+          await (supabase.from('analytics_events') as any).insert({
+            session_id: metric.session_id || `sync_${Date.now()}`,
+            event_name: 'page_performance',
+            event_category: 'performance',
+            properties: metric,
+            page_url: metric.page || 'unknown',
+            device_type: metric.deviceType || 'unknown',
+            user_id: userId
+          })
+          synced++
+        } catch {
+          // Ignore individual failures
+        }
+      }
+      
+      if (synced > 0) {
+        localStorage.removeItem('pending_metrics')
+      }
+    } catch {
+      // Silently ignore sync errors
     }
   }
 

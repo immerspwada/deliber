@@ -308,15 +308,54 @@ export function useAdvancedFeatures() {
   const fetchFavoriteDrivers = async () => {
     if (!authStore.user?.id) return []
     try {
+      // Try RPC function first
       const { data, error: err } = await (supabase.rpc as any)('get_favorite_drivers', {
         p_user_id: authStore.user.id
       })
 
-      if (err) throw err
+      if (err) {
+        // Fallback to direct query if function doesn't exist
+        if (err.code === 'PGRST202' || err.message?.includes('not found')) {
+          const { data: fallbackData } = await (supabase
+            .from('favorite_drivers') as any)
+            .select(`
+              driver_id,
+              created_at,
+              driver:service_providers(
+                id,
+                rating,
+                total_rides,
+                vehicle_type,
+                vehicle_plate,
+                user:users(first_name, last_name, phone_number)
+              )
+            `)
+            .eq('user_id', authStore.user.id)
+            .order('created_at', { ascending: false })
+          
+          // Transform to expected format
+          favoriteDrivers.value = (fallbackData || []).map((fd: any) => ({
+            provider_id: fd.driver_id,
+            provider_name: fd.driver?.user ? 
+              `${fd.driver.user.first_name || ''} ${fd.driver.user.last_name || ''}`.trim() || 'ไม่ระบุชื่อ' : 
+              'ไม่ระบุชื่อ',
+            provider_phone: fd.driver?.user?.phone_number || '',
+            provider_rating: fd.driver?.rating || 5.0,
+            total_rides: fd.driver?.total_rides || 0,
+            vehicle_type: fd.driver?.vehicle_type || '',
+            vehicle_plate: fd.driver?.vehicle_plate || '',
+            favorited_at: fd.created_at
+          }))
+          return favoriteDrivers.value
+        }
+        throw err
+      }
+      
       favoriteDrivers.value = data || []
       return data || []
     } catch (e: any) {
-      error.value = e.message
+      // Silently fail - don't spam console
+      favoriteDrivers.value = []
       return []
     }
   }
