@@ -189,8 +189,9 @@ const formatTime = (time: string | null) => {
                 </svg>
               </div>
               <div>
-                <h3>{{ item.provider?.users?.name || 'ไม่ระบุชื่อ' }}</h3>
-                <p>{{ item.provider?.users?.email }}</p>
+                <h3>{{ item.provider?.users?.name || (item.provider?.users?.first_name ? `${item.provider?.users?.first_name || ''} ${item.provider?.users?.last_name || ''}`.trim() : null) || item.provider?.users?.email?.split('@')[0] || 'ไม่ระบุชื่อ' }}</h3>
+                <p class="provider-email">{{ item.provider?.users?.email || '-' }}</p>
+                <p class="provider-phone">{{ item.provider?.users?.phone_number || item.provider?.users?.phone || '-' }}</p>
               </div>
             </div>
             <div class="queue-meta">
@@ -376,7 +377,9 @@ const formatTime = (time: string | null) => {
 .provider-info { display: flex; gap: 12px; align-items: center; }
 .avatar { width: 48px; height: 48px; background: #F5F5F5; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .provider-info h3 { margin: 0; font-size: 16px; font-weight: 600; }
-.provider-info p { margin: 4px 0 0; font-size: 13px; color: #666; }
+.provider-info p { margin: 2px 0 0; font-size: 13px; color: #666; }
+.provider-email { color: #00A86B !important; font-weight: 500; }
+.provider-phone { color: #999 !important; }
 .queue-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .queue-position { font-size: 14px; color: #999; }
 .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }

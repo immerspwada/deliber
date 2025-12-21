@@ -98,40 +98,54 @@ export function useProviderVerification() {
     return Math.round((checked / total) * 100)
   })
 
-  // Fetch verification queue
+  // Fetch verification queue using RPC function (bypasses RLS issues)
   const fetchQueue = async (status?: string) => {
     loading.value = true
     error.value = null
     
     try {
-      let query = supabase
-        .from('provider_verification_queue')
-        .select(`
-          *,
-          provider:provider_id (
-            id,
-            provider_type,
-            vehicle_type,
-            vehicle_plate,
-            documents,
-            status,
-            user_id,
-            users:user_id (name, email, phone)
-          )
-        `)
-        .order('priority', { ascending: false })
-        .order('created_at', { ascending: true })
-      
-      if (status) {
-        query = query.eq('status', status)
-      }
-      
-      const { data, error: err } = await query
+      // Use RPC function that has SECURITY DEFINER to bypass RLS
+      const { data, error: err } = await supabase.rpc('admin_get_verification_queue', {
+        p_status: status || null
+      })
       
       if (err) throw err
-      queue.value = data || []
+      
+      // Transform data to match expected format
+      queue.value = (data || []).map((item: any) => ({
+        id: item.id,
+        provider_id: item.provider_id,
+        assigned_admin_id: item.assigned_admin_id,
+        priority: item.priority,
+        queue_position: item.queue_position,
+        status: item.status,
+        notes: item.notes,
+        estimated_review_time: item.estimated_review_time,
+        actual_review_time: item.actual_review_time,
+        started_at: item.started_at,
+        completed_at: item.completed_at,
+        created_at: item.created_at,
+        provider: {
+          id: item.provider_id,
+          provider_type: item.provider_type,
+          vehicle_type: item.vehicle_type,
+          vehicle_plate: item.vehicle_plate,
+          status: item.provider_status,
+          documents: item.documents,
+          user_id: item.user_id,
+          users: {
+            email: item.user_email,
+            name: item.user_name,
+            first_name: item.user_first_name,
+            last_name: item.user_last_name,
+            phone: item.user_phone,
+            phone_number: item.user_phone
+          }
+        }
+      }))
     } catch (e: any) {
       error.value = e.message
+      console.error('[useProviderVerification] fetchQueue error:', e)
       // Return empty array on error - NO MOCK DATA
       queue.value = []
     } finally {
@@ -206,35 +220,23 @@ export function useProviderVerification() {
       
       if (err) throw err
       
-      // Fetch the item details
-      const { data: itemData } = await supabase
-        .from('provider_verification_queue')
-        .select(`
-          *,
-          provider:provider_id (
-            id,
-            provider_type,
-            vehicle_type,
-            vehicle_plate,
-            documents,
-            status,
-            user_id,
-            users:user_id (name, email, phone)
-          )
-        `)
-        .eq('id', queueId)
-        .single()
+      // Find item from already fetched queue (avoids RLS issues)
+      const itemData = queue.value.find(q => q.id === queueId)
       
-      currentItem.value = itemData
-      
-      // Load checklist for provider type
-      if (itemData?.provider?.provider_type) {
-        await fetchChecklistTemplate(itemData.provider.provider_type)
+      if (itemData) {
+        // Update status locally
+        currentItem.value = { ...itemData, status: 'in_review' as const }
+        
+        // Load checklist for provider type
+        if (itemData.provider?.provider_type) {
+          await fetchChecklistTemplate(itemData.provider.provider_type)
+        }
       }
       
       return { success: true }
     } catch (e: any) {
       error.value = e.message
+      console.error('[useProviderVerification] startVerification error:', e)
       return { success: false, error: e.message }
     } finally {
       loading.value = false

@@ -460,6 +460,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
+    path: '/admin/verification-queue',
+    name: 'AdminVerificationQueue',
+    component: () => import('../views/AdminVerificationQueueView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
     path: '/admin/orders',
     name: 'AdminOrders',
     component: () => import('../views/AdminOrdersView.vue'),

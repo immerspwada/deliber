@@ -386,7 +386,7 @@ const submitApplication = async () => {
         license: licenseUrl, 
         vehicle: vehicleUrl 
       },
-      status: 'pending',
+      status: 'pending', // This triggers auto_add_to_verification_queue
       is_available: false,
       rating: 5.0,
       total_trips: 0
