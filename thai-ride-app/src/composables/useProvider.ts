@@ -1,12 +1,20 @@
 /**
  * useProvider - Provider/Rider Composable
  * Feature: F14 - Provider Dashboard
+ * 
+ * @syncs-with
+ * - Push Notifications: usePushNotifications.ts (F07)
+ * - Sound Notifications: useSoundNotification.ts
+ * - Notification Settings: useProviderNotificationSettings.ts
+ * - Realtime: Supabase channels for ride/delivery/shopping
  */
 
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
 import { useProviderEarnings } from './useProviderEarnings'
+import { useSoundNotification } from './useSoundNotification'
+import { useProviderNotificationSettings } from './useProviderNotificationSettings'
 
 export interface ProviderProfile {
   id: string
@@ -143,6 +151,8 @@ export interface ActiveJob {
 export function useProvider() {
   const authStore = useAuthStore()
   const { startOnlineSession, endOnlineSession } = useProviderEarnings()
+  const { notify, playNewRequestMelody, playJobNotification } = useSoundNotification()
+  const notificationSettings = useProviderNotificationSettings()
   
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -158,6 +168,8 @@ export function useProvider() {
   const weeklyEarnings = ref<DailyEarning[]>([])
   
   let requestsSubscription: any = null
+  let deliverySubscription: any = null
+  let shoppingSubscription: any = null
   let rideSubscription: any = null
   let jobSubscription: any = null
   let locationInterval: number | null = null
@@ -168,6 +180,168 @@ export function useProvider() {
   const hasActiveRide = () => activeRide.value !== null
   const hasActiveJob = () => activeJob.value !== null
 
+  // =====================================================
+  // BADGE COUNT - Total pending jobs for PWA badge
+  // =====================================================
+  const totalPendingJobs = computed(() => {
+    return pendingRequests.value.length + 
+           pendingDeliveries.value.length + 
+           pendingShopping.value.length
+  })
+
+  // Update PWA app badge (if supported)
+  const updateAppBadge = (count: number) => {
+    try {
+      if ('setAppBadge' in navigator) {
+        if (count > 0) {
+          (navigator as any).setAppBadge(count)
+        } else {
+          (navigator as any).clearAppBadge()
+        }
+      }
+    } catch (e) {
+      console.debug('[Provider] Badge API not supported:', e)
+    }
+  }
+
+  // Send push notification for new job (via Edge Function)
+  // Respects provider notification settings
+  const sendNewJobPushNotification = async (jobType: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry', jobData: any) => {
+    if (!authStore.user?.id) return
+    
+    // Check if push notification should be sent based on settings
+    if (!notificationSettings.shouldSendPush(jobType)) {
+      console.debug('[Provider] Push notification skipped for', jobType, '(disabled in settings)')
+      return
+    }
+    
+    try {
+      const titles: Record<string, string> = {
+        ride: 'งานใหม่: เรียกรถ',
+        delivery: 'งานใหม่: ส่งพัสดุ',
+        shopping: 'งานใหม่: ซื้อของ',
+        queue: 'งานใหม่: จองคิว',
+        moving: 'งานใหม่: ขนย้าย',
+        laundry: 'งานใหม่: ซักผ้า'
+      }
+      
+      const bodies: Record<string, string> = {
+        ride: `${jobData.pickup_address || 'จุดรับ'} → ${jobData.destination_address || 'ปลายทาง'}`,
+        delivery: `${jobData.sender_address || 'จุดรับ'} → ${jobData.recipient_address || 'ปลายทาง'}`,
+        shopping: `${jobData.store_name || 'ร้านค้า'} → ${jobData.delivery_address || 'ปลายทาง'}`,
+        queue: `${jobData.place_name || 'สถานที่'} - ${jobData.service_type || 'บริการ'}`,
+        moving: `${jobData.pickup_address || 'จุดรับ'} → ${jobData.destination_address || 'ปลายทาง'}`,
+        laundry: `${jobData.pickup_address || 'จุดรับ'} - ${jobData.service_type || 'ซักผ้า'}`
+      }
+      
+      const fare = jobType === 'ride' ? jobData.estimated_fare : 
+                   jobType === 'delivery' ? jobData.estimated_fee : 
+                   jobType === 'shopping' ? jobData.service_fee :
+                   jobType === 'queue' ? jobData.service_fee :
+                   jobType === 'moving' ? jobData.estimated_price :
+                   jobData.estimated_price
+      
+      await supabase.functions.invoke('send-push', {
+        body: {
+          action: 'send_to_user',
+          userId: authStore.user.id,
+          payload: {
+            title: titles[jobType] || 'งานใหม่',
+            body: `฿${fare || 0} - ${bodies[jobType] || 'มีงานใหม่รอรับ'}`,
+            icon: '/pwa-192x192.png',
+            badge: '/pwa-64x64.png',
+            tag: `new-job-${jobType}-${jobData.id}`,
+            data: {
+              type: 'new_job',
+              jobType,
+              jobId: jobData.id,
+              url: '/provider'
+            },
+            requireInteraction: true,
+            actions: [
+              { action: 'view', title: 'ดูงาน' },
+              { action: 'dismiss', title: 'ปิด' }
+            ]
+          }
+        }
+      })
+      console.debug('[Provider] Push notification sent for', jobType)
+    } catch (e) {
+      console.debug('[Provider] Push notification failed:', e)
+    }
+  }
+
+  // Play sound notification for new job (respects settings)
+  const playJobSoundNotification = (jobType: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
+    if (!notificationSettings.shouldPlaySound()) {
+      console.debug('[Provider] Sound notification skipped (disabled in settings)')
+      return
+    }
+    
+    // Play job-specific sound
+    playJobNotification(jobType)
+    
+    // Vibrate if enabled
+    if (notificationSettings.shouldVibrate() && 'vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200])
+    }
+  }
+
+  // =====================================================
+  // LOCAL STORAGE CACHE - Fast restore on page reload
+  // =====================================================
+  const CACHE_KEY_RIDE = 'provider_active_ride'
+  const CACHE_KEY_JOB = 'provider_active_job'
+  const CACHE_EXPIRY_MS = 30 * 60 * 1000 // 30 minutes
+
+  const saveToCache = (key: string, data: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }))
+    } catch (e) {
+      console.warn('Failed to save to cache:', e)
+    }
+  }
+
+  const loadFromCache = <T>(key: string): T | null => {
+    try {
+      const cached = localStorage.getItem(key)
+      if (!cached) return null
+      
+      const { data, timestamp } = JSON.parse(cached)
+      // Check if cache is expired
+      if (Date.now() - timestamp > CACHE_EXPIRY_MS) {
+        localStorage.removeItem(key)
+        return null
+      }
+      return data as T
+    } catch (e) {
+      localStorage.removeItem(key)
+      return null
+    }
+  }
+
+  const clearCache = (key: string) => {
+    localStorage.removeItem(key)
+  }
+
+  // Restore from cache immediately (before DB fetch)
+  const restoreFromCache = () => {
+    const cachedRide = loadFromCache<ActiveRide>(CACHE_KEY_RIDE)
+    if (cachedRide && !activeRide.value) {
+      activeRide.value = cachedRide
+      console.log('[Provider] Restored ride from cache:', cachedRide.id)
+    }
+    
+    const cachedJob = loadFromCache<ActiveJob>(CACHE_KEY_JOB)
+    if (cachedJob && !activeJob.value) {
+      activeJob.value = cachedJob
+      console.log('[Provider] Restored job from cache:', cachedJob.id)
+    }
+  }
+
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const R = 6371
     const dLat = (lat2 - lat1) * Math.PI / 180
@@ -176,8 +350,230 @@ export function useProvider() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   }
 
+  // =====================================================
+  // FETCH ACTIVE RIDE - Restore active ride on page reload
+  // =====================================================
+  const fetchActiveRide = async () => {
+    if (!profile.value?.id) return null
+    
+    try {
+      // Query for any ride that this provider is currently handling
+      const { data: activeRideData, error: rideError } = await (supabase
+        .from('ride_requests') as any)
+        .select(`
+          *,
+          users:user_id (
+            id,
+            first_name,
+            last_name,
+            phone_number,
+            avatar_url
+          )
+        `)
+        .eq('provider_id', profile.value.id)
+        .in('status', ['matched', 'arriving', 'arrived', 'pickup', 'picked_up', 'in_progress'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (rideError) {
+        console.warn('Error fetching active ride:', rideError)
+        return null
+      }
+      
+      if (activeRideData) {
+        // Map database status to UI status
+        let uiStatus: ActiveRide['status'] = activeRideData.status
+        if (activeRideData.status === 'pickup') uiStatus = 'arrived'
+        
+        const passenger = activeRideData.users || {}
+        const passengerName = [passenger.first_name, passenger.last_name].filter(Boolean).join(' ') || 'ผู้โดยสาร'
+        
+        activeRide.value = {
+          id: activeRideData.id,
+          tracking_id: activeRideData.tracking_id || 'TR' + activeRideData.id.slice(0, 8).toUpperCase(),
+          passenger: {
+            id: activeRideData.user_id,
+            name: passengerName,
+            phone: passenger.phone_number || '',
+            rating: 4.5,
+            photo: passenger.avatar_url
+          },
+          pickup: {
+            lat: activeRideData.pickup_lat,
+            lng: activeRideData.pickup_lng,
+            address: activeRideData.pickup_address
+          },
+          destination: {
+            lat: activeRideData.destination_lat,
+            lng: activeRideData.destination_lng,
+            address: activeRideData.destination_address
+          },
+          fare: activeRideData.estimated_fare || activeRideData.final_fare || 0,
+          status: uiStatus,
+          distance: calculateDistance(
+            activeRideData.pickup_lat, activeRideData.pickup_lng,
+            activeRideData.destination_lat, activeRideData.destination_lng
+          ),
+          duration: activeRideData.estimated_duration || 15,
+          ride_type: activeRideData.ride_type || 'standard',
+          created_at: activeRideData.created_at
+        }
+        
+        // Subscribe to this ride for realtime updates
+        subscribeToRide(activeRideData.id)
+        
+        // Save to cache for fast restore
+        saveToCache(CACHE_KEY_RIDE, activeRide.value)
+        
+        console.log('[Provider] Restored active ride:', activeRideData.id)
+        return activeRide.value
+      }
+      
+      // No active ride - clear cache
+      clearCache(CACHE_KEY_RIDE)
+      return null
+    } catch (e: any) {
+      console.warn('Error in fetchActiveRide:', e)
+      return null
+    }
+  }
+
+  // =====================================================
+  // FETCH ACTIVE JOB - Restore active delivery/shopping on page reload
+  // =====================================================
+  const fetchActiveJob = async () => {
+    if (!profile.value?.id) return null
+    
+    try {
+      // Check for active delivery first
+      const { data: activeDelivery } = await (supabase
+        .from('delivery_requests') as any)
+        .select(`
+          *,
+          users:user_id (
+            id,
+            first_name,
+            last_name,
+            phone_number
+          )
+        `)
+        .eq('provider_id', profile.value.id)
+        .in('status', ['matched', 'pickup', 'in_transit'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (activeDelivery) {
+        const customer = activeDelivery.users || {}
+        const customerName = [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'ลูกค้า'
+        
+        activeJob.value = {
+          id: activeDelivery.id,
+          tracking_id: activeDelivery.tracking_id || 'DEL' + activeDelivery.id.slice(0, 8).toUpperCase(),
+          type: 'delivery',
+          customer: {
+            id: activeDelivery.user_id,
+            name: customerName,
+            phone: customer.phone_number || ''
+          },
+          pickup: {
+            lat: activeDelivery.sender_lat,
+            lng: activeDelivery.sender_lng,
+            address: activeDelivery.sender_address
+          },
+          destination: {
+            lat: activeDelivery.recipient_lat,
+            lng: activeDelivery.recipient_lng,
+            address: activeDelivery.recipient_address
+          },
+          fare: activeDelivery.estimated_fee || activeDelivery.final_fee || 0,
+          status: activeDelivery.status,
+          distance: activeDelivery.distance_km,
+          created_at: activeDelivery.created_at,
+          package_type: activeDelivery.package_type,
+          package_description: activeDelivery.package_description,
+          recipient_name: activeDelivery.recipient_name,
+          recipient_phone: activeDelivery.recipient_phone
+        }
+        
+        subscribeToJob(activeDelivery.id, 'delivery')
+        saveToCache(CACHE_KEY_JOB, activeJob.value)
+        console.log('[Provider] Restored active delivery:', activeDelivery.id)
+        return activeJob.value
+      }
+      
+      // Check for active shopping
+      const { data: activeShopping } = await (supabase
+        .from('shopping_requests') as any)
+        .select(`
+          *,
+          users:user_id (
+            id,
+            first_name,
+            last_name,
+            phone_number
+          )
+        `)
+        .eq('provider_id', profile.value.id)
+        .in('status', ['matched', 'shopping', 'delivering'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (activeShopping) {
+        const customer = activeShopping.users || {}
+        const customerName = [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'ลูกค้า'
+        
+        activeJob.value = {
+          id: activeShopping.id,
+          tracking_id: activeShopping.tracking_id || 'SHP' + activeShopping.id.slice(0, 8).toUpperCase(),
+          type: 'shopping',
+          customer: {
+            id: activeShopping.user_id,
+            name: customerName,
+            phone: customer.phone_number || ''
+          },
+          pickup: {
+            lat: activeShopping.store_lat || 0,
+            lng: activeShopping.store_lng || 0,
+            address: activeShopping.store_address || 'ร้านค้า'
+          },
+          destination: {
+            lat: activeShopping.delivery_lat,
+            lng: activeShopping.delivery_lng,
+            address: activeShopping.delivery_address
+          },
+          fare: activeShopping.service_fee || 0,
+          status: activeShopping.status,
+          created_at: activeShopping.created_at,
+          store_name: activeShopping.store_name,
+          items: activeShopping.items,
+          item_list: activeShopping.item_list,
+          budget_limit: activeShopping.budget_limit
+        }
+        
+        subscribeToJob(activeShopping.id, 'shopping')
+        saveToCache(CACHE_KEY_JOB, activeJob.value)
+        console.log('[Provider] Restored active shopping:', activeShopping.id)
+        return activeJob.value
+      }
+      
+      // No active job - clear cache
+      clearCache(CACHE_KEY_JOB)
+      return null
+    } catch (e: any) {
+      console.warn('Error in fetchActiveJob:', e)
+      return null
+    }
+  }
+
   const fetchProfile = async () => {
     loading.value = true
+    
+    // ✅ Restore from cache immediately for fast UI
+    restoreFromCache()
+    
     try {
       if (isDemoMode()) {
         const demoUser = JSON.parse(localStorage.getItem('demo_user') || '{}')
@@ -200,6 +596,16 @@ export function useProvider() {
       isOnline.value = data.is_available || false
       // ดึง allowed_services จาก profile
       allowedServices.value = data.allowed_services || []
+      
+      // ✅ FIX: Fetch active ride and job if provider is online
+      if (isOnline.value) {
+        // Fetch in parallel for speed
+        await Promise.all([
+          fetchActiveRide(),
+          fetchActiveJob()
+        ])
+      }
+      
       return data
     } catch (e: any) { error.value = e.message; return null }
     finally { loading.value = false }
@@ -287,8 +693,8 @@ export function useProvider() {
       if (online) await startOnlineSession(profile.value.id)
       else await endOnlineSession(profile.value.id)
       isOnline.value = online
-      if (online) { subscribeToRequests(); startLocationUpdates(); await fetchPendingRequests() }
-      else { unsubscribeFromRequests(); stopLocationUpdates(); pendingRequests.value = [] }
+      if (online) { subscribeToRequests(); startLocationUpdates(); await fetchPendingRequests(); await fetchPendingDeliveries(); await fetchPendingShopping() }
+      else { unsubscribeFromRequests(); stopLocationUpdates(); pendingRequests.value = []; pendingDeliveries.value = []; pendingShopping.value = [] }
       return true
     } catch (e: any) { error.value = e.message; return false }
     finally { loading.value = false }
@@ -314,6 +720,8 @@ export function useProvider() {
   const subscribeToRequests = () => {
     if (!profile.value?.id) return
     unsubscribeFromRequests()
+    
+    // Subscribe to ride requests
     requestsSubscription = supabase.channel('pending_ride_requests')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_requests' }, async (payload) => {
         const request = payload.new as any
@@ -331,17 +739,115 @@ export function useProvider() {
             distance: calculateDistance(request.pickup_lat, request.pickup_lng, request.destination_lat, request.destination_lng),
             duration: 15, passenger_name: 'ผู้โดยสาร', passenger_phone: '', passenger_rating: 4.5
           })
-          if ('vibrate' in navigator) navigator.vibrate([200, 100, 200])
+          // ✅ Sound + Vibration notification (job-specific)
+          playJobSoundNotification('ride')
+          // ✅ Push notification (for background/closed app)
+          sendNewJobPushNotification('ride', request)
+          // ✅ Update PWA badge
+          updateAppBadge(totalPendingJobs.value)
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ride_requests' }, (payload) => {
         const request = payload.new as any
         if (request.status !== 'pending' || request.provider_id) {
           pendingRequests.value = pendingRequests.value.filter(r => r.id !== request.id)
+          // ✅ Update badge when job is removed
+          updateAppBadge(totalPendingJobs.value)
         }
       })
       .subscribe((status) => { if (status === 'CHANNEL_ERROR') scheduleReconnect() })
-    fetchInterval = window.setInterval(() => { if (isOnline.value && !activeRide.value) fetchPendingRequests() }, 30000)
+    
+    // ✅ Subscribe to delivery requests
+    deliverySubscription = supabase.channel('pending_delivery_requests')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delivery_requests' }, async (payload) => {
+        const delivery = payload.new as any
+        if (delivery.status !== 'pending' || delivery.provider_id) return
+        
+        // Check distance if provider has location
+        let shouldAdd = true
+        if (profile.value?.current_lat && profile.value?.current_lng) {
+          shouldAdd = calculateDistance(profile.value.current_lat, profile.value.current_lng, delivery.sender_lat, delivery.sender_lng) <= 10
+        }
+        
+        if (shouldAdd && !pendingDeliveries.value.some(d => d.id === delivery.id)) {
+          pendingDeliveries.value.unshift({
+            id: delivery.id, tracking_id: delivery.tracking_id, user_id: delivery.user_id, type: 'delivery',
+            sender_name: delivery.sender_name, sender_phone: delivery.sender_phone, sender_address: delivery.sender_address,
+            sender_lat: delivery.sender_lat, sender_lng: delivery.sender_lng,
+            recipient_name: delivery.recipient_name, recipient_address: delivery.recipient_address,
+            recipient_lat: delivery.recipient_lat, recipient_lng: delivery.recipient_lng,
+            package_type: delivery.package_type, package_description: delivery.package_description,
+            estimated_fee: delivery.estimated_fee || 0, distance_km: delivery.distance_km,
+            status: 'pending', created_at: delivery.created_at
+          })
+          // ✅ Sound + Vibration notification (job-specific)
+          playJobSoundNotification('delivery')
+          // ✅ Push notification (for background/closed app)
+          sendNewJobPushNotification('delivery', delivery)
+          // ✅ Update PWA badge
+          updateAppBadge(totalPendingJobs.value)
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'delivery_requests' }, (payload) => {
+        const delivery = payload.new as any
+        if (delivery.status !== 'pending' || delivery.provider_id) {
+          pendingDeliveries.value = pendingDeliveries.value.filter(d => d.id !== delivery.id)
+          // ✅ Update badge when job is removed
+          updateAppBadge(totalPendingJobs.value)
+        }
+      })
+      .subscribe()
+    
+    // ✅ Subscribe to shopping requests
+    shoppingSubscription = supabase.channel('pending_shopping_requests')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shopping_requests' }, async (payload) => {
+        const shopping = payload.new as any
+        if (shopping.status !== 'pending' || shopping.provider_id) return
+        
+        // Check distance if provider has location and store has location
+        let shouldAdd = true
+        if (profile.value?.current_lat && profile.value?.current_lng && shopping.store_lat && shopping.store_lng) {
+          shouldAdd = calculateDistance(profile.value.current_lat, profile.value.current_lng, shopping.store_lat, shopping.store_lng) <= 10
+        }
+        
+        if (shouldAdd && !pendingShopping.value.some(s => s.id === shopping.id)) {
+          pendingShopping.value.unshift({
+            id: shopping.id, tracking_id: shopping.tracking_id, user_id: shopping.user_id, type: 'shopping',
+            store_name: shopping.store_name, store_address: shopping.store_address,
+            store_lat: shopping.store_lat, store_lng: shopping.store_lng,
+            delivery_address: shopping.delivery_address, delivery_lat: shopping.delivery_lat, delivery_lng: shopping.delivery_lng,
+            items: shopping.items || [], item_list: shopping.item_list, budget_limit: shopping.budget_limit,
+            service_fee: shopping.service_fee || 0, special_instructions: shopping.special_instructions,
+            status: 'pending', created_at: shopping.created_at
+          })
+          // ✅ Sound + Vibration notification (job-specific)
+          playJobSoundNotification('shopping')
+          // ✅ Push notification (for background/closed app)
+          sendNewJobPushNotification('shopping', shopping)
+          // ✅ Update PWA badge
+          updateAppBadge(totalPendingJobs.value)
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shopping_requests' }, (payload) => {
+        const shopping = payload.new as any
+        if (shopping.status !== 'pending' || shopping.provider_id) {
+          pendingShopping.value = pendingShopping.value.filter(s => s.id !== shopping.id)
+          // ✅ Update badge when job is removed
+          updateAppBadge(totalPendingJobs.value)
+        }
+      })
+      .subscribe()
+    
+    // Periodic fetch as backup
+    fetchInterval = window.setInterval(() => { 
+      if (isOnline.value && !activeRide.value && !activeJob.value) {
+        fetchPendingRequests()
+        fetchPendingDeliveries()
+        fetchPendingShopping()
+        // ✅ Update badge periodically
+        updateAppBadge(totalPendingJobs.value)
+      }
+    }, 30000)
   }
 
   const scheduleReconnect = () => {
@@ -351,6 +857,8 @@ export function useProvider() {
 
   const unsubscribeFromRequests = () => {
     if (requestsSubscription) { requestsSubscription.unsubscribe(); requestsSubscription = null }
+    if (deliverySubscription) { deliverySubscription.unsubscribe(); deliverySubscription = null }
+    if (shoppingSubscription) { shoppingSubscription.unsubscribe(); shoppingSubscription = null }
     if (fetchInterval) { clearInterval(fetchInterval); fetchInterval = null }
   }
 
@@ -370,6 +878,7 @@ export function useProvider() {
           fare: request.estimated_fare, status: 'matched', distance: request.distance || 0, duration: request.duration || 0,
           ride_type: request.ride_type, created_at: request.created_at
         }
+        saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Save to cache
         pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
         return true
       }
@@ -390,6 +899,7 @@ export function useProvider() {
         distance: calculateDistance(rideData.pickup_lat, rideData.pickup_lng, rideData.destination_lat, rideData.destination_lng),
         duration: 15, ride_type: rideData.ride_type || 'standard', created_at: rideData.created_at
       }
+      saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Save to cache
       pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
       subscribeToRide(requestId)
       return true
@@ -410,9 +920,11 @@ export function useProvider() {
       if (status === 'picked_up') dbStatus = 'in_progress'
       if (isDemoMode() || profile.value?.id?.startsWith('demo')) {
         activeRide.value.status = status
+        saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache
         if (status === 'completed') {
           earnings.value.today += activeRide.value.fare
           earnings.value.todayTrips += 1
+          clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on complete
           setTimeout(() => { activeRide.value = null; unsubscribeFromRide() }, 3000)
         }
         return true
@@ -423,9 +935,11 @@ export function useProvider() {
       if (updateError) throw updateError
       if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
       activeRide.value.status = status
+      saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache
       if (status === 'completed') {
         earnings.value.today += activeRide.value.fare
         earnings.value.todayTrips += 1
+        clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on complete
         setTimeout(() => { activeRide.value = null; unsubscribeFromRide() }, 3000)
       }
       return true
@@ -492,6 +1006,7 @@ export function useProvider() {
         package_type: deliveryData.package_type, package_description: deliveryData.package_description,
         recipient_name: deliveryData.recipient_name, recipient_phone: deliveryData.recipient_phone
       }
+      saveToCache(CACHE_KEY_JOB, activeJob.value) // ✅ Save to cache
       pendingDeliveries.value = pendingDeliveries.value.filter(d => d.id !== deliveryId)
       subscribeToJob(deliveryId, 'delivery')
       return true
@@ -509,9 +1024,11 @@ export function useProvider() {
       if (updateError) throw updateError
       if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
       activeJob.value.status = status
+      saveToCache(CACHE_KEY_JOB, activeJob.value) // ✅ Update cache
       if (status === 'delivered') {
         earnings.value.today += activeJob.value.fare
         earnings.value.todayTrips += 1
+        clearCache(CACHE_KEY_JOB) // ✅ Clear cache on complete
         setTimeout(() => { activeJob.value = null; unsubscribeFromJob() }, 3000)
       }
       return true
@@ -559,6 +1076,7 @@ export function useProvider() {
         fare: shoppingData.service_fee, status: 'matched', created_at: new Date().toISOString(),
         store_name: shoppingData.store_name, items: shoppingData.items, item_list: shoppingData.item_list, budget_limit: shoppingData.budget_limit
       }
+      saveToCache(CACHE_KEY_JOB, activeJob.value) // ✅ Save to cache
       pendingShopping.value = pendingShopping.value.filter(s => s.id !== shoppingId)
       subscribeToJob(shoppingId, 'shopping')
       return true
@@ -577,9 +1095,11 @@ export function useProvider() {
       if (updateError) throw updateError
       if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
       activeJob.value.status = status
+      saveToCache(CACHE_KEY_JOB, activeJob.value) // ✅ Update cache
       if (status === 'completed') {
         earnings.value.today += activeJob.value.fare
         earnings.value.todayTrips += 1
+        clearCache(CACHE_KEY_JOB) // ✅ Clear cache on complete
         setTimeout(() => { activeJob.value = null; unsubscribeFromJob() }, 3000)
       }
       return true
@@ -597,8 +1117,15 @@ export function useProvider() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `id=eq.${jobId}` }, (payload) => {
         const updated = payload.new as any
         if (activeJob.value?.id === jobId) {
-          if (updated.status === 'cancelled') { activeJob.value = null; unsubscribeFromJob() }
-          else { activeJob.value.status = updated.status }
+          if (updated.status === 'cancelled') { 
+            activeJob.value = null
+            clearCache(CACHE_KEY_JOB) // ✅ Clear cache on cancel
+            unsubscribeFromJob() 
+          }
+          else { 
+            activeJob.value.status = updated.status
+            saveToCache(CACHE_KEY_JOB, activeJob.value) // ✅ Update cache on status change
+          }
         }
       })
       .subscribe()
@@ -621,8 +1148,15 @@ export function useProvider() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ride_requests', filter: 'id=eq.' + rideId }, (payload) => {
         const updated = payload.new as any
         if (activeRide.value?.id === rideId) {
-          if (updated.status === 'cancelled') { activeRide.value = null; unsubscribeFromRide() }
-          else { activeRide.value.status = updated.status }
+          if (updated.status === 'cancelled') { 
+            activeRide.value = null
+            clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on cancel
+            unsubscribeFromRide() 
+          }
+          else { 
+            activeRide.value.status = updated.status
+            saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache on status change
+          }
         }
       })
       .subscribe()
@@ -1160,12 +1694,14 @@ export function useProvider() {
     allowedServices, canSeeService,
     // Computed
     hasActiveRide, hasActiveJob,
+    // Badge count (F07 - Push Notifications)
+    totalPendingJobs,
     // Profile
     fetchProfile, updateProfile, fetchEarnings, toggleOnline,
     // Ride functions
-    fetchPendingRequests, acceptRide, declineRide, updateRideStatus, cancelActiveRide, completeRide,
-    // Delivery functions
-    fetchPendingDeliveries, acceptDelivery, updateDeliveryStatus,
+    fetchPendingRequests, fetchActiveRide, acceptRide, declineRide, updateRideStatus, cancelActiveRide, completeRide,
+    // Delivery/Shopping functions
+    fetchPendingDeliveries, fetchActiveJob, acceptDelivery, updateDeliveryStatus,
     // Shopping functions
     fetchPendingShopping, acceptShopping, updateShoppingStatus,
     // Queue Booking functions (F158)
@@ -1179,6 +1715,8 @@ export function useProvider() {
     // Delivery Proof Photo & Signature (F03 Enhancement)
     uploadDeliveryProof, completeDeliveryWithProof, saveDeliverySignature, completeDeliveryWithFullProof,
     // All jobs
-    fetchAllPendingJobs, fetchAllNewServiceJobs
+    fetchAllPendingJobs, fetchAllNewServiceJobs,
+    // Badge management
+    updateAppBadge
   }
 }

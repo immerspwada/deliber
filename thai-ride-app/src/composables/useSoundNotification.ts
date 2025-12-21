@@ -14,6 +14,13 @@ export type SoundType =
   | 'cancel'
   | 'payment'
   | 'rating'
+  // Custom job notification sounds
+  | 'new_ride'
+  | 'new_delivery'
+  | 'new_shopping'
+  | 'new_queue'
+  | 'new_moving'
+  | 'new_laundry'
 
 export type HapticType = 
   | 'light' 
@@ -39,7 +46,14 @@ const soundConfigs: Record<SoundType, { frequency: number; duration: number; typ
   complete: { frequency: 880, duration: 200, type: 'sine', notes: [523, 659, 784, 1047, 1319] },
   cancel: { frequency: 350, duration: 200, type: 'square', notes: [440, 349] },
   payment: { frequency: 800, duration: 150, type: 'sine', notes: [659, 784, 880, 1047] },
-  rating: { frequency: 600, duration: 100, type: 'sine', notes: [523, 659] }
+  rating: { frequency: 600, duration: 100, type: 'sine', notes: [523, 659] },
+  // Custom job notification sounds - distinct melodies for each type
+  new_ride: { frequency: 880, duration: 200, type: 'sine', notes: [659, 784, 880, 1047] }, // Ascending - car horn style
+  new_delivery: { frequency: 700, duration: 180, type: 'sine', notes: [523, 659, 784, 659, 784] }, // Package delivery chime
+  new_shopping: { frequency: 800, duration: 150, type: 'sine', notes: [784, 880, 1047, 880, 1047, 1319] }, // Shopping cart style
+  new_queue: { frequency: 600, duration: 200, type: 'sine', notes: [440, 523, 659, 784] }, // Queue bell
+  new_moving: { frequency: 500, duration: 250, type: 'triangle', notes: [349, 440, 523, 659, 784] }, // Heavy moving sound
+  new_laundry: { frequency: 700, duration: 150, type: 'sine', notes: [659, 784, 659, 784, 880] } // Washing machine chime
 }
 
 // Audio file URLs - Base64 encoded short sounds for instant playback
@@ -64,7 +78,14 @@ const vibrationPatterns: Record<SoundType, number[]> = {
   complete: [50, 30, 50, 30, 50, 30, 150],
   cancel: [100, 50, 100],
   payment: [80, 40, 80, 40, 120],
-  rating: [40, 20, 60]
+  rating: [40, 20, 60],
+  // Custom job notification vibrations - distinct patterns
+  new_ride: [200, 100, 200, 100, 300], // Strong double pulse
+  new_delivery: [150, 80, 150, 80, 150, 80, 200], // Triple pulse
+  new_shopping: [100, 50, 100, 50, 100, 50, 100, 50, 200], // Quick multiple pulses
+  new_queue: [180, 100, 180, 100, 250], // Medium double pulse
+  new_moving: [250, 120, 250, 120, 350], // Heavy double pulse
+  new_laundry: [120, 60, 120, 60, 120, 60, 180] // Light triple pulse
 }
 
 // Haptic patterns for different feedback types
@@ -429,6 +450,55 @@ export function useSoundNotification() {
     haptic('success')
   }
 
+  // =====================================================
+  // JOB-SPECIFIC NOTIFICATION SOUNDS
+  // Each job type has a distinct sound for easy recognition
+  // =====================================================
+  
+  // Play new ride notification (car horn style - ascending)
+  const playNewRideSound = () => {
+    notify('new_ride', true)
+  }
+
+  // Play new delivery notification (package chime)
+  const playNewDeliverySound = () => {
+    notify('new_delivery', true)
+  }
+
+  // Play new shopping notification (shopping cart style)
+  const playNewShoppingSound = () => {
+    notify('new_shopping', true)
+  }
+
+  // Play new queue notification (queue bell)
+  const playNewQueueSound = () => {
+    notify('new_queue', true)
+  }
+
+  // Play new moving notification (heavy moving sound)
+  const playNewMovingSound = () => {
+    notify('new_moving', true)
+  }
+
+  // Play new laundry notification (washing machine chime)
+  const playNewLaundrySound = () => {
+    notify('new_laundry', true)
+  }
+
+  // Play job notification by type
+  const playJobNotification = (jobType: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
+    const soundMap: Record<string, SoundType> = {
+      ride: 'new_ride',
+      delivery: 'new_delivery',
+      shopping: 'new_shopping',
+      queue: 'new_queue',
+      moving: 'new_moving',
+      laundry: 'new_laundry'
+    }
+    const soundType = soundMap[jobType] || 'new_request'
+    notify(soundType, true)
+  }
+
   // Load preferences
   try {
     const savedMuted = localStorage.getItem('sound_notification_muted')
@@ -478,6 +548,15 @@ export function useSoundNotification() {
     playSuccessMelody,
     playCompleteMelody,
     playErrorSound,
-    playPaymentSound
+    playPaymentSound,
+    
+    // Job-specific notification sounds
+    playNewRideSound,
+    playNewDeliverySound,
+    playNewShoppingSound,
+    playNewQueueSound,
+    playNewMovingSound,
+    playNewLaundrySound,
+    playJobNotification
   }
 }

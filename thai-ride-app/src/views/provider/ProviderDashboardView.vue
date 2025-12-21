@@ -8,11 +8,13 @@ import { useProvider } from '../../composables/useProvider'
 import { useProviderTracking } from '../../composables/useProviderTracking'
 import ProviderLayout from '../../components/ProviderLayout.vue'
 import ActiveRideView from '../../components/provider/ActiveRideView.vue'
+import ActiveJobView from '../../components/provider/ActiveJobView.vue'
 import RideRequestCard from '../../components/provider/RideRequestCard.vue'
 import ChatModal from '../../components/ChatModal.vue'
 import VoiceCallModal from '../../components/VoiceCallModal.vue'
 import PassengerRatingModal from '../../components/provider/PassengerRatingModal.vue'
 import LocationPermissionModal from '../../components/LocationPermissionModal.vue'
+import DeliveryProofCapture from '../../components/provider/DeliveryProofCapture.vue'
 
 const { getCurrentPosition, currentLocation, shouldShowPermissionModal } = useLocation()
 const {
@@ -20,16 +22,29 @@ const {
   profile,
   isOnline,
   pendingRequests,
+  pendingDeliveries,
+  pendingShopping,
   activeRide,
+  activeJob,
   earnings,
   hasActiveRide,
+  hasActiveJob,
+  totalPendingJobs,
   fetchProfile,
   toggleOnline,
   acceptRide,
   declineRide,
   updateRideStatus,
   cancelActiveRide,
-  fetchEarnings
+  fetchEarnings,
+  acceptDelivery,
+  updateDeliveryStatus,
+  acceptShopping,
+  updateShoppingStatus,
+  fetchPendingDeliveries,
+  fetchPendingShopping,
+  uploadDeliveryProof,
+  updateAppBadge
 } = useProvider()
 
 // Local state
@@ -38,6 +53,7 @@ const showChatModal = ref(false)
 const showVoiceCallModal = ref(false)
 const showRatingModal = ref(false)
 const showLocationPermission = ref(false)
+const showDeliveryProofModal = ref(false)
 const completedRideInfo = ref<{ passengerName: string; fare: number; rideId: string } | null>(null)
 const isInitialized = ref(false)
 let demoRequestInterval: number | null = null
@@ -194,6 +210,17 @@ watch(isOnline, (online) => {
       stopDemoSimulation()
     }
   }
+  // ✅ Clear badge when going offline
+  if (!online) {
+    updateAppBadge(0)
+  }
+})
+
+// ✅ Watch totalPendingJobs to update PWA badge
+watch(totalPendingJobs, (count) => {
+  if (isOnline.value) {
+    updateAppBadge(count)
+  }
 })
 
 // Toggle online status
@@ -304,6 +331,49 @@ const handleRatingClose = () => {
   completedRideInfo.value = null
 }
 
+// Handle job status update (delivery/shopping)
+const handleJobUpdateStatus = async (status: string) => {
+  if (!activeJob.value) return
+  
+  if (activeJob.value.type === 'delivery') {
+    await updateDeliveryStatus(status as 'pickup' | 'in_transit' | 'delivered')
+  } else if (activeJob.value.type === 'shopping') {
+    await updateShoppingStatus(status as 'shopping' | 'delivering' | 'completed')
+  }
+}
+
+// Handle job navigation
+const handleJobNavigate = () => {
+  if (!activeJob.value) return
+  
+  const showPickup = activeJob.value.type === 'delivery' 
+    ? ['matched', 'pickup'].includes(activeJob.value.status)
+    : ['matched', 'shopping'].includes(activeJob.value.status)
+  
+  if (showPickup) {
+    openNavigation(activeJob.value.pickup.lat, activeJob.value.pickup.lng)
+  } else {
+    openNavigation(activeJob.value.destination.lat, activeJob.value.destination.lng)
+  }
+}
+
+// Handle job cancel
+const handleJobCancel = async () => {
+  // TODO: Implement job cancellation
+  console.log('Cancel job:', activeJob.value?.id)
+}
+
+// Handle delivery proof photo
+const handleTakePhoto = () => {
+  showDeliveryProofModal.value = true
+}
+
+// Handle delivery proof upload complete
+const handleProofUploaded = (photoUrl: string) => {
+  showDeliveryProofModal.value = false
+  console.log('Proof uploaded:', photoUrl)
+}
+
 // Initialize
 onMounted(async () => {
   // Always await fetchProfile to ensure profile is ready before toggle
@@ -372,7 +442,7 @@ onUnmounted(() => {
 
       <!-- Active Ride View -->
       <ActiveRideView
-        v-else-if="hasActiveRide && activeRide"
+        v-else-if="hasActiveRide() && activeRide"
         :ride="activeRide"
         :current-location="currentLocation ? { lat: currentLocation.lat, lng: currentLocation.lng } : undefined"
         @update-status="handleUpdateStatus"
@@ -380,6 +450,19 @@ onUnmounted(() => {
         @chat="showChatModal = true"
         @cancel="cancelActiveRide"
         @navigate="handleNavigate"
+      />
+
+      <!-- Active Job View (Delivery/Shopping) -->
+      <ActiveJobView
+        v-else-if="hasActiveJob() && activeJob"
+        :job="activeJob"
+        :current-location="currentLocation ? { lat: currentLocation.lat, lng: currentLocation.lng } : undefined"
+        @update-status="handleJobUpdateStatus"
+        @call="showVoiceCallModal = true"
+        @chat="showChatModal = true"
+        @cancel="handleJobCancel"
+        @navigate="handleJobNavigate"
+        @take-photo="handleTakePhoto"
       />
 
       <!-- Normal Dashboard -->
@@ -480,7 +563,9 @@ onUnmounted(() => {
         <div class="requests-section">
           <h2 class="section-title">
             งานที่รอรับ
-            <span v-if="pendingRequests.length > 0" class="count-badge">{{ pendingRequests.length }}</span>
+            <span v-if="totalPendingJobs > 0" class="count-badge">
+              {{ totalPendingJobs }}
+            </span>
           </h2>
 
           <!-- Offline State -->
@@ -495,7 +580,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Empty State -->
-          <div v-else-if="pendingRequests.length === 0" class="empty-state">
+          <div v-else-if="pendingRequests.length === 0 && pendingDeliveries.length === 0 && pendingShopping.length === 0" class="empty-state">
             <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
@@ -505,33 +590,112 @@ onUnmounted(() => {
 
           <!-- Requests List -->
           <div v-else class="requests-list">
+            <!-- Ride Requests -->
             <RideRequestCard
               v-for="request in pendingRequests"
-              :key="request.id"
+              :key="'ride-' + request.id"
               :request="request"
               :auto-decline-seconds="30"
               @accept="acceptRide(request.id)"
               @decline="declineRide(request.id)"
             />
+            
+            <!-- Delivery Requests -->
+            <div 
+              v-for="delivery in pendingDeliveries" 
+              :key="'delivery-' + delivery.id"
+              class="job-request-card delivery"
+            >
+              <div class="job-type-header">
+                <div class="job-type-badge delivery">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                  </svg>
+                  <span>ส่งพัสดุ</span>
+                </div>
+                <span class="job-fee">฿{{ delivery.estimated_fee }}</span>
+              </div>
+              <div class="job-locations">
+                <div class="location-row">
+                  <div class="location-dot pickup"></div>
+                  <span>{{ delivery.sender_address }}</span>
+                </div>
+                <div class="location-row">
+                  <div class="location-dot destination"></div>
+                  <span>{{ delivery.recipient_address }}</span>
+                </div>
+              </div>
+              <div class="job-meta">
+                <span v-if="delivery.distance_km">{{ delivery.distance_km.toFixed(1) }} กม.</span>
+                <span>{{ delivery.package_type }}</span>
+              </div>
+              <div class="job-actions">
+                <button class="btn-decline" @click="pendingDeliveries = pendingDeliveries.filter(d => d.id !== delivery.id)">
+                  ปฏิเสธ
+                </button>
+                <button class="btn-accept" @click="acceptDelivery(delivery.id)">
+                  รับงาน
+                </button>
+              </div>
+            </div>
+            
+            <!-- Shopping Requests -->
+            <div 
+              v-for="shopping in pendingShopping" 
+              :key="'shopping-' + shopping.id"
+              class="job-request-card shopping"
+            >
+              <div class="job-type-header">
+                <div class="job-type-badge shopping">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                  </svg>
+                  <span>ซื้อของ</span>
+                </div>
+                <span class="job-fee">฿{{ shopping.service_fee }}</span>
+              </div>
+              <div class="job-locations">
+                <div class="location-row">
+                  <div class="location-dot pickup"></div>
+                  <span>{{ shopping.store_name || shopping.store_address || 'ร้านค้า' }}</span>
+                </div>
+                <div class="location-row">
+                  <div class="location-dot destination"></div>
+                  <span>{{ shopping.delivery_address }}</span>
+                </div>
+              </div>
+              <div class="job-meta">
+                <span>งบ ฿{{ shopping.budget_limit?.toLocaleString() }}</span>
+                <span v-if="shopping.items?.length">{{ shopping.items.length }} รายการ</span>
+              </div>
+              <div class="job-actions">
+                <button class="btn-decline" @click="pendingShopping = pendingShopping.filter(s => s.id !== shopping.id)">
+                  ปฏิเสธ
+                </button>
+                <button class="btn-accept" @click="acceptShopping(shopping.id)">
+                  รับงาน
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Modals -->
       <ChatModal
-        v-if="activeRide"
-        :ride-id="activeRide.id"
-        :driver-name="activeRide.passenger.name"
+        v-if="activeRide || activeJob"
+        :ride-id="activeRide?.id || activeJob?.id || ''"
+        :driver-name="activeRide?.passenger.name || activeJob?.customer.name || ''"
         :show="showChatModal"
         @close="showChatModal = false"
       />
 
       <VoiceCallModal
-        v-if="activeRide"
+        v-if="activeRide || activeJob"
         :show="showVoiceCallModal"
-        :driver-name="activeRide.passenger.name"
-        :driver-phone="activeRide.passenger.phone"
-        :ride-id="activeRide.id"
+        :driver-name="activeRide?.passenger.name || activeJob?.customer.name || ''"
+        :driver-phone="activeRide?.passenger.phone || activeJob?.customer.phone || ''"
+        :ride-id="activeRide?.id || activeJob?.id || ''"
         @close="showVoiceCallModal = false"
         @end="showVoiceCallModal = false"
       />
@@ -552,6 +716,15 @@ onUnmounted(() => {
         :show="showLocationPermission"
         @allow="handleLocationPermissionAllow"
         @deny="handleLocationPermissionDeny"
+      />
+
+      <!-- Delivery Proof Modal -->
+      <DeliveryProofCapture
+        v-if="activeJob && activeJob.type === 'delivery'"
+        :show="showDeliveryProofModal"
+        :delivery-id="activeJob.id"
+        @close="showDeliveryProofModal = false"
+        @uploaded="handleProofUploaded"
       />
     </div>
   </ProviderLayout>
@@ -989,5 +1162,131 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Job Request Card Styles */
+.job-request-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.job-type-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.job-type-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.job-type-badge.delivery {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.job-type-badge.shopping {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+.job-type-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+.job-fee {
+  font-size: 18px;
+  font-weight: 700;
+  color: #00A86B;
+}
+
+.job-locations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #F6F6F6;
+  border-radius: 10px;
+}
+
+.location-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.location-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.location-dot.pickup {
+  background: #00A86B;
+}
+
+.location-dot.destination {
+  background: #E53935;
+}
+
+.job-meta {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #666;
+}
+
+.job-meta span {
+  padding: 4px 8px;
+  background: #F0F0F0;
+  border-radius: 6px;
+}
+
+.job-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-decline {
+  flex: 1;
+  padding: 12px;
+  background: #F6F6F6;
+  color: #666;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-accept {
+  flex: 2;
+  padding: 12px;
+  background: #00A86B;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+}
+
+.btn-accept:active {
+  transform: scale(0.98);
 }
 </style>

@@ -13,7 +13,7 @@
  * 7. Network Recovery - Exponential backoff retry
  * 8. Performance - Virtual scrolling for large lists
  */
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef, triggerRef } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef, triggerRef, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocation } from '../../composables/useLocation'
 import { useProviderDashboard } from '../../composables/useProviderDashboard'
@@ -294,6 +294,19 @@ const handleConfirmAccept = async () => {
       showSuccess('รับงานสำเร็จ!')
       showConfirmModal.value = false
       selectedRequest.value = null
+      
+      // Force Vue to process reactivity updates
+      await nextTick()
+      
+      // Debug log to verify activeJob state
+      console.log('[ProviderDashboard] Accept success - activeJob:', activeJob.value)
+      console.log('[ProviderDashboard] hasActiveJob:', hasActiveJob.value)
+      
+      // If activeJob is set but UI doesn't update, force a small delay
+      if (activeJob.value && !hasActiveJob.value) {
+        console.warn('[ProviderDashboard] Reactivity issue detected, forcing update')
+        await nextTick()
+      }
     } else if (result.error) {
       soundNotification.playSound?.('error')
       showError(result.error)

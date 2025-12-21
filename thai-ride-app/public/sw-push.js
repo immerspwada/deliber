@@ -65,6 +65,11 @@ self.addEventListener('notificationclick', (event) => {
     return // Just close notification
   }
 
+  // Handle new job notifications - navigate to provider dashboard
+  if (notificationData.type === 'new_job') {
+    targetUrl = '/provider'
+  }
+
   // Focus existing window or open new one
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })

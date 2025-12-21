@@ -153,6 +153,27 @@ async function retryWithBackoff<T>(
   throw lastError
 }
 
+// =====================================================
+// SINGLETON STATE - Shared across all component instances
+// This ensures activeJob state is consistent across the app
+// =====================================================
+const singletonState = {
+  loading: ref(false),
+  error: ref<string | null>(null),
+  isInitialized: ref(false),
+  networkStatus: ref<'online' | 'offline' | 'reconnecting'>('online'),
+  profile: ref<ProviderProfile | null>(null),
+  isOnline: ref(false),
+  pendingRequests: shallowRef<PendingRequest[]>([]),
+  activeJob: ref<ActiveJob | null>(null),
+  earnings: ref<EarningsSummary>({
+    today: 0, thisWeek: 0, thisMonth: 0,
+    todayTrips: 0, weekTrips: 0, monthTrips: 0
+  })
+}
+
+// Singleton cleanup registry
+const singletonCleanup = new CleanupRegistry()
 
 // =====================================================
 // MAIN COMPOSABLE
@@ -161,29 +182,21 @@ export function useProviderDashboard() {
   const router = useRouter()
   const route = useRoute()
   const authStore = useAuthStore()
-  const cleanup = new CleanupRegistry()
-
-  // =====================================================
-  // STATE - Using shallowRef for large arrays (performance)
-  // =====================================================
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const isInitialized = ref(false)
-  const networkStatus = ref<'online' | 'offline' | 'reconnecting'>('online')
   
-  // Profile
-  const profile = ref<ProviderProfile | null>(null)
-  const isOnline = ref(false)
+  // Use singleton state instead of creating new refs
+  const {
+    loading,
+    error,
+    isInitialized,
+    networkStatus,
+    profile,
+    isOnline,
+    pendingRequests,
+    activeJob,
+    earnings
+  } = singletonState
   
-  // Requests - shallowRef for performance with large lists
-  const pendingRequests = shallowRef<PendingRequest[]>([])
-  const activeJob = ref<ActiveJob | null>(null)
-  
-  // Earnings
-  const earnings = ref<EarningsSummary>({
-    today: 0, thisWeek: 0, thisMonth: 0,
-    todayTrips: 0, weekTrips: 0, monthTrips: 0
-  })
+  const cleanup = singletonCleanup
 
   // =====================================================
   // URL STATE SYNC
@@ -886,13 +899,17 @@ export function useProviderDashboard() {
         fare: jobData.estimated_fare || jobData.estimated_fee,
         created_at: jobData.created_at
       }
+      
+      // Debug log
+      console.log('[useProviderDashboard] activeJob set:', activeJob.value)
+      console.log('[useProviderDashboard] hasActiveJob computed:', activeJob.value !== null)
 
       // Remove from pending
       pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
       triggerRef(pendingRequests)
 
-      // Subscribe to job updates
-      subscribeToActiveJob(requestId, type)
+      // Subscribe to job updates - use rideId (the actual job ID)
+      subscribeToActiveJob(rideId, type)
 
       return { success: true }
     } catch (e: any) {

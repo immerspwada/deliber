@@ -392,6 +392,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
+    path: '/provider/my-jobs',
+    name: 'ProviderMyJobs',
+    component: () => import('../views/provider/ProviderMyJobsView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
     path: '/provider/scheduled-rides',
     name: 'ProviderScheduledRides',
     component: () => import('../views/provider/ProviderScheduledRidesView.vue'),
@@ -419,6 +425,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/provider/incentives',
     name: 'ProviderIncentives',
     component: () => import('../views/provider/ProviderIncentivesView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/notification-settings',
+    name: 'ProviderNotificationSettings',
+    component: () => import('../views/provider/ProviderNotificationSettingsView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
 
