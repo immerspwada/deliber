@@ -172,21 +172,21 @@ export const useRideStore = defineStore('ride', () => {
       // Use request deduplication with location-based cache key
       const cacheKey = `nearby_drivers_${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusKm}`
       
-      const data = await dedupRequest(
+      const data = await dedupRequest<ServiceProvider[]>(
         cacheKey,
         async () => {
-          const { data: result, error: fetchError } = await supabase.rpc('find_nearby_providers', {
+          const { data: result, error: fetchError } = await (supabase.rpc as any)('find_nearby_providers', {
             lat: lat,
             lng: lng,
             radius_km: radiusKm,
             provider_type_filter: 'driver'
-          } as any)
+          })
           
           if (fetchError) {
             throw fromSupabaseError(fetchError)
           }
           
-          return result || []
+          return (result || []) as ServiceProvider[]
         },
         { ttl: 30000 } // Cache for 30 seconds
       )
@@ -224,9 +224,21 @@ export const useRideStore = defineStore('ride', () => {
       )
       const estimatedFare = calculateFare(distanceKm, rideType)
       
+      console.log('[createRideRequest] Starting...', {
+        userId,
+        pickup: pickup.address,
+        destination: destination.address,
+        rideType,
+        estimatedFare
+      })
+      
+      // Generate tracking ID
+      const trackingId = `RID-${Date.now().toString(36).toUpperCase()}`
+      
       // Create ride request directly with supabase
       const insertPayload: Record<string, unknown> = {
         user_id: userId,
+        tracking_id: trackingId,
         pickup_lat: pickup.lat,
         pickup_lng: pickup.lng,
         pickup_address: pickup.address,
@@ -241,6 +253,8 @@ export const useRideStore = defineStore('ride', () => {
         scheduled_time: scheduledAt || null
       }
       
+      console.log('[createRideRequest] Insert payload:', insertPayload)
+      
       const { data: rideData, error: insertError } = await (supabase as any)
         .from('ride_requests')
         .insert(insertPayload)
@@ -248,18 +262,38 @@ export const useRideStore = defineStore('ride', () => {
         .single()
       
       if (insertError) {
+        console.error('[createRideRequest] Insert error:', {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint
+        })
+        
+        // Check if it's a foreign key error (demo user not in DB)
+        if (insertError.code === '23503') {
+          error.value = 'ไม่พบข้อมูลผู้ใช้ในระบบ กรุณาเข้าสู่ระบบใหม่'
+          console.error('[createRideRequest] Foreign key error - user_id not found in users table')
+        }
+        
         throw insertError
       }
+      
+      console.log('[createRideRequest] ✓ Success! Ride created:', {
+        id: rideData?.id,
+        tracking_id: rideData?.tracking_id,
+        status: rideData?.status
+      })
       
       currentRide.value = rideData as RideRequest
       
       // Subscribe to ride updates
       subscribeToRideUpdates(rideData.id)
       
-      return { rideId: rideData.id, estimatedFare }
+      return { rideId: rideData.id, estimatedFare, trackingId }
     } catch (err) {
       const appError = handleError(err)
       error.value = appError.message
+      console.error('[createRideRequest] Final error:', appError.message)
       return null
     } finally {
       loading.value = false

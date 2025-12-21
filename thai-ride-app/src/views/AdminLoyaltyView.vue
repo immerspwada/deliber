@@ -64,8 +64,9 @@ const fetchStats = async () => {
       stats.value.totalRedeemed = rewardData.reduce((sum: number, r: any) => sum + (r.points_spent || 0), 0)
     }
   } catch (e) {
-    // Demo data
-    stats.value = { totalUsers: 1250, totalPoints: 2500000, totalRedeemed: 450000, avgPoints: 2000 }
+    // NO MOCK DATA - Return zeros on error
+    console.error('[AdminLoyaltyView] fetchStats error:', e)
+    stats.value = { totalUsers: 0, totalPoints: 0, totalRedeemed: 0, avgPoints: 0 }
   }
 }
 
@@ -74,12 +75,9 @@ const fetchTiers = async () => {
     const { data } = await supabase.from('loyalty_tiers').select('*').order('sort_order')
     tiers.value = data || []
   } catch (e) {
-    tiers.value = [
-      { id: '1', name: 'Bronze', name_th: 'บรอนซ์', min_points: 0, multiplier: 1.0, benefits: ['สะสมแต้ม 1 แต้ม/บาท'], badge_color: '#CD7F32', is_active: true },
-      { id: '2', name: 'Silver', name_th: 'ซิลเวอร์', min_points: 1000, multiplier: 1.2, benefits: ['สะสมแต้ม 1.2 แต้ม/บาท'], badge_color: '#C0C0C0', is_active: true },
-      { id: '3', name: 'Gold', name_th: 'โกลด์', min_points: 5000, multiplier: 1.5, benefits: ['สะสมแต้ม 1.5 แต้ม/บาท'], badge_color: '#FFD700', is_active: true },
-      { id: '4', name: 'Platinum', name_th: 'แพลทินัม', min_points: 15000, multiplier: 2.0, benefits: ['สะสมแต้ม 2 แต้ม/บาท'], badge_color: '#E5E4E2', is_active: true }
-    ]
+    // NO MOCK DATA - Return empty array on error
+    console.error('[AdminLoyaltyView] fetchTiers error:', e)
+    tiers.value = []
   }
 }
 
@@ -88,11 +86,9 @@ const fetchRewards = async () => {
     const { data } = await supabase.from('loyalty_rewards').select('*').order('points_required')
     rewards.value = data || []
   } catch (e) {
-    rewards.value = [
-      { id: '1', name_th: 'ส่วนลด 20 บาท', type: 'discount', points_required: 200, value: 20, value_type: 'fixed', is_active: true, quantity_redeemed: 150 },
-      { id: '2', name_th: 'ส่วนลด 50 บาท', type: 'discount', points_required: 450, value: 50, value_type: 'fixed', is_active: true, quantity_redeemed: 85 },
-      { id: '3', name_th: 'เดินทางฟรี', type: 'free_ride', points_required: 1500, value: 100, value_type: 'fixed', is_active: true, quantity_redeemed: 25 }
-    ]
+    // NO MOCK DATA - Return empty array on error
+    console.error('[AdminLoyaltyView] fetchRewards error:', e)
+    rewards.value = []
   }
 }
 
@@ -101,10 +97,9 @@ const fetchUserLoyalties = async () => {
     const { data } = await supabase.from('user_loyalty').select('*, user:users(name, email)').order('lifetime_points', { ascending: false }).limit(50)
     userLoyalties.value = data || []
   } catch (e) {
-    userLoyalties.value = [
-      { id: '1', user_id: 'u1', current_points: 3500, lifetime_points: 8500, user: { name: 'สมชาย ใจดี', email: 'somchai@email.com' } },
-      { id: '2', user_id: 'u2', current_points: 1200, lifetime_points: 4200, user: { name: 'สมหญิง รักดี', email: 'somying@email.com' } }
-    ]
+    // NO MOCK DATA - Return empty array on error
+    console.error('[AdminLoyaltyView] fetchUserLoyalties error:', e)
+    userLoyalties.value = []
   }
 }
 

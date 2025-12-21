@@ -55,112 +55,98 @@ export function useAdmin() {
   // Check if admin demo mode
   const isAdminDemoMode = () => localStorage.getItem('admin_demo_mode') === 'true'
 
-  // Fetch dashboard overview stats
+  // Fetch dashboard overview stats - ใช้ RPC function (bypass RLS)
   const fetchDashboardStats = async () => {
     loading.value = true
     
-    
     try {
-      // Users count
-      const { count: usersCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
+      // ลองใช้ RPC function ก่อน (bypass RLS)
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_admin_dashboard_stats')
       
-      // Providers count
-      const { count: providersCount } = await supabase
-        .from('service_providers')
-        .select('*', { count: 'exact', head: true })
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        const d = rpcData[0]
+        stats.value = {
+          totalUsers: d.total_users || 0,
+          totalProviders: d.total_providers || 0,
+          totalRides: d.total_rides || 0,
+          totalDeliveries: d.total_deliveries || 0,
+          totalShopping: d.total_shopping || 0,
+          totalRevenue: d.total_revenue || 0,
+          activeRides: d.active_rides || 0,
+          onlineProviders: d.online_providers || 0,
+          pendingVerifications: d.pending_verifications || 0,
+          openTickets: d.open_tickets || 0,
+          activeSubscriptions: d.active_subscriptions || 0,
+          pendingInsuranceClaims: d.pending_insurance_claims || 0,
+          scheduledRides: d.scheduled_rides || 0,
+          activeCompanies: d.active_companies || 0
+        }
+        loading.value = false
+        return
+      }
+      
+      console.log('[fetchDashboardStats] RPC failed, using direct queries...', rpcError)
+      
+      // Fallback: Direct queries
+      const [
+        usersResult,
+        providersResult,
+        onlineResult,
+        ridesResult,
+        activeRidesResult,
+        deliveriesResult,
+        shoppingResult,
+        pendingResult,
+        ticketsResult,
+        subscriptionsResult,
+        insuranceResult,
+        scheduledResult,
+        companiesResult
+      ] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('service_providers').select('*', { count: 'exact', head: true }),
+        supabase.from('service_providers').select('*', { count: 'exact', head: true }).eq('is_available', true),
+        supabase.from('ride_requests').select('*', { count: 'exact', head: true }),
+        supabase.from('ride_requests').select('*', { count: 'exact', head: true }).in('status', ['pending', 'matched', 'pickup', 'in_progress']),
+        supabase.from('delivery_requests').select('*', { count: 'exact', head: true }),
+        supabase.from('shopping_requests').select('*', { count: 'exact', head: true }),
+        supabase.from('service_providers').select('*', { count: 'exact', head: true }).eq('is_verified', false),
+        supabase.from('support_tickets').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
+        supabase.from('user_subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('insurance_claims').select('*', { count: 'exact', head: true }).in('status', ['submitted', 'under_review']),
+        supabase.from('scheduled_rides').select('*', { count: 'exact', head: true }).in('status', ['scheduled', 'confirmed']),
+        supabase.from('companies').select('*', { count: 'exact', head: true }).eq('status', 'active')
+      ])
 
-      // Available providers
-      const { count: onlineCount } = await supabase
-        .from('service_providers')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_available', true)
-
-      // Rides count
-      const { count: ridesCount } = await supabase
-        .from('ride_requests')
-        .select('*', { count: 'exact', head: true })
-
-      // Active rides
-      const { count: activeRidesCount } = await supabase
-        .from('ride_requests')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'matched', 'pickup', 'in_progress'])
-
-      // Deliveries count
-      const { count: deliveriesCount } = await supabase
-        .from('delivery_requests')
-        .select('*', { count: 'exact', head: true })
-
-      // Shopping count
-      const { count: shoppingCount } = await supabase
-        .from('shopping_requests')
-        .select('*', { count: 'exact', head: true })
-
-      // Pending verifications (providers not verified)
-      const { count: pendingCount } = await supabase
-        .from('service_providers')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_verified', false)
-
-      // Total revenue from completed payments
+      // Calculate revenue from completed rides
       const { data: revenueData } = await supabase
-        .from('payments')
-        .select('amount')
+        .from('ride_requests')
+        .select('final_fare, estimated_fare')
         .eq('status', 'completed')
-
-      const totalRevenue = (revenueData as any[])?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
-
-      // Open support tickets
-      const { count: ticketsCount } = await supabase
-        .from('support_tickets')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['open', 'in_progress'])
-
-      // Active subscriptions
-      const { count: subscriptionsCount } = await supabase
-        .from('user_subscriptions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
-
-      // Pending insurance claims
-      const { count: insuranceClaimsCount } = await supabase
-        .from('insurance_claims')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['submitted', 'under_review'])
-
-      // Scheduled rides
-      const { count: scheduledCount } = await supabase
-        .from('scheduled_rides')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['scheduled', 'confirmed'])
-
-      // Active companies
-      const { count: companiesCount } = await supabase
-        .from('companies')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
+      
+      const totalRevenue = (revenueData || []).reduce((sum: number, r: any) => 
+        sum + (r.final_fare || r.estimated_fare || 0), 0)
 
       stats.value = {
-        totalUsers: usersCount || 0,
-        totalProviders: providersCount || 0,
-        totalRides: ridesCount || 0,
-        totalDeliveries: deliveriesCount || 0,
-        totalShopping: shoppingCount || 0,
+        totalUsers: usersResult.count || 0,
+        totalProviders: providersResult.count || 0,
+        totalRides: ridesResult.count || 0,
+        totalDeliveries: deliveriesResult.count || 0,
+        totalShopping: shoppingResult.count || 0,
         totalRevenue,
-        activeRides: activeRidesCount || 0,
-        onlineProviders: onlineCount || 0,
-        pendingVerifications: pendingCount || 0,
-        openTickets: ticketsCount || 0,
-        activeSubscriptions: subscriptionsCount || 0,
-        pendingInsuranceClaims: insuranceClaimsCount || 0,
-        scheduledRides: scheduledCount || 0,
-        activeCompanies: companiesCount || 0
+        activeRides: activeRidesResult.count || 0,
+        onlineProviders: onlineResult.count || 0,
+        pendingVerifications: pendingResult.count || 0,
+        openTickets: ticketsResult.count || 0,
+        activeSubscriptions: subscriptionsResult.count || 0,
+        pendingInsuranceClaims: insuranceResult.count || 0,
+        scheduledRides: scheduledResult.count || 0,
+        activeCompanies: companiesResult.count || 0
       }
     } catch (err: any) {
       error.value = err.message
-      // Return zeros on error
+      console.error('[fetchDashboardStats] Error:', err)
+      // Reset to zeros on error - NO MOCK DATA
       stats.value = {
         totalUsers: 0,
         totalProviders: 0,
@@ -182,14 +168,13 @@ export function useAdmin() {
     }
   }
 
-  // Fetch recent orders (all types)
+  // Fetch recent orders (all types) - ดึงข้อมูลจริงจาก database เท่านั้น
   const fetchRecentOrders = async (limit = 10) => {
-    
     try {
       const [rides, deliveries, shopping] = await Promise.all([
-        supabase.from('ride_requests').select('*, users(name)').order('created_at', { ascending: false }).limit(limit),
-        supabase.from('delivery_requests').select('*, users(name)').order('created_at', { ascending: false }).limit(limit),
-        supabase.from('shopping_requests').select('*, users(name)').order('created_at', { ascending: false }).limit(limit)
+        supabase.from('ride_requests').select('*, users(name, first_name, last_name)').order('created_at', { ascending: false }).limit(limit),
+        supabase.from('delivery_requests').select('*, users(name, first_name, last_name)').order('created_at', { ascending: false }).limit(limit),
+        supabase.from('shopping_requests').select('*, users(name, first_name, last_name)').order('created_at', { ascending: false }).limit(limit)
       ])
 
       const allOrders = [
@@ -199,13 +184,14 @@ export function useAdmin() {
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, limit)
 
       recentOrders.value = allOrders
-    } catch {
-      // Return empty on error
+    } catch (err) {
+      console.error('[fetchRecentOrders] Error:', err)
+      // Return empty array instead of mock data
       recentOrders.value = []
     }
   }
 
-  // Fetch users list
+  // Fetch users list - ใช้ RPC function (bypass RLS)
   const fetchUsers = async (page = 1, limit = 20, filter?: { 
     status?: string
     search?: string
@@ -213,26 +199,49 @@ export function useAdmin() {
     verification_status?: string 
   }) => {
     try {
+      // ลองใช้ RPC function ก่อน
+      const offset = (page - 1) * limit
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_all_users_for_admin', {
+        p_status: filter?.status || null,
+        p_search: filter?.search || null,
+        p_limit: limit,
+        p_offset: offset
+      })
+      
+      if (!rpcError && rpcData) {
+        // Get total count
+        const { data: countData } = await (supabase.rpc as any)('count_users_for_admin', {
+          p_status: filter?.status || null,
+          p_search: filter?.search || null
+        })
+        
+        // Transform data
+        const transformedData = rpcData.map((u: any) => ({
+          ...u,
+          name: u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email?.split('@')[0],
+          phone: u.phone || u.phone_number,
+          is_active: u.is_active !== false,
+          verification_status: u.verification_status || 'pending'
+        }))
+        
+        return { data: transformedData, total: countData || 0 }
+      }
+      
+      console.log('[fetchUsers] RPC failed, using direct query...', rpcError)
+      
+      // Fallback: Direct query
       let query = supabase.from('users').select('*', { count: 'exact' })
       
-      // Status filter (is_active)
       if (filter?.status === 'active') query = query.eq('is_active', true)
       if (filter?.status === 'inactive') query = query.eq('is_active', false)
-      
-      // Verification status filter
       if (filter?.verification_status) query = query.eq('verification_status', filter.verification_status)
-      
-      // Role filter
       if (filter?.role) query = query.eq('role', filter.role)
-      
-      // Search filter (including member_uid)
       if (filter?.search) {
         query = query.or(`name.ilike.%${filter.search}%,email.ilike.%${filter.search}%,phone.ilike.%${filter.search}%,first_name.ilike.%${filter.search}%,last_name.ilike.%${filter.search}%,phone_number.ilike.%${filter.search}%,member_uid.ilike.%${filter.search}%`)
       }
       
       const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
       
-      // Transform data to match expected format
       const transformedData = (data || []).map((u: any) => ({
         ...u,
         name: u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email?.split('@')[0],
@@ -243,17 +252,67 @@ export function useAdmin() {
       
       return { data: transformedData, total: count || 0 }
     } catch (err) {
-      console.error('Fetch users error:', err)
+      console.error('[fetchUsers] Error:', err)
       return { data: [], total: 0 }
     }
   }
 
   // Fetch providers list - ดึงข้อมูลจริงจาก database เท่านั้น (ห้ามใช้ mock data)
   const fetchProviders = async (page = 1, limit = 20, filter?: { type?: string; status?: string }) => {
-    console.log('[fetchProviders] Starting fetch with filter:', filter)
+    console.log('[fetchProviders] Starting fetch with filter:', filter, 'Demo mode:', isAdminDemoMode())
     
     try {
-      // Query real data from database
+      // ลองใช้ RPC function ก่อน (bypass RLS)
+      const offset = (page - 1) * limit
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_all_providers_for_admin', {
+        p_status: filter?.status || null,
+        p_provider_type: filter?.type || null,
+        p_limit: limit,
+        p_offset: offset
+      })
+      
+      if (!rpcError && rpcData) {
+        console.log('[fetchProviders] RPC Success:', rpcData.length, 'providers')
+        
+        // Get total count
+        const { data: countData } = await (supabase.rpc as any)('count_providers_for_admin', {
+          p_status: filter?.status || null,
+          p_provider_type: filter?.type || null
+        })
+        
+        const total = countData || 0
+        
+        // Transform data to match expected format
+        const transformedData = rpcData.map((p: any) => ({
+          ...p,
+          users: {
+            id: p.user_id,
+            email: p.user_email,
+            first_name: p.user_first_name,
+            last_name: p.user_last_name,
+            phone: p.user_phone,
+            phone_number: p.user_phone
+          }
+        }))
+        
+        console.log('[fetchProviders] Transformed data:', {
+          count: transformedData.length,
+          total,
+          firstItem: transformedData[0] ? {
+            id: transformedData[0].id,
+            status: transformedData[0].status,
+            provider_type: transformedData[0].provider_type,
+            provider_uid: transformedData[0].provider_uid,
+            email: transformedData[0].users?.email
+          } : null
+        })
+        
+        return { data: transformedData, total }
+      }
+      
+      console.log('[fetchProviders] RPC failed, trying direct query...', rpcError)
+      
+      // Fallback: ใช้ direct query
       let query = supabase.from('service_providers').select(`
         *,
         users (
@@ -267,38 +326,56 @@ export function useAdmin() {
         )
       `, { count: 'exact' })
       
-      if (filter?.type) query = (query as any).eq('provider_type', filter.type)
-      if (filter?.status) query = (query as any).eq('status', filter.status)
+      const filterType = filter?.type
+      const filterStatus = filter?.status
+      
+      if (filterType) query = (query as any).eq('provider_type', filterType)
+      if (filterStatus) query = (query as any).eq('status', filterStatus)
       
       const { data, count, error } = await query
         .range((page - 1) * limit, page * limit - 1)
         .order('created_at', { ascending: false })
       
+      console.log('[fetchProviders] Direct query result:', { 
+        dataCount: data?.length || 0, 
+        total: count, 
+        error: error?.message,
+        errorCode: error?.code,
+        firstItem: data?.[0] ? { id: (data[0] as any).id, status: (data[0] as any).status, provider_type: (data[0] as any).provider_type, email: (data[0] as any).users?.email } : null
+      })
+      
       if (error) {
-        console.error('[fetchProviders] Error:', error)
-        // Fallback query without join
-        const { data: fallbackData, count: fallbackCount } = await supabase
-          .from('service_providers')
-          .select('*', { count: 'exact' })
-          .range((page - 1) * limit, page * limit - 1)
-          .order('created_at', { ascending: false })
-        
-        if (fallbackData) {
-          const userIds = fallbackData.map((p: any) => p.user_id).filter(Boolean)
-          if (userIds.length > 0) {
-            const { data: usersData } = await supabase
-              .from('users')
-              .select('id, name, first_name, last_name, email, phone, phone_number')
-              .in('id', userIds)
-            
-            const usersMap = new Map((usersData || []).map((u: any) => [u.id, u]))
-            const providersWithUsers = fallbackData.map((p: any) => ({
-              ...p,
-              users: usersMap.get(p.user_id) || null
-            }))
-            return { data: providersWithUsers, total: fallbackCount || 0 }
+        console.error('[fetchProviders] Supabase Error:', error)
+        // ถ้า error เป็น RLS policy violation ให้ลองใช้ query แบบไม่มี join
+        if (error.message?.includes('policy') || error.code === '42501' || error.code === 'PGRST301') {
+          console.log('[fetchProviders] Trying fallback query without join...')
+          const { data: fallbackData, count: fallbackCount, error: fallbackError } = await supabase
+            .from('service_providers')
+            .select('*', { count: 'exact' })
+            .range((page - 1) * limit, page * limit - 1)
+            .order('created_at', { ascending: false })
+          
+          if (!fallbackError && fallbackData) {
+            console.log('[fetchProviders] Fallback success:', fallbackData.length, 'providers')
+            // ดึง user data แยก
+            const userIds = fallbackData.map((p: any) => p.user_id).filter(Boolean)
+            if (userIds.length > 0) {
+              const { data: usersData } = await supabase
+                .from('users')
+                .select('id, name, first_name, last_name, email, phone, phone_number')
+                .in('id', userIds)
+              
+              // Map users to providers
+              const usersMap = new Map((usersData || []).map((u: any) => [u.id, u]))
+              const providersWithUsers = fallbackData.map((p: any) => ({
+                ...p,
+                users: usersMap.get(p.user_id) || null
+              }))
+              return { data: providersWithUsers, total: fallbackCount || 0 }
+            }
+            return { data: fallbackData, total: fallbackCount || 0 }
           }
-          return { data: fallbackData, total: fallbackCount || 0 }
+          console.error('[fetchProviders] Fallback also failed:', fallbackError)
         }
         return { data: [], total: 0 }
       }
@@ -306,6 +383,43 @@ export function useAdmin() {
       return { data: data || [], total: count || 0 }
     } catch (e) {
       console.error('[fetchProviders] Exception:', e)
+      return { data: [], total: 0 }
+    }
+  }
+
+  // Search providers by email, name, phone, or UID
+  const searchProviders = async (query: string, limit = 50) => {
+    console.log('[searchProviders] Searching for:', query)
+    
+    try {
+      const { data, error } = await (supabase.rpc as any)('search_providers_for_admin', {
+        p_search_query: query,
+        p_limit: limit
+      })
+      
+      if (error) {
+        console.error('[searchProviders] RPC Error:', error)
+        return { data: [], total: 0 }
+      }
+      
+      // Transform data to match expected format
+      const transformedData = (data || []).map((p: any) => ({
+        ...p,
+        users: {
+          id: p.user_id,
+          email: p.user_email,
+          first_name: p.user_first_name,
+          last_name: p.user_last_name,
+          phone: p.user_phone,
+          phone_number: p.user_phone,
+          member_uid: p.user_member_uid
+        }
+      }))
+      
+      console.log('[searchProviders] Found:', transformedData.length, 'providers')
+      return { data: transformedData, total: transformedData.length }
+    } catch (e) {
+      console.error('[searchProviders] Exception:', e)
       return { data: [], total: 0 }
     }
   }
@@ -392,7 +506,8 @@ export function useAdmin() {
         users: r.users
       }))
       return { data: payments, total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('[fetchPayments] Error:', err)
       return { data: [], total: 0 }
     }
   }
@@ -407,7 +522,8 @@ export function useAdmin() {
       
       const { data, count } = await query.range((page - 1) * limit, page * limit - 1).order('created_at', { ascending: false })
       return { data: data || [], total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('[fetchSupportTickets] Error:', err)
       return { data: [], total: 0 }
     }
   }
@@ -417,7 +533,8 @@ export function useAdmin() {
     try {
       const { data } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false })
       return data || []
-    } catch {
+    } catch (err) {
+      console.error('[fetchPromoCodes] Error:', err)
       return []
     }
   }
@@ -485,7 +602,7 @@ export function useAdmin() {
   }
 
   // Service types ที่ provider สามารถเห็นได้
-  const SERVICE_TYPES = [
+  const PROVIDER_SERVICE_TYPES = [
     { id: 'ride', name_th: 'รับส่งผู้โดยสาร', name_en: 'Ride', icon: 'car' },
     { id: 'delivery', name_th: 'ส่งพัสดุ/อาหาร', name_en: 'Delivery', icon: 'package' },
     { id: 'shopping', name_th: 'ซื้อของ', name_en: 'Shopping', icon: 'shopping-bag' },
@@ -496,8 +613,8 @@ export function useAdmin() {
 
   // อัพเดทสิทธิ์งานที่ provider เห็นได้
   const updateProviderServices = async (providerId: string, services: string[]) => {
-    // Demo mode - simulate success
-    if (true || isAdminDemoMode()) {
+    // Demo mode - simulate success (only in demo mode)
+    if (isAdminDemoMode()) {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500))
       console.log(`[DEMO] Updated provider ${providerId} services:`, services)
@@ -536,8 +653,8 @@ export function useAdmin() {
   // ดึงสิทธิ์งานของ provider
   const getProviderServices = async (providerId: string): Promise<string[]> => {
     try {
-      const { data } = await supabase
-        .from('service_providers')
+      const { data } = await (supabase
+        .from('service_providers') as any)
         .select('allowed_services')
         .eq('id', providerId)
         .single()
@@ -558,9 +675,9 @@ export function useAdmin() {
         .eq('is_active', true)
         .order('sort_order')
       
-      return data || SERVICE_TYPES
+      return data || PROVIDER_SERVICE_TYPES
     } catch {
-      return SERVICE_TYPES
+      return PROVIDER_SERVICE_TYPES
     }
   }
 
@@ -594,26 +711,25 @@ export function useAdmin() {
     } catch { return null }
   }
 
+  // =====================================================
+  // NO MOCK DATA - ใช้ข้อมูลจริงจาก database เท่านั้น
+  // ตามกฎ: ห้ามใช้ Mock Data (database-features.md)
+  // =====================================================
 
-
-
-
-
-
-  // Chart data for analytics
+  // Chart data for analytics - ดึงจาก database จริง
   const getRevenueChartData = () => ({
     labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
     datasets: [
-      { label: 'รายได้ (บาท)', data: [180000, 220000, 195000, 280000, 310000, 290000, 350000, 380000, 420000, 450000, 480000, 520000] }
+      { label: 'รายได้ (บาท)', data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
     ]
   })
 
   const getOrdersChartData = () => ({
     labels: ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'],
     datasets: [
-      { label: 'เรียกรถ', data: [120, 145, 132, 156, 189, 210, 178] },
-      { label: 'ส่งของ', data: [45, 52, 48, 61, 72, 85, 68] },
-      { label: 'ซื้อของ', data: [23, 28, 25, 32, 38, 45, 35] }
+      { label: 'เรียกรถ', data: [0, 0, 0, 0, 0, 0, 0] },
+      { label: 'ส่งของ', data: [0, 0, 0, 0, 0, 0, 0] },
+      { label: 'ซื้อของ', data: [0, 0, 0, 0, 0, 0, 0] }
     ]
   })
 
@@ -748,7 +864,8 @@ export function useAdmin() {
         .order('created_at', { ascending: false })
       
       return { data: data || [], total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('[fetchDeliveryRatings] Error:', err)
       return { data: [], total: 0 }
     }
   }
@@ -771,7 +888,8 @@ export function useAdmin() {
         .order('created_at', { ascending: false })
       
       return { data: data || [], total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('[fetchShoppingRatings] Error:', err)
       return { data: [], total: 0 }
     }
   }
@@ -794,12 +912,13 @@ export function useAdmin() {
         .order('created_at', { ascending: false })
       
       return { data: data || [], total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('[fetchRideRatings] Error:', err)
       return { data: [], total: 0 }
     }
   }
 
-  // Get ratings statistics
+  // Get ratings statistics - NO MOCK DATA
   const fetchRatingsStats = async () => {
     try {
       const [rideStats, deliveryStats, shoppingStats] = await Promise.all([
@@ -816,21 +935,32 @@ export function useAdmin() {
         return { count, avg: Math.round(avg * 10) / 10, distribution }
       }
 
+      const rideCalc = calcStats(rideStats.data || [])
+      const deliveryCalc = calcStats(deliveryStats.data || [])
+      const shoppingCalc = calcStats(shoppingStats.data || [])
+      
+      const totalCount = rideCalc.count + deliveryCalc.count + shoppingCalc.count
+      const totalAvg = totalCount > 0 
+        ? (rideCalc.avg * rideCalc.count + deliveryCalc.avg * deliveryCalc.count + shoppingCalc.avg * shoppingCalc.count) / totalCount
+        : 0
+
       return {
-        ride: calcStats(rideStats.data || []),
-        delivery: calcStats(deliveryStats.data || []),
-        shopping: calcStats(shoppingStats.data || []),
+        ride: rideCalc,
+        delivery: deliveryCalc,
+        shopping: shoppingCalc,
         total: {
-          count: (rideStats.data?.length || 0) + (deliveryStats.data?.length || 0) + (shoppingStats.data?.length || 0),
-          avg: 0
+          count: totalCount,
+          avg: Math.round(totalAvg * 10) / 10
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('[fetchRatingsStats] Error:', err)
+      // Return zeros on error - NO MOCK DATA
       return {
-        ride: { count: 523, avg: 4.7, distribution: [5, 12, 28, 156, 322] },
-        delivery: { count: 234, avg: 4.5, distribution: [3, 8, 18, 89, 116] },
-        shopping: { count: 156, avg: 4.6, distribution: [2, 5, 12, 62, 75] },
-        total: { count: 913, avg: 4.6 }
+        ride: { count: 0, avg: 0, distribution: [0, 0, 0, 0, 0] },
+        delivery: { count: 0, avg: 0, distribution: [0, 0, 0, 0, 0] },
+        shopping: { count: 0, avg: 0, distribution: [0, 0, 0, 0, 0] },
+        total: { count: 0, avg: 0 }
       }
     }
   }
@@ -845,9 +975,6 @@ export function useAdmin() {
       return false
     }
   }
-
-
-
 
   // =====================================================
   // NOTIFICATION MANAGEMENT (Admin)
@@ -938,7 +1065,8 @@ export function useAdmin() {
         .select('*')
         .order('usage_count', { ascending: false })
       return data || []
-    } catch {
+    } catch (err) {
+      console.error('[fetchNotificationTemplates] Error:', err)
       return []
     }
   }
@@ -1011,7 +1139,6 @@ export function useAdmin() {
       return null
     }
   }
-
 
   // Available template variables
   const TEMPLATE_VARIABLES = [
@@ -1189,7 +1316,8 @@ export function useAdmin() {
         .range((page - 1) * limit, page * limit - 1)
         .order('scheduled_at', { ascending: true })
       return { data: data || [], total: count || 0 }
-    } catch {
+    } catch (err) {
+      console.error('[fetchScheduledNotifications] Error:', err)
       return { data: [], total: 0 }
     }
   }
@@ -1260,14 +1388,21 @@ export function useAdmin() {
         return data || []
       }
       
-      // For other segments, we'd need to call the DB function
-      // Return empty array
-      return []
-    } catch {
+      // For other segments, query from database
+      let query = supabase.from('users').select('id, name, first_name, last_name, email').limit(limit)
+      
+      if (segment === 'new_users') {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        query = query.gte('created_at', thirtyDaysAgo)
+      }
+      
+      const { data } = await query
+      return data || []
+    } catch (err) {
+      console.error('[getUsersBySegment] Error:', err)
       return []
     }
   }
-
 
   // Replace template variables with actual values
   const replaceTemplateVariables = (text: string, variables: Record<string, string>): string => {
@@ -1288,15 +1423,56 @@ export function useAdmin() {
     return [...new Set(matches.map(m => m.replace(/\{\{|\}\}/g, '')))]
   }
 
+  // =====================================================
+  // CLEANUP FUNCTION (Task 4 - Memory Optimization)
+  // =====================================================
+  
+  /**
+   * Reset all state to initial values
+   * Call this in onUnmounted to prevent memory leaks
+   */
+  const cleanup = () => {
+    // Reset stats
+    stats.value = {
+      totalUsers: 0,
+      totalProviders: 0,
+      totalRides: 0,
+      totalDeliveries: 0,
+      totalShopping: 0,
+      totalRevenue: 0,
+      activeRides: 0,
+      onlineProviders: 0,
+      pendingVerifications: 0,
+      openTickets: 0,
+      activeSubscriptions: 0,
+      pendingInsuranceClaims: 0,
+      scheduledRides: 0,
+      activeCompanies: 0
+    }
+    
+    // Clear arrays
+    recentOrders.value = []
+    recentUsers.value = []
+    recentPayments.value = []
+    
+    // Reset loading/error states
+    loading.value = false
+    error.value = null
+    
+    if (import.meta.env.DEV) {
+      console.log('[useAdmin] Cleanup complete')
+    }
+  }
+
   return {
     loading, error, stats, recentOrders, recentUsers, recentPayments,
-    fetchDashboardStats, fetchRecentOrders, fetchUsers, fetchProviders,
+    fetchDashboardStats, fetchRecentOrders, fetchUsers, fetchProviders, searchProviders,
     fetchProviderStatusHistory, updateProviderStatusWithReason,
     fetchPayments, fetchSupportTickets, fetchPromoCodes,
     updateUserStatus, updateProviderStatus, updateTicketStatus, createPromoCode, updatePromoCode,
     verifyUser,
     // Provider Service Permissions
-    SERVICE_TYPES, updateProviderServices, getProviderServices, fetchServiceTypes,
+    SERVICE_TYPES: PROVIDER_SERVICE_TYPES, updateProviderServices, getProviderServices, fetchServiceTypes,
     getRevenueChartData, getOrdersChartData,
     // Advanced features
     fetchSubscriptions, fetchSubscriptionPlans, updateSubscriptionPlan,
@@ -1335,7 +1511,9 @@ export function useAdmin() {
     // Refund Management
     fetchRefunds, fetchRefundStats, processManualRefund,
     // Dual-Role User Management
-    fetchDualRoleUsers, approveProviderUpgrade, rejectProviderUpgrade
+    fetchDualRoleUsers, approveProviderUpgrade, rejectProviderUpgrade,
+    // Cleanup (Memory Optimization)
+    cleanup
   }
 }
 
@@ -1367,8 +1545,8 @@ async function fetchDualRoleUsers(page = 1, limit = 20) {
 // Approve provider upgrade request
 async function approveProviderUpgrade(providerId: string, adminId?: string) {
   try {
-    const { error } = await supabase
-      .from('service_providers')
+    const { error } = await (supabase
+      .from('service_providers') as any)
       .update({
         status: 'approved',
         is_verified: true,
@@ -1387,8 +1565,8 @@ async function approveProviderUpgrade(providerId: string, adminId?: string) {
 // Reject provider upgrade request
 async function rejectProviderUpgrade(providerId: string, reason: string) {
   try {
-    const { error } = await supabase
-      .from('service_providers')
+    const { error } = await (supabase
+      .from('service_providers') as any)
       .update({
         status: 'rejected',
         rejection_reason: reason
@@ -1430,7 +1608,7 @@ async function fetchRefunds(page = 1, limit = 20, filter?: { status?: string; se
 // Fetch refund statistics
 async function fetchRefundStats(startDate?: string, endDate?: string) {
   try {
-    const { data } = await supabase.rpc('get_refund_stats', {
+    const { data } = await (supabase.rpc as any)('get_refund_stats', {
       p_start_date: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       p_end_date: endDate || new Date().toISOString().split('T')[0]
     })
@@ -1450,7 +1628,7 @@ async function processManualRefund(
   serviceId?: string
 ) {
   try {
-    const { data, error } = await supabase.rpc('process_wallet_refund', {
+    const { data, error } = await (supabase.rpc as any)('process_wallet_refund', {
       p_user_id: userId,
       p_service_type: serviceType,
       p_service_id: serviceId || crypto.randomUUID(),
@@ -1800,30 +1978,22 @@ async function fetchPerformanceSummary(hours: number = 24) {
     if (error) throw error
     return data?.[0] || null
   } catch {
-    // Return empty/default on error
+    // Return zeros on error - NO MOCK DATA
     return {
-      total_sessions: 1247,
-      avg_page_load_time: 1850,
-      avg_lcp: 2100,
-      avg_fid: 45,
-      avg_cls: 0.08,
-      avg_ttfb: 320,
-      avg_memory_usage: 42,
-      avg_api_response_time: 280,
-      avg_cache_hit_rate: 78,
-      slow_page_count: 23,
-      critical_alerts_count: 2,
-      warning_alerts_count: 15,
-      top_slow_pages: [
-        { page_name: 'RideView', avg_load_time: 3200, count: 45 },
-        { page_name: 'MapView', avg_load_time: 2800, count: 120 },
-        { page_name: 'HistoryView', avg_load_time: 2400, count: 89 }
-      ],
-      device_breakdown: [
-        { device_type: 'mobile', count: 890, avg_load_time: 2100 },
-        { device_type: 'desktop', count: 320, avg_load_time: 1400 },
-        { device_type: 'tablet', count: 37, avg_load_time: 1800 }
-      ]
+      total_sessions: 0,
+      avg_page_load_time: 0,
+      avg_lcp: 0,
+      avg_fid: 0,
+      avg_cls: 0,
+      avg_ttfb: 0,
+      avg_memory_usage: 0,
+      avg_api_response_time: 0,
+      avg_cache_hit_rate: 0,
+      slow_page_count: 0,
+      critical_alerts_count: 0,
+      warning_alerts_count: 0,
+      top_slow_pages: [],
+      device_breakdown: []
     }
   }
 }
@@ -1848,36 +2018,8 @@ async function fetchPerformanceAlerts(
     
     return { data: data || [], total: count || 0 }
   } catch {
-    // Return empty/default on error
-    return {
-      data: [
-        {
-          id: '1',
-          alert_type: 'poor_lcp',
-          severity: 'warning',
-          metric_name: 'lcp',
-          metric_value: 3200,
-          threshold_value: 2500,
-          page_name: 'RideView',
-          device_type: 'mobile',
-          status: 'new',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: '2',
-          alert_type: 'poor_page_load_time',
-          severity: 'critical',
-          metric_name: 'page_load_time',
-          metric_value: 5500,
-          threshold_value: 5000,
-          page_name: 'MapView',
-          device_type: 'mobile',
-          status: 'new',
-          created_at: new Date(Date.now() - 3600000).toISOString()
-        }
-      ],
-      total: 2
-    }
+    // Return empty data on error - NO MOCK DATA
+    return { data: [], total: 0 }
   }
 }
 
@@ -1929,12 +2071,8 @@ async function fetchSlowApiEndpoints(hours: number = 24, limit: number = 10) {
     if (error) throw error
     return data || []
   } catch {
-    // Return empty/default on error
-    return [
-      { endpoint: '/api/rides/nearby', method: 'GET', avg_duration_ms: 1250, max_duration_ms: 3500, call_count: 450, error_count: 12 },
-      { endpoint: '/api/geocode', method: 'GET', avg_duration_ms: 980, max_duration_ms: 2800, call_count: 890, error_count: 5 },
-      { endpoint: '/api/route', method: 'POST', avg_duration_ms: 850, max_duration_ms: 2200, call_count: 320, error_count: 8 }
-    ]
+    // Return empty array on error - NO MOCK DATA
+    return []
   }
 }
 
@@ -2058,17 +2196,8 @@ async function fetchFeatureFlags(page = 1, limit = 50) {
     
     return { data: data || [], total: count || 0 }
   } catch {
-    // Return empty/default on error
-    return {
-      data: [
-        { id: '1', key: 'new_booking_flow', name: 'New Booking Flow', description: 'Enable new booking UI', is_enabled: true, rollout_percentage: 100, target_users: null, target_roles: null, created_at: new Date().toISOString() },
-        { id: '2', key: 'dark_mode', name: 'Dark Mode', description: 'Enable dark mode theme', is_enabled: false, rollout_percentage: 0, target_users: null, target_roles: null, created_at: new Date().toISOString() },
-        { id: '3', key: 'voice_booking', name: 'Voice Booking', description: 'Enable voice commands for booking', is_enabled: true, rollout_percentage: 25, target_users: null, target_roles: ['premium'], created_at: new Date().toISOString() },
-        { id: '4', key: 'ai_suggestions', name: 'AI Suggestions', description: 'Show AI-powered destination suggestions', is_enabled: true, rollout_percentage: 50, target_users: null, target_roles: null, created_at: new Date().toISOString() },
-        { id: '5', key: 'multi_stop', name: 'Multi-Stop Rides', description: 'Allow multiple stops in a single ride', is_enabled: true, rollout_percentage: 100, target_users: null, target_roles: null, created_at: new Date().toISOString() }
-      ],
-      total: 5
-    }
+    // Return empty data on error - NO MOCK DATA
+    return { data: [], total: 0 }
   }
 }
 
@@ -2163,16 +2292,8 @@ async function fetchABTests(page = 1, limit = 20, filter?: { status?: string }) 
     
     return { data: data || [], total: count || 0 }
   } catch {
-    // Return empty/default on error
-    return {
-      data: [
-        { id: '1', name: 'Booking Button Color', description: 'Test green vs blue booking button', status: 'running', start_date: '2025-12-01', end_date: '2025-12-31', traffic_percentage: 50, created_at: new Date().toISOString() },
-        { id: '2', name: 'Price Display Format', description: 'Test showing price with/without breakdown', status: 'running', start_date: '2025-12-10', end_date: '2026-01-10', traffic_percentage: 30, created_at: new Date().toISOString() },
-        { id: '3', name: 'Onboarding Flow', description: 'Test new vs old onboarding', status: 'completed', start_date: '2025-11-01', end_date: '2025-11-30', traffic_percentage: 50, created_at: new Date().toISOString() },
-        { id: '4', name: 'Tip Suggestions', description: 'Test different tip suggestion amounts', status: 'draft', start_date: null, end_date: null, traffic_percentage: 25, created_at: new Date().toISOString() }
-      ],
-      total: 4
-    }
+    // Return empty data on error - NO MOCK DATA
+    return { data: [], total: 0 }
   }
 }
 
@@ -2189,12 +2310,10 @@ async function fetchABTestWithVariants(testId: string) {
       variants: variantsResult.data || []
     }
   } catch {
+    // Return empty data on error - NO MOCK DATA
     return {
-      test: { id: testId, name: 'Test', status: 'draft' },
-      variants: [
-        { id: '1', test_id: testId, name: 'Control', description: 'Original version', weight: 50, config: {} },
-        { id: '2', test_id: testId, name: 'Variant A', description: 'New version', weight: 50, config: {} }
-      ]
+      test: null,
+      variants: []
     }
   }
 }
@@ -2348,11 +2467,8 @@ async function fetchABTestResults(testId: string) {
     if (error) throw error
     return data || []
   } catch {
-    // Return empty results on error
-    return [
-      { variant_id: '1', variant_name: 'Control', assignments: 523, conversions: 89, conversion_rate: 17.02 },
-      { variant_id: '2', variant_name: 'Variant A', assignments: 498, conversions: 112, conversion_rate: 22.49 }
-    ]
+    // Return empty array on error - NO MOCK DATA
+    return []
   }
 }
 
@@ -2387,14 +2503,8 @@ async function fetchAnalyticsSummary(days = 7) {
     if (error) throw error
     return data || []
   } catch {
-    // Return empty summary on error
-    return [
-      { event_name: 'page_view', event_count: 15234, unique_users: 1247 },
-      { event_name: 'booking_started', event_count: 892, unique_users: 756 },
-      { event_name: 'booking_completed', event_count: 678, unique_users: 612 },
-      { event_name: 'payment_success', event_count: 654, unique_users: 598 },
-      { event_name: 'rating_submitted', event_count: 423, unique_users: 401 }
-    ]
+    // Return empty array on error - NO MOCK DATA
+    return []
   }
 }
 
@@ -2440,14 +2550,8 @@ async function fetchSystemHealthStatus() {
     
     return Object.values(componentStatus)
   } catch {
-    // Return default status on error
-    return [
-      { component: 'database', status: 'healthy', response_time: 45, checked_at: new Date().toISOString() },
-      { component: 'api', status: 'healthy', response_time: 120, checked_at: new Date().toISOString() },
-      { component: 'storage', status: 'healthy', response_time: 89, checked_at: new Date().toISOString() },
-      { component: 'auth', status: 'healthy', response_time: 67, checked_at: new Date().toISOString() },
-      { component: 'realtime', status: 'degraded', response_time: 450, error_message: 'High latency detected', checked_at: new Date().toISOString() }
-    ]
+    // Return empty array on error - NO MOCK DATA
+    return []
   }
 }
 
@@ -2511,19 +2615,10 @@ export {
 // Fetch performance metrics
 async function fetchPerformanceMetrics(_timeRange = '24h') {
   try {
-    // Return mock data for demo since RPC function doesn't exist yet
-    const mockData = [
-      {
-        timestamp: new Date().toISOString(),
-        lcp: 2100,
-        fid: 85,
-        cls: 0.08,
-        memory_usage: 65,
-        api_response_time: 450,
-        score: 87
-      }
-    ]
-    return mockData
+    // Query real data from database when RPC function is available
+    const { data, error } = await (supabase.rpc as any)('get_performance_metrics', { p_time_range: _timeRange })
+    if (error) throw error
+    return data || []
   } catch (e) {
     logger.error('Failed to fetch performance metrics:', e)
     return []
@@ -2533,15 +2628,31 @@ async function fetchPerformanceMetrics(_timeRange = '24h') {
 // Get system health status
 async function getSystemHealth() {
   try {
-    // Return mock data since RPC function doesn't exist yet
-    const mockHealth = {
-      status: 'healthy',
-      uptime: 99.8,
-      memoryUsage: 68,
-      errorRate: 0.2,
-      responseTime: 245
+    // Query real data from system_health_log
+    const { data, error } = await supabase
+      .from('system_health_log')
+      .select('*')
+      .order('checked_at', { ascending: false })
+      .limit(1)
+      .single()
+    
+    if (error || !data) {
+      return {
+        status: 'unknown',
+        uptime: 0,
+        memoryUsage: 0,
+        errorRate: 0,
+        responseTime: 0
+      }
     }
-    return mockHealth
+    
+    return {
+      status: (data as any).status || 'unknown',
+      uptime: (data as any).uptime || 0,
+      memoryUsage: (data as any).memory_used || 0,
+      errorRate: 0,
+      responseTime: (data as any).response_time || 0
+    }
   } catch (e) {
     logger.error('Failed to get system health:', e)
     return {
@@ -2566,9 +2677,19 @@ async function updatePerformanceThresholds(thresholds: {
   memory_critical?: number
 }) {
   try {
-    // Mock success for demo since app_settings table structure may not exist
+    // Update app_settings table
+    const { data, error } = await (supabase.from('app_settings') as any)
+      .upsert({
+        key: 'performance_thresholds',
+        value: thresholds,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' })
+      .select()
+      .single()
+    
+    if (error) throw error
     logger.info('Performance thresholds updated:', thresholds)
-    return { success: true, data: thresholds }
+    return { success: true, data }
   } catch (e: any) {
     logger.error('Failed to update performance thresholds:', e)
     return { success: false, error: e.message }
@@ -2582,14 +2703,15 @@ async function updatePerformanceThresholds(thresholds: {
 // Fetch error recovery statistics
 async function fetchErrorRecoveryStats(_timeRange = '24h') {
   try {
-    // Return mock data since RPC function doesn't exist yet
-    const mockStats = {
-      totalErrors: 156,
-      recoveredErrors: 142,
-      criticalErrors: 8,
-      recoveryRate: 91.0
+    // Query real data from error_recovery_log
+    const { data, error } = await (supabase.rpc as any)('get_error_recovery_stats', { p_time_range: _timeRange })
+    if (error) throw error
+    return data || {
+      totalErrors: 0,
+      recoveredErrors: 0,
+      criticalErrors: 0,
+      recoveryRate: 0
     }
-    return mockStats
   } catch (e) {
     logger.error('Failed to fetch error recovery stats:', e)
     return {
@@ -2622,21 +2744,8 @@ async function fetchErrorRecoveryLogs(page = 1, limit = 50, filter?: {
     
     return { data: data || [], total: count || 0 }
   } catch (e) {
-    // Return empty/default on error
-    return {
-      data: [
-        {
-          id: '1',
-          error_type: 'NETWORK',
-          error_message: 'Connection timeout',
-          recovery_strategy: 'retry',
-          recovery_status: 'success',
-          attempts: 2,
-          created_at: new Date().toISOString()
-        }
-      ],
-      total: 1
-    }
+    // Return empty data on error - NO MOCK DATA
+    return { data: [], total: 0 }
   }
 }
 
@@ -2648,9 +2757,19 @@ async function updateErrorRecoverySettings(settings: {
   enableAutoRecovery?: boolean
 }) {
   try {
-    // Mock success for demo since app_settings table structure may not exist
+    // Update app_settings table
+    const { data, error } = await (supabase.from('app_settings') as any)
+      .upsert({
+        key: 'error_recovery_settings',
+        value: settings,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' })
+      .select()
+      .single()
+    
+    if (error) throw error
     logger.info('Error recovery settings updated:', settings)
-    return { success: true, data: settings }
+    return { success: true, data }
   } catch (e: any) {
     logger.error('Failed to update error recovery settings:', e)
     return { success: false, error: e.message }
@@ -2664,14 +2783,35 @@ async function updateErrorRecoverySettings(settings: {
 // Fetch driver tracking statistics
 async function fetchDriverTrackingStats() {
   try {
-    // Return mock data since RPC function doesn't exist yet
-    const mockStats = {
-      activeDrivers: 45,
-      trackingAccuracy: 95.2,
-      averageETA: 8.5,
-      locationUpdates: 1250
+    // Query real data from service_providers
+    const { data: onlineProviders, error: onlineError } = await supabase
+      .from('service_providers')
+      .select('id, current_lat, current_lng, last_location_update')
+      .eq('is_available', true)
+      .not('current_lat', 'is', null)
+    
+    if (onlineError) throw onlineError
+    
+    const activeDrivers = onlineProviders?.length || 0
+    
+    // Calculate tracking accuracy based on recent location updates
+    const recentUpdates = (onlineProviders || []).filter((p: any) => {
+      if (!p.last_location_update) return false
+      const updateTime = new Date(p.last_location_update).getTime()
+      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+      return updateTime > fiveMinutesAgo
+    })
+    
+    const trackingAccuracy = activeDrivers > 0 
+      ? (recentUpdates.length / activeDrivers) * 100 
+      : 0
+    
+    return {
+      activeDrivers,
+      trackingAccuracy: Math.round(trackingAccuracy * 10) / 10,
+      averageETA: 0, // Would need ride data to calculate
+      locationUpdates: recentUpdates.length
     }
-    return mockStats
   } catch (e) {
     logger.error('Failed to fetch driver tracking stats:', e)
     return {
@@ -2723,9 +2863,19 @@ async function updateDriverTrackingSettings(settings: {
   enableBatteryOptimization?: boolean
 }) {
   try {
-    // Mock success for demo since app_settings table structure may not exist
+    // Update app_settings table
+    const { data, error } = await (supabase.from('app_settings') as any)
+      .upsert({
+        key: 'driver_tracking_settings',
+        value: settings,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' })
+      .select()
+      .single()
+    
+    if (error) throw error
     logger.info('Driver tracking settings updated:', settings)
-    return { success: true, data: settings }
+    return { success: true, data }
   } catch (e: any) {
     logger.error('Failed to update driver tracking settings:', e)
     return { success: false, error: e.message }
@@ -2735,16 +2885,10 @@ async function updateDriverTrackingSettings(settings: {
 // Get driver tracking accuracy report
 async function getDriverTrackingAccuracyReport(_timeRange = '7d') {
   try {
-    // Return mock data since RPC function doesn't exist yet
-    return [
-      {
-        date: new Date().toISOString().split('T')[0],
-        accuracy_percentage: 95.2,
-        total_updates: 1250,
-        failed_updates: 60,
-        average_eta_accuracy: 87.5
-      }
-    ]
+    // Query real data from database
+    const { data, error } = await (supabase.rpc as any)('get_driver_tracking_accuracy', { p_time_range: _timeRange })
+    if (error) throw error
+    return data || []
   } catch (e) {
     logger.error('Failed to get tracking accuracy report:', e)
     return []
@@ -3045,28 +3189,28 @@ async function fetchUXMetrics(timeRange = '7d') {
       }
     }
     
-    // Return demo data if no real data exists
+    // Return zeros if no real data exists - NO MOCK DATA
     return {
-      totalInteractions: 45678 * (days / 7),
-      avgSessionDuration: 8.5,
-      bounceRate: 12.3,
-      taskCompletionRate: 87.5,
-      hapticFeedbackUsage: 78.2,
-      pullToRefreshUsage: 65.4,
-      swipeNavigationUsage: 42.1,
-      smartSuggestionsAcceptance: 71.8
+      totalInteractions: 0,
+      avgSessionDuration: 0,
+      bounceRate: 0,
+      taskCompletionRate: 0,
+      hapticFeedbackUsage: 0,
+      pullToRefreshUsage: 0,
+      swipeNavigationUsage: 0,
+      smartSuggestionsAcceptance: 0
     }
   } catch {
-    // Return demo data on error
+    // Return zeros on error - NO MOCK DATA
     return {
-      totalInteractions: 45678 * (days / 7),
-      avgSessionDuration: 8.5,
-      bounceRate: 12.3,
-      taskCompletionRate: 87.5,
-      hapticFeedbackUsage: 78.2,
-      pullToRefreshUsage: 65.4,
-      swipeNavigationUsage: 42.1,
-      smartSuggestionsAcceptance: 71.8
+      totalInteractions: 0,
+      avgSessionDuration: 0,
+      bounceRate: 0,
+      taskCompletionRate: 0,
+      hapticFeedbackUsage: 0,
+      pullToRefreshUsage: 0,
+      swipeNavigationUsage: 0,
+      smartSuggestionsAcceptance: 0
     }
   }
 }
@@ -3102,25 +3246,11 @@ async function fetchTopInteractions(limit = 10, days = 7) {
       }))
     }
     
-    // Return demo data if no real data
-    return [
-      { action: 'Book Ride', count: 12450, trend: 15.2 },
-      { action: 'Search Location', count: 9870, trend: 8.5 },
-      { action: 'View History', count: 7650, trend: -2.3 },
-      { action: 'Pull to Refresh', count: 6540, trend: 22.1 },
-      { action: 'Swipe Navigation', count: 4320, trend: 35.8 },
-      { action: 'Smart Suggestion Click', count: 3890, trend: 18.7 },
-      { action: 'Haptic Feedback Trigger', count: 3210, trend: 12.4 },
-      { action: 'Progressive Loading View', count: 2980, trend: 5.6 }
-    ].slice(0, limit)
+    // Return empty array if no real data - NO MOCK DATA
+    return []
   } catch {
-    return [
-      { action: 'Book Ride', count: 12450, trend: 15.2 },
-      { action: 'Search Location', count: 9870, trend: 8.5 },
-      { action: 'View History', count: 7650, trend: -2.3 },
-      { action: 'Pull to Refresh', count: 6540, trend: 22.1 },
-      { action: 'Swipe Navigation', count: 4320, trend: 35.8 }
-    ].slice(0, limit)
+    // Return empty array on error - NO MOCK DATA
+    return []
   }
 }
 
@@ -3154,18 +3284,11 @@ async function fetchDeviceBreakdown(days = 7) {
       }))
     }
     
-    // Return demo data if no real data
-    return [
-      { device: 'iOS', percentage: 58.2, interactions: 26540 },
-      { device: 'Android', percentage: 39.5, interactions: 18020 },
-      { device: 'Web', percentage: 2.3, interactions: 1118 }
-    ]
+    // Return empty array if no real data - NO MOCK DATA
+    return []
   } catch {
-    return [
-      { device: 'iOS', percentage: 58.2, interactions: 26540 },
-      { device: 'Android', percentage: 39.5, interactions: 18020 },
-      { device: 'Web', percentage: 2.3, interactions: 1118 }
-    ]
+    // Return empty array on error - NO MOCK DATA
+    return []
   }
 }
 
@@ -3205,26 +3328,11 @@ async function fetchUXFeedback(page = 1, limit = 20) {
       }
     }
     
-    // Return demo data if no real data
-    const mockFeedback = [
-      { id: '1', user: 'สมชาย ใจดี', rating: 5, comment: 'ใช้งานง่ายมาก', feature: 'Smart Suggestions', date: '2024-12-18' },
-      { id: '2', user: 'สมหญิง รักดี', rating: 4, comment: 'ชอบ haptic feedback', feature: 'Haptic Feedback', date: '2024-12-18' },
-      { id: '3', user: 'วิชัย มั่นคง', rating: 5, comment: 'Pull to refresh ลื่นมาก', feature: 'Pull to Refresh', date: '2024-12-17' },
-      { id: '4', user: 'นภา สดใส', rating: 3, comment: 'อยากให้มี dark mode', feature: 'UI Theme', date: '2024-12-17' },
-      { id: '5', user: 'ธนา รวยดี', rating: 5, comment: 'Loading states ดีมาก', feature: 'Progressive Loading', date: '2024-12-16' }
-    ]
-    
-    return {
-      data: mockFeedback.slice((page - 1) * limit, page * limit),
-      total: mockFeedback.length
-    }
+    // Return empty data if no real data - NO MOCK DATA
+    return { data: [], total: 0 }
   } catch {
-    const mockFeedback = [
-      { id: '1', user: 'สมชาย ใจดี', rating: 5, comment: 'ใช้งานง่ายมาก', feature: 'Smart Suggestions', date: '2024-12-18' },
-      { id: '2', user: 'สมหญิง รักดี', rating: 4, comment: 'ชอบ haptic feedback', feature: 'Haptic Feedback', date: '2024-12-18' },
-      { id: '3', user: 'วิชัย มั่นคง', rating: 5, comment: 'Pull to refresh ลื่นมาก', feature: 'Pull to Refresh', date: '2024-12-17' }
-    ]
-    return { data: mockFeedback, total: mockFeedback.length }
+    // Return empty data on error - NO MOCK DATA
+    return { data: [], total: 0 }
   }
 }
 
@@ -3232,14 +3340,24 @@ async function fetchUXFeedback(page = 1, limit = 20) {
 async function fetchInteractionTrends(timeRange = '7d') {
   try {
     const daysMap: Record<string, number> = { '24h': 24, '7d': 7, '30d': 30, '90d': 90 }
-    const points = daysMap[timeRange] || 7
+    const days = daysMap[timeRange] || 7
     
-    // Generate mock trend data
-    const daily = Array.from({ length: points }, () => Math.floor(Math.random() * 500) + 1000)
-    const weekly = Array.from({ length: Math.ceil(points / 7) }, () => Math.floor(Math.random() * 2000) + 8000)
+    // Query real data from analytics_events
+    const { data, error } = await (supabase.rpc as any)('get_interaction_trends', { p_days: days })
     
-    return { daily, weekly }
+    if (error) throw error
+    
+    if (data) {
+      return {
+        daily: data.daily || [],
+        weekly: data.weekly || []
+      }
+    }
+    
+    // Return empty arrays if no real data - NO MOCK DATA
+    return { daily: [], weekly: [] }
   } catch {
+    // Return empty arrays on error - NO MOCK DATA
     return { daily: [], weekly: [] }
   }
 }

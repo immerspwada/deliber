@@ -162,6 +162,7 @@
  */
 import { ref, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
+import { supabase } from '../lib/supabase'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 
 // Initialize cleanup utility
@@ -194,38 +195,115 @@ addCleanup(() => {
   console.log('[AdminTipsView] Cleanup complete')
 })
 
-onMounted(() => {
-  // Demo data
-  stats.value = {
-    totalTips: 45680,
-    tipCount: 1523,
-    averageTip: 30,
-    tipRate: 42
-  }
-
-  topProviders.value = [
-    { id: '1', name: 'สมชาย ใจดี', tipCount: 156, totalTips: 4680 },
-    { id: '2', name: 'สมศักดิ์ รถดี', tipCount: 142, totalTips: 4260 },
-    { id: '3', name: 'สมหญิง ขับเก่ง', tipCount: 128, totalTips: 3840 },
-    { id: '4', name: 'สมปอง ส่งไว', tipCount: 115, totalTips: 3450 },
-    { id: '5', name: 'สมใจ บริการดี', tipCount: 98, totalTips: 2940 }
-  ]
-
-  recentTips.value = [
-    { id: '1', trackingId: 'RID-001', customerName: 'ลูกค้า A', providerName: 'สมชาย ใจดี', fare: 150, amount: 20, percentage: 13, date: new Date() },
-    { id: '2', trackingId: 'RID-002', customerName: 'ลูกค้า B', providerName: 'สมศักดิ์ รถดี', fare: 280, amount: 50, percentage: 18, date: new Date(Date.now() - 3600000) },
-    { id: '3', trackingId: 'RID-003', customerName: 'ลูกค้า C', providerName: 'สมหญิง ขับเก่ง', fare: 95, amount: 10, percentage: 11, date: new Date(Date.now() - 7200000) },
-    { id: '4', trackingId: 'DEL-001', customerName: 'ลูกค้า D', providerName: 'สมปอง ส่งไว', fare: 60, amount: 20, percentage: 33, date: new Date(Date.now() - 10800000) },
-    { id: '5', trackingId: 'RID-004', customerName: 'ลูกค้า E', providerName: 'สมใจ บริการดี', fare: 420, amount: 100, percentage: 24, date: new Date(Date.now() - 14400000) }
-  ]
-
-  tipDistribution.value = [
-    { label: '฿10', count: 456, percentage: 30 },
-    { label: '฿20', count: 532, percentage: 35 },
-    { label: '฿50', count: 304, percentage: 20 },
-    { label: '฿100+', count: 231, percentage: 15 }
-  ]
+onMounted(async () => {
+  await loadTipsData()
 })
+
+const loadTipsData = async () => {
+  try {
+    // Fetch tips from ride_requests with tip_amount
+    const { data: ridesWithTips } = await supabase
+      .from('ride_requests')
+      .select(`
+        id,
+        tracking_id,
+        tip_amount,
+        final_fare,
+        estimated_fare,
+        created_at,
+        users!ride_requests_user_id_fkey(name, first_name, last_name),
+        service_providers!ride_requests_provider_id_fkey(
+          id,
+          users(name, first_name, last_name)
+        )
+      `)
+      .gt('tip_amount', 0)
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    const tips = ridesWithTips || []
+    
+    // Calculate stats
+    const totalTips = tips.reduce((sum: number, t: any) => sum + (t.tip_amount || 0), 0)
+    const tipCount = tips.length
+    const averageTip = tipCount > 0 ? Math.round(totalTips / tipCount) : 0
+    
+    // Get total completed rides for tip rate
+    const { count: totalRides } = await supabase
+      .from('ride_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'completed')
+    
+    const tipRate = totalRides && totalRides > 0 ? Math.round((tipCount / totalRides) * 100) : 0
+
+    stats.value = {
+      totalTips,
+      tipCount,
+      averageTip,
+      tipRate
+    }
+
+    // Group by provider for top providers
+    const providerTips: Record<string, { name: string; tipCount: number; totalTips: number }> = {}
+    tips.forEach((t: any) => {
+      const providerId = t.service_providers?.id
+      if (providerId) {
+        const providerName = t.service_providers?.users?.name || 
+          `${t.service_providers?.users?.first_name || ''} ${t.service_providers?.users?.last_name || ''}`.trim() || 
+          'ไม่ระบุชื่อ'
+        if (!providerTips[providerId]) {
+          providerTips[providerId] = { name: providerName, tipCount: 0, totalTips: 0 }
+        }
+        providerTips[providerId].tipCount++
+        providerTips[providerId].totalTips += t.tip_amount || 0
+      }
+    })
+
+    topProviders.value = Object.entries(providerTips)
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.totalTips - a.totalTips)
+      .slice(0, 5)
+
+    // Recent tips
+    recentTips.value = tips.slice(0, 10).map((t: any) => ({
+      id: t.id,
+      trackingId: t.tracking_id || t.id.slice(0, 8),
+      customerName: t.users?.name || `${t.users?.first_name || ''} ${t.users?.last_name || ''}`.trim() || 'ไม่ระบุ',
+      providerName: t.service_providers?.users?.name || 
+        `${t.service_providers?.users?.first_name || ''} ${t.service_providers?.users?.last_name || ''}`.trim() || 
+        'ไม่ระบุ',
+      fare: t.final_fare || t.estimated_fare || 0,
+      amount: t.tip_amount || 0,
+      percentage: t.final_fare ? Math.round((t.tip_amount / t.final_fare) * 100) : 0,
+      date: new Date(t.created_at)
+    }))
+
+    // Tip distribution
+    const dist = { '฿10': 0, '฿20': 0, '฿50': 0, '฿100+': 0 }
+    tips.forEach((t: any) => {
+      const amount = t.tip_amount || 0
+      if (amount >= 100) dist['฿100+']++
+      else if (amount >= 50) dist['฿50']++
+      else if (amount >= 20) dist['฿20']++
+      else dist['฿10']++
+    })
+
+    const total = tipCount || 1
+    tipDistribution.value = Object.entries(dist).map(([label, count]) => ({
+      label,
+      count,
+      percentage: Math.round((count / total) * 100)
+    }))
+
+  } catch (err) {
+    console.error('[AdminTipsView] Error loading tips:', err)
+    // NO MOCK DATA - Return zeros/empty on error
+    stats.value = { totalTips: 0, tipCount: 0, averageTip: 0, tipRate: 0 }
+    topProviders.value = []
+    recentTips.value = []
+    tipDistribution.value = []
+  }
+}
 </script>
 
 <style scoped>

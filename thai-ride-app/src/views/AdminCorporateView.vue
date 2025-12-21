@@ -1,23 +1,40 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
+import { useAdmin } from '../composables/useAdmin'
 
 const { addCleanup } = useAdminCleanup()
+const { fetchCompanies } = useAdmin()
 
-// Mock data
-const companies = ref([
-  { id: '1', name: 'บริษัท ABC จำกัด', status: 'active', employees: 45, credit_limit: 100000, current_balance: 25000 },
-  { id: '2', name: 'บริษัท XYZ จำกัด', status: 'active', employees: 120, credit_limit: 500000, current_balance: 180000 },
-  { id: '3', name: 'บริษัท DEF จำกัด', status: 'pending', employees: 0, credit_limit: 50000, current_balance: 0 },
-])
+// Real data from database - NO MOCK DATA
+const companies = ref<any[]>([])
+const loading = ref(false)
 
 const statusFilter = ref('all')
 const searchQuery = ref('')
 
+// Load companies from database
+const loadCompanies = async () => {
+  loading.value = true
+  try {
+    const result = await fetchCompanies(1, 100, { status: statusFilter.value === 'all' ? undefined : statusFilter.value })
+    companies.value = result.data || []
+  } catch (err) {
+    console.error('Error loading companies:', err)
+    companies.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadCompanies()
+})
+
 const filteredCompanies = computed(() => {
   return companies.value.filter(c => {
-    const matchSearch = c.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    const matchSearch = (c.name || '').toLowerCase().includes(searchQuery.value.toLowerCase())
     const matchStatus = statusFilter.value === 'all' || c.status === statusFilter.value
     return matchSearch && matchStatus
   })

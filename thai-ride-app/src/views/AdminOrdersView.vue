@@ -196,10 +196,66 @@ const statusOptions = [
 ]
 
 // Fetch all orders from all tables
+// ใช้ RPC function get_all_orders_for_admin() ที่เป็น SECURITY DEFINER (bypass RLS)
 const fetchAllOrders = async () => {
   loading.value = true
   try {
-    // Fetch from all order tables in parallel
+    console.log('[fetchAllOrders] Starting fetch...')
+    
+    // ลองใช้ RPC function ก่อน (bypass RLS - ทำงานได้ทั้ง demo mode และ real admin)
+    const { data: rpcData, error: rpcError } = await db.rpc('get_all_orders_for_admin', {
+      p_type: typeFilter.value || null,
+      p_status: statusFilter.value || null,
+      p_limit: 500,
+      p_offset: 0
+    })
+    
+    console.log('[fetchAllOrders] RPC result:', { data: rpcData?.length, error: rpcError?.message })
+    
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      console.log('[fetchAllOrders] RPC Success:', rpcData.length, 'orders')
+      
+      // Transform RPC data to match expected format
+      const allOrders = rpcData.map((o: any) => ({
+        id: o.id,
+        type: o.type,
+        tracking_id: o.tracking_id || `${o.type?.toUpperCase()?.slice(0,3)}-${o.id?.slice(0,8)}`,
+        status: o.status,
+        user_id: o.user_id,
+        provider_id: o.provider_id,
+        user_name: o.user_name || 'ไม่ระบุ',
+        user_phone: o.user_phone || '',
+        user_email: o.user_email || '',
+        member_uid: o.member_uid || '',
+        provider_name: o.provider_name || '',
+        provider_phone: '',
+        vehicle_type: '',
+        vehicle_plate: '',
+        pickup_address: o.pickup_address || '',
+        destination_address: o.destination_address || '',
+        amount: o.amount || 0,
+        tip_amount: 0,
+        created_at: o.created_at,
+        updated_at: o.updated_at,
+        completed_at: null,
+        cancelled_at: null,
+        scheduled_time: null,
+        notes: '',
+        cancel_reason: '',
+        payment_method: 'cash',
+        _raw: o
+      }))
+      
+      orders.value = allOrders
+      totalOrders.value = allOrders.length
+      calculateStats(allOrders)
+      loading.value = false
+      return
+    }
+    
+    console.log('[fetchAllOrders] RPC failed or empty, trying direct queries...', rpcError?.message)
+    
+    // Fallback: Direct queries (สำหรับกรณีที่ RPC function ยังไม่ได้ deploy)
     const [rides, deliveries, shopping, queues, moving, laundry] = await Promise.all([
       db.from('ride_requests').select(`
         *, 
@@ -238,6 +294,22 @@ const fetchAllOrders = async () => {
       `).order('created_at', { ascending: false }).limit(100)
     ])
 
+    // Log results for debugging
+    console.log('[fetchAllOrders] Direct query results:', {
+      rides: rides.data?.length || 0,
+      ridesError: rides.error?.message,
+      deliveries: deliveries.data?.length || 0,
+      deliveriesError: deliveries.error?.message,
+      shopping: shopping.data?.length || 0,
+      shoppingError: shopping.error?.message,
+      queues: queues.data?.length || 0,
+      queuesError: queues.error?.message,
+      moving: moving.data?.length || 0,
+      movingError: moving.error?.message,
+      laundry: laundry.data?.length || 0,
+      laundryError: laundry.error?.message
+    })
+
     // Normalize and combine all orders
     const allOrders = [
       ...(rides.data || []).map((r: any) => normalizeOrder(r, 'ride')),
@@ -256,8 +328,8 @@ const fetchAllOrders = async () => {
     calculateStats(allOrders)
   } catch (err) {
     console.error('Error fetching orders:', err)
-    // Use mock data for demo
-    orders.value = generateMockOrders()
+    // Return empty array - NO MOCK DATA
+    orders.value = []
     calculateStats(orders.value)
   } finally {
     loading.value = false
@@ -1139,7 +1211,7 @@ const fetchOrderNotes = async (orderId: string) => {
     }
   } catch (err) {
     console.error('Error fetching notes:', err)
-    // Generate mock notes for demo
+    // Return empty array - NO MOCK DATA
     orderNotes.value = []
   } finally {
     notesLoading.value = false
@@ -1277,12 +1349,8 @@ const fetchAvailableProviders = async (orderType: string) => {
     }
   } catch (err) {
     console.error('Error fetching providers:', err)
-    // Generate mock providers for demo
-    availableProviders.value = [
-      { id: '1', name: 'สมชาย ขับดี', phone: '0812345678', vehicle_type: 'car', vehicle_plate: 'กข 1234', rating: 4.8, total_trips: 150, is_available: true },
-      { id: '2', name: 'วิชัย ส่งไว', phone: '0823456789', vehicle_type: 'motorcycle', vehicle_plate: '1กก 5678', rating: 4.6, total_trips: 89, is_available: true },
-      { id: '3', name: 'มานะ ทำงานหนัก', phone: '0834567890', vehicle_type: 'car', vehicle_plate: 'ขค 9012', rating: 4.9, total_trips: 230, is_available: true }
-    ]
+    // Return empty array - NO MOCK DATA
+    availableProviders.value = []
   } finally {
     providersLoading.value = false
   }
@@ -2055,17 +2123,8 @@ const formatCurrency = (n: number) => `฿${(n || 0).toLocaleString('th-TH')}`
 
 const getTypeConfig = (type: string) => orderTypes.find(t => t.value === type) || { label: type, color: '#666' }
 
-// Mock data for demo
-const generateMockOrders = () => [
-  { id: '1', type: 'ride', tracking_id: 'RID-20251218-001', status: 'completed', user_name: 'สมชาย ใจดี', user_phone: '0812345678', member_uid: 'TRD-A1B2C3D4', pickup_address: 'สยามพารากอน', destination_address: 'อโศก', amount: 85, created_at: new Date().toISOString() },
-  { id: '2', type: 'delivery', tracking_id: 'DEL-20251218-002', status: 'in_transit', user_name: 'สมหญิง รักดี', user_phone: '0823456789', member_uid: 'TRD-E5F6G7H8', pickup_address: 'ลาดพร้าว', destination_address: 'บางนา', amount: 59, provider_name: 'วีระ ส่งไว', created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: '3', type: 'shopping', tracking_id: 'SHP-20251218-003', status: 'shopping', user_name: 'วิชัย มั่งมี', user_phone: '0834567890', member_uid: 'TRD-I9J0K1L2', pickup_address: 'Big C ราชดำริ', destination_address: 'รามคำแหง', amount: 235, created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: '4', type: 'ride', tracking_id: 'RID-20251218-004', status: 'pending', user_name: 'นภา สวยงาม', user_phone: '0845678901', member_uid: 'TRD-M3N4O5P6', pickup_address: 'เซ็นทรัลเวิลด์', destination_address: 'สีลม', amount: 120, created_at: new Date(Date.now() - 900000).toISOString() },
-  { id: '5', type: 'queue', tracking_id: 'QUE-20251218-005', status: 'confirmed', user_name: 'ธนา รวยมาก', user_phone: '0856789012', member_uid: 'TRD-Q7R8S9T0', pickup_address: 'ธนาคารกรุงเทพ สาขาสยาม', destination_address: '', amount: 0, created_at: new Date(Date.now() - 1800000).toISOString() },
-  { id: '6', type: 'moving', tracking_id: 'MOV-20251218-006', status: 'matched', user_name: 'ประภา ย้ายบ้าน', user_phone: '0867890123', member_uid: 'TRD-U1V2W3X4', pickup_address: 'คอนโด ลุมพินี', destination_address: 'บ้านใหม่ รังสิต', amount: 2500, provider_name: 'ทีมขนย้าย A', created_at: new Date(Date.now() - 5400000).toISOString() },
-  { id: '7', type: 'laundry', tracking_id: 'LAU-20251218-007', status: 'washing', user_name: 'มานี ซักผ้า', user_phone: '0878901234', member_uid: 'TRD-Y5Z6A7B8', pickup_address: 'หมู่บ้านเมืองทอง', destination_address: '', amount: 180, created_at: new Date(Date.now() - 10800000).toISOString() },
-  { id: '8', type: 'ride', tracking_id: 'RID-20251218-008', status: 'cancelled', user_name: 'สุดา ยกเลิก', user_phone: '0889012345', member_uid: 'TRD-C9D0E1F2', pickup_address: 'MBK', destination_address: 'พระราม 9', amount: 65, cancel_reason: 'ลูกค้ายกเลิก', created_at: new Date(Date.now() - 14400000).toISOString() }
-]
+// NO MOCK DATA - ตามกฎ database-features.md
+// ถ้าไม่มีข้อมูลจริง ให้แสดง empty state แทน
 
 onMounted(() => {
   fetchAllOrders()

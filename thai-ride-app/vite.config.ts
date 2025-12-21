@@ -15,13 +15,15 @@ export default defineConfig({
     VueDevTools(),
     VitePWA({
       registerType: 'prompt',
+      injectRegister: 'auto',
       includeAssets: [
         'favicon.ico', 
         'pwa-192x192.png', 
         'pwa-512x512.png',
         'pwa-maskable-192x192.png',
         'pwa-maskable-512x512.png',
-        'offline.html'
+        'offline.html',
+        'sw-push.js'
       ],
       manifest: {
         id: '/gobear-app',
@@ -112,6 +114,9 @@ export default defineConfig({
         }
       },
       workbox: {
+        // Import push notification handler
+        importScripts: ['sw-push.js'],
+        
         // Pre-cache app shell and critical assets
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         globIgnores: ['**/node_modules/**/*', 'sw.js', 'workbox-*.js'],

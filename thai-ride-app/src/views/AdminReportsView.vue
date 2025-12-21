@@ -54,11 +54,32 @@ const generatedReports = ref<Array<{
   date: string
   format: string
   size: string
-}>>([
-  { id: '1', name: 'รายงานการเดินทาง_ธ.ค.2025', date: '2025-12-17', format: 'Excel', size: '2.4 MB' },
-  { id: '2', name: 'รายงานรายได้_พ.ย.2025', date: '2025-11-30', format: 'PDF', size: '1.8 MB' },
-  { id: '3', name: 'รายงานผู้ให้บริการ_Q4', date: '2025-12-01', format: 'CSV', size: '856 KB' }
-])
+}>>([])
+
+// Load saved reports from localStorage (or could be from database)
+const loadSavedReports = () => {
+  try {
+    const saved = localStorage.getItem('admin_generated_reports')
+    if (saved) {
+      generatedReports.value = JSON.parse(saved)
+    }
+  } catch (e) {
+    console.error('[AdminReportsView] Error loading saved reports:', e)
+    generatedReports.value = []
+  }
+}
+
+// Save reports to localStorage
+const saveReports = () => {
+  try {
+    localStorage.setItem('admin_generated_reports', JSON.stringify(generatedReports.value))
+  } catch (e) {
+    console.error('[AdminReportsView] Error saving reports:', e)
+  }
+}
+
+// Initialize on mount
+loadSavedReports()
 
 const selectedReportInfo = computed(() => {
   return reportTypes.find(r => r.id === selectedReport.value)
@@ -79,6 +100,7 @@ const generateReport = async () => {
   }
   
   generatedReports.value.unshift(newReport)
+  saveReports()
   isGenerating.value = false
 }
 
@@ -90,6 +112,7 @@ const downloadReport = (report: typeof generatedReports.value[0]) => {
 
 const deleteReport = (reportId: string) => {
   generatedReports.value = generatedReports.value.filter(r => r.id !== reportId)
+  saveReports()
 }
 </script>
 

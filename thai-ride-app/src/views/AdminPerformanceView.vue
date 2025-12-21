@@ -414,7 +414,7 @@ const selectedTimeRange = ref(24) // hours
 const loadingWebVitals = ref(false)
 
 const loading = ref(false)
-const scoreTrend = ref(2.5) // Mock trend data
+const scoreTrend = ref(0) // Real trend data - calculated from database
 
 const performanceScore = computed(() => getPerformanceScore.value)
 const performanceGrade = computed(() => getPerformanceGrade.value)

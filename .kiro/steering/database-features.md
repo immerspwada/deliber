@@ -211,7 +211,7 @@ const providers = [
 | **F04** | Shopping Service | `useShopping.ts` | `shopping_requests` | 001, 007 |
 | **F05** | Wallet/Balance | `useWallet.ts`, `useWalletV2.ts` | `user_wallets`, `wallet_transactions`, `topup_requests` | 007, 079 |
 | **F06** | Referral System | `useReferral.ts` | `referral_codes`, `referrals` | 007 |
-| **F07** | Notifications & Push | `useNotifications.ts`, `usePushNotifications.ts` | `user_notifications`, `push_subscriptions`, `push_notification_queue` | 007, 015 |
+| **F07** | Notifications & Push | `useNotifications.ts`, `usePushNotifications.ts`, `useNotificationTemplates.ts` | `user_notifications`, `push_subscriptions`, `push_notification_queue`, `notification_templates`, `scheduled_notifications`, `push_notification_analytics`, `push_notification_daily_stats` | 007, 015, 128 |
 | **F08** | Payment Methods | `usePaymentMethods.ts` | `payment_methods` | 002 |
 | **F09** | Saved Places | `useServices.ts` | `saved_places`, `recent_places` | 002 |
 | **F10** | Promo Codes | `useServices.ts` | `promo_codes`, `user_promo_usage` | 002 |

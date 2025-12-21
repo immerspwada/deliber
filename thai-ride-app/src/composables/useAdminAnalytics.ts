@@ -96,16 +96,16 @@ export function useAdminAnalytics() {
       dashboardStats.value = data?.[0] || null
     } catch (e: any) {
       error.value = e.message
-      // Mock data
+      // Return zeros on error - NO MOCK DATA
       dashboardStats.value = {
-        total_users: 1247,
-        total_providers: 89,
-        online_providers: 34,
-        active_rides: 23,
-        active_deliveries: 12,
-        today_revenue: 45680,
-        today_orders: 156,
-        pending_verifications: 8
+        total_users: 0,
+        total_providers: 0,
+        online_providers: 0,
+        active_rides: 0,
+        active_deliveries: 0,
+        today_revenue: 0,
+        today_orders: 0,
+        pending_verifications: 0
       }
     } finally {
       loading.value = false
@@ -120,8 +120,8 @@ export function useAdminAnalytics() {
       if (err) throw err
       revenueTrend.value = data || []
     } catch {
-      // Generate mock data
-      revenueTrend.value = generateMockRevenueTrend(days)
+      // Return empty array on error - NO MOCK DATA
+      revenueTrend.value = []
     }
   }
 
@@ -135,8 +135,8 @@ export function useAdminAnalytics() {
       if (err) throw err
       hourlyOrders.value = data || []
     } catch {
-      // Generate mock data
-      hourlyOrders.value = generateMockHourlyOrders()
+      // Return empty array on error - NO MOCK DATA
+      hourlyOrders.value = []
     }
   }
 
@@ -151,12 +151,8 @@ export function useAdminAnalytics() {
       if (err) throw err
       topProviders.value = data || []
     } catch {
-      // Mock data
-      topProviders.value = [
-        { provider_id: '1', provider_name: 'สมชาย ขับดี', provider_type: 'driver', total_trips: 156, total_earnings: 24500, avg_rating: 4.9 },
-        { provider_id: '2', provider_name: 'วีระ ส่งไว', provider_type: 'rider', total_trips: 234, total_earnings: 18900, avg_rating: 4.8 },
-        { provider_id: '3', provider_name: 'สมศักดิ์ เร็วมาก', provider_type: 'driver', total_trips: 98, total_earnings: 15600, avg_rating: 4.7 }
-      ]
+      // Return empty array on error - NO MOCK DATA
+      topProviders.value = []
     }
   }
 
@@ -168,11 +164,8 @@ export function useAdminAnalytics() {
       if (err) throw err
       serviceDistribution.value = data || []
     } catch {
-      serviceDistribution.value = [
-        { service_type: 'ride', total_orders: 450, percentage: 65 },
-        { service_type: 'delivery', total_orders: 180, percentage: 26 },
-        { service_type: 'shopping', total_orders: 62, percentage: 9 }
-      ]
+      // Return empty array on error - NO MOCK DATA
+      serviceDistribution.value = []
     }
   }
 
@@ -184,7 +177,8 @@ export function useAdminAnalytics() {
       if (err) throw err
       userGrowth.value = data || []
     } catch {
-      userGrowth.value = generateMockUserGrowth(days)
+      // Return empty array on error - NO MOCK DATA
+      userGrowth.value = []
     }
   }
 
@@ -200,53 +194,6 @@ export function useAdminAnalytics() {
       fetchUserGrowth()
     ])
     loading.value = false
-  }
-
-  // Mock data generators
-  const generateMockRevenueTrend = (days: number): RevenueTrend[] => {
-    const data: RevenueTrend[] = []
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date()
-      date.setDate(date.getDate() - i)
-      data.push({
-        date: date.toISOString().split('T')[0],
-        ride_revenue: Math.floor(Math.random() * 50000) + 30000,
-        delivery_revenue: Math.floor(Math.random() * 15000) + 8000,
-        shopping_revenue: Math.floor(Math.random() * 8000) + 3000,
-        total_revenue: 0
-      })
-      data[data.length - 1].total_revenue = 
-        data[data.length - 1].ride_revenue + 
-        data[data.length - 1].delivery_revenue + 
-        data[data.length - 1].shopping_revenue
-    }
-    return data
-  }
-
-  const generateMockHourlyOrders = (): HourlyOrders[] => {
-    return Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      ride_count: hour >= 7 && hour <= 22 ? Math.floor(Math.random() * 20) + 5 : Math.floor(Math.random() * 5),
-      delivery_count: hour >= 10 && hour <= 21 ? Math.floor(Math.random() * 10) + 2 : Math.floor(Math.random() * 3),
-      shopping_count: hour >= 9 && hour <= 20 ? Math.floor(Math.random() * 5) + 1 : 0
-    }))
-  }
-
-  const generateMockUserGrowth = (days: number) => {
-    const data = []
-    let cumulative = 1000
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date()
-      date.setDate(date.getDate() - i)
-      const newUsers = Math.floor(Math.random() * 30) + 10
-      cumulative += newUsers
-      data.push({
-        date: date.toISOString().split('T')[0],
-        new_users: newUsers,
-        cumulative_users: cumulative
-      })
-    }
-    return data
   }
 
   // Format helpers

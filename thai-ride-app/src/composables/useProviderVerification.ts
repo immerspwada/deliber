@@ -132,8 +132,8 @@ export function useProviderVerification() {
       queue.value = data || []
     } catch (e: any) {
       error.value = e.message
-      // Mock data for demo
-      queue.value = generateMockQueue()
+      // Return empty array on error - NO MOCK DATA
+      queue.value = []
     } finally {
       loading.value = false
     }
@@ -147,12 +147,13 @@ export function useProviderVerification() {
       if (err) throw err
       queueStats.value = data?.[0] || null
     } catch {
+      // Return zeros on error - NO MOCK DATA
       queueStats.value = {
-        pending_count: 12,
-        in_review_count: 3,
-        completed_today: 8,
-        avg_review_time: '00:25:00',
-        oldest_pending_hours: 4.5
+        pending_count: 0,
+        in_review_count: 0,
+        completed_today: 0,
+        avg_review_time: '00:00:00',
+        oldest_pending_hours: 0
       }
     }
   }
@@ -425,55 +426,7 @@ export function useProviderVerification() {
     })
   }
 
-  // Mock data generator
-  const generateMockQueue = (): VerificationQueueItem[] => [
-    {
-      id: '1',
-      provider_id: 'p1',
-      assigned_admin_id: null,
-      priority: 0,
-      queue_position: 1,
-      status: 'pending',
-      notes: null,
-      estimated_review_time: '00:30:00',
-      actual_review_time: null,
-      started_at: null,
-      completed_at: null,
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-      provider: {
-        id: 'p1',
-        provider_type: 'driver',
-        vehicle_type: 'Toyota Vios',
-        vehicle_plate: 'กข 1234',
-        documents: { id_card: 'pending', license: 'pending', vehicle: 'pending' },
-        status: 'pending',
-        users: { name: 'สมชาย ใจดี', email: 'somchai@email.com', phone: '0812345678' }
-      }
-    },
-    {
-      id: '2',
-      provider_id: 'p2',
-      assigned_admin_id: 'admin1',
-      priority: 5,
-      queue_position: 2,
-      status: 'in_review',
-      notes: null,
-      estimated_review_time: '00:30:00',
-      actual_review_time: null,
-      started_at: new Date(Date.now() - 900000).toISOString(),
-      completed_at: null,
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-      provider: {
-        id: 'p2',
-        provider_type: 'rider',
-        vehicle_type: 'Honda PCX',
-        vehicle_plate: 'ขค 5678',
-        documents: { id_card: 'verified', license: 'pending', vehicle: 'pending' },
-        status: 'pending',
-        users: { name: 'วีระ ส่งไว', email: 'weera@email.com', phone: '0823456789' }
-      }
-    }
-  ]
+  // NO MOCK DATA - ใช้ข้อมูลจริงจาก database เท่านั้น
 
   return {
     // State

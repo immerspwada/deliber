@@ -12,7 +12,7 @@
  * - TTFB (Time to First Byte) - เวลาที่ได้รับ byte แรก
  */
 
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
 
@@ -426,7 +426,7 @@ export function usePerformanceMetrics() {
   const getSessionId = (): string => {
     let sessionId = sessionStorage.getItem('perf_session_id')
     if (!sessionId) {
-      sessionId = `perf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      sessionId = `perf_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
       sessionStorage.setItem('perf_session_id', sessionId)
     }
     return sessionId

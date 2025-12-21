@@ -57,6 +57,7 @@ const isGettingLocation = ref(false)
 const showSearchSheet = ref(false)
 const searchType = ref<'pickup' | 'destination'>('destination')
 const searchQuery = ref('')
+const isLoadingPlaces = ref(true) // Loading state for saved places
 
 // Fare calculation
 const estimatedFare = ref(0)
@@ -152,6 +153,9 @@ const vehicleTypes = [
 // ============================================
 
 onMounted(async () => {
+  console.log('[RideBooking] onMounted - Starting initialization')
+  console.log('[RideBooking] authStore.user:', authStore.user?.id)
+  
   // Check for pending destination from home
   const pendingDest = rideStore.consumeDestination()
   if (pendingDest) {
@@ -160,23 +164,54 @@ onMounted(async () => {
     currentStep.value = 'pickup'
   }
 
-  // Initialize user data
+  // Wait for auth to be ready, then fetch data
+  isLoadingPlaces.value = true
+  
+  // Try to initialize immediately if user exists
   if (authStore.user?.id) {
-    await rideStore.initialize(authStore.user.id)
-    
-    // Check for active ride
-    if (rideStore.hasActiveRide && rideStore.currentRide) {
-      activeRide.value = rideStore.currentRide
-      viewMode.value = 'tracking'
+    console.log('[RideBooking] User found, initializing data')
+    await initializeUserData()
+  } else {
+    console.log('[RideBooking] No user yet, waiting 500ms...')
+    // Wait a bit for auth to initialize, then try again
+    await new Promise(resolve => setTimeout(resolve, 500))
+    if (authStore.user?.id) {
+      console.log('[RideBooking] User found after wait, initializing data')
+      await initializeUserData()
+    } else {
+      console.log('[RideBooking] Still no user, fetching places anyway (cache/demo mode)')
+      // Still no user - fetch places anyway (will use cache/demo mode)
+      await Promise.all([
+        fetchSavedPlaces(),
+        fetchRecentPlaces(5)
+      ])
     }
-    
-    // Fetch saved places
-    await Promise.all([
-      fetchSavedPlaces(),
-      fetchRecentPlaces(5)
-    ])
   }
+  
+  console.log('[RideBooking] Saved places loaded:', savedPlaces.value.length)
+  console.log('[RideBooking] Recent places loaded:', recentPlaces.value.length)
+  console.log('[RideBooking] Home place:', homePlace.value)
+  console.log('[RideBooking] Work place:', workPlace.value)
+  
+  isLoadingPlaces.value = false
 })
+
+// Helper function to initialize user data
+const initializeUserData = async () => {
+  await rideStore.initialize(authStore.user!.id)
+  
+  // Check for active ride
+  if (rideStore.hasActiveRide && rideStore.currentRide) {
+    activeRide.value = rideStore.currentRide
+    viewMode.value = 'tracking'
+  }
+  
+  // Fetch saved places
+  await Promise.all([
+    fetchSavedPlaces(),
+    fetchRecentPlaces(5)
+  ])
+}
 
 onUnmounted(() => {
   rideStore.unsubscribeAll()
@@ -212,7 +247,8 @@ const goBack = () => {
       currentStep.value = 'vehicle'
       break
     default:
-      router.back()
+      // กลับไปหน้าหลัก Customer
+      router.push('/customer')
   }
 }
 
@@ -566,7 +602,31 @@ const handleRouteCalculated = (data: { distance: number; duration: number }) => 
               <div class="quick-places">
                 <h3 class="section-title">สถานที่บันทึก</h3>
                 
-                <div class="places-grid">
+                <!-- Loading State -->
+                <div v-if="isLoadingPlaces" class="places-loading">
+                  <div class="loading-skeleton"></div>
+                  <div class="loading-skeleton"></div>
+                </div>
+                
+                <!-- Empty State - No saved places -->
+                <div v-else-if="!homePlace && !workPlace && favoritePlaces.length === 0" class="places-empty">
+                  <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5">
+                      <path d="M12 2C8 2 5 5.5 5 9.5C5 15 12 22 12 22C12 22 19 15 19 9.5C19 5.5 16 2 12 2Z"/>
+                      <circle cx="12" cy="9.5" r="2.5"/>
+                    </svg>
+                  </div>
+                  <p class="empty-text">ยังไม่มีสถานที่บันทึก</p>
+                  <button class="add-place-btn" @click="router.push('/customer/saved-places')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    <span>เพิ่มสถานที่</span>
+                  </button>
+                </div>
+                
+                <!-- Places Grid -->
+                <div v-else class="places-grid">
                   <!-- Home -->
                   <button 
                     v-if="homePlace"
@@ -621,6 +681,19 @@ const handleRouteCalculated = (data: { distance: number; duration: number }) => 
                       </svg>
                     </div>
                     <span class="place-name">{{ place.name }}</span>
+                  </button>
+                  
+                  <!-- Add Place Button -->
+                  <button 
+                    class="place-card add-card"
+                    @click="router.push('/customer/saved-places')"
+                  >
+                    <div class="place-icon add">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                      </svg>
+                    </div>
+                    <span class="place-name">เพิ่ม</span>
                   </button>
                 </div>
               </div>
@@ -1086,6 +1159,7 @@ const handleRouteCalculated = (data: { distance: number; duration: number }) => 
   position: relative;
   flex: 1;
   min-height: 45vh;
+  z-index: 0;
 }
 
 .floating-header {
@@ -1098,7 +1172,7 @@ const handleRouteCalculated = (data: { distance: number; duration: number }) => 
   justify-content: space-between;
   padding: 12px 16px;
   padding-top: calc(12px + env(safe-area-inset-top, 0));
-  z-index: 10;
+  z-index: 1001;
 }
 
 .header-btn {
@@ -1156,6 +1230,7 @@ const handleRouteCalculated = (data: { distance: number; duration: number }) => 
    ============================================ */
 .bottom-sheet {
   position: relative;
+  z-index: 5;
   background: #FFFFFF;
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
@@ -1426,6 +1501,95 @@ const handleRouteCalculated = (data: { distance: number; duration: number }) => 
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Loading State */
+.places-loading {
+  display: flex;
+  gap: 12px;
+}
+
+.loading-skeleton {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 14px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Empty State */
+.places-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  background: #F9F9F9;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: #999;
+  margin: 0 0 16px;
+}
+
+.add-place-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #00A86B;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-place-btn:hover {
+  background: #008F5B;
+}
+
+.add-place-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Add Card */
+.place-card.add-card {
+  border-style: dashed;
+  border-color: #CCC;
+  background: #FAFAFA;
+}
+
+.place-card.add-card:hover {
+  border-color: #00A86B;
+  background: #E8F5EF;
+}
+
+.place-icon.add {
+  background: #F0F0F0;
+  color: #666;
 }
 
 .place-card {

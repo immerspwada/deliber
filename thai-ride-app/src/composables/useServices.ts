@@ -232,7 +232,10 @@ export function useServices() {
       cacheRecentPlaces(result)
       return result
     } catch (err: any) {
-      console.warn('Error fetching recent places:', err.message)
+      // Don't log AbortError - it's expected when navigating away
+      if (err.name !== 'AbortError') {
+        console.warn('Error fetching recent places:', err.message)
+      }
       if (cached) {
         recentPlaces.value = cached.slice(0, limit)
         return recentPlaces.value

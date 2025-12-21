@@ -138,14 +138,8 @@ const loadRealData = async () => {
         trend: item.trendPercent || 0
       }))
     } else {
-      // Fallback mock data
-      topInteractions.value = [
-        { action: 'Book Ride', count: 0, trend: 0 },
-        { action: 'Search Location', count: 0, trend: 0 },
-        { action: 'View History', count: 0, trend: 0 },
-        { action: 'Pull to Refresh', count: 0, trend: 0 },
-        { action: 'Swipe Navigation', count: 0, trend: 0 }
-      ]
+      // Return empty data - NO MOCK DATA
+      topInteractions.value = []
     }
     
     // Fetch device breakdown
@@ -157,11 +151,8 @@ const loadRealData = async () => {
         interactions: item.interactions || 0
       }))
     } else {
-      deviceBreakdown.value = [
-        { device: 'mobile', percentage: 0, interactions: 0 },
-        { device: 'desktop', percentage: 0, interactions: 0 },
-        { device: 'tablet', percentage: 0, interactions: 0 }
-      ]
+      // Return empty data - NO MOCK DATA
+      deviceBreakdown.value = []
     }
     
     // Fetch feature usage
@@ -171,20 +162,18 @@ const loadRealData = async () => {
         feature: item.featureName || 'Unknown',
         enabled: item.enabledPercent || 100,
         disabled: item.disabledPercent || 0,
-        satisfaction: 4.5 // Default satisfaction
+        satisfaction: item.satisfaction || 0
       }))
     } else {
-      featureUsage.value = [
-        { feature: 'Haptic Feedback', enabled: 78.2, disabled: 21.8, satisfaction: 4.5 },
-        { feature: 'Smart Suggestions', enabled: 85.4, disabled: 14.6, satisfaction: 4.2 },
-        { feature: 'Pull to Refresh', enabled: 92.1, disabled: 7.9, satisfaction: 4.7 },
-        { feature: 'Swipe Navigation', enabled: 65.3, disabled: 34.7, satisfaction: 4.0 },
-        { feature: 'Progressive Loading', enabled: 100, disabled: 0, satisfaction: 4.6 }
-      ]
+      // Return empty data - NO MOCK DATA
+      featureUsage.value = []
     }
   } catch (err) {
     console.error('Failed to load UX analytics:', err)
-    // Keep existing mock data on error
+    // Return empty data on error - NO MOCK DATA
+    topInteractions.value = []
+    deviceBreakdown.value = []
+    featureUsage.value = []
   } finally {
     isLoading.value = false
   }

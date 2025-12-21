@@ -2,64 +2,25 @@ import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { supabase } from '../lib/supabase'
+import { getAdminAuthInstance } from '../composables/useAdminAuth'
 
 // ========================================
-// Session Cache for Admin Auth (Task 2)
+// Admin Auth Instance (singleton)
 // ========================================
-const ADMIN_SESSION_CACHE_TTL = 60000 // 1 minute
-let cachedAdminSessionValid: boolean | null = null
-let adminSessionCacheTime = 0
+const adminAuth = getAdminAuthInstance()
 
 /**
- * Check if admin session is valid with 1-minute caching
- * Reduces localStorage access from ~3600 to ~50 per session
+ * Check if admin session is valid (uses useAdminAuth)
  */
 const isAdminSessionValid = (): boolean => {
-  const now = Date.now()
-  
-  // Return cached result if still valid
-  if (cachedAdminSessionValid !== null && 
-      (now - adminSessionCacheTime) < ADMIN_SESSION_CACHE_TTL) {
-    return cachedAdminSessionValid
-  }
-  
-  // Check session from localStorage
-  const adminToken = localStorage.getItem('admin_token')
-  const loginTime = localStorage.getItem('admin_login_time')
-  
-  if (!adminToken || !loginTime) {
-    cachedAdminSessionValid = false
-    adminSessionCacheTime = now
-    return false
-  }
-  
-  const elapsed = now - parseInt(loginTime)
-  const SESSION_TTL = 8 * 60 * 60 * 1000 // 8 hours
-  
-  if (elapsed > SESSION_TTL) {
-    // Clear expired session
-    localStorage.removeItem('admin_token')
-    localStorage.removeItem('admin_login_time')
-    localStorage.removeItem('admin_email')
-    localStorage.removeItem('admin_role')
-    localStorage.removeItem('admin_name')
-    
-    cachedAdminSessionValid = false
-    adminSessionCacheTime = now
-    return false
-  }
-  
-  cachedAdminSessionValid = true
-  adminSessionCacheTime = now
-  return true
+  return adminAuth.isSessionValid()
 }
 
 /**
  * Clear admin session cache (call when logging out)
  */
 export const clearAdminSessionCache = () => {
-  cachedAdminSessionValid = null
-  adminSessionCacheTime = 0
+  adminAuth.clearSessionCache()
 }
 
 export const routes: RouteRecordRaw[] = [
@@ -520,6 +481,18 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/notifications',
     name: 'AdminNotifications',
     component: () => import('../views/AdminNotificationsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/push-notifications',
+    name: 'AdminPushNotifications',
+    component: () => import('../views/AdminPushNotificationsView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/notification-templates',
+    name: 'AdminNotificationTemplates',
+    component: () => import('../views/AdminNotificationTemplatesView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {

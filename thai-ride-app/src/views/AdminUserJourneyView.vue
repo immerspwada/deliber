@@ -91,23 +91,23 @@ const loadFunnelData = async () => {
     const payments = paymentsResult.count || 0
     const ratings = ratingsResult.count || 0
 
-    // Use mock data if no real data
-    const totalSignups = signups || 1247
-    const firstBookings = bookings || 892
-    const completedPayments = payments || 756
-    const ratingsSubmitted = ratings || 423
+    // Use real data only - NO MOCK DATA
+    const totalSignups = signups
+    const firstBookings = bookings
+    const completedPayments = payments
+    const ratingsSubmitted = ratings
 
     metrics.value = {
       totalSignups,
       firstBookings,
       completedPayments,
       ratingsSubmitted,
-      avgTimeToFirstBooking: '2.3 วัน',
-      avgTimeToPayment: '15 นาที',
-      overallConversion: Math.round((ratingsSubmitted / totalSignups) * 100)
+      avgTimeToFirstBooking: totalSignups > 0 ? '- วัน' : '0 วัน',
+      avgTimeToPayment: completedPayments > 0 ? '- นาที' : '0 นาที',
+      overallConversion: totalSignups > 0 ? Math.round((ratingsSubmitted / totalSignups) * 100) : 0
     }
 
-    // Build funnel steps
+    // Build funnel steps with real data
     funnelSteps.value = [
       {
         id: 'signup',
@@ -123,8 +123,8 @@ const loadFunnelData = async () => {
         name: 'First Booking',
         nameTh: 'จองครั้งแรก',
         count: firstBookings,
-        percentage: Math.round((firstBookings / totalSignups) * 100),
-        dropoff: Math.round(((totalSignups - firstBookings) / totalSignups) * 100),
+        percentage: totalSignups > 0 ? Math.round((firstBookings / totalSignups) * 100) : 0,
+        dropoff: totalSignups > 0 ? Math.round(((totalSignups - firstBookings) / totalSignups) * 100) : 0,
         color: '#F59E0B'
       },
       {
@@ -132,8 +132,8 @@ const loadFunnelData = async () => {
         name: 'Payment Complete',
         nameTh: 'ชำระเงินสำเร็จ',
         count: completedPayments,
-        percentage: Math.round((completedPayments / totalSignups) * 100),
-        dropoff: Math.round(((firstBookings - completedPayments) / firstBookings) * 100),
+        percentage: totalSignups > 0 ? Math.round((completedPayments / totalSignups) * 100) : 0,
+        dropoff: firstBookings > 0 ? Math.round(((firstBookings - completedPayments) / firstBookings) * 100) : 0,
         color: '#00A86B'
       },
       {
@@ -141,34 +141,29 @@ const loadFunnelData = async () => {
         name: 'Rating Submitted',
         nameTh: 'ให้คะแนน',
         count: ratingsSubmitted,
-        percentage: Math.round((ratingsSubmitted / totalSignups) * 100),
-        dropoff: Math.round(((completedPayments - ratingsSubmitted) / completedPayments) * 100),
+        percentage: totalSignups > 0 ? Math.round((ratingsSubmitted / totalSignups) * 100) : 0,
+        dropoff: completedPayments > 0 ? Math.round(((completedPayments - ratingsSubmitted) / completedPayments) * 100) : 0,
         color: '#8B5CF6'
       }
     ]
   } catch (err) {
     console.error('Error loading funnel data:', err)
-    // Use mock data on error
-    const totalSignups = 1247
-    const firstBookings = 892
-    const completedPayments = 756
-    const ratingsSubmitted = 423
-
+    // Return zeros on error - NO MOCK DATA
     metrics.value = {
-      totalSignups,
-      firstBookings,
-      completedPayments,
-      ratingsSubmitted,
-      avgTimeToFirstBooking: '2.3 วัน',
-      avgTimeToPayment: '15 นาที',
-      overallConversion: Math.round((ratingsSubmitted / totalSignups) * 100)
+      totalSignups: 0,
+      firstBookings: 0,
+      completedPayments: 0,
+      ratingsSubmitted: 0,
+      avgTimeToFirstBooking: '0 วัน',
+      avgTimeToPayment: '0 นาที',
+      overallConversion: 0
     }
 
     funnelSteps.value = [
-      { id: 'signup', name: 'Sign Up', nameTh: 'สมัครสมาชิก', count: totalSignups, percentage: 100, dropoff: 0, color: '#3B82F6' },
-      { id: 'first_booking', name: 'First Booking', nameTh: 'จองครั้งแรก', count: firstBookings, percentage: 71, dropoff: 29, color: '#F59E0B' },
-      { id: 'payment', name: 'Payment Complete', nameTh: 'ชำระเงินสำเร็จ', count: completedPayments, percentage: 61, dropoff: 15, color: '#00A86B' },
-      { id: 'rating', name: 'Rating Submitted', nameTh: 'ให้คะแนน', count: ratingsSubmitted, percentage: 34, dropoff: 44, color: '#8B5CF6' }
+      { id: 'signup', name: 'Sign Up', nameTh: 'สมัครสมาชิก', count: 0, percentage: 100, dropoff: 0, color: '#3B82F6' },
+      { id: 'first_booking', name: 'First Booking', nameTh: 'จองครั้งแรก', count: 0, percentage: 0, dropoff: 0, color: '#F59E0B' },
+      { id: 'payment', name: 'Payment Complete', nameTh: 'ชำระเงินสำเร็จ', count: 0, percentage: 0, dropoff: 0, color: '#00A86B' },
+      { id: 'rating', name: 'Rating Submitted', nameTh: 'ให้คะแนน', count: 0, percentage: 0, dropoff: 0, color: '#8B5CF6' }
     ]
   } finally {
     loading.value = false

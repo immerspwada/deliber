@@ -2,10 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '../lib/supabase'
+import { useAdminAuth } from '../composables/useAdminAuth'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
+const adminAuth = useAdminAuth()
 
 // Pending provider count for badge
 const pendingProviderCount = ref(0)
@@ -46,12 +48,15 @@ const setupProviderSubscription = () => {
 onMounted(() => {
   fetchPendingProviderCount()
   setupProviderSubscription()
+  // Start session check for auto-logout
+  adminAuth.startSessionCheck()
 })
 
 onUnmounted(() => {
   if (providerSubscription) {
     supabase.removeChannel(providerSubscription)
   }
+  adminAuth.stopSessionCheck()
 })
 
 // ✅ FIX 1: Session check moved to global router guard (see router/index.ts)
@@ -133,6 +138,8 @@ const menuSections = computed(() => [
     items: [
       { path: '/admin/settings', label: 'ทั่วไป', icon: 'gear' },
       { path: '/admin/notifications', label: 'แจ้งเตือน', icon: 'notification' },
+      { path: '/admin/push-notifications', label: 'Push Notifications', icon: 'push' },
+      { path: '/admin/notification-templates', label: 'Notification Templates', icon: 'template' },
       { path: '/admin/service-areas', label: 'พื้นที่บริการ', icon: 'map' },
       { path: '/admin/surge', label: 'Surge Pricing', icon: 'surge' },
       { path: '/admin/system-health', label: 'สุขภาพระบบ', icon: 'health' },
@@ -169,14 +176,8 @@ const navigate = (path: string) => {
   sidebarOpen.value = false
 }
 
-const logout = () => {
-  // Clear all admin-related localStorage
-  localStorage.removeItem('admin_token')
-  localStorage.removeItem('admin_user')
-  localStorage.removeItem('admin_login_time')
-  localStorage.removeItem('admin_demo_mode')
-  localStorage.removeItem('admin_activity_log')
-  router.push('/admin/login')
+const logout = async () => {
+  await adminAuth.logout()
 }
 
 // ✅ FIX 5: Cleanup on unmount
@@ -479,6 +480,18 @@ onUnmounted(() => {
           <svg v-else-if="item.icon === 'checklist'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 11l3 3L22 4"/>
             <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+          <!-- Push Notification -->
+          <svg v-else-if="item.icon === 'push'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 01-3.46 0"/>
+            <path d="M12 2v2"/>
+          </svg>
+          <!-- Template -->
+          <svg v-else-if="item.icon === 'template'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18"/>
+            <path d="M9 21V9"/>
           </svg>
           <span>{{ item.label }}</span>
           <!-- Badge for pending items -->

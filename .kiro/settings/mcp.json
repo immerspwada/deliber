@@ -13,7 +13,8 @@
         "read_multiple_files",
         "list_directory",
         "search_files",
-        "get_file_info"
+        "get_file_info",
+        "read_text_file"
       ]
     }
   }

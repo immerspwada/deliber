@@ -120,11 +120,17 @@ const loginWithFacebook = async () => {
   }
 }
 
-// Submit Registration
+// Loading progress state
+const loadingProgress = ref(0)
+const loadingMessage = ref('')
+
+// Submit Registration with progress tracking
 const submitRegistration = async () => {
   if (!canSubmit.value) return
   
   isLoading.value = true
+  loadingProgress.value = 0
+  loadingMessage.value = 'กำลังสร้างบัญชี...'
   error.value = ''
   successMessage.value = ''
   
@@ -136,6 +142,10 @@ const submitRegistration = async () => {
     localStorage.removeItem('demo_mode')
     localStorage.removeItem('demo_user')
     
+    // Step 1: Create account (0-40%)
+    loadingProgress.value = 10
+    loadingMessage.value = 'กำลังสร้างบัญชี...'
+    
     const success = await authStore.register(email.value, password.value, {
       name: fullName,
       phone: cleanPhone,
@@ -143,13 +153,27 @@ const submitRegistration = async () => {
       nationalId: cleanNationalId || undefined
     })
     
+    loadingProgress.value = 40
+    
     if (!success) {
       error.value = authStore.error || 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่'
       return
     }
     
-    // Auto login
+    // Step 2: Auto login (40-70%)
+    loadingProgress.value = 50
+    loadingMessage.value = 'กำลังเข้าสู่ระบบ...'
+    
     const loginSuccess = await authStore.login(email.value, password.value)
+    loadingProgress.value = 70
+    
+    // Step 3: Fetch profile & member UID (70-100%)
+    loadingMessage.value = 'กำลังโหลดข้อมูลสมาชิก...'
+    loadingProgress.value = 85
+    
+    // Small delay to ensure profile is fetched
+    await new Promise(resolve => setTimeout(resolve, 500))
+    loadingProgress.value = 100
     
     if (loginSuccess && authStore.user) {
       memberUid.value = (authStore.user as any).member_uid || ''
@@ -163,6 +187,8 @@ const submitRegistration = async () => {
     error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
   } finally {
     isLoading.value = false
+    loadingProgress.value = 0
+    loadingMessage.value = ''
   }
 }
 
@@ -195,6 +221,41 @@ watch(nationalId, (val) => {
 
 <template>
   <div class="register-page">
+    <!-- Loading Skeleton Overlay -->
+    <Transition name="fade">
+      <div v-if="isLoading" class="loading-overlay">
+        <div class="loading-content">
+          <div class="loading-spinner-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-checkmark" :class="{ show: loadingProgress >= 100 }">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            </div>
+          </div>
+          
+          <div class="loading-progress-container">
+            <div class="loading-progress-bar">
+              <div class="loading-progress-fill" :style="{ width: loadingProgress + '%' }"></div>
+            </div>
+            <span class="loading-percentage">{{ loadingProgress }}%</span>
+          </div>
+          
+          <p class="loading-message">{{ loadingMessage }}</p>
+          
+          <!-- Skeleton Preview -->
+          <div class="skeleton-preview">
+            <div class="skeleton-avatar"></div>
+            <div class="skeleton-lines">
+              <div class="skeleton-line long"></div>
+              <div class="skeleton-line medium"></div>
+              <div class="skeleton-line short"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Success Screen -->
     <div v-if="registrationComplete" class="success-screen">
       <div class="success-content">
@@ -1263,5 +1324,152 @@ watch(nationalId, (val) => {
     padding: 10px;
     margin-bottom: 16px;
   }
+}
+
+/* Loading Overlay Styles */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.98);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.loading-content {
+  text-align: center;
+  padding: 32px;
+  max-width: 320px;
+}
+
+.loading-spinner-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+}
+
+.loading-spinner {
+  width: 80px;
+  height: 80px;
+  border: 4px solid #E8F5EF;
+  border-top-color: #00A86B;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-checkmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 40px;
+  height: 40px;
+  background: #00A86B;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.loading-checkmark.show {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
+.loading-checkmark svg {
+  width: 24px;
+  height: 24px;
+  color: #FFFFFF;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.loading-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: #E8E8E8;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00A86B, #00C77B);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.loading-percentage {
+  font-size: 13px;
+  font-weight: 600;
+  color: #00A86B;
+  min-width: 40px;
+}
+
+.loading-message {
+  font-size: 15px;
+  color: #1A1A1A;
+  font-weight: 500;
+  margin: 0 0 24px;
+}
+
+/* Skeleton Preview */
+.skeleton-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #F8F8F8;
+  border-radius: 12px;
+}
+
+.skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.long { width: 100%; }
+.skeleton-line.medium { width: 75%; }
+.skeleton-line.short { width: 50%; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>

@@ -148,16 +148,16 @@ export function useProviderEarningsV2() {
       summary.value = data?.[0] || null
     } catch (e: any) {
       error.value = e.message
-      // Mock data
+      // Return zeros on error - NO MOCK DATA
       summary.value = {
-        total_trips: 156,
-        gross_earnings: 24500,
-        platform_fees: 4900,
-        tips: 1250,
-        bonuses: 500,
-        net_earnings: 21350,
-        available_balance: 18500,
-        pending_balance: 2850
+        total_trips: 0,
+        gross_earnings: 0,
+        platform_fees: 0,
+        tips: 0,
+        bonuses: 0,
+        net_earnings: 0,
+        available_balance: 0,
+        pending_balance: 0
       }
     } finally {
       loading.value = false
@@ -178,8 +178,8 @@ export function useProviderEarningsV2() {
       if (err) throw err
       dailyEarnings.value = data || []
     } catch {
-      // Generate mock data
-      dailyEarnings.value = generateMockDailyEarnings(days)
+      // Return empty array on error - NO MOCK DATA
+      dailyEarnings.value = []
     }
   }
 
@@ -326,24 +326,7 @@ export function useProviderEarningsV2() {
     loading.value = false
   }
 
-  // Mock data generator
-  const generateMockDailyEarnings = (days: number): DailyEarnings[] => {
-    const data: DailyEarnings[] = []
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date()
-      date.setDate(date.getDate() - i)
-      const trips = Math.floor(Math.random() * 15) + 5
-      const gross = trips * (Math.floor(Math.random() * 50) + 80)
-      data.push({
-        date: date.toISOString().split('T')[0],
-        trips,
-        gross_earnings: gross,
-        net_earnings: gross * 0.8,
-        tips: Math.floor(Math.random() * 100)
-      })
-    }
-    return data
-  }
+  // NO MOCK DATA - ใช้ข้อมูลจริงจาก database เท่านั้น
 
   // Format helpers
   const formatCurrency = (amount: number): string => {
