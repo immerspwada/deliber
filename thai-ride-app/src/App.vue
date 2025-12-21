@@ -36,7 +36,9 @@ onMounted(async () => {
     try {
       await authStore.initialize()
     } catch (err) {
-      console.warn('[Demo Init]', err)
+      if (import.meta.env.DEV) {
+        console.debug('[Demo Init]', err)
+      }
     }
     isReady.value = true
     
@@ -60,23 +62,36 @@ onMounted(async () => {
     return
   }
 
-  // Has stored session - initialize with short timeout
+  // Has stored session - initialize with race condition handling
+  let initCompleted = false
+  
   const timeout = setTimeout(() => {
-    console.warn('[App] Init timeout - showing app anyway')
-    isReady.value = true
-  }, 1000) // Short timeout for session verification
+    if (!initCompleted) {
+      // Use debug level - this is expected behavior, not a warning
+      if (import.meta.env.DEV) {
+        console.debug('[App] Init taking longer than expected, showing app')
+      }
+      isReady.value = true
+    }
+  }, 2000) // Increased to 2s for slower networks
 
   try {
     await authStore.initialize()
+    initCompleted = true
 
     // If user is logged in, restore any active ride (non-blocking)
     if (authStore.user?.id) {
       rideStore.initialize(authStore.user.id).catch((err) => {
-        console.warn('[Ride Init]', err)
+        if (import.meta.env.DEV) {
+          console.debug('[Ride Init]', err)
+        }
       })
     }
   } catch (err) {
-    console.error('[App Init Error]', err)
+    initCompleted = true
+    if (import.meta.env.DEV) {
+      console.debug('[App Init]', err)
+    }
     // Don't block app for init errors
   } finally {
     clearTimeout(timeout)

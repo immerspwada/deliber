@@ -1,108 +1,78 @@
 /**
- * Feature: F67 - Toast Notification System
+ * useToast - Simple Toast Notification System
+ * Feature: F67 - Toast Notifications
  * 
- * ระบบแจ้งเตือนแบบ Toast
- * - แสดงข้อความสั้นๆ
- * - หายไปอัตโนมัติ
- * - รองรับหลายประเภท
+ * Usage:
+ * const { showToast, showSuccess, showError, showWarning } = useToast()
+ * showSuccess('เปิดรับงานแล้ว')
+ * showError('ไม่สามารถเปลี่ยนสถานะได้')
  */
 
 import { ref, readonly } from 'vue'
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info'
-
 export interface Toast {
-  id: string
-  type: ToastType
+  id: number
   message: string
+  type: 'success' | 'error' | 'warning' | 'info'
   duration: number
-  action?: {
-    label: string
-    callback: () => void
-  }
 }
 
+// Global state (singleton)
 const toasts = ref<Toast[]>([])
-const MAX_TOASTS = 3
-
-// Generate unique ID
-const generateId = (): string => {
-  return `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-}
-
-// Add toast
-const addToast = (
-  message: string,
-  type: ToastType = 'info',
-  duration: number = 3000,
-  action?: Toast['action']
-): string => {
-  const id = generateId()
-
-  const toast: Toast = {
-    id,
-    type,
-    message,
-    duration,
-    action
-  }
-
-  // Limit number of toasts
-  if (toasts.value.length >= MAX_TOASTS) {
-    toasts.value.shift()
-  }
-
-  toasts.value.push(toast)
-
-  // Auto remove after duration
-  if (duration > 0) {
-    setTimeout(() => {
-      removeToast(id)
-    }, duration)
-  }
-
-  return id
-}
-
-// Remove toast
-const removeToast = (id: string) => {
-  const index = toasts.value.findIndex(t => t.id === id)
-  if (index > -1) {
-    toasts.value.splice(index, 1)
-  }
-}
-
-// Clear all toasts
-const clearToasts = () => {
-  toasts.value = []
-}
-
-// Shorthand methods
-const success = (message: string, duration?: number) => {
-  return addToast(message, 'success', duration)
-}
-
-const error = (message: string, duration?: number) => {
-  return addToast(message, 'error', duration || 5000)
-}
-
-const warning = (message: string, duration?: number) => {
-  return addToast(message, 'warning', duration || 4000)
-}
-
-const info = (message: string, duration?: number) => {
-  return addToast(message, 'info', duration)
-}
+let toastId = 0
 
 export function useToast() {
+  const showToast = (message: string, type: Toast['type'] = 'info', duration = 3000) => {
+    const id = ++toastId
+    const toast: Toast = { id, message, type, duration }
+    
+    toasts.value.push(toast)
+    
+    // Auto remove after duration
+    if (duration > 0) {
+      setTimeout(() => {
+        removeToast(id)
+      }, duration)
+    }
+    
+    return id
+  }
+  
+  const removeToast = (id: number) => {
+    const index = toasts.value.findIndex(t => t.id === id)
+    if (index > -1) {
+      toasts.value.splice(index, 1)
+    }
+  }
+  
+  const showSuccess = (message: string, duration = 3000) => {
+    return showToast(message, 'success', duration)
+  }
+  
+  const showError = (message: string, duration = 4000) => {
+    return showToast(message, 'error', duration)
+  }
+  
+  const showWarning = (message: string, duration = 3500) => {
+    return showToast(message, 'warning', duration)
+  }
+  
+  const showInfo = (message: string, duration = 3000) => {
+    return showToast(message, 'info', duration)
+  }
+  
+  const clearAll = () => {
+    toasts.value = []
+  }
+  
   return {
     toasts: readonly(toasts),
-    addToast,
+    showToast,
+    showSuccess,
+    showError,
+    showWarning,
+    showInfo,
     removeToast,
-    clearToasts,
-    success,
-    error,
-    warning,
-    info
+    clearAll
   }
 }

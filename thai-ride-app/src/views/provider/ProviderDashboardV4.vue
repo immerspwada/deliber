@@ -18,14 +18,20 @@ import { useRouter } from 'vue-router'
 import { useLocation } from '../../composables/useLocation'
 import { useProviderDashboard } from '../../composables/useProviderDashboard'
 import { useSoundNotification } from '../../composables/useSoundNotification'
+import { useToast } from '../../composables/useToast'
 import ProviderLayout from '../../components/ProviderLayout.vue'
 import LocationPermissionModal from '../../components/LocationPermissionModal.vue'
 import ProviderSkeleton from '../../components/provider/ProviderSkeleton.vue'
 import EarningsChart from '../../components/provider/EarningsChart.vue'
+import ToastContainer from '../../components/ToastContainer.vue'
+import RideAcceptConfirmModal from '../../components/provider/RideAcceptConfirmModal.vue'
+import ConnectionStatusBar from '../../components/provider/ConnectionStatusBar.vue'
+import JobTimer from '../../components/provider/JobTimer.vue'
 
 const router = useRouter()
 const { getCurrentPosition, shouldShowPermissionModal } = useLocation()
 const soundNotification = useSoundNotification()
+const { showSuccess, showError, showWarning } = useToast()
 
 // Preload sounds on mount
 onMounted(() => {
@@ -73,6 +79,32 @@ const startY = ref(0)
 // Toggle debounce state
 const isTogglingOnline = ref(false)
 let toggleDebounceTimer: number | null = null
+
+// Confirmation Modal state
+const showConfirmModal = ref(false)
+const selectedRequest = ref<any>(null)
+const isAcceptingRequest = ref(false)
+
+// Connection status for realtime indicator
+const connectionStatus = ref({
+  state: 'connected' as 'connected' | 'connecting' | 'disconnected' | 'error',
+  lastPing: new Date(),
+  latency: 45,
+  reconnectAttempts: 0
+})
+
+// Update connection status based on network status
+watch(networkStatus, (status) => {
+  if (status === 'online') {
+    connectionStatus.value.state = 'connected'
+    connectionStatus.value.reconnectAttempts = 0
+  } else if (status === 'reconnecting') {
+    connectionStatus.value.state = 'connecting'
+    connectionStatus.value.reconnectAttempts++
+  } else if (status === 'offline') {
+    connectionStatus.value.state = 'disconnected'
+  }
+})
 
 // =====================================================
 // DEBOUNCED SEARCH (300ms)
@@ -170,7 +202,7 @@ const handleToggleOnline = async () => {
         }
         await executeGoOnline()
       } else {
-        await toggleOnline(false)
+        await handleGoOffline()
       }
     } finally {
       isTogglingOnline.value = false
@@ -182,16 +214,34 @@ const executeGoOnline = async () => {
   isLoadingLocation.value = true
   try {
     const pos = await getCurrentPosition()
-    await toggleOnline(true, pos ? { lat: pos.lat, lng: pos.lng } : undefined)
-  } catch (e) {
+    const result = await toggleOnline(true, pos ? { lat: pos.lat, lng: pos.lng } : undefined)
+    if (result) {
+      showSuccess('เปิดรับงานแล้ว พร้อมรับงานใหม่')
+    } else if (error.value) {
+      showError(error.value)
+    }
+  } catch (e: any) {
     console.warn('GPS error:', e)
     if (isDemoMode.value) {
-      await toggleOnline(true, { lat: 13.7563, lng: 100.5018 })
+      const result = await toggleOnline(true, { lat: 13.7563, lng: 100.5018 })
+      if (result) {
+        showSuccess('เปิดรับงานแล้ว (Demo Mode)')
+      }
     } else {
-      globalThis.alert('กรุณาเปิด GPS เพื่อรับงาน')
+      showError('กรุณาเปิด GPS เพื่อรับงาน')
     }
   } finally {
     isLoadingLocation.value = false
+  }
+}
+
+// Handle going offline with toast
+const handleGoOffline = async () => {
+  const result = await toggleOnline(false)
+  if (result) {
+    showWarning('ปิดรับงานแล้ว')
+  } else if (error.value) {
+    showError(error.value)
   }
 }
 
@@ -202,20 +252,60 @@ const handleLocationPermissionAllow = async () => {
 
 const handleLocationPermissionDeny = () => {
   showLocationPermission.value = false
+  showWarning('ต้องอนุญาตตำแหน่งเพื่อเปิดรับงาน')
+}
+
+// Retry connection handler
+const handleRetryConnection = async () => {
+  connectionStatus.value.state = 'connecting'
+  try {
+    await fetchAllPendingRequests()
+    connectionStatus.value.state = 'connected'
+    connectionStatus.value.reconnectAttempts = 0
+    connectionStatus.value.lastPing = new Date()
+    showSuccess('เชื่อมต่อสำเร็จ')
+  } catch (e) {
+    connectionStatus.value.state = 'error'
+    showError('ไม่สามารถเชื่อมต่อได้')
+  }
 }
 
 // =====================================================
 // ACCEPT/DECLINE HANDLERS
 // =====================================================
-const handleAccept = async (request: any) => {
+const handleAccept = (request: any) => {
+  // Show confirmation modal instead of accepting directly
+  selectedRequest.value = request
+  showConfirmModal.value = true
+  soundNotification.haptic?.('light')
+}
+
+const handleConfirmAccept = async () => {
+  if (!selectedRequest.value || isAcceptingRequest.value) return
+  
+  isAcceptingRequest.value = true
   soundNotification.haptic?.('medium')
-  const result = await acceptRequest(request.id, request.type)
-  if (result.success) {
-    soundNotification.playAccept?.()
-  } else if (result.error) {
-    soundNotification.playSound?.('error')
-    globalThis.alert(result.error)
+  
+  try {
+    const result = await acceptRequest(selectedRequest.value.id, selectedRequest.value.type)
+    
+    if (result.success) {
+      soundNotification.playAccept?.()
+      showSuccess('รับงานสำเร็จ!')
+      showConfirmModal.value = false
+      selectedRequest.value = null
+    } else if (result.error) {
+      soundNotification.playSound?.('error')
+      showError(result.error)
+    }
+  } finally {
+    isAcceptingRequest.value = false
   }
+}
+
+const handleCancelAccept = () => {
+  showConfirmModal.value = false
+  selectedRequest.value = null
 }
 
 const handleDecline = (requestId: string) => {
@@ -302,6 +392,9 @@ onMounted(async () => {
 
 <template>
   <ProviderLayout>
+    <!-- Toast Notifications -->
+    <ToastContainer />
+    
     <div 
       class="dashboard-page"
       @touchstart="handleTouchStart"
@@ -395,8 +488,15 @@ onMounted(async () => {
 
       <!-- Normal Dashboard -->
       <div v-else class="dashboard-content">
-        <!-- Network Status Banner -->
-        <div v-if="networkStatus === 'reconnecting'" class="network-banner">
+        <!-- Connection Status Bar (Realtime Indicator) -->
+        <ConnectionStatusBar 
+          v-if="isOnline"
+          :status="connectionStatus"
+          @retry="handleRetryConnection"
+        />
+
+        <!-- Network Status Banner (Legacy - for reconnecting state) -->
+        <div v-if="networkStatus === 'reconnecting' && !isOnline" class="network-banner">
           <div class="network-spinner"></div>
           <span>กำลังเชื่อมต่อใหม่...</span>
         </div>
@@ -540,9 +640,16 @@ onMounted(async () => {
               :class="{ accepting: request._accepting }"
             >
               <div class="request-header">
-                <span class="request-type" :class="request.type">
-                  {{ request.type === 'ride' ? 'เรียกรถ' : request.type === 'delivery' ? 'ส่งของ' : 'ซื้อของ' }}
-                </span>
+                <div class="request-header-left">
+                  <span class="request-type" :class="request.type">
+                    {{ request.type === 'ride' ? 'เรียกรถ' : request.type === 'delivery' ? 'ส่งของ' : 'ซื้อของ' }}
+                  </span>
+                  <JobTimer 
+                    v-if="request.created_at" 
+                    :created-at="request.created_at"
+                    compact
+                  />
+                </div>
                 <span class="request-fare">฿{{ request.estimated_fare.toLocaleString() }}</span>
               </div>
 
@@ -596,6 +703,15 @@ onMounted(async () => {
         :show="showLocationPermission"
         @allow="handleLocationPermissionAllow"
         @deny="handleLocationPermissionDeny"
+      />
+
+      <!-- Ride Accept Confirmation Modal -->
+      <RideAcceptConfirmModal
+        :show="showConfirmModal"
+        :request="selectedRequest"
+        :is-accepting="isAcceptingRequest"
+        @confirm="handleConfirmAccept"
+        @cancel="handleCancelAccept"
       />
     </div>
   </ProviderLayout>
@@ -1127,6 +1243,12 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.request-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .request-type {

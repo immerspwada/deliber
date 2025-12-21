@@ -1,60 +1,41 @@
-<!--
-  Feature: F67 - Toast Container Component
-  
-  แสดง Toast notifications
-  - Stack จากล่างขึ้นบน
-  - Animation เข้า/ออก
-  - รองรับ action button
--->
+<script setup lang="ts">
+/**
+ * ToastContainer - Global Toast Notification Display
+ * Add this component to App.vue or main layout
+ */
+import { useToast } from '../composables/useToast'
+
+const { toasts, removeToast } = useToast()
+
+const getIcon = (type: string) => {
+  switch (type) {
+    case 'success':
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>`
+    case 'error':
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>`
+    case 'warning':
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+    default:
+      return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
+  }
+}
+</script>
+
 <template>
   <Teleport to="body">
     <div class="toast-container">
       <TransitionGroup name="toast">
-        <div 
-          v-for="toast in toasts" 
+        <div
+          v-for="toast in toasts"
           :key="toast.id"
-          class="toast"
-          :class="toast.type"
+          :class="['toast', `toast-${toast.type}`]"
+          @click="removeToast(toast.id)"
         >
-          <!-- Icon -->
-          <div class="toast-icon">
-            <svg v-if="toast.type === 'success'" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-            </svg>
-            <svg v-else-if="toast.type === 'error'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="15" y1="9" x2="9" y2="15"/>
-              <line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
-            <svg v-else-if="toast.type === 'warning'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-          </div>
-
-          <!-- Message -->
-          <div class="toast-content">
-            <span class="toast-message">{{ toast.message }}</span>
-            <button 
-              v-if="toast.action" 
-              class="toast-action"
-              @click="handleAction(toast)"
-            >
-              {{ toast.action.label }}
-            </button>
-          </div>
-
-          <!-- Close Button -->
-          <button class="toast-close" @click="removeToast(toast.id)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+          <div class="toast-icon" v-html="getIcon(toast.type)"></div>
+          <div class="toast-message">{{ toast.message }}</div>
+          <button class="toast-close" @click.stop="removeToast(toast.id)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
@@ -63,29 +44,18 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
-import { useToast, type Toast } from '../composables/useToast'
-
-const { toasts, removeToast } = useToast()
-
-const handleAction = (toast: Toast) => {
-  if (toast.action?.callback) {
-    toast.action.callback()
-  }
-  removeToast(toast.id)
-}
-</script>
-
 <style scoped>
 .toast-container {
   position: fixed;
-  bottom: calc(80px + env(safe-area-inset-bottom));
-  left: 16px;
-  right: 16px;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 9999;
+  max-width: 90vw;
+  width: 360px;
   pointer-events: none;
 }
 
@@ -93,90 +63,94 @@ const handleAction = (toast: Toast) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  background: #000000;
+  padding: 14px 16px;
+  background: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
   pointer-events: auto;
+  border-left: 4px solid;
 }
 
-.toast.success {
-  background: #22c55e;
+.toast-success {
+  border-color: #00A86B;
+  background: linear-gradient(135deg, #e8f5ef 0%, #fff 100%);
 }
 
-.toast.error {
-  background: #e11900;
+.toast-error {
+  border-color: #E53935;
+  background: linear-gradient(135deg, #ffebee 0%, #fff 100%);
 }
 
-.toast.warning {
-  background: #f59e0b;
+.toast-warning {
+  border-color: #F5A623;
+  background: linear-gradient(135deg, #fff8e6 0%, #fff 100%);
 }
 
-.toast.info {
-  background: #276ef1;
+.toast-info {
+  border-color: #2196F3;
+  background: linear-gradient(135deg, #e3f2fd 0%, #fff 100%);
 }
 
 .toast-icon {
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  color: #ffffff;
 }
 
-.toast-content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.toast-success .toast-icon { color: #00A86B; }
+.toast-error .toast-icon { color: #E53935; }
+.toast-warning .toast-icon { color: #F5A623; }
+.toast-info .toast-icon { color: #2196F3; }
+
+.toast-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 
 .toast-message {
+  flex: 1;
   font-size: 14px;
-  color: #ffffff;
-}
-
-.toast-action {
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 4px;
-  font-size: 13px;
   font-weight: 500;
-  color: #ffffff;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.toast-action:hover {
-  background: rgba(255, 255, 255, 0.3);
+  color: #1A1A1A;
+  line-height: 1.4;
 }
 
 .toast-close {
-  flex-shrink: 0;
-  padding: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  border-radius: 4px;
+  color: #999;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.2s;
 }
 
 .toast-close:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
 }
 
-/* Transitions */
+.toast-close svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Animations */
 .toast-enter-active {
-  animation: toast-in 0.3s ease;
+  animation: toast-in 0.3s ease-out;
 }
 
 .toast-leave-active {
-  animation: toast-out 0.2s ease;
+  animation: toast-out 0.2s ease-in;
 }
 
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(-20px) scale(0.95);
   }
   to {
     opacity: 1;
@@ -192,6 +166,18 @@ const handleAction = (toast: Toast) => {
   to {
     opacity: 0;
     transform: translateY(-10px) scale(0.95);
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .toast-container {
+    top: 10px;
+    width: calc(100vw - 20px);
+  }
+  
+  .toast {
+    padding: 12px 14px;
   }
 }
 </style>

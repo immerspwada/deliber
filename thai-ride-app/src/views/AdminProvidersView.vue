@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
 import { useAdmin } from '../composables/useAdmin'
 import { useExternalNotifications } from '../composables/useExternalNotifications'
@@ -21,6 +21,11 @@ const typeFilter = ref('')
 const statusFilter = ref('')
 const searchQuery = ref('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+// Realtime online/offline stats
+const onlineCount = ref(0)
+const offlineCount = ref(0)
+let realtimeChannel: any = null
 
 // Watch searchQuery with debounce
 watch(searchQuery, (newVal) => {
@@ -336,7 +341,61 @@ const getProviderDisplayName = (provider: any) => {
   return 'ไม่ระบุชื่อ'
 }
 
-onMounted(loadProviders)
+// Fetch online/offline counts
+const fetchOnlineStats = async () => {
+  try {
+    const { data: onlineData, count: onlineTotal } = await (supabase
+      .from('service_providers') as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('is_available', true)
+      .in('status', ['approved', 'active'])
+    
+    const { data: offlineData, count: offlineTotal } = await (supabase
+      .from('service_providers') as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('is_available', false)
+      .in('status', ['approved', 'active'])
+    
+    onlineCount.value = onlineTotal || 0
+    offlineCount.value = offlineTotal || 0
+  } catch (e) {
+    console.warn('Error fetching online stats:', e)
+  }
+}
+
+// Setup realtime subscription for provider status changes
+const setupRealtimeSubscription = () => {
+  realtimeChannel = supabase.channel('admin_provider_status')
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'service_providers'
+    }, (payload) => {
+      // Update online/offline counts when provider status changes
+      fetchOnlineStats()
+      
+      // Update provider in list if exists
+      const index = providers.value.findIndex(p => p.id === payload.new.id)
+      if (index !== -1) {
+        providers.value[index] = { ...providers.value[index], ...payload.new }
+      }
+    })
+    .subscribe()
+  
+  addSubscription(realtimeChannel)
+}
+
+onMounted(async () => {
+  await loadProviders()
+  await fetchOnlineStats()
+  setupRealtimeSubscription()
+})
+
+onUnmounted(() => {
+  if (realtimeChannel) {
+    realtimeChannel.unsubscribe()
+  }
+})
 
 // View provider details
 const viewDetails = (provider: any) => {
@@ -714,6 +773,33 @@ const confirmRejectDocument = async () => {
 
       <!-- Stats Cards -->
       <div class="stats-grid">
+        <!-- Online/Offline Realtime Stats -->
+        <div class="stat-card online" @click="statusFilter = 'approved'; loadProviders()">
+          <div class="stat-icon pulse-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value online-value">{{ onlineCount }}</span>
+            <span class="stat-label">ออนไลน์</span>
+          </div>
+          <div class="live-indicator">
+            <span class="live-dot"></span>
+            <span class="live-text">LIVE</span>
+          </div>
+        </div>
+        <div class="stat-card offline">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><path d="M12 6v6"/>
+            </svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value">{{ offlineCount }}</span>
+            <span class="stat-label">ออฟไลน์</span>
+          </div>
+        </div>
         <div class="stat-card pending" @click="statusFilter = 'pending'; loadProviders()">
           <div class="stat-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1392,22 +1478,36 @@ const confirmRejectDocument = async () => {
 .subtitle { color: #6b6b6b; font-size: 14px; }
 
 /* Stats Grid */
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-.stat-card { display: flex; align-items: center; gap: 12px; padding: 16px; background: #fff; border-radius: 12px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent; }
+.stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card { display: flex; align-items: center; gap: 12px; padding: 16px; background: #fff; border-radius: 12px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent; position: relative; }
 .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.stat-card.online { border-color: #00A86B; background: linear-gradient(135deg, #e8f5ef 0%, #fff 100%); }
+.stat-card.offline { border-color: #999; }
 .stat-card.pending { border-color: #ffc043; }
 .stat-card.approved { border-color: #00A86B; }
 .stat-card.rejected { border-color: #e11900; }
 .stat-card.suspended { border-color: #6b6b6b; }
 .stat-icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; }
+.stat-card.online .stat-icon { background: #00A86B; color: #fff; }
+.stat-card.offline .stat-icon { background: #f5f5f5; color: #999; }
 .stat-card.pending .stat-icon { background: #fff8e6; color: #ffc043; }
 .stat-card.approved .stat-icon { background: #e8f5ef; color: #00A86B; }
 .stat-card.rejected .stat-icon { background: #ffebee; color: #e11900; }
 .stat-card.suspended .stat-icon { background: #f5f5f5; color: #6b6b6b; }
 .stat-icon svg { width: 24px; height: 24px; }
+.stat-icon.pulse-green { animation: pulse-green 2s infinite; }
+@keyframes pulse-green { 0%, 100% { box-shadow: 0 0 0 0 rgba(0, 168, 107, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(0, 168, 107, 0); } }
 .stat-info { display: flex; flex-direction: column; }
 .stat-value { font-size: 24px; font-weight: 700; }
+.stat-value.online-value { color: #00A86B; }
 .stat-label { font-size: 12px; color: #6b6b6b; }
+.live-indicator { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: #00A86B; border-radius: 4px; }
+.live-dot { width: 6px; height: 6px; background: #fff; border-radius: 50%; animation: blink 1s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.live-text { font-size: 9px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+
+@media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
 .search-box { display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; flex: 1; min-width: 200px; }

@@ -364,7 +364,7 @@ export function useProviderDashboard() {
 
 
   // =====================================================
-  // TOGGLE ONLINE STATUS
+  // TOGGLE ONLINE STATUS - Production Ready (Direct Update First)
   // =====================================================
   async function toggleOnline(online: boolean, location?: { lat: number; lng: number }) {
     loading.value = true
@@ -376,7 +376,20 @@ export function useProviderDashboard() {
 
     try {
       if (!profile.value?.id) await fetchProfile()
-      if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
+      if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ กรุณาสมัครเป็นผู้ให้บริการก่อน')
+      
+      // Check provider status before going online - be more lenient
+      const providerStatus = profile.value.status || ''
+      const isVerified = profile.value.is_verified || false
+      const canGoOnline = ['approved', 'active', 'pending'].includes(providerStatus) || isVerified
+      
+      console.log('[Provider] Status check:', { status: providerStatus, isVerified, canGoOnline })
+      
+      if (online && !canGoOnline) {
+        throw new Error('บัญชียังไม่ได้รับการอนุมัติ กรุณารอ Admin ตรวจสอบ')
+      }
+      
+      console.log('[Provider] Toggling online:', online, 'Provider ID:', profile.value.id)
 
       if (isDemoMode.value) {
         if (online) {
@@ -385,22 +398,56 @@ export function useProviderDashboard() {
         } else {
           unsubscribeAll()
           stopLocationUpdates()
-          // Clear requests immediately
           pendingRequests.value = []
           triggerRef(pendingRequests)
         }
         return true
       }
 
-      const { data, error: updateError } = await (supabase.rpc as any)('set_provider_availability', {
-        p_provider_id: profile.value.id,
-        p_is_available: online,
-        p_lat: location?.lat || null,
-        p_lng: location?.lng || null
-      })
+      // PRIMARY METHOD: Direct table update (most reliable)
+      console.log('[Provider] Using direct update method')
+      const { error: directError } = await (supabase
+        .from('service_providers') as any)
+        .update({
+          is_available: online,
+          current_lat: location?.lat || null,
+          current_lng: location?.lng || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', profile.value.id)
+      
+      if (directError) {
+        console.error('[Provider] Direct update failed:', directError)
+        
+        // FALLBACK: Try RPC function
+        try {
+          const { data: toggleData, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online', {
+            p_user_id: authStore.user?.id,
+            p_is_online: online,
+            p_lat: location?.lat || null,
+            p_lng: location?.lng || null
+          })
+          
+          if (toggleError || !toggleData?.success) {
+            throw new Error(toggleData?.error || toggleError?.message || 'ไม่สามารถเปลี่ยนสถานะได้')
+          }
+          console.log('[Provider] Toggle success via RPC fallback')
+        } catch (rpcErr: any) {
+          console.error('[Provider] RPC fallback also failed:', rpcErr)
+          throw new Error(directError.message || 'ไม่สามารถเปลี่ยนสถานะได้')
+        }
+      } else {
+        console.log('[Provider] Toggle success via direct update')
+      }
 
-      if (updateError) throw updateError
-      if (data?.[0] && !data[0].success) throw new Error(data[0].message)
+      // Update local profile
+      if (profile.value) {
+        profile.value.is_available = online
+        if (location) {
+          profile.value.current_lat = location.lat
+          profile.value.current_lng = location.lng
+        }
+      }
 
       if (online) {
         subscribeToAllRequests()
@@ -683,57 +730,136 @@ export function useProviderDashboard() {
         return { success: true }
       }
 
-      const { data, error: acceptError } = await (supabase.rpc as any)(rpcName, params)
-      
-      if (acceptError) {
-        // Handle specific error messages from atomic functions
-        if (acceptError.message?.includes('RIDE_ALREADY_ACCEPTED')) {
-          throw new Error('งานนี้ถูกรับไปแล้ว')
-        } else if (acceptError.message?.includes('RIDE_NOT_FOUND')) {
-          throw new Error('ไม่พบงานนี้')
-        } else if (acceptError.message?.includes('PROVIDER_NOT_FOUND')) {
-          throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
-        }
-        throw acceptError
-      }
-      
-      // Handle V3 atomic function response (returns JSON object)
-      // vs old functions (returns array with { success, message, ride_data })
       let jobData: any
-      let rideId: string
-      
-      if (type === 'ride' && data && typeof data === 'object' && !Array.isArray(data)) {
-        // V3 atomic function returns JSON object: { success, ride_id, status, provider }
-        if (!data.success) {
+      let rideId: string = requestId
+
+      // For rides, use retry mechanism with direct update
+      if (type === 'ride') {
+        console.log('[Provider] Accepting ride via direct update with retry:', requestId)
+        
+        // Wrap the acceptance logic in retry mechanism
+        const acceptRideWithRetry = async () => {
+          // Step 1: Check if ride is still available
+          const { data: rideCheck, error: checkError } = await (supabase
+            .from('ride_requests') as any)
+            .select('status, provider_id')
+            .eq('id', requestId)
+            .single()
+          
+          if (checkError || !rideCheck) {
+            throw new Error('ไม่พบงานนี้')
+          }
+          
+          if (rideCheck.status !== 'pending' || rideCheck.provider_id) {
+            // Don't retry if already accepted - this is a permanent failure
+            const err = new Error('งานนี้ถูกรับไปแล้ว')
+            ;(err as any).noRetry = true
+            throw err
+          }
+          
+          // Step 2: Update ride to matched
+          const { error: updateError } = await (supabase
+            .from('ride_requests') as any)
+            .update({
+              status: 'matched',
+              provider_id: profile.value!.id,
+              matched_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', requestId)
+            .eq('status', 'pending') // Double-check status to prevent race condition
+            .is('provider_id', null)
+          
+          if (updateError) {
+            console.error('[Provider] Direct update failed:', updateError)
+            throw new Error('ไม่สามารถรับงานได้: ' + updateError.message)
+          }
+          
+          // Step 3: Update provider to busy
+          await (supabase
+            .from('service_providers') as any)
+            .update({
+              is_available: false,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', profile.value!.id)
+          
+          // Step 4: Fetch full ride details
+          const { data: rideDetails, error: fetchError } = await (supabase
+            .from('ride_requests') as any)
+            .select(`
+              *,
+              users:user_id (
+                id,
+                first_name,
+                last_name,
+                phone_number
+              )
+            `)
+            .eq('id', requestId)
+            .single()
+          
+          if (fetchError || !rideDetails) {
+            throw new Error('ไม่สามารถโหลดข้อมูลงานได้')
+          }
+          
+          // Verify the update was successful
+          if (rideDetails.provider_id !== profile.value!.id) {
+            const err = new Error('งานนี้ถูกรับไปแล้วโดยคนอื่น')
+            ;(err as any).noRetry = true
+            throw err
+          }
+          
+          return rideDetails
+        }
+        
+        // Execute with retry (3 attempts, 500ms base delay)
+        try {
+          jobData = await retryWithBackoff(acceptRideWithRetry, 3, 500)
+          console.log('[Provider] Ride accepted successfully')
+        } catch (retryError: any) {
+          // If marked as noRetry, throw immediately without retry message
+          if (retryError.noRetry) {
+            throw retryError
+          }
+          // Otherwise, throw with retry exhausted message
+          throw new Error(retryError.message || 'ไม่สามารถรับงานได้ กรุณาลองใหม่')
+        }
+      } else {
+        // For other service types, use RPC functions
+        const { data, error: acceptError } = await (supabase.rpc as any)(rpcName, params)
+        
+        if (acceptError) {
+          // Handle specific error messages from atomic functions
+          if (acceptError.message?.includes('RIDE_ALREADY_ACCEPTED') || acceptError.message?.includes('ถูกรับไปแล้ว')) {
+            throw new Error('งานนี้ถูกรับไปแล้ว')
+          } else if (acceptError.message?.includes('RIDE_NOT_FOUND') || acceptError.message?.includes('ไม่พบ')) {
+            throw new Error('ไม่พบงานนี้')
+          } else if (acceptError.message?.includes('PROVIDER_NOT_FOUND')) {
+            throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
+          }
+          throw acceptError
+        }
+        
+        // Handle response from RPC functions
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          // JSON object response
+          if (!data.success) {
+            throw new Error(data.message || 'ไม่สามารถรับงานได้')
+          }
+          jobData = data.delivery_data || data.shopping_data || data
+          rideId = jobData.id || requestId
+        } else if (Array.isArray(data) && data[0]) {
+          // Array response: [{ success, message, *_data }]
+          const result = data[0]
+          if (!result.success) {
+            throw new Error(result.message || 'ไม่สามารถรับงานได้')
+          }
+          jobData = result.delivery_data || result.shopping_data || result
+          rideId = jobData.id || requestId
+        } else {
           throw new Error('ไม่สามารถรับงานได้')
         }
-        rideId = data.ride_id
-        
-        // Fetch full ride details
-        const { data: rideDetails, error: fetchError } = await (supabase
-          .from('ride_requests') as any)
-          .select(`
-            *,
-            users:user_id (
-              id,
-              first_name,
-              last_name,
-              phone_number
-            )
-          `)
-          .eq('id', rideId)
-          .single()
-        
-        if (fetchError || !rideDetails) throw new Error('ไม่สามารถโหลดข้อมูลงานได้')
-        jobData = rideDetails
-      } else {
-        // Old functions return array: [{ success, message, ride_data }]
-        const result = data?.[0]
-        if (!result?.success) {
-          throw new Error(result?.message || 'ไม่สามารถรับงานได้')
-        }
-        jobData = result.ride_data || result.delivery_data || result.shopping_data || result
-        rideId = jobData.id
       }
       
       activeJob.value = {
