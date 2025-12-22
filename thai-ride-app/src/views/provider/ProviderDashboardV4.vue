@@ -27,6 +27,7 @@ import ToastContainer from '../../components/ToastContainer.vue'
 import RideAcceptConfirmModal from '../../components/provider/RideAcceptConfirmModal.vue'
 import ConnectionStatusBar from '../../components/provider/ConnectionStatusBar.vue'
 import JobTimer from '../../components/provider/JobTimer.vue'
+import AcceptJobOverlay from '../../components/provider/AcceptJobOverlay.vue'
 
 const router = useRouter()
 const { getCurrentPosition, shouldShowPermissionModal } = useLocation()
@@ -84,6 +85,9 @@ let toggleDebounceTimer: number | null = null
 const showConfirmModal = ref(false)
 const selectedRequest = ref<any>(null)
 const isAcceptingRequest = ref(false)
+
+// Full-screen accept overlay state
+const showAcceptOverlay = ref(false)
 
 // Connection status for realtime indicator
 const connectionStatus = ref({
@@ -286,13 +290,21 @@ const handleConfirmAccept = async () => {
   isAcceptingRequest.value = true
   soundNotification.haptic?.('medium')
   
+  // Close modal and show full-screen overlay
+  showConfirmModal.value = false
+  showAcceptOverlay.value = true
+  
   try {
     const result = await acceptRequest(selectedRequest.value.id, selectedRequest.value.type)
     
     if (result.success) {
       soundNotification.playAccept?.()
+      
+      // Keep overlay visible briefly to show success
+      await new Promise(resolve => setTimeout(resolve, 800))
+      
+      showAcceptOverlay.value = false
       showSuccess('รับงานสำเร็จ!')
-      showConfirmModal.value = false
       selectedRequest.value = null
       
       // Force Vue to process reactivity updates
@@ -308,9 +320,13 @@ const handleConfirmAccept = async () => {
         await nextTick()
       }
     } else if (result.error) {
+      showAcceptOverlay.value = false
       soundNotification.playSound?.('error')
       showError(result.error)
     }
+  } catch (e: any) {
+    showAcceptOverlay.value = false
+    showError(e.message || 'เกิดข้อผิดพลาด')
   } finally {
     isAcceptingRequest.value = false
   }
@@ -725,6 +741,14 @@ onMounted(async () => {
         :is-accepting="isAcceptingRequest"
         @confirm="handleConfirmAccept"
         @cancel="handleCancelAccept"
+      />
+      
+      <!-- Full-screen Accept Job Overlay -->
+      <AcceptJobOverlay
+        :show="showAcceptOverlay"
+        :job-type="selectedRequest?.type"
+        :customer-name="selectedRequest?.customer_name"
+        :fare="selectedRequest?.estimated_fare"
       />
     </div>
   </ProviderLayout>

@@ -17,15 +17,28 @@
  * 
  * MUNEEF Style: สีเขียว #00A86B
  */
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { supabase } from '../../lib/supabase'
+import { useProviderDashboard } from '../../composables/useProviderDashboard'
+import { useHapticFeedback } from '../../composables/useHapticFeedback'
 import ProviderLayout from '../../components/ProviderLayout.vue'
+import JobDetailModal from '../../components/provider/JobDetailModal.vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+
+// Get singleton profile from useProviderDashboard for consistency
+const { profile: dashboardProfile, activeJob: dashboardActiveJob, acceptRequest, updateJobStatus } = useProviderDashboard()
+
+// Haptic feedback
+const { vibrate, feedback, notifyNewJob } = useHapticFeedback()
+
+// Job Detail Modal state
+const showJobModal = ref(false)
+const selectedJob = ref<Job | null>(null)
 
 // Types
 interface Job {
@@ -121,7 +134,27 @@ const typeLabels: Record<string, { label: string; icon: string }> = {
 
 // Computed
 const filteredJobs = computed(() => {
-  let result = jobs.value.filter(job => {
+  // Include active job from singleton if not already in jobs list
+  let allJobs = [...jobs.value]
+  
+  if (dashboardActiveJob.value && !allJobs.find(j => j.id === dashboardActiveJob.value?.id)) {
+    const activeJob = dashboardActiveJob.value
+    console.log('[MyJobs] Adding active job from singleton:', activeJob.tracking_id)
+    allJobs.unshift({
+      id: activeJob.id,
+      tracking_id: activeJob.tracking_id,
+      type: activeJob.type,
+      status: activeJob.status,
+      pickup_address: activeJob.pickup.address,
+      destination_address: activeJob.destination.address,
+      estimated_fare: activeJob.fare,
+      customer_name: activeJob.customer.name,
+      customer_phone: activeJob.customer.phone,
+      created_at: activeJob.created_at
+    })
+  }
+  
+  let result = allJobs.filter(job => {
     switch (currentTab.value) {
       case 'available':
         return job.status === 'pending'
@@ -169,6 +202,21 @@ const filteredJobs = computed(() => {
   return result
 })
 
+// Computed stats that includes active job from singleton
+const displayStats = computed(() => {
+  const baseStats = { ...stats.value }
+  
+  // If there's an active job from singleton that's not in our jobs list, add to active count
+  if (dashboardActiveJob.value) {
+    const activeJobInList = jobs.value.find(j => j.id === dashboardActiveJob.value?.id)
+    if (!activeJobInList && ['matched', 'in_progress', 'picked_up'].includes(dashboardActiveJob.value.status)) {
+      baseStats.active += 1
+    }
+  }
+  
+  return baseStats
+})
+
 // Date filter label
 const dateFilterLabel = computed(() => {
   const option = dateFilterOptions.find(o => o.key === dateFilter.value)
@@ -188,9 +236,37 @@ watch(currentTab, (newTab) => {
   router.replace({ query: { ...route.query, tab: newTab } })
 })
 
+// Watch for active job changes from singleton - auto switch to active tab
+watch(dashboardActiveJob, (newJob, oldJob) => {
+  if (newJob && !oldJob) {
+    console.log('[MyJobs] Active job detected from singleton, switching to active tab')
+    currentTab.value = 'active'
+    // Refresh jobs list to include the new active job
+    fetchJobs()
+  } else if (!newJob && oldJob) {
+    console.log('[MyJobs] Active job completed/cancelled, refreshing jobs')
+    fetchJobs()
+  }
+}, { immediate: false })
+
 // Fetch provider info
 const fetchProviderInfo = async () => {
-  if (!authStore.user?.id) return null
+  // First, check if we have profile from singleton (useProviderDashboard)
+  if (dashboardProfile.value?.id) {
+    console.log('[MyJobs] Using singleton profile:', { 
+      id: dashboardProfile.value.id, 
+      user_id: dashboardProfile.value.user_id 
+    })
+    providerInfo.value = dashboardProfile.value
+    return dashboardProfile.value
+  }
+  
+  if (!authStore.user?.id) {
+    console.warn('[MyJobs] No auth user, cannot fetch provider info')
+    return null
+  }
+  
+  console.log('[MyJobs] Fetching provider info for user:', authStore.user.id)
   
   const { data, error } = await supabase
     .from('service_providers')
@@ -199,8 +275,14 @@ const fetchProviderInfo = async () => {
     .maybeSingle()
   
   if (error) {
-    console.error('Error fetching provider:', error)
+    console.error('[MyJobs] Error fetching provider:', error)
     return null
+  }
+  
+  if (data) {
+    console.log('[MyJobs] Provider found:', { id: data.id, user_id: data.user_id, status: data.status })
+  } else {
+    console.warn('[MyJobs] No provider record found for user')
   }
   
   providerInfo.value = data
@@ -209,28 +291,68 @@ const fetchProviderInfo = async () => {
 
 // Fetch all jobs
 const fetchJobs = async () => {
-  if (!providerInfo.value?.id) return
+  if (!providerInfo.value?.id) {
+    console.warn('[MyJobs] No provider info, skipping fetch')
+    return
+  }
+  
+  const providerId = providerInfo.value.id
+  console.log('[MyJobs] Fetching jobs for provider:', providerId)
   
   loading.value = true
   const allJobs: Job[] = []
   
   try {
-    // Fetch rides
-    const { data: rides } = await supabase
+    // Fetch rides - use two separate queries for clarity
+    // Query 1: Rides assigned to this provider (any status)
+    const { data: myRides, error: myRidesError } = await supabase
       .from('ride_requests')
       .select(`
         id, tracking_id, status, pickup_address, destination_address,
         estimated_fare, final_fare, created_at, matched_at, completed_at,
-        cancelled_at, cancel_reason,
+        cancelled_at, cancel_reason, provider_id,
         users:user_id (first_name, last_name, phone_number),
         ride_ratings (rating)
       `)
-      .or(`provider_id.eq.${providerInfo.value.id},and(status.eq.pending,provider_id.is.null)`)
+      .eq('provider_id', providerId)
       .order('created_at', { ascending: false })
       .limit(50)
     
-    if (rides) {
-      allJobs.push(...rides.map((r: any) => ({
+    if (myRidesError) {
+      console.error('[MyJobs] Error fetching my rides:', myRidesError)
+    } else {
+      console.log('[MyJobs] My rides found:', myRides?.length || 0, myRides?.map(r => ({ id: r.tracking_id, status: r.status })))
+    }
+    
+    // Query 2: Pending rides without provider (available to accept)
+    const { data: pendingRides, error: pendingError } = await supabase
+      .from('ride_requests')
+      .select(`
+        id, tracking_id, status, pickup_address, destination_address,
+        estimated_fare, final_fare, created_at, matched_at, completed_at,
+        cancelled_at, cancel_reason, provider_id,
+        users:user_id (first_name, last_name, phone_number),
+        ride_ratings (rating)
+      `)
+      .eq('status', 'pending')
+      .is('provider_id', null)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    
+    if (pendingError) {
+      console.error('[MyJobs] Error fetching pending rides:', pendingError)
+    } else {
+      console.log('[MyJobs] Pending rides found:', pendingRides?.length || 0)
+    }
+    
+    // Combine results (avoid duplicates)
+    const allRides = [...(myRides || []), ...(pendingRides || [])]
+    const uniqueRides = allRides.filter((ride, index, self) => 
+      index === self.findIndex(r => r.id === ride.id)
+    )
+    
+    if (uniqueRides.length > 0) {
+      allJobs.push(...uniqueRides.map((r: any) => ({
         id: r.id,
         tracking_id: r.tracking_id,
         type: 'ride' as const,
@@ -250,22 +372,52 @@ const fetchJobs = async () => {
       })))
     }
 
-    // Fetch deliveries
-    const { data: deliveries } = await supabase
+    // Fetch deliveries - use two separate queries
+    // Query 1: Deliveries assigned to this provider
+    const { data: myDeliveries, error: myDelError } = await supabase
       .from('delivery_requests')
       .select(`
         id, tracking_id, status, sender_address, recipient_address,
         estimated_fee, final_fee, created_at, matched_at, completed_at,
-        cancelled_at, cancel_reason,
+        cancelled_at, cancel_reason, provider_id,
         users:user_id (first_name, last_name, phone_number),
         delivery_ratings (rating)
       `)
-      .or(`provider_id.eq.${providerInfo.value.id},and(status.eq.pending,provider_id.is.null)`)
+      .eq('provider_id', providerId)
       .order('created_at', { ascending: false })
       .limit(50)
     
-    if (deliveries) {
-      allJobs.push(...deliveries.map((d: any) => ({
+    if (myDelError) {
+      console.error('[MyJobs] Error fetching my deliveries:', myDelError)
+    }
+    
+    // Query 2: Pending deliveries without provider
+    const { data: pendingDeliveries, error: pendingDelError } = await supabase
+      .from('delivery_requests')
+      .select(`
+        id, tracking_id, status, sender_address, recipient_address,
+        estimated_fee, final_fee, created_at, matched_at, completed_at,
+        cancelled_at, cancel_reason, provider_id,
+        users:user_id (first_name, last_name, phone_number),
+        delivery_ratings (rating)
+      `)
+      .eq('status', 'pending')
+      .is('provider_id', null)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    
+    if (pendingDelError) {
+      console.error('[MyJobs] Error fetching pending deliveries:', pendingDelError)
+    }
+    
+    // Combine and dedupe
+    const allDeliveries = [...(myDeliveries || []), ...(pendingDeliveries || [])]
+    const uniqueDeliveries = allDeliveries.filter((del, index, self) => 
+      index === self.findIndex(d => d.id === del.id)
+    )
+    
+    if (uniqueDeliveries.length > 0) {
+      allJobs.push(...uniqueDeliveries.map((d: any) => ({
         id: d.id,
         tracking_id: d.tracking_id,
         type: 'delivery' as const,
@@ -285,22 +437,52 @@ const fetchJobs = async () => {
       })))
     }
 
-    // Fetch shopping
-    const { data: shopping } = await supabase
+    // Fetch shopping - use two separate queries
+    // Query 1: Shopping assigned to this provider
+    const { data: myShopping, error: myShopError } = await supabase
       .from('shopping_requests')
       .select(`
         id, tracking_id, status, store_address, delivery_address,
         service_fee, final_fee, created_at, matched_at, completed_at,
-        cancelled_at, cancel_reason,
+        cancelled_at, cancel_reason, provider_id,
         users:user_id (first_name, last_name, phone_number),
         shopping_ratings (rating)
       `)
-      .or(`provider_id.eq.${providerInfo.value.id},and(status.eq.pending,provider_id.is.null)`)
+      .eq('provider_id', providerId)
       .order('created_at', { ascending: false })
       .limit(50)
     
-    if (shopping) {
-      allJobs.push(...shopping.map((s: any) => ({
+    if (myShopError) {
+      console.error('[MyJobs] Error fetching my shopping:', myShopError)
+    }
+    
+    // Query 2: Pending shopping without provider
+    const { data: pendingShopping, error: pendingShopError } = await supabase
+      .from('shopping_requests')
+      .select(`
+        id, tracking_id, status, store_address, delivery_address,
+        service_fee, final_fee, created_at, matched_at, completed_at,
+        cancelled_at, cancel_reason, provider_id,
+        users:user_id (first_name, last_name, phone_number),
+        shopping_ratings (rating)
+      `)
+      .eq('status', 'pending')
+      .is('provider_id', null)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    
+    if (pendingShopError) {
+      console.error('[MyJobs] Error fetching pending shopping:', pendingShopError)
+    }
+    
+    // Combine and dedupe
+    const allShopping = [...(myShopping || []), ...(pendingShopping || [])]
+    const uniqueShopping = allShopping.filter((shop, index, self) => 
+      index === self.findIndex(s => s.id === shop.id)
+    )
+    
+    if (uniqueShopping.length > 0) {
+      allJobs.push(...uniqueShopping.map((s: any) => ({
         id: s.id,
         tracking_id: s.tracking_id,
         type: 'shopping' as const,
@@ -324,6 +506,7 @@ const fetchJobs = async () => {
     allJobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     
     jobs.value = allJobs
+    console.log('[MyJobs] Total jobs loaded:', allJobs.length, 'Active:', allJobs.filter(j => ['matched', 'in_progress', 'picked_up'].includes(j.status)).length)
     
     // Update stats
     stats.value = {
@@ -405,16 +588,109 @@ const acceptJob = async (job: Job) => {
     
     if (error) throw error
     
+    feedback('success')
     await fetchJobs()
     currentTab.value = 'active'
   } catch (err: any) {
+    feedback('error')
     alert('ไม่สามารถรับงานได้: ' + err.message)
   } finally {
     loading.value = false
   }
 }
 
-// View job detail
+// Open job detail modal
+const openJobModal = (job: Job) => {
+  vibrate('light')
+  selectedJob.value = job
+  showJobModal.value = true
+}
+
+// Close job detail modal
+const closeJobModal = () => {
+  showJobModal.value = false
+  selectedJob.value = null
+}
+
+// Handle accept from modal
+const handleModalAccept = async (job: Job) => {
+  closeJobModal()
+  await acceptJob(job)
+}
+
+// Handle status update from modal
+const handleModalUpdateStatus = async (job: Job, newStatus: string) => {
+  loading.value = true
+  try {
+    let tableName = ''
+    switch (job.type) {
+      case 'ride': tableName = 'ride_requests'; break
+      case 'delivery': tableName = 'delivery_requests'; break
+      case 'shopping': tableName = 'shopping_requests'; break
+      default: return
+    }
+    
+    const updateData: Record<string, any> = {
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    }
+    
+    if (newStatus === 'completed') {
+      updateData.completed_at = new Date().toISOString()
+    }
+    
+    const { error } = await supabase
+      .from(tableName)
+      .update(updateData)
+      .eq('id', job.id)
+    
+    if (error) throw error
+    
+    feedback('success')
+    await fetchJobs()
+    closeJobModal()
+  } catch (err: any) {
+    feedback('error')
+    alert('ไม่สามารถอัพเดทสถานะได้: ' + err.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Handle cancel from modal
+const handleModalCancel = async (job: Job) => {
+  loading.value = true
+  try {
+    let tableName = ''
+    switch (job.type) {
+      case 'ride': tableName = 'ride_requests'; break
+      case 'delivery': tableName = 'delivery_requests'; break
+      case 'shopping': tableName = 'shopping_requests'; break
+      default: return
+    }
+    
+    const { error } = await supabase
+      .from(tableName)
+      .update({
+        status: 'cancelled_by_provider',
+        cancelled_at: new Date().toISOString()
+      })
+      .eq('id', job.id)
+    
+    if (error) throw error
+    
+    feedback('success')
+    await fetchJobs()
+    closeJobModal()
+  } catch (err: any) {
+    feedback('error')
+    alert('ไม่สามารถยกเลิกงานได้: ' + err.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+// View job detail (legacy - navigate to page)
 const viewJobDetail = (job: Job) => {
   const routes: Record<string, string> = {
     ride: '/provider/active-ride',
@@ -429,19 +705,34 @@ const viewJobDetail = (job: Job) => {
   router.push(`${basePath}/${job.id}`)
 }
 
-// Setup realtime
+// Setup realtime with new job notification
 const setupRealtime = () => {
   if (!providerInfo.value?.id) return
   
+  // Track previous pending count for new job detection
+  let previousPendingCount = jobs.value.filter(j => j.status === 'pending').length
+  
+  const handleRealtimeUpdate = async () => {
+    await fetchJobs()
+    
+    // Check if new pending jobs arrived
+    const currentPendingCount = jobs.value.filter(j => j.status === 'pending').length
+    if (currentPendingCount > previousPendingCount) {
+      console.log('[MyJobs] New job detected! Triggering notification')
+      notifyNewJob()
+    }
+    previousPendingCount = currentPendingCount
+  }
+  
   jobsSubscription = supabase
     .channel('provider_jobs_changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ride_requests' }, () => fetchJobs())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_requests' }, () => fetchJobs())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_requests' }, () => fetchJobs())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ride_requests' }, handleRealtimeUpdate)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_requests' }, handleRealtimeUpdate)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_requests' }, handleRealtimeUpdate)
     .subscribe()
 }
 
-// Pull-to-refresh handlers
+// Enhanced Pull-to-refresh handlers with haptic
 const onTouchStart = (e: TouchEvent) => {
   if (window.scrollY === 0) {
     pullStartY.value = e.touches[0].clientY
@@ -452,13 +743,22 @@ const onTouchStart = (e: TouchEvent) => {
 const onTouchMove = (e: TouchEvent) => {
   if (!isPulling.value) return
   const currentY = e.touches[0].clientY
-  pullDistance.value = Math.max(0, Math.min(currentY - pullStartY.value, pullThreshold * 1.5))
+  const newDistance = Math.max(0, Math.min(currentY - pullStartY.value, pullThreshold * 1.5))
+  
+  // Haptic feedback when crossing threshold
+  if (newDistance >= pullThreshold && pullDistance.value < pullThreshold) {
+    vibrate('medium')
+  }
+  
+  pullDistance.value = newDistance
 }
 
 const onTouchEnd = async () => {
   if (pullDistance.value >= pullThreshold && !isRefreshing.value) {
+    vibrate('heavy')
     isRefreshing.value = true
     await fetchJobs()
+    feedback('success')
     isRefreshing.value = false
   }
   pullDistance.value = 0
@@ -467,6 +767,7 @@ const onTouchEnd = async () => {
 
 // Export to CSV
 const exportToCSV = () => {
+  vibrate('light')
   const dataToExport = filteredJobs.value
   if (dataToExport.length === 0) {
     alert('ไม่มีข้อมูลให้ส่งออก')
@@ -562,12 +863,12 @@ onUnmounted(() => {
         </div>
         <div class="today-stats">
           <div class="stat-item">
-            <span class="stat-value">฿{{ stats.todayEarnings.toLocaleString() }}</span>
+            <span class="stat-value">฿{{ displayStats.todayEarnings.toLocaleString() }}</span>
             <span class="stat-label">รายได้วันนี้</span>
           </div>
           <div class="stat-divider"></div>
           <div class="stat-item">
-            <span class="stat-value">{{ stats.todayTrips }}</span>
+            <span class="stat-value">{{ displayStats.todayTrips }}</span>
             <span class="stat-label">เที่ยววันนี้</span>
           </div>
         </div>
@@ -622,7 +923,7 @@ onUnmounted(() => {
           @click="currentTab = tab.key"
         >
           <span class="tab-label">{{ tab.label }}</span>
-          <span v-if="stats[tab.key] > 0" class="tab-badge">{{ stats[tab.key] }}</span>
+          <span v-if="displayStats[tab.key] > 0" class="tab-badge">{{ displayStats[tab.key] }}</span>
         </button>
       </div>
 
@@ -682,12 +983,23 @@ onUnmounted(() => {
           v-for="job in filteredJobs" 
           :key="job.id"
           class="job-card"
-          @click="currentTab !== 'available' ? viewJobDetail(job) : null"
+          @click="openJobModal(job)"
         >
           <!-- Job Header -->
           <div class="job-header">
             <div class="job-type">
-              <span class="type-icon">{{ typeLabels[job.type]?.icon || '📋' }}</span>
+              <svg v-if="job.type === 'ride'" class="type-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m-8 4h8m-4 4v4m-4-4h8a2 2 0 002-2V7a2 2 0 00-2-2H8a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+              </svg>
+              <svg v-else-if="job.type === 'delivery'" class="type-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+              </svg>
+              <svg v-else-if="job.type === 'shopping'" class="type-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+              </svg>
+              <svg v-else class="type-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
               <span class="type-label">{{ typeLabels[job.type]?.label || job.type }}</span>
             </div>
             <div 

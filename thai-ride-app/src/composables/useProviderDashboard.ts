@@ -154,6 +154,72 @@ async function retryWithBackoff<T>(
 }
 
 // =====================================================
+// LOCAL STORAGE CACHE - Persist active job across refresh
+// =====================================================
+const ACTIVE_JOB_CACHE_KEY = 'provider_active_job_cache'
+const CACHE_EXPIRY_MS = 4 * 60 * 60 * 1000 // 4 hours
+
+interface CachedActiveJob {
+  job: ActiveJob
+  cachedAt: number
+  providerId: string
+}
+
+function saveActiveJobToCache(job: ActiveJob | null, providerId: string) {
+  if (!job) {
+    localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+    return
+  }
+  
+  const cached: CachedActiveJob = {
+    job,
+    cachedAt: Date.now(),
+    providerId
+  }
+  
+  try {
+    localStorage.setItem(ACTIVE_JOB_CACHE_KEY, JSON.stringify(cached))
+    console.log('[JobCache] Saved active job to cache:', job.tracking_id)
+  } catch (e) {
+    console.warn('[JobCache] Failed to save to localStorage:', e)
+  }
+}
+
+function loadActiveJobFromCache(providerId: string): ActiveJob | null {
+  try {
+    const cached = localStorage.getItem(ACTIVE_JOB_CACHE_KEY)
+    if (!cached) return null
+    
+    const parsed: CachedActiveJob = JSON.parse(cached)
+    
+    // Check if cache is expired
+    if (Date.now() - parsed.cachedAt > CACHE_EXPIRY_MS) {
+      console.log('[JobCache] Cache expired, clearing')
+      localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+      return null
+    }
+    
+    // Check if cache belongs to current provider
+    if (parsed.providerId !== providerId) {
+      console.log('[JobCache] Cache belongs to different provider, clearing')
+      localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+      return null
+    }
+    
+    console.log('[JobCache] Loaded active job from cache:', parsed.job.tracking_id)
+    return parsed.job
+  } catch (e) {
+    console.warn('[JobCache] Failed to load from localStorage:', e)
+    return null
+  }
+}
+
+function clearActiveJobCache() {
+  localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+  console.log('[JobCache] Cache cleared')
+}
+
+// =====================================================
 // SINGLETON STATE - Shared across all component instances
 // This ensures activeJob state is consistent across the app
 // =====================================================
@@ -900,6 +966,11 @@ export function useProviderDashboard() {
         created_at: jobData.created_at
       }
       
+      // Save to localStorage cache for persistence across refresh
+      if (profile.value?.id) {
+        saveActiveJobToCache(activeJob.value, profile.value.id)
+      }
+      
       // Debug log
       console.log('[useProviderDashboard] activeJob set:', activeJob.value)
       console.log('[useProviderDashboard] hasActiveJob computed:', activeJob.value !== null)
@@ -1014,10 +1085,18 @@ export function useProviderDashboard() {
         earnings.value.today += activeJob.value.fare
         earnings.value.todayTrips += 1
         
+        // Clear cache when job is completed
+        clearActiveJobCache()
+        
         cleanup.addTimeout(window.setTimeout(() => {
           activeJob.value = null
           unsubscribeFromActiveJob()
         }, 2000))
+      } else {
+        // Update cache with new status
+        if (profile.value?.id && activeJob.value) {
+          saveActiveJobToCache(activeJob.value, profile.value.id)
+        }
       }
 
       return { success: true }
@@ -1050,6 +1129,7 @@ export function useProviderDashboard() {
       }
 
       activeJob.value = null
+      clearActiveJobCache() // Clear cache when job is cancelled
       unsubscribeFromActiveJob()
       return { success: true }
     } catch (e: any) {
@@ -1417,6 +1497,23 @@ export function useProviderDashboard() {
           router.replace('/provider/onboarding')
           return false
         }
+        
+        // Load cached active job and verify with database
+        const cachedJob = loadActiveJobFromCache(providerProfile.id)
+        if (cachedJob) {
+          // Verify the job is still active in database
+          const isStillActive = await verifyActiveJobFromDatabase(cachedJob.id, cachedJob.type)
+          if (isStillActive) {
+            activeJob.value = cachedJob
+            console.log('[Initialize] Restored active job from cache:', cachedJob.tracking_id)
+            // Re-subscribe to job updates
+            subscribeToActiveJob(cachedJob.id, cachedJob.type)
+          } else {
+            // Job is no longer active, clear cache
+            clearActiveJobCache()
+            console.log('[Initialize] Cached job no longer active, cleared cache')
+          }
+        }
       }
 
       // Fetch earnings in background
@@ -1434,6 +1531,32 @@ export function useProviderDashboard() {
       return false
     } finally {
       loading.value = false
+    }
+  }
+  
+  // Verify if cached job is still active in database
+  async function verifyActiveJobFromDatabase(jobId: string, type: string): Promise<boolean> {
+    try {
+      const table = type === 'ride' ? 'ride_requests' :
+                    type === 'delivery' ? 'delivery_requests' :
+                    type === 'shopping' ? 'shopping_requests' :
+                    type === 'queue' ? 'queue_bookings' :
+                    type === 'moving' ? 'moving_requests' : 'laundry_requests'
+      
+      const { data, error: fetchError } = await (supabase
+        .from(table) as any)
+        .select('status, provider_id')
+        .eq('id', jobId)
+        .single()
+      
+      if (fetchError || !data) return false
+      
+      // Job is active if status is not completed/cancelled and belongs to this provider
+      const activeStatuses = ['matched', 'arriving', 'arrived', 'picked_up', 'in_progress', 'pickup', 'in_transit', 'shopping', 'delivering']
+      return activeStatuses.includes(data.status) && data.provider_id === profile.value?.id
+    } catch (e) {
+      console.warn('[verifyActiveJob] Error:', e)
+      return false
     }
   }
 
