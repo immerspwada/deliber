@@ -63,7 +63,9 @@ const statusLabels: Record<string, { label: string; color: string; bg: string }>
   in_progress: { label: 'กำลังดำเนินการ', color: '#8B5CF6', bg: '#EDE9FE' },
   picked_up: { label: 'รับของแล้ว', color: '#06B6D4', bg: '#CFFAFE' },
   completed: { label: 'สำเร็จ', color: '#00A86B', bg: '#E8F5EF' },
-  cancelled: { label: 'ยกเลิก', color: '#EF4444', bg: '#FEE2E2' }
+  cancelled: { label: 'ยกเลิก', color: '#EF4444', bg: '#FEE2E2' },
+  cancelled_by_customer: { label: 'ลูกค้ายกเลิก', color: '#EF4444', bg: '#FEE2E2' },
+  cancelled_by_provider: { label: 'ผู้ให้บริการยกเลิก', color: '#F97316', bg: '#FFEDD5' }
 }
 
 // Type labels
@@ -74,6 +76,61 @@ const typeLabels: Record<string, { label: string; icon: string }> = {
   queue: { label: 'จองคิว', icon: 'ticket' },
   moving: { label: 'ขนย้าย', icon: 'truck' },
   laundry: { label: 'ซักผ้า', icon: 'shirt' }
+}
+
+// Copy state
+const showCopied = ref(false)
+
+// Copy tracking ID to clipboard
+const copyTrackingId = async () => {
+  if (!props.job) return
+  const trackingId = props.job.tracking_id || props.job.id.slice(0, 8)
+  
+  try {
+    await navigator.clipboard.writeText(trackingId)
+    showCopied.value = true
+    triggerHaptic('light')
+    setTimeout(() => {
+      showCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
+
+// Share job location via native share or copy link
+const shareJobLocation = async () => {
+  if (!props.job) return
+  
+  const trackingId = props.job.tracking_id || props.job.id.slice(0, 8)
+  const shareData = {
+    title: `งาน ${typeLabels[props.job.type]?.label || props.job.type}`,
+    text: `ติดตามงาน ${trackingId}\nจาก: ${props.job.pickup_address}\nถึง: ${props.job.destination_address}`,
+    url: `${window.location.origin}/track/${trackingId}`
+  }
+  
+  triggerHaptic('light')
+  
+  if (navigator.share && navigator.canShare?.(shareData)) {
+    try {
+      await navigator.share(shareData)
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Share failed:', err)
+      }
+    }
+  } else {
+    // Fallback: copy link
+    try {
+      await navigator.clipboard.writeText(shareData.url)
+      showCopied.value = true
+      setTimeout(() => {
+        showCopied.value = false
+      }, 2000)
+    } catch (err) {
+      console.error('Copy failed:', err)
+    }
+  }
 }
 
 // Next status options based on current status
@@ -247,7 +304,20 @@ watch(() => props.show, (newVal) => {
             >
               {{ statusLabels[job.status]?.label || job.status }}
             </div>
-            <span class="tracking-id">{{ job.tracking_id || job.id.slice(0, 8) }}</span>
+            <button class="tracking-id" @click="copyTrackingId" title="คัดลอก">
+              <span>{{ job.tracking_id || job.id.slice(0, 8) }}</span>
+              <svg v-if="!showCopied" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14" class="check-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </button>
+            <button class="share-btn" @click="shareJobLocation" title="แชร์">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+              </svg>
+            </button>
           </div>
 
           <!-- Customer Info -->
@@ -473,9 +543,55 @@ watch(() => props.show, (newVal) => {
 }
 
 .tracking-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   color: #999999;
   font-family: monospace;
+  background: #F5F5F5;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tracking-id:hover {
+  background: #E8E8E8;
+  color: #666666;
+}
+
+.tracking-id:active {
+  transform: scale(0.95);
+}
+
+.tracking-id .check-icon {
+  color: #00A86B;
+}
+
+.share-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 50%;
+  color: #666666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.share-btn:hover {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.share-btn:active {
+  transform: scale(0.95);
 }
 
 .customer-section {
