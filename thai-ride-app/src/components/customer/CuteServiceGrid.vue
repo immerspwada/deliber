@@ -30,12 +30,12 @@ const emit = defineEmits<{
   'service-click': [service: Service]
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const pressedId = ref<string | null>(null)
 
 const handlePress = (id: string) => {
   pressedId.value = id
-  haptic.light()
+  vibrate('light')
 }
 
 const handleRelease = () => {
@@ -43,7 +43,7 @@ const handleRelease = () => {
 }
 
 const handleClick = (service: Service) => {
-  haptic.medium()
+  vibrate('medium')
   emit('service-click', service)
 }
 </script>

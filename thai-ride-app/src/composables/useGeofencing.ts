@@ -1,215 +1,110 @@
 /**
- * Feature: F34 - Geofencing Alert for Providers
- * 
- * ระบบแจ้งเตือนเมื่อ Provider ออกนอกพื้นที่ให้บริการ
- * - พื้นที่ให้บริการ: อำเภอสุไหงโกลก จังหวัดนราธิวาส
- * - แจ้งเตือนเมื่อออกนอกพื้นที่
- * - แจ้งเตือนเมื่อกลับเข้าพื้นที่
+ * useGeoFencing - Geo-Fencing System
+ * Feature: F193 - Geo-Fencing
  */
 
 import { ref, computed } from 'vue'
-import { useToast } from './useToast'
+import { supabase } from '../lib/supabase'
 
-// Su-ngai Kolok service area bounds
-export const SERVICE_AREA = {
-  name: 'อำเภอสุไหงโกลก',
-  center: { lat: 6.0282, lng: 101.9654 },
-  // Approximate bounds for Su-ngai Kolok district
-  bounds: {
-    north: 6.08,
-    south: 5.97,
-    east: 102.05,
-    west: 101.88
-  },
-  // Radius in km from center (for circular check)
-  radiusKm: 8
+export interface GeoFence {
+  id: string
+  name: string
+  name_th: string
+  fence_type: 'polygon' | 'circle' | 'rectangle'
+  coordinates: number[][] | { center: [number, number]; radius: number }
+  zone_type: 'service_area' | 'surge_zone' | 'restricted' | 'airport' | 'event'
+  properties?: { surge_multiplier?: number; min_fare?: number; special_instructions?: string }
+  is_active: boolean
+  valid_from?: string
+  valid_until?: string
+  created_at: string
 }
 
-export interface GeofenceStatus {
-  isInsideServiceArea: boolean
-  distanceFromCenter: number
-  lastCheck: Date
-  warningShown: boolean
+export interface GeoFenceAlert {
+  id: string
+  fence_id: string
+  provider_id: string
+  alert_type: 'enter' | 'exit' | 'dwell'
+  triggered_at: string
+  location: { lat: number; lng: number }
 }
 
-export function useGeofencing() {
-  const status = ref<GeofenceStatus>({
-    isInsideServiceArea: true,
-    distanceFromCenter: 0,
-    lastCheck: new Date(),
-    warningShown: false
-  })
+export function useGeoFencing() {
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const fences = ref<GeoFence[]>([])
+  const alerts = ref<GeoFenceAlert[]>([])
 
-  const toast = useToast()
+  const activeFences = computed(() => fences.value.filter(f => f.is_active))
+  const surgeZones = computed(() => fences.value.filter(f => f.zone_type === 'surge_zone' && f.is_active))
+  const restrictedZones = computed(() => fences.value.filter(f => f.zone_type === 'restricted' && f.is_active))
 
-  // Calculate distance using Haversine formula
-  const calculateDistance = (
-    lat1: number, lng1: number,
-    lat2: number, lng2: number
-  ): number => {
-    const R = 6371 // Earth's radius in km
-    const dLat = toRad(lat2 - lat1)
-    const dLng = toRad(lng2 - lng1)
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-  }
-
-  const toRad = (deg: number): number => deg * (Math.PI / 180)
-
-  // Check if point is inside rectangular bounds
-  const isInsideBounds = (lat: number, lng: number): boolean => {
-    const { bounds } = SERVICE_AREA
-    return (
-      lat >= bounds.south &&
-      lat <= bounds.north &&
-      lng >= bounds.west &&
-      lng <= bounds.east
-    )
-  }
-
-  // Check if point is inside circular service area
-  const isInsideRadius = (lat: number, lng: number): boolean => {
-    const distance = calculateDistance(
-      lat, lng,
-      SERVICE_AREA.center.lat,
-      SERVICE_AREA.center.lng
-    )
-    return distance <= SERVICE_AREA.radiusKm
-  }
-
-  // Check if location is inside service area (uses both bounds and radius)
-  const checkLocation = (lat: number, lng: number): boolean => {
-    const distance = calculateDistance(
-      lat, lng,
-      SERVICE_AREA.center.lat,
-      SERVICE_AREA.center.lng
-    )
-
-    const wasInside = status.value.isInsideServiceArea
-    const isInside = isInsideBounds(lat, lng) || isInsideRadius(lat, lng)
-
-    status.value = {
-      isInsideServiceArea: isInside,
-      distanceFromCenter: distance,
-      lastCheck: new Date(),
-      warningShown: status.value.warningShown
-    }
-
-    // Show warning when leaving service area
-    if (wasInside && !isInside && !status.value.warningShown) {
-      showOutsideAreaWarning(distance)
-      status.value.warningShown = true
-    }
-
-    // Reset warning when returning to service area
-    if (!wasInside && isInside && status.value.warningShown) {
-      showReturnedToAreaNotice()
-      status.value.warningShown = false
-    }
-
-    return isInside
-  }
-
-  // Play alert sound
-  const playAlertSound = (type: 'warning' | 'success') => {
+  const fetchFences = async () => {
+    loading.value = true
     try {
-      // Create audio context for generating tones
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext
-      if (!AudioContext) return
+      const { data, error: err } = await supabase.from('geo_fences').select('*').order('name')
+      if (err) throw err
+      fences.value = data || []
+    } catch (e: any) { error.value = e.message }
+    finally { loading.value = false }
+  }
 
-      const audioCtx = new AudioContext()
-      const oscillator = audioCtx.createOscillator()
-      const gainNode = audioCtx.createGain()
+  const createFence = async (fence: Partial<GeoFence>): Promise<GeoFence | null> => {
+    try {
+      const { data, error: err } = await supabase.from('geo_fences').insert(fence as never).select().single()
+      if (err) throw err
+      fences.value.push(data)
+      return data
+    } catch (e: any) { error.value = e.message; return null }
+  }
 
-      oscillator.connect(gainNode)
-      gainNode.connect(audioCtx.destination)
+  const updateFence = async (id: string, updates: Partial<GeoFence>): Promise<boolean> => {
+    try {
+      const { error: err } = await supabase.from('geo_fences').update(updates as never).eq('id', id)
+      if (err) throw err
+      const idx = fences.value.findIndex(f => f.id === id)
+      if (idx !== -1) fences.value[idx] = { ...fences.value[idx], ...updates }
+      return true
+    } catch (e: any) { error.value = e.message; return false }
+  }
 
-      if (type === 'warning') {
-        // Warning: Two-tone alert (high-low-high)
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime) // A5
-        oscillator.frequency.setValueAtTime(440, audioCtx.currentTime + 0.15) // A4
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.3) // A5
-        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5)
-        oscillator.start(audioCtx.currentTime)
-        oscillator.stop(audioCtx.currentTime + 0.5)
-      } else {
-        // Success: Pleasant ascending tone
-        oscillator.frequency.setValueAtTime(523, audioCtx.currentTime) // C5
-        oscillator.frequency.setValueAtTime(659, audioCtx.currentTime + 0.1) // E5
-        oscillator.frequency.setValueAtTime(784, audioCtx.currentTime + 0.2) // G5
-        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4)
-        oscillator.start(audioCtx.currentTime)
-        oscillator.stop(audioCtx.currentTime + 0.4)
+  const deleteFence = async (id: string): Promise<boolean> => {
+    try {
+      const { error: err } = await supabase.from('geo_fences').delete().eq('id', id)
+      if (err) throw err
+      fences.value = fences.value.filter(f => f.id !== id)
+      return true
+    } catch (e: any) { error.value = e.message; return false }
+  }
+
+  const checkPointInFence = (lat: number, lng: number, fence: GeoFence): boolean => {
+    if (fence.fence_type === 'circle') {
+      const coords = fence.coordinates as { center: [number, number]; radius: number }
+      const distance = getDistanceKm(lat, lng, coords.center[0], coords.center[1])
+      return distance <= coords.radius
+    }
+    // For polygon, use ray casting algorithm
+    const polygon = fence.coordinates as number[][]
+    let inside = false
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i][0], yi = polygon[i][1]
+      const xj = polygon[j][0], yj = polygon[j][1]
+      if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
+        inside = !inside
       }
-    } catch {
-      // Audio not supported, ignore
     }
+    return inside
   }
 
-  // Show warning toast when outside service area
-  const showOutsideAreaWarning = (distance: number) => {
-    toast.warning(
-      `คุณออกนอกพื้นที่ให้บริการ (${SERVICE_AREA.name}) ห่างจากศูนย์กลาง ${distance.toFixed(1)} กม.`,
-      5000
-    )
-
-    // Play warning sound
-    playAlertSound('warning')
-
-    // Vibrate if supported
-    if ('vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200, 100, 200])
-    }
+  const getDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2)
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   }
 
-  // Show notice when returned to service area
-  const showReturnedToAreaNotice = () => {
-    toast.success('คุณกลับเข้าสู่พื้นที่ให้บริการแล้ว', 3000)
-    
-    // Play success sound
-    playAlertSound('success')
-  }
+  const getZoneTypeText = (type: string) => ({ service_area: 'พื้นที่บริการ', surge_zone: 'โซน Surge', restricted: 'พื้นที่ห้าม', airport: 'สนามบิน', event: 'งานอีเวนต์' }[type] || type)
 
-  // Get distance to service area center
-  const getDistanceToCenter = (lat: number, lng: number): number => {
-    return calculateDistance(
-      lat, lng,
-      SERVICE_AREA.center.lat,
-      SERVICE_AREA.center.lng
-    )
-  }
-
-  // Get direction to service area center
-  const getDirectionToCenter = (lat: number, lng: number): string => {
-    const dLat = SERVICE_AREA.center.lat - lat
-    const dLng = SERVICE_AREA.center.lng - lng
-
-    if (Math.abs(dLat) > Math.abs(dLng)) {
-      return dLat > 0 ? 'เหนือ' : 'ใต้'
-    } else {
-      return dLng > 0 ? 'ตะวันออก' : 'ตะวันตก'
-    }
-  }
-
-  // Computed: is currently inside service area
-  const isInsideServiceArea = computed(() => status.value.isInsideServiceArea)
-
-  // Computed: distance from center
-  const distanceFromCenter = computed(() => status.value.distanceFromCenter)
-
-  return {
-    status,
-    isInsideServiceArea,
-    distanceFromCenter,
-    checkLocation,
-    getDistanceToCenter,
-    getDirectionToCenter,
-    SERVICE_AREA
-  }
+  return { loading, error, fences, alerts, activeFences, surgeZones, restrictedZones, fetchFences, createFence, updateFence, deleteFence, checkPointInFence, getDistanceKm, getZoneTypeText }
 }

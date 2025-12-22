@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const { validateThaiID, performOCR } = useImageUtils()
 
 // State
@@ -108,7 +108,7 @@ watch(nationalId, (value) => {
     if (validateThaiID(cleaned)) {
       nationalIdError.value = ''
       nationalIdValid.value = true
-      haptic.success()
+      vibrate('success')
     } else {
       nationalIdError.value = 'เลขบัตรประชาชนไม่ถูกต้อง'
       nationalIdValid.value = false
@@ -126,6 +126,17 @@ const formattedNationalId = computed(() => {
   if (id.length <= 12) return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10)}`
   return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10, 12)}-${id.slice(12)}`
 })
+
+// Helper functions for template
+const selectVehicleType = (value: string) => {
+  vehicleType.value = value
+  vibrate('light')
+}
+
+const selectVehicleColor = (value: string) => {
+  vehicleColor.value = value
+  vibrate('light')
+}
 
 // Validations - 3 ขั้นตอน
 const canProceedStep1 = computed(() => 
@@ -195,7 +206,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
   }
   
   error.value = ''
-  haptic.light()
+  vibrate('light')
   
   try {
     isProcessingOCR.value = true
@@ -233,7 +244,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
             }
             ocrStatus.value = 'อ่านข้อมูลใบขับขี่สำเร็จ!'
           }
-          haptic.success()
+          vibrate('success')
         }
       } catch { ocrStatus.value = 'กรุณากรอกข้อมูลเอง' }
     }
@@ -246,7 +257,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
 }
 
 const removeFile = (type: 'idCard' | 'license' | 'vehicle') => {
-  haptic.light()
+  vibrate('light')
   if (type === 'idCard') { idCardFile.value = null; idCardPreview.value = '' }
   else if (type === 'license') { licenseFile.value = null; licensePreview.value = '' }
   else { vehicleFile.value = null; vehiclePreview.value = '' }
@@ -289,7 +300,7 @@ const uploadToStorage = async (file: File, path: string): Promise<string> => {
 // Navigation - 3 ขั้นตอน
 const nextStep = () => {
   error.value = ''
-  haptic.light()
+  vibrate('light')
   if (step.value === 1 && canProceedStep1.value) step.value = 2
   else if (step.value === 2 && canProceedStep2.value) step.value = 3
   // step 3 คือขั้นตอนสุดท้าย ไม่มี nextStep
@@ -297,7 +308,7 @@ const nextStep = () => {
 
 const prevStep = () => {
   error.value = ''
-  haptic.light()
+  vibrate('light')
   if (step.value > 1) step.value--
 }
 
@@ -313,7 +324,7 @@ const submitApplication = async () => {
   isLoading.value = true
   error.value = ''
   uploadProgress.value = 0
-  haptic.medium()
+  vibrate('medium')
   
   try {
     const userId = authStore.user.id
@@ -400,11 +411,11 @@ const submitApplication = async () => {
       return
     }
     
-    haptic.success()
+    vibrate('success')
     showSuccess.value = true
   } catch (err: any) {
     error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-    haptic.error()
+    vibrate('error')
   } finally {
     isLoading.value = false
   }
@@ -620,7 +631,7 @@ onMounted(async () => {
             <label class="label">ประเภทยานพาหนะ</label>
             <div class="vehicle-btns">
               <button v-for="opt in vehicleOptions" :key="opt.value"
-                @click="vehicleType = opt.value; haptic.light()"
+                @click="selectVehicleType(opt.value)"
                 :class="['vehicle-btn', { active: vehicleType === opt.value }]">
                 {{ opt.label }}
               </button>
@@ -653,7 +664,7 @@ onMounted(async () => {
             <label class="label">สีรถ</label>
             <div class="color-options">
               <button v-for="c in colorOptions" :key="c.value"
-                @click="vehicleColor = c.value; haptic.light()"
+                @click="selectVehicleColor(c.value)"
                 :class="['color-btn', { active: vehicleColor === c.value }]"
                 :style="{ '--color': c.color }">
                 <span class="color-dot"></span>

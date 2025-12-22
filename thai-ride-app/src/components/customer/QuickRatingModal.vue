@@ -31,7 +31,7 @@ const emit = defineEmits<{
   skip: [orderId: string, orderType: string]
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 // Current order index
 const currentIndex = ref(0)
@@ -56,7 +56,7 @@ const getTypeIcon = (type: string) => {
 }
 
 const selectRating = (rating: number) => {
-  haptic.light()
+  vibrate('light')
   selectedRating.value = rating
 }
 
@@ -64,7 +64,7 @@ const submitRating = async () => {
   if (!currentOrder.value || selectedRating.value === 0) return
   
   isSubmitting.value = true
-  haptic.medium()
+  vibrate('medium')
   
   emit('rate', currentOrder.value.id, currentOrder.value.type, selectedRating.value, comment.value)
   
@@ -85,7 +85,7 @@ const submitRating = async () => {
 const skipRating = () => {
   if (!currentOrder.value) return
   
-  haptic.light()
+  vibrate('light')
   emit('skip', currentOrder.value.id, currentOrder.value.type)
   
   if (hasMore.value) {
@@ -98,7 +98,7 @@ const skipRating = () => {
 }
 
 const closeModal = () => {
-  haptic.light()
+  vibrate('light')
   emit('close')
 }
 </script>

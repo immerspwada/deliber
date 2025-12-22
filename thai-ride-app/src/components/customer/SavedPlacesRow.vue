@@ -30,15 +30,15 @@ const emit = defineEmits<{
   'manage-click': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const handlePlaceClick = (type: 'home' | 'work') => {
-  haptic.light()
+  vibrate('light')
   emit('place-click', type)
 }
 
 const handleManage = () => {
-  haptic.light()
+  vibrate('light')
   emit('manage-click')
 }
 </script>

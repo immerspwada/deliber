@@ -12,7 +12,7 @@ import { supabase } from '../../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 // State
 const loading = ref(true)
@@ -170,7 +170,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
   }
   
   error.value = ''
-  haptic.light()
+  vibrate('light')
   
   try {
     const compressed = await compressImage(file)
@@ -210,7 +210,7 @@ const submitDocuments = async () => {
   saving.value = true
   error.value = ''
   success.value = ''
-  haptic.medium()
+  vibrate('medium')
   
   try {
     const userId = authStore.user?.id
@@ -247,13 +247,13 @@ const submitDocuments = async () => {
     newVehicle.value = null
     
     success.value = 'อัพโหลดเอกสารสำเร็จ! รอการตรวจสอบจากทีมงาน'
-    haptic.success()
+    vibrate('heavy')
     
     // Reload data
     await loadProvider()
   } catch (err: any) {
     error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-    haptic.error()
+    vibrate('medium')
   } finally {
     saving.value = false
   }

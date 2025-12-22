@@ -27,7 +27,7 @@ const emit = defineEmits<{
   'action': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 // Default content based on type
 const defaultContent = {
@@ -75,7 +75,7 @@ const content = {
 }
 
 const handleAction = () => {
-  haptic.medium()
+  vibrate('medium')
   emit('action')
 }
 </script>

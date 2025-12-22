@@ -139,6 +139,11 @@ const hasActiveFilters = computed(() => {
          filters.value.search
 })
 
+// Show verification column only when there are pending customers
+const showVerificationColumn = computed(() => {
+  return stats.value.pending > 0
+})
+
 const paginationInfo = computed(() => {
   const start = (page.value - 1) * pageSize.value + 1
   const end = Math.min(page.value * pageSize.value, total.value)
@@ -524,7 +529,17 @@ addCleanup(() => {
       <header class="page-header">
         <div class="header-content">
           <h1>จัดการลูกค้า</h1>
-          <p class="subtitle">{{ total.toLocaleString() }} ลูกค้าทั้งหมด</p>
+          <p class="subtitle">
+            {{ total.toLocaleString() }} ลูกค้าทั้งหมด
+            <!-- Info tooltip when all customers are verified -->
+            <span v-if="!showVerificationColumn && stats.total > 0" class="all-verified-info" title="ลูกค้าทุกคนได้รับการยืนยันอัตโนมัติเมื่อสมัครสมาชิก">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+              ยืนยันแล้วทั้งหมด
+            </span>
+          </p>
         </div>
         <div class="header-actions">
           <!-- Export Dropdown -->
@@ -605,13 +620,14 @@ addCleanup(() => {
             </svg>
             ระงับ
           </button>
-          <button class="bulk-btn verify" @click="openBulkModal('verify')">
+          <!-- Show verify/reject buttons only when there are pending customers -->
+          <button v-if="showVerificationColumn" class="bulk-btn verify" @click="openBulkModal('verify')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
             ยืนยันตัวตน
           </button>
-          <button class="bulk-btn reject" @click="openBulkModal('reject')">
+          <button v-if="showVerificationColumn" class="bulk-btn reject" @click="openBulkModal('reject')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
               <path d="M15 9l-6 6M9 9l6 6"/>
@@ -648,7 +664,8 @@ addCleanup(() => {
             <span class="stat-label">ใช้งาน</span>
           </div>
         </div>
-        <div class="stat-card">
+        <!-- Show pending/verified stats only when there are pending customers -->
+        <div v-if="showVerificationColumn" class="stat-card">
           <div class="stat-icon pending">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -660,7 +677,7 @@ addCleanup(() => {
             <span class="stat-label">รอตรวจสอบ</span>
           </div>
         </div>
-        <div class="stat-card">
+        <div v-if="showVerificationColumn" class="stat-card">
           <div class="stat-icon verified">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -737,7 +754,9 @@ addCleanup(() => {
             <option value="admin">แอดมิน</option>
           </select>
 
+          <!-- Show verification filter only when there are pending customers -->
           <select 
+            v-if="showVerificationColumn"
             :value="filters.verification_status"
             @change="setFilter('verification_status', ($event.target as HTMLSelectElement).value as any)"
             class="filter-select"
@@ -791,7 +810,7 @@ addCleanup(() => {
         </div>
         <div class="th-cell th-contact">ติดต่อ</div>
         <div class="th-cell th-status">สถานะ</div>
-        <div class="th-cell th-verification">ยืนยัน</div>
+        <div v-if="showVerificationColumn" class="th-cell th-verification">ยืนยัน</div>
         <div class="th-cell th-date" @click="setSort('created_at')">
           วันที่สมัคร
           <span v-if="filters.sort === 'created_at'" class="sort-icon">
@@ -893,8 +912,8 @@ addCleanup(() => {
               </span>
             </div>
 
-            <!-- Verification -->
-            <div class="customer-verification">
+            <!-- Verification - Show only when there are pending customers -->
+            <div v-if="showVerificationColumn" class="customer-verification">
               <span 
                 class="verification-badge"
                 :style="{ 
@@ -1237,6 +1256,23 @@ addCleanup(() => {
                   <div class="detail-item">
                     <span class="detail-label">อีเมล</span>
                     <span class="detail-value">{{ selectedCustomer.email || '-' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">ยืนยันอีเมล</span>
+                    <span 
+                      class="detail-value email-verified-status"
+                      :class="{ verified: (selectedCustomer as any).email_verified }"
+                    >
+                      <svg v-if="(selectedCustomer as any).email_verified" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                      </svg>
+                      <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v4M12 16h.01"/>
+                      </svg>
+                      {{ (selectedCustomer as any).email_verified ? 'ยืนยันแล้ว' : 'ยังไม่ยืนยัน' }}
+                    </span>
                   </div>
                   <div class="detail-item">
                     <span class="detail-label">เบอร์โทร</span>
@@ -1652,6 +1688,27 @@ addCleanup(() => {
   font-size: 14px;
   color: #666666;
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.all-verified-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #E8F5EF;
+  color: #00A86B;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: help;
+}
+
+.all-verified-info svg {
+  flex-shrink: 0;
 }
 
 .header-actions {
@@ -2741,6 +2798,28 @@ addCleanup(() => {
   font-size: 14px;
   font-weight: 500;
   color: #1A1A1A;
+}
+
+/* Email Verified Status */
+.email-verified-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #FEF3C7;
+  color: #F5A623;
+}
+
+.email-verified-status.verified {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.email-verified-status svg {
+  flex-shrink: 0;
 }
 
 /* Modal Footer */

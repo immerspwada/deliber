@@ -12,6 +12,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWalletV2 } from '../composables/useWalletV2'
+import { usePaymentSettings } from '../composables/usePaymentSettings'
 import { useAuthStore } from '../stores/auth'
 import { supabase } from '../lib/supabase'
 
@@ -22,6 +23,8 @@ const {
   fetchBalance, fetchTransactions, fetchTopupRequests, createTopupRequest, cancelTopupRequest,
   subscribeToWallet, getTransactionIcon, formatTopupStatus, formatPaymentMethod, isPositiveTransaction
 } = useWalletV2()
+
+const { paymentInfo, fetchPaymentInfo } = usePaymentSettings()
 
 // =====================================================
 // STATE
@@ -53,13 +56,13 @@ const toast = ref({ show: false, success: false, text: '' })
 // Preset amounts
 const topUpAmounts = [100, 200, 500, 1000, 2000, 5000]
 
-// Bank Account Info (ควรมาจาก app_settings ในอนาคต)
-const bankInfo = {
-  bank: 'กสิกรไทย',
-  accountNumber: '123-4-56789-0',
-  accountName: 'บริษัท โกแบร์ จำกัด',
-  promptPayId: '0-1234-56789-01-2'
-}
+// Bank Account Info - ดึงจาก payment_settings (reactive)
+const bankInfo = computed(() => ({
+  bank: paymentInfo.value?.bank_name || 'กสิกรไทย',
+  accountNumber: paymentInfo.value?.bank_account_number || '123-4-56789-0',
+  accountName: paymentInfo.value?.bank_account_name || 'บริษัท โกแบร์ จำกัด',
+  promptPayId: paymentInfo.value?.promptpay_id || '0812345678'
+}))
 
 // =====================================================
 // COMPUTED
@@ -118,7 +121,8 @@ const loadAllData = async () => {
   await Promise.all([
     fetchBalance(),
     fetchTransactions(),
-    fetchTopupRequests()
+    fetchTopupRequests(),
+    fetchPaymentInfo()
   ])
 }
 

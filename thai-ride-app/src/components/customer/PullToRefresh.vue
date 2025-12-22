@@ -25,7 +25,7 @@ const emit = defineEmits<{
   'refresh': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const containerRef = ref<HTMLElement | null>(null)
 const pullDistance = ref(0)
@@ -83,7 +83,7 @@ const handleTouchMove = (e: TouchEvent) => {
     
     // Haptic feedback at threshold
     if (pullDistance.value >= props.threshold && !hasTriggeredHaptic.value) {
-      haptic.medium()
+      vibrate('medium')
       hasTriggeredHaptic.value = true
     } else if (pullDistance.value < props.threshold && hasTriggeredHaptic.value) {
       hasTriggeredHaptic.value = false
@@ -102,7 +102,7 @@ const handleTouchEnd = async () => {
   if (success) {
     isRefreshing.value = true
     pullDistance.value = props.threshold
-    haptic.success()
+    vibrate('success')
     
     // Track successful pull-to-refresh
     quickTrack('pull_to_refresh', 'gesture', { 

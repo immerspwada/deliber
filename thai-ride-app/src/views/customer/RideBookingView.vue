@@ -153,9 +153,6 @@ const vehicleTypes = [
 // ============================================
 
 onMounted(async () => {
-  console.log('[RideBooking] onMounted - Starting initialization')
-  console.log('[RideBooking] authStore.user:', authStore.user?.id)
-  
   // Check for pending destination from home
   const pendingDest = rideStore.consumeDestination()
   if (pendingDest) {
@@ -169,17 +166,13 @@ onMounted(async () => {
   
   // Try to initialize immediately if user exists
   if (authStore.user?.id) {
-    console.log('[RideBooking] User found, initializing data')
     await initializeUserData()
   } else {
-    console.log('[RideBooking] No user yet, waiting 500ms...')
     // Wait a bit for auth to initialize, then try again
     await new Promise(resolve => setTimeout(resolve, 500))
     if (authStore.user?.id) {
-      console.log('[RideBooking] User found after wait, initializing data')
       await initializeUserData()
     } else {
-      console.log('[RideBooking] Still no user, fetching places anyway (cache/demo mode)')
       // Still no user - fetch places anyway (will use cache/demo mode)
       await Promise.all([
         fetchSavedPlaces(),
@@ -187,11 +180,6 @@ onMounted(async () => {
       ])
     }
   }
-  
-  console.log('[RideBooking] Saved places loaded:', savedPlaces.value.length)
-  console.log('[RideBooking] Recent places loaded:', recentPlaces.value.length)
-  console.log('[RideBooking] Home place:', homePlace.value)
-  console.log('[RideBooking] Work place:', workPlace.value)
   
   isLoadingPlaces.value = false
 })

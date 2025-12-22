@@ -466,6 +466,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
+    path: '/admin/customers-test',
+    name: 'AdminCustomersTest',
+    component: () => import('../views/AdminCustomersTestView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  {
     path: '/admin/providers',
     name: 'AdminProviders',
     component: () => import('../views/AdminProvidersView.vue'),
@@ -577,6 +583,24 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/surge',
     name: 'AdminSurge',
     component: () => import('../views/AdminSurgeView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/service-zones',
+    name: 'AdminServiceZones',
+    component: () => import('../views/AdminServiceZonesView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/surge-pricing',
+    name: 'AdminSurgePricing',
+    component: () => import('../views/AdminSurgePricingView.vue'),
+    meta: { requiresAdmin: true, hideNavigation: true }
+  },
+  {
+    path: '/admin/payment-settings',
+    name: 'AdminPaymentSettings',
+    component: () => import('../views/AdminPaymentSettingsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {

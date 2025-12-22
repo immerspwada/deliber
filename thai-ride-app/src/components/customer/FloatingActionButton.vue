@@ -24,11 +24,11 @@ const emit = defineEmits<{
   'click': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const isPressed = ref(false)
 
 const handleClick = () => {
-  haptic.medium()
+  vibrate('medium')
   emit('click')
 }
 </script>

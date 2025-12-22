@@ -22,7 +22,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const rideStore = useRideStore()
 const toast = useToast()
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const { balance, fetchBalance } = useWallet()
 const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } = useLoyalty()
 const { homePlace, workPlace, fetchSavedPlaces } = useServices()
@@ -242,7 +242,7 @@ const handleCategoryChange = async (categoryId: string) => {
   if (categoryId === activeCategory.value) return
   
   isChangingCategory.value = true
-  haptic.light()
+  vibrate('light')
   
   // Small delay for animation
   await new Promise(resolve => setTimeout(resolve, 150))
@@ -447,7 +447,7 @@ const navigateTo = (path: string) => {
 
 const handleServicePress = (id: string) => {
   pressedServiceId.value = id
-  haptic.light()
+  vibrate('light')
 }
 
 const handleServiceRelease = () => {
@@ -455,12 +455,12 @@ const handleServiceRelease = () => {
 }
 
 const handleServiceClick = (service: Service) => {
-  haptic.medium()
+  vibrate('medium')
   navigateTo(service.route)
 }
 
 const handleOrderClick = (order: ActiveOrder) => {
-  haptic.light()
+  vibrate('light')
   navigateTo(order.trackingPath)
 }
 

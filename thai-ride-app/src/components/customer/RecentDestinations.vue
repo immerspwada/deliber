@@ -29,15 +29,15 @@ const emit = defineEmits<{
   'see-all-click': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const handleClick = (dest: Destination) => {
-  haptic.light()
+  vibrate('light')
   emit('destination-click', dest)
 }
 
 const handleSeeAll = () => {
-  haptic.light()
+  vibrate('light')
   emit('see-all-click')
 }
 </script>

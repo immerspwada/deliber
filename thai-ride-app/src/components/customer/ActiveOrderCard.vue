@@ -22,7 +22,7 @@ const emit = defineEmits<{
   'click': [id: string]
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const typeColor = computed(() => {
   const colors: Record<string, string> = {
@@ -37,7 +37,7 @@ const typeColor = computed(() => {
 })
 
 const handleClick = () => {
-  haptic.light()
+  vibrate('light')
   emit('click', props.id)
 }
 </script>

@@ -12,7 +12,7 @@
 import { ref, onUnmounted, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { captureError, addBreadcrumb } from '../lib/sentry'
-import { useGeofencing } from './useGeofencing'
+import { useGeoFencing } from './useGeofencing'
 
 export interface TrackingConfig {
   // Update intervals (ms)
@@ -47,7 +47,7 @@ export function useProviderTracking(providerId: string | null) {
   const batteryLevel = ref<number | null>(null)
   
   // Geofencing for service area check
-  const { checkLocation, isInsideServiceArea, distanceFromCenter, SERVICE_AREA } = useGeofencing()
+  const { checkLocation, isInsideServiceArea, distanceFromCenter, SERVICE_AREA } = useGeoFencing()
   
   let watchId: number | null = null
   let updateInterval: ReturnType<typeof setInterval> | null = null

@@ -11,17 +11,17 @@ const emit = defineEmits<{
   'voice-click': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const isPressed = ref(false)
 
 const handleClick = () => {
-  haptic.light()
+  vibrate('light')
   emit('search-click')
 }
 
 const handleVoice = (e: Event) => {
   e.stopPropagation()
-  haptic.medium()
+  vibrate('medium')
   emit('voice-click')
 }
 </script>
