@@ -18,7 +18,7 @@ import {
   AdminTable,
   AdminStatusBadge,
   adminUtils 
-} from '../components/admin'
+} from '../components/admin/index'
 import { 
   fetchUXMetrics, 
   fetchTopInteractions, 

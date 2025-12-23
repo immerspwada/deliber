@@ -16,7 +16,7 @@
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
-import { useServiceAreaV2, type ServiceZone, type ZonePricingRule } from '../composables/useServiceAreaV2'
+import { useServiceArea, type ServiceZone, type ZonePricingRule } from '../composables/useServiceArea'
 import { useZoneAnalytics, type ZoneStats, type HourlyDemand, type RealtimeDemand } from '../composables/useZoneAnalytics'
 
 const {
@@ -31,7 +31,7 @@ const {
   fetchPricingRules,
   createPricingRule,
   updatePricingRule
-} = useServiceAreaV2()
+} = useServiceArea()
 
 const {
   zoneStats,

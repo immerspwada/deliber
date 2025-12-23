@@ -128,9 +128,7 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/customer/ride-v2',
-    name: 'CustomerRideV2',
-    component: () => import('../views/RideViewV2.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    redirect: '/customer/ride'
   },
   {
     path: '/customer/ride-legacy',
@@ -141,7 +139,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/delivery',
     name: 'CustomerDelivery',
-    component: () => import('../views/DeliveryViewV2.vue'),
+    component: () => import('../views/DeliveryView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
   },
   {
@@ -207,7 +205,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/wallet',
     name: 'CustomerWallet',
-    component: () => import('../views/WalletViewV3.vue'),
+    component: () => import('../views/WalletView.vue'),
     meta: { requiresAuth: true }  // Shared route - accessible by all authenticated users
   },
   {
@@ -267,7 +265,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/queue-booking',
     name: 'CustomerQueueBooking',
-    component: () => import('../views/QueueBookingViewV2.vue'),
+    component: () => import('../views/QueueBookingView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
   {
@@ -318,7 +316,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/provider',
     name: 'ProviderDashboard',
-    component: () => import('../views/provider/ProviderDashboardV4.vue'),
+    component: () => import('../views/provider/ProviderDashboardView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
@@ -598,15 +596,9 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
-    path: '/admin/payment-settings',
-    name: 'AdminPaymentSettings',
-    component: () => import('../views/AdminPaymentSettingsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
     path: '/admin/settings',
     name: 'AdminSettings',
-    component: () => import('../views/AdminSettingsViewV2.vue'),
+    component: () => import('../views/AdminSettingsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
@@ -843,54 +835,6 @@ export const routes: RouteRecordRaw[] = [
   },
 
   // ========================================
-  // Multi-Role Ride Booking System V3
-  // ========================================
-  {
-    path: '/admin/rides-v3',
-    name: 'AdminRideMonitoringV3',
-    component: () => import('../views/AdminRideMonitoringViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-  {
-    path: '/admin/rides/:id',
-    name: 'AdminRideDetailV3',
-    component: () => import('../views/AdminRideDetailViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-  {
-    path: '/admin/provider-cancellations-v3',
-    name: 'AdminProviderCancellationsV3',
-    component: () => import('../views/AdminProviderCancellationsViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-
-  // Customer V3 Routes
-  {
-    path: '/customer/ride-booking-v3',
-    name: 'RideBookingV3',
-    component: () => import('../views/RideBookingViewV3.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/ride-tracking-v3/:rideId',
-    name: 'RideTrackingV3',
-    component: () => import('../views/RideTrackingViewV3.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-
-  // Provider V3 Routes
-  {
-    path: '/provider/available-rides-v3',
-    name: 'ProviderAvailableRidesV3',
-    component: () => import('../views/provider/ProviderAvailableRidesV3.vue'),
-    meta: { requiresAuth: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/active-ride-v3',
-    name: 'ProviderActiveRideV3',
-    component: () => import('../views/provider/ProviderActiveRideV3.vue'),
-    meta: { requiresAuth: true, isProviderRoute: true }
-  }
 ]
 
 

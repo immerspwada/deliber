@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
-import { AdminModal, AdminButton, AdminStatusBadge } from '../components/admin'
+import { AdminModal, AdminButton, AdminStatusBadge } from '../components/admin/index'
 import { useAdmin } from '../composables/useAdmin'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 import { supabase } from '../lib/supabase'
