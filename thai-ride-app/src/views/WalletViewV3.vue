@@ -11,7 +11,7 @@
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useWallet } from '../composables/useWallet'
+import { useWalletV2 } from '../composables/useWalletV2'
 import { usePaymentSettings } from '../composables/usePaymentSettings'
 import { useAuthStore } from '../stores/auth'
 import { supabase } from '../lib/supabase'
@@ -22,7 +22,7 @@ const {
   balance, transactions, topupRequests, loading, hasPendingTopup, pendingTopupAmount,
   fetchBalance, fetchTransactions, fetchTopupRequests, createTopupRequest, cancelTopupRequest,
   subscribeToWallet, getTransactionIcon, formatTopupStatus, formatPaymentMethod, isPositiveTransaction
-} = useWallet()
+} = useWalletV2()
 
 const { paymentInfo, fetchPaymentInfo } = usePaymentSettings()
 

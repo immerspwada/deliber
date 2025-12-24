@@ -20,7 +20,7 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import AdminLayout from '../components/AdminLayout.vue'
-import { AdminModal, AdminButton, AdminStatusBadge } from '../components/admin/index'
+import { AdminModal, AdminButton, AdminStatusBadge } from '../components/admin'
 import { supabase } from '../lib/supabase'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 

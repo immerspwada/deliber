@@ -13,6 +13,9 @@ export { default as AdminModal } from './AdminModal.vue'
 export { default as AdminTable } from './AdminTable.vue'
 export { default as AdminStatusBadge } from './AdminStatusBadge.vue'
 
+// Layout Components
+export { default as EnhancedAdminLayout } from './EnhancedAdminLayout.vue'
+
 // Security & RBAC Components
 export { default as PermissionGuard } from './PermissionGuard.vue'
 export { default as DoubleConfirmModal } from './DoubleConfirmModal.vue'

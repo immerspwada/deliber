@@ -9,8 +9,7 @@
  * - Refund statistics
  */
 import { ref, computed, onMounted } from 'vue'
-import AdminLayout from '../components/AdminLayout.vue'
-import { AdminCard, AdminTable, AdminStatCard, AdminButton, AdminModal, AdminStatusBadge } from '../components/admin/index'
+import { EnhancedAdminLayout, AdminCard, AdminTable, AdminStatCard, AdminButton, AdminModal, AdminStatusBadge } from '../components/admin'
 import { supabase } from '../lib/supabase'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 
@@ -197,7 +196,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AdminLayout>
+  <EnhancedAdminLayout>
     <div class="refunds-page">
       <div class="page-header">
         <h1>จัดการการคืนเงิน</h1>
@@ -318,7 +317,7 @@ onMounted(async () => {
         </template>
       </AdminModal>
     </div>
-  </AdminLayout>
+  </EnhancedAdminLayout>
 </template>
 
 <style scoped>

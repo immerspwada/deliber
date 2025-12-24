@@ -11,7 +11,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useCancellationAnalytics, type CancellationRecord } from '../composables/useCancellationAnalytics'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
-import { AdminCard, AdminTable, AdminStatCard, AdminStatusBadge, AdminButton, AdminModal } from '../components/admin/index'
+import { AdminCard, AdminTable, AdminStatCard, AdminStatusBadge, AdminButton, AdminModal } from '../components/admin'
 
 const { addCleanup } = useAdminCleanup()
 

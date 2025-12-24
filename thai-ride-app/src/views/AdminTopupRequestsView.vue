@@ -9,14 +9,14 @@
  * - ดูสถิติการเติมเงิน
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useWallet, type TopupRequest } from '../composables/useWallet'
+import { useWalletV2, type TopupRequest } from '../composables/useWalletV2'
 import { useAdminCleanup } from '../composables/useAdminCleanup'
 import AdminLayout from '../components/AdminLayout.vue'
 
 const {
   pendingTopups, fetchPendingTopups, fetchAllTopupRequests, approveTopup, rejectTopup,
   getAdminStats, subscribeToPendingTopups, formatTopupStatus, formatPaymentMethod
-} = useWallet()
+} = useWalletV2()
 
 const { addCleanup } = useAdminCleanup()
 
