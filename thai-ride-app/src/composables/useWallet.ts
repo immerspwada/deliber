@@ -19,7 +19,7 @@
  * - withdrawal: ถอนเงิน (Provider)
  */
 
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
 
@@ -42,10 +42,27 @@ export interface WalletTransaction {
   created_at: string
 }
 
+export interface TopupRequest {
+  id: string
+  user_id: string
+  tracking_id: string
+  amount: number
+  payment_method: 'promptpay' | 'bank_transfer' | 'credit_card'
+  payment_reference: string | null
+  slip_url: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'
+  admin_note: string | null
+  created_at: string
+  updated_at: string
+  processed_at: string | null
+  processed_by: string | null
+}
+
 export function useWallet() {
   const authStore = useAuthStore()
   const balance = ref<WalletBalance>({ balance: 0, total_earned: 0, total_spent: 0 })
   const transactions = ref<WalletTransaction[]>([])
+  const topupRequests = ref<TopupRequest[]>([])
   const loading = ref(false)
 
   // Fetch wallet balance
@@ -214,16 +231,177 @@ export function useWallet() {
     return types[type] || type
   }
 
+  // Fetch topup requests
+  const fetchTopupRequests = async () => {
+    if (!authStore.user?.id) {
+      topupRequests.value = []
+      return []
+    }
+
+    try {
+      const { data, error } = await (supabase
+        .from('topup_requests') as any)
+        .select('*')
+        .eq('user_id', authStore.user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        // If table doesn't exist, return empty array
+        if (error.code === 'PGRST204' || error.code === '42P01') {
+          console.warn('topup_requests table not found, returning empty array')
+          topupRequests.value = []
+          return []
+        }
+        throw error
+      }
+
+      if (data) {
+        topupRequests.value = data as TopupRequest[]
+      }
+      return topupRequests.value
+    } catch (err) {
+      console.error('Error fetching topup requests:', err)
+      topupRequests.value = []
+      return []
+    }
+  }
+
+  // Create topup request
+  const createTopupRequest = async (
+    amount: number,
+    paymentMethod: 'promptpay' | 'bank_transfer' | 'credit_card',
+    paymentReference?: string,
+    slipUrl?: string
+  ) => {
+    if (!authStore.user?.id || amount <= 0) {
+      return { success: false, message: 'ข้อมูลไม่ถูกต้อง' }
+    }
+
+    try {
+      // Generate tracking ID
+      const trackingId = `TOP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`
+
+      const { data, error } = await (supabase
+        .from('topup_requests') as any)
+        .insert({
+          user_id: authStore.user.id,
+          tracking_id: trackingId,
+          amount,
+          payment_method: paymentMethod,
+          payment_reference: paymentReference || null,
+          slip_url: slipUrl || null,
+          status: 'pending'
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating topup request:', error)
+        return { success: false, message: 'ไม่สามารถสร้างคำขอได้' }
+      }
+
+      // Refresh topup requests
+      await fetchTopupRequests()
+
+      return {
+        success: true,
+        message: 'สร้างคำขอเติมเงินสำเร็จ',
+        trackingId,
+        data
+      }
+    } catch (err: any) {
+      console.error('Error creating topup request:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+    }
+  }
+
+  // Cancel topup request
+  const cancelTopupRequest = async (requestId: string) => {
+    if (!authStore.user?.id) {
+      return { success: false, message: 'กรุณาเข้าสู่ระบบ' }
+    }
+
+    try {
+      const { error } = await (supabase
+        .from('topup_requests') as any)
+        .update({ status: 'cancelled' })
+        .eq('id', requestId)
+        .eq('user_id', authStore.user.id)
+        .eq('status', 'pending')
+
+      if (error) {
+        console.error('Error cancelling topup request:', error)
+        return { success: false, message: 'ไม่สามารถยกเลิกได้' }
+      }
+
+      // Refresh topup requests
+      await fetchTopupRequests()
+
+      return { success: true, message: 'ยกเลิกคำขอสำเร็จ' }
+    } catch (err: any) {
+      console.error('Error cancelling topup request:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+    }
+  }
+
+  // Computed: Has pending topup
+  const hasPendingTopup = computed(() => {
+    return topupRequests.value.some(r => r.status === 'pending')
+  })
+
+  // Computed: Pending topup amount
+  const pendingTopupAmount = computed(() => {
+    return topupRequests.value
+      .filter(r => r.status === 'pending')
+      .reduce((sum, r) => sum + r.amount, 0)
+  })
+
+  // Format topup status
+  const formatTopupStatus = (status: string) => {
+    const statuses: Record<string, { label: string; color: string }> = {
+      pending: { label: 'รอดำเนินการ', color: 'warning' },
+      approved: { label: 'อนุมัติแล้ว', color: 'success' },
+      rejected: { label: 'ปฏิเสธ', color: 'error' },
+      cancelled: { label: 'ยกเลิกแล้ว', color: 'gray' },
+      expired: { label: 'หมดอายุ', color: 'gray' }
+    }
+    return statuses[status] || { label: status, color: 'gray' }
+  }
+
+  // Format payment method
+  const formatPaymentMethod = (method: string) => {
+    const methods: Record<string, string> = {
+      promptpay: 'พร้อมเพย์',
+      bank_transfer: 'โอนเงินผ่านธนาคาร',
+      credit_card: 'บัตรเครดิต'
+    }
+    return methods[method] || method
+  }
+
+  // Check if transaction is positive (adds money)
+  const isPositiveTransaction = (type: string) => {
+    return ['topup', 'refund', 'cashback', 'referral', 'promo'].includes(type)
+  }
+
   return {
     balance,
     transactions,
+    topupRequests,
     loading,
+    hasPendingTopup,
+    pendingTopupAmount,
     fetchBalance,
     fetchTransactions,
+    fetchTopupRequests,
+    createTopupRequest,
+    cancelTopupRequest,
     topUp,
     pay,
     subscribeToWallet,
     getTransactionIcon,
-    formatTransactionType
+    formatTransactionType,
+    formatTopupStatus,
+    formatPaymentMethod,
+    isPositiveTransaction
   }
 }

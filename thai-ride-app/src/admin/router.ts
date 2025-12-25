@@ -48,10 +48,13 @@ const AdminCancellationsView = () => import('../views/AdminCancellationsView.vue
 const DeliveryView = () => import('./views/DeliveryView.vue')
 const ShoppingView = () => import('./views/ShoppingView.vue')
 const QueueBookingsView = () => import('./views/QueueBookingsView.vue')
+const ServiceBundlesView = () => import('./views/ServiceBundlesView.vue')
 const MovingView = () => import('./views/MovingView.vue')
 const LaundryView = () => import('./views/LaundryView.vue')
 const CancellationsView = () => import('./views/CancellationsView.vue')
 const DriverTrackingView = () => import('./views/DriverTrackingView.vue')
+const ReorderAnalyticsView = () => import('./views/ReorderAnalyticsView.vue')
+const SystemLogsView = () => import('./views/SystemLogsView.vue')
 
 export const adminRoutes: RouteRecordRaw[] = [
   // Login (no shell)
@@ -159,6 +162,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         path: 'cancellations',
         name: 'AdminCancellationsV2',
         component: CancellationsView,
+        meta: { module: 'orders' }
+      },
+      {
+        path: 'service-bundles',
+        name: 'AdminServiceBundlesV2',
+        component: ServiceBundlesView,
         meta: { module: 'orders' }
       },
       
@@ -277,8 +286,20 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: AdminUXAnalyticsView,
         meta: { module: 'analytics' }
       },
+      {
+        path: 'reorder-analytics',
+        name: 'AdminReorderAnalyticsV2',
+        component: ReorderAnalyticsView,
+        meta: { module: 'analytics' }
+      },
       
       // Settings
+      {
+        path: 'system-logs',
+        name: 'AdminSystemLogsV2',
+        component: SystemLogsView,
+        meta: { module: 'settings' }
+      },
       {
         path: 'settings',
         name: 'AdminSettingsV2',

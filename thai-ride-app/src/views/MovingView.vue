@@ -3,104 +3,128 @@
  * Feature: F159 - Moving Service
  * บริการยกของ/ขนย้าย
  */
-import { ref, computed, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMoving } from '../composables/useMoving'
-import { useToast } from '../composables/useToast'
+import { ref, computed, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useMoving } from "../composables/useMoving";
+import { useToast } from "../composables/useToast";
 
-const router = useRouter()
-const { createMovingRequest, calculatePrice, loading, error, clearError } = useMoving()
-const toast = useToast()
+const router = useRouter();
+const { createMovingRequest, calculatePrice, loading, error, clearError } =
+  useMoving();
+const { showSuccess, showError, showWarning, showInfo } = useToast();
 
 // Clear error on unmount
 onUnmounted(() => {
-  clearError()
-})
+  clearError();
+});
 
 const serviceTypes = [
-  { id: 'small', name: 'ยกของชิ้นเล็ก', desc: 'กล่อง, กระเป๋า, เฟอร์นิเจอร์เล็ก', basePrice: 150, icon: 'small' },
-  { id: 'medium', name: 'ยกของชิ้นกลาง', desc: 'ตู้เย็น, เครื่องซักผ้า, โซฟา', basePrice: 350, icon: 'medium' },
-  { id: 'large', name: 'ขนย้ายบ้าน', desc: 'ย้ายบ้าน, ย้ายออฟฟิศ', basePrice: 1500, icon: 'large' }
-]
+  {
+    id: "small",
+    name: "ยกของชิ้นเล็ก",
+    desc: "กล่อง, กระเป๋า, เฟอร์นิเจอร์เล็ก",
+    basePrice: 150,
+    icon: "small",
+  },
+  {
+    id: "medium",
+    name: "ยกของชิ้นกลาง",
+    desc: "ตู้เย็น, เครื่องซักผ้า, โซฟา",
+    basePrice: 350,
+    icon: "medium",
+  },
+  {
+    id: "large",
+    name: "ขนย้ายบ้าน",
+    desc: "ย้ายบ้าน, ย้ายออฟฟิศ",
+    basePrice: 1500,
+    icon: "large",
+  },
+];
 
-const selectedType = ref<'small' | 'medium' | 'large' | ''>('')
-const pickupAddress = ref('')
-const pickupLat = ref<number | null>(null)
-const pickupLng = ref<number | null>(null)
-const destinationAddress = ref('')
-const destinationLat = ref<number | null>(null)
-const destinationLng = ref<number | null>(null)
-const itemDescription = ref('')
-const helperCount = ref(1)
+const selectedType = ref<"small" | "medium" | "large" | "">("");
+const pickupAddress = ref("");
+const pickupLat = ref<number | null>(null);
+const pickupLng = ref<number | null>(null);
+const destinationAddress = ref("");
+const destinationLat = ref<number | null>(null);
+const destinationLng = ref<number | null>(null);
+const itemDescription = ref("");
+const helperCount = ref(1);
 
 // Exit confirmation
-const showExitConfirm = ref(false)
+const showExitConfirm = ref(false);
 
 // Haptic feedback
-const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
-  if ('vibrate' in navigator) {
-    const patterns = { light: 10, medium: 25, heavy: 50 }
-    navigator.vibrate(patterns[type])
+const triggerHaptic = (type: "light" | "medium" | "heavy" = "light") => {
+  if ("vibrate" in navigator) {
+    const patterns = { light: 10, medium: 25, heavy: 50 };
+    navigator.vibrate(patterns[type]);
   }
-}
+};
 
 // Check if user has entered any data
 const hasEnteredData = computed(() => {
-  return selectedType.value || pickupAddress.value || destinationAddress.value || itemDescription.value
-})
+  return (
+    selectedType.value ||
+    pickupAddress.value ||
+    destinationAddress.value ||
+    itemDescription.value
+  );
+});
 
-const goBack = () => router.back()
+const goBack = () => router.back();
 
 const goHome = () => {
-  triggerHaptic('medium')
+  triggerHaptic("medium");
   if (hasEnteredData.value) {
-    showExitConfirm.value = true
+    showExitConfirm.value = true;
   } else {
-    router.push('/customer')
+    router.push("/customer");
   }
-}
+};
 
 const confirmExit = () => {
-  triggerHaptic('heavy')
-  showExitConfirm.value = false
-  router.push('/customer')
-}
+  triggerHaptic("heavy");
+  showExitConfirm.value = false;
+  router.push("/customer");
+};
 
 const cancelExit = () => {
-  triggerHaptic('light')
-  showExitConfirm.value = false
-}
+  triggerHaptic("light");
+  showExitConfirm.value = false;
+};
 
 const selectType = (id: string) => {
-  selectedType.value = id as typeof selectedType.value
-}
+  selectedType.value = id as typeof selectedType.value;
+};
 
 // Calculate estimated price
 const estimatedPrice = computed(() => {
-  if (!selectedType.value) return 0
-  return calculatePrice(selectedType.value, helperCount.value)
-})
+  if (!selectedType.value) return 0;
+  return calculatePrice(selectedType.value, helperCount.value);
+});
 
 // Validation
 const isFormValid = computed(() => {
-  if (!selectedType.value) return false
-  if (!pickupAddress.value.trim()) return false
-  if (!destinationAddress.value.trim()) return false
-  return true
-})
+  if (!selectedType.value) return false;
+  if (!pickupAddress.value.trim()) return false;
+  if (!destinationAddress.value.trim()) return false;
+  return true;
+});
 
 // Show confirmation before submit
-const showConfirmation = ref(false)
+const showConfirmation = ref(false);
 
 const confirmSubmit = () => {
-  if (!isFormValid.value) return
-  showConfirmation.value = true
-}
+  if (!isFormValid.value) return;
+  showConfirmation.value = true;
+};
 
 const submitRequest = async () => {
-  showConfirmation.value = false
-  if (!isFormValid.value || !selectedType.value) return
-  
+  showConfirmation.value = false;
+  if (!isFormValid.value || !selectedType.value) return;
+
   const result = await createMovingRequest({
     service_type: selectedType.value,
     pickup_address: pickupAddress.value,
@@ -110,32 +134,32 @@ const submitRequest = async () => {
     destination_lat: destinationLat.value || undefined,
     destination_lng: destinationLng.value || undefined,
     item_description: itemDescription.value || undefined,
-    helper_count: helperCount.value
-  })
-  
+    helper_count: helperCount.value,
+  });
+
   if (result) {
-    toast.success('ส่งคำขอสำเร็จ! กำลังหาผู้ให้บริการ...')
-    router.push({ name: 'moving-tracking', params: { id: result.id } })
+    showSuccess("ส่งคำขอสำเร็จ! กำลังหาผู้ให้บริการ...");
+    router.push({ name: "moving-tracking", params: { id: result.id } });
   } else if (error.value) {
-    toast.error(error.value)
+    showError(error.value);
   }
-}
+};
 
 const cancelConfirmation = () => {
-  showConfirmation.value = false
-}
+  showConfirmation.value = false;
+};
 
 // Get selected service name
 const selectedServiceName = computed(() => {
-  if (!selectedType.value) return ''
-  const service = serviceTypes.find(s => s.id === selectedType.value)
-  return service?.name || ''
-})
+  if (!selectedType.value) return "";
+  const service = serviceTypes.find((s) => s.id === selectedType.value);
+  return service?.name || "";
+});
 
 // Format price
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('th-TH').format(price)
-}
+  return new Intl.NumberFormat("th-TH").format(price);
+};
 </script>
 
 <template>
@@ -143,14 +167,24 @@ const formatPrice = (price: number) => {
     <!-- Header -->
     <div class="header">
       <button class="back-btn" @click="goBack">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 18l-6-6 6-6"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
       <h1>บริการยกของ</h1>
       <button class="home-btn" @click="goHome" title="กลับหน้าหลัก">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
         </svg>
       </button>
     </div>
@@ -161,38 +195,65 @@ const formatPrice = (price: number) => {
 
       <!-- Service Type Selection -->
       <section class="section">
-        <h2 class="section-title">เลือกประเภทบริการ <span class="required">*</span></h2>
+        <h2 class="section-title">
+          เลือกประเภทบริการ <span class="required">*</span>
+        </h2>
         <div class="service-list">
-          <button 
-            v-for="service in serviceTypes" 
+          <button
+            v-for="service in serviceTypes"
             :key="service.id"
             :class="['service-btn', { active: selectedType === service.id }]"
             @click="selectType(service.id)"
           >
             <div class="service-icon">
-              <svg v-if="service.icon === 'small'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="4" y="4" width="16" height="16" rx="2"/>
-                <path d="M4 10h16"/>
+              <svg
+                v-if="service.icon === 'small'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M4 10h16" />
               </svg>
-              <svg v-else-if="service.icon === 'medium'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M3 9h18M9 21V9"/>
+              <svg
+                v-else-if="service.icon === 'medium'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 21V9" />
               </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="7" width="14" height="12" rx="1"/>
-                <path d="M16 11h4l2 3v5h-6v-8z"/>
-                <circle cx="6" cy="19" r="2"/>
-                <circle cx="18" cy="19" r="2"/>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="2" y="7" width="14" height="12" rx="1" />
+                <path d="M16 11h4l2 3v5h-6v-8z" />
+                <circle cx="6" cy="19" r="2" />
+                <circle cx="18" cy="19" r="2" />
               </svg>
             </div>
             <div class="service-info">
               <span class="service-name">{{ service.name }}</span>
               <span class="service-desc">{{ service.desc }}</span>
-              <span class="service-price">เริ่มต้น ฿{{ formatPrice(service.basePrice) }}</span>
+              <span class="service-price"
+                >เริ่มต้น ฿{{ formatPrice(service.basePrice) }}</span
+              >
             </div>
             <div v-if="selectedType === service.id" class="check-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+              >
+                <path d="M20 6L9 17l-5-5" />
               </svg>
             </div>
           </button>
@@ -205,17 +266,17 @@ const formatPrice = (price: number) => {
         <div class="location-inputs">
           <div class="location-field">
             <div class="location-marker pickup"></div>
-            <input 
+            <input
               v-model="pickupAddress"
-              type="text" 
+              type="text"
               placeholder="ที่อยู่รับของ"
             />
           </div>
           <div class="location-field">
             <div class="location-marker destination"></div>
-            <input 
+            <input
               v-model="destinationAddress"
-              type="text" 
+              type="text"
               placeholder="ที่อยู่ส่งของ"
             />
           </div>
@@ -225,7 +286,7 @@ const formatPrice = (price: number) => {
       <!-- Item Description -->
       <section class="section">
         <h2 class="section-title">รายละเอียดสิ่งของ</h2>
-        <textarea 
+        <textarea
           v-model="itemDescription"
           placeholder="ระบุรายการสิ่งของที่ต้องการขนย้าย เช่น ตู้เย็น 1 ตู้, กล่อง 5 ใบ..."
           class="item-input"
@@ -237,13 +298,13 @@ const formatPrice = (price: number) => {
       <section class="section">
         <h2 class="section-title">จำนวนคนช่วยยก</h2>
         <div class="helpers-selector">
-          <button 
+          <button
             v-for="n in [1, 2, 3]"
             :key="n"
             :class="['helper-btn', { active: helperCount === n }]"
             @click="helperCount = n"
           >
-            {{ n === 3 ? '3+ คน' : `${n} คน` }}
+            {{ n === 3 ? "3+ คน" : `${n} คน` }}
           </button>
         </div>
         <p class="helper-note">* คนช่วยยกเพิ่ม +฿100/คน</p>
@@ -261,9 +322,9 @@ const formatPrice = (price: number) => {
 
     <!-- Submit Button -->
     <div class="footer">
-      <button 
-        class="submit-btn" 
-        @click="confirmSubmit" 
+      <button
+        class="submit-btn"
+        @click="confirmSubmit"
         :disabled="!isFormValid || loading"
       >
         <span v-if="loading">กำลังส่งคำขอ...</span>
@@ -273,13 +334,24 @@ const formatPrice = (price: number) => {
 
     <!-- Exit Confirmation Modal -->
     <Transition name="modal">
-      <div v-if="showExitConfirm" class="modal-overlay" @click.self="cancelExit">
+      <div
+        v-if="showExitConfirm"
+        class="modal-overlay"
+        @click.self="cancelExit"
+      >
         <div class="modal-content exit-modal">
           <div class="exit-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#F5A623"
+              stroke-width="2"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
           <h3>ออกจากหน้านี้?</h3>
@@ -293,7 +365,11 @@ const formatPrice = (price: number) => {
     </Transition>
 
     <!-- Confirmation Modal -->
-    <div v-if="showConfirmation" class="modal-overlay" @click.self="cancelConfirmation">
+    <div
+      v-if="showConfirmation"
+      class="modal-overlay"
+      @click.self="cancelConfirmation"
+    >
       <div class="modal-content">
         <h3>ยืนยันคำขอบริการ</h3>
         <div class="confirm-details">
@@ -321,8 +397,12 @@ const formatPrice = (price: number) => {
         <p class="confirm-note">* ราคาอาจเปลี่ยนแปลงตามระยะทางและสิ่งของจริง</p>
         <div class="modal-actions">
           <button class="btn-cancel" @click="cancelConfirmation">ยกเลิก</button>
-          <button class="btn-confirm" @click="submitRequest" :disabled="loading">
-            {{ loading ? 'กำลังส่ง...' : 'ยืนยัน' }}
+          <button
+            class="btn-confirm"
+            @click="submitRequest"
+            :disabled="loading"
+          >
+            {{ loading ? "กำลังส่ง..." : "ยืนยัน" }}
           </button>
         </div>
       </div>
@@ -334,7 +414,7 @@ const formatPrice = (price: number) => {
 .moving-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #FFFFFF;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -345,7 +425,7 @@ const formatPrice = (price: number) => {
   justify-content: space-between;
   padding: 16px 20px;
   padding-top: calc(16px + env(safe-area-inset-top));
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .back-btn {
@@ -362,7 +442,7 @@ const formatPrice = (price: number) => {
 .back-btn svg {
   width: 24px;
   height: 24px;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .home-btn {
@@ -381,7 +461,7 @@ const formatPrice = (price: number) => {
 .home-btn svg {
   width: 22px;
   height: 22px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .home-btn:active {
@@ -392,7 +472,7 @@ const formatPrice = (price: number) => {
 .header h1 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0;
 }
 
@@ -404,8 +484,8 @@ const formatPrice = (price: number) => {
 
 .error-msg {
   padding: 12px 16px;
-  background: #FFEBEE;
-  color: #E53935;
+  background: #ffebee;
+  color: #e53935;
   border-radius: 10px;
   font-size: 14px;
   margin-bottom: 16px;
@@ -423,7 +503,7 @@ const formatPrice = (price: number) => {
 }
 
 .required {
-  color: #E53935;
+  color: #e53935;
 }
 
 .service-list {
@@ -437,8 +517,8 @@ const formatPrice = (price: number) => {
   align-items: center;
   gap: 14px;
   padding: 16px;
-  background: #FFFFFF;
-  border: 2px solid #F0F0F0;
+  background: #ffffff;
+  border: 2px solid #f0f0f0;
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
@@ -446,19 +526,19 @@ const formatPrice = (price: number) => {
 }
 
 .service-btn.active {
-  border-color: #2196F3;
-  background: #E3F2FD;
+  border-color: #2196f3;
+  background: #e3f2fd;
 }
 
 .service-icon {
   width: 48px;
   height: 48px;
-  background: #E3F2FD;
+  background: #e3f2fd;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2196F3;
+  color: #2196f3;
   flex-shrink: 0;
 }
 
@@ -476,7 +556,7 @@ const formatPrice = (price: number) => {
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 2px;
 }
 
@@ -491,18 +571,18 @@ const formatPrice = (price: number) => {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #2196F3;
+  color: #2196f3;
 }
 
 .check-icon {
   width: 28px;
   height: 28px;
-  background: #2196F3;
+  background: #2196f3;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -522,7 +602,7 @@ const formatPrice = (price: number) => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 12px;
 }
 
@@ -534,11 +614,11 @@ const formatPrice = (price: number) => {
 }
 
 .location-marker.pickup {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .location-marker.destination {
-  background: #E53935;
+  background: #e53935;
 }
 
 .location-field input {
@@ -552,7 +632,7 @@ const formatPrice = (price: number) => {
 .item-input {
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 14px;
   resize: none;
@@ -560,7 +640,7 @@ const formatPrice = (price: number) => {
 
 .item-input:focus {
   outline: none;
-  border-color: #2196F3;
+  border-color: #2196f3;
 }
 
 .helpers-selector {
@@ -571,8 +651,8 @@ const formatPrice = (price: number) => {
 .helper-btn {
   flex: 1;
   padding: 12px;
-  background: #FFFFFF;
-  border: 2px solid #E8E8E8;
+  background: #ffffff;
+  border: 2px solid #e8e8e8;
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
@@ -581,9 +661,9 @@ const formatPrice = (price: number) => {
 }
 
 .helper-btn.active {
-  border-color: #2196F3;
-  background: #E3F2FD;
-  color: #2196F3;
+  border-color: #2196f3;
+  background: #e3f2fd;
+  color: #2196f3;
 }
 
 .helper-note {
@@ -594,7 +674,7 @@ const formatPrice = (price: number) => {
 
 .price-estimate {
   padding: 16px;
-  background: #E3F2FD;
+  background: #e3f2fd;
   border-radius: 14px;
 }
 
@@ -612,7 +692,7 @@ const formatPrice = (price: number) => {
 .price-row .price {
   font-size: 20px;
   font-weight: 700;
-  color: #2196F3;
+  color: #2196f3;
 }
 
 .price-note {
@@ -624,14 +704,14 @@ const formatPrice = (price: number) => {
 .footer {
   padding: 16px 20px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  border-top: 1px solid #F0F0F0;
+  border-top: 1px solid #f0f0f0;
 }
 
 .submit-btn {
   width: 100%;
   padding: 16px;
-  background: #2196F3;
-  color: #FFFFFF;
+  background: #2196f3;
+  color: #ffffff;
   border: none;
   border-radius: 12px;
   font-size: 16px;
@@ -665,7 +745,7 @@ const formatPrice = (price: number) => {
 }
 
 .modal-content {
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 20px;
   padding: 24px;
   width: 100%;
@@ -675,13 +755,13 @@ const formatPrice = (price: number) => {
 .modal-content h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 20px;
   text-align: center;
 }
 
 .confirm-details {
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
@@ -691,7 +771,7 @@ const formatPrice = (price: number) => {
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid #E8E8E8;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 .detail-row:last-child {
@@ -707,7 +787,7 @@ const formatPrice = (price: number) => {
 .detail-row .value {
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
   text-align: right;
 }
 
@@ -719,7 +799,7 @@ const formatPrice = (price: number) => {
 }
 
 .detail-row .value.price {
-  color: #2196F3;
+  color: #2196f3;
   font-weight: 700;
 }
 
@@ -738,7 +818,7 @@ const formatPrice = (price: number) => {
 .btn-cancel {
   flex: 1;
   padding: 14px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #666666;
   border: none;
   border-radius: 12px;
@@ -750,8 +830,8 @@ const formatPrice = (price: number) => {
 .btn-confirm {
   flex: 1;
   padding: 14px;
-  background: #2196F3;
-  color: #FFFFFF;
+  background: #2196f3;
+  color: #ffffff;
   border: none;
   border-radius: 12px;
   font-size: 15px;
@@ -772,7 +852,7 @@ const formatPrice = (price: number) => {
 .exit-icon {
   width: 56px;
   height: 56px;
-  background: #FFF3E0;
+  background: #fff3e0;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -794,8 +874,8 @@ const formatPrice = (price: number) => {
 .btn-exit {
   flex: 1;
   padding: 14px;
-  background: #E53935;
-  color: #FFFFFF;
+  background: #e53935;
+  color: #ffffff;
   border: none;
   border-radius: 12px;
   font-size: 15px;

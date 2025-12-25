@@ -38,7 +38,7 @@ export { useCrossRoleEvents, CrossRoleEvents, eventBus } from '../../lib/crossRo
 export { useHapticFeedback } from '../../composables/useHapticFeedback'
 
 // Type exports
-export type { HapticType } from '../../composables/useHapticFeedback'
+export type { HapticFeedback } from '../../composables/useHapticFeedback'
 
 // Utility functions
 export const customerUtils = {

@@ -4,138 +4,150 @@
  * Customer view for tracking queue booking status
  * Fixed: Now properly fetches booking data before subscribing
  */
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useQueueBooking } from '../composables/useQueueBooking'
-import { useToast } from '../composables/useToast'
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useQueueBooking } from "../composables/useQueueBooking";
+import { useToast } from "../composables/useToast";
 
-const route = useRoute()
-const router = useRouter()
-const toast = useToast()
-const { 
-  currentBooking: currentRequest, 
-  loading, 
-  error, 
+const route = useRoute();
+const router = useRouter();
+const { showSuccess, showError, showWarning, showInfo } = useToast();
+const {
+  currentBooking: currentRequest,
+  loading,
+  error,
   fetchBooking,
-  subscribeToBooking, 
-  unsubscribe, 
-  cancelBooking, 
+  subscribeToBooking,
+  unsubscribe,
+  cancelBooking,
   submitRating,
   categoryLabels,
   statusLabels,
   getStatusColor,
   canCancel,
-  canRate
-} = useQueueBooking()
+  canRate,
+} = useQueueBooking();
 
-const bookingId = computed(() => route.params.id as string)
+const bookingId = computed(() => route.params.id as string);
 
 // Rating state
-const showRatingModal = ref(false)
-const ratingValue = ref(5)
-const ratingComment = ref('')
-const submittingRating = ref(false)
+const showRatingModal = ref(false);
+const ratingValue = ref(5);
+const ratingComment = ref("");
+const submittingRating = ref(false);
 
 const statusSteps = [
-  { status: 'pending', label: 'รอดำเนินการ', icon: 'clock' },
-  { status: 'confirmed', label: 'ยืนยันแล้ว', icon: 'check' },
-  { status: 'in_progress', label: 'กำลังดำเนินการ', icon: 'play' },
-  { status: 'completed', label: 'เสร็จสิ้น', icon: 'check-circle' }
-]
+  { status: "pending", label: "รอดำเนินการ", icon: "clock" },
+  { status: "confirmed", label: "ยืนยันแล้ว", icon: "check" },
+  { status: "in_progress", label: "กำลังดำเนินการ", icon: "play" },
+  { status: "completed", label: "เสร็จสิ้น", icon: "check-circle" },
+];
 
 const currentStepIndex = computed(() => {
-  if (!currentRequest.value) return 0
-  if (currentRequest.value.status === 'cancelled') return -1
-  return statusSteps.findIndex(s => s.status === currentRequest.value?.status)
-})
+  if (!currentRequest.value) return 0;
+  if (currentRequest.value.status === "cancelled") return -1;
+  return statusSteps.findIndex(
+    (s) => s.status === currentRequest.value?.status
+  );
+});
 
-const isCancelled = computed(() => currentRequest.value?.status === 'cancelled')
+const isCancelled = computed(
+  () => currentRequest.value?.status === "cancelled"
+);
 
-const goBack = () => router.back()
+const goBack = () => router.back();
 
 const handleCancel = async () => {
-  if (!confirm('ต้องการยกเลิกการจองนี้หรือไม่?')) return
-  const success = await cancelBooking(bookingId.value, 'ลูกค้ายกเลิก')
+  if (!confirm("ต้องการยกเลิกการจองนี้หรือไม่?")) return;
+  const success = await cancelBooking(bookingId.value, "ลูกค้ายกเลิก");
   if (success) {
-    toast.success('ยกเลิกการจองเรียบร้อยแล้ว')
+    showSuccess("ยกเลิกการจองเรียบร้อยแล้ว");
   } else {
-    toast.error('ไม่สามารถยกเลิกได้')
+    showError("ไม่สามารถยกเลิกได้");
   }
-}
+};
 
 const handleRate = async () => {
-  if (!currentRequest.value?.provider_id) return
-  
-  submittingRating.value = true
+  if (!currentRequest.value?.provider_id) return;
+
+  submittingRating.value = true;
   const success = await submitRating(
     bookingId.value,
     currentRequest.value.provider_id,
     ratingValue.value,
     ratingComment.value || undefined
-  )
-  submittingRating.value = false
-  
+  );
+  submittingRating.value = false;
+
   if (success) {
-    toast.success('ขอบคุณสำหรับการให้คะแนน!')
-    showRatingModal.value = false
+    showSuccess("ขอบคุณสำหรับการให้คะแนน!");
+    showRatingModal.value = false;
   } else {
-    toast.error('ไม่สามารถให้คะแนนได้')
+    showError("ไม่สามารถให้คะแนนได้");
   }
-}
+};
 
 const formatDate = (date: string) => {
-  if (!date) return '-'
-  return new Date(date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-}
+  if (!date) return "-";
+  return new Date(date).toLocaleDateString("th-TH", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+};
 
 const formatTime = (time: string) => {
-  return time?.substring(0, 5) || '-'
-}
+  return time?.substring(0, 5) || "-";
+};
 
 const formatDateTime = (datetime: string) => {
-  if (!datetime) return '-'
-  return new Date(datetime).toLocaleString('th-TH', { 
-    day: 'numeric', 
-    month: 'short', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+  if (!datetime) return "-";
+  return new Date(datetime).toLocaleString("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 // Load booking data on mount
 const loadBooking = async () => {
-  const id = bookingId.value
+  const id = bookingId.value;
   if (!id) {
-    router.push('/customer/services')
-    return
+    router.push("/customer/services");
+    return;
   }
-  
-  const booking = await fetchBooking(id)
+
+  const booking = await fetchBooking(id);
   if (!booking) {
-    toast.error('ไม่พบข้อมูลการจอง')
-    router.push('/customer/services')
-    return
+    showError("ไม่พบข้อมูลการจอง");
+    router.push("/customer/services");
+    return;
   }
-  
+
   // Subscribe to realtime updates after fetching
-  subscribeToBooking(id)
-}
+  subscribeToBooking(id);
+};
 
 // Watch for route changes
-watch(() => route.params.id, (newId) => {
-  if (newId) {
-    loadBooking()
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId) {
+      loadBooking();
+    }
   }
-})
+);
 
 onMounted(() => {
-  loadBooking()
-})
+  loadBooking();
+});
 
 onUnmounted(() => {
-  unsubscribe()
-})
+  unsubscribe();
+});
 </script>
 
 <template>
@@ -143,8 +155,13 @@ onUnmounted(() => {
     <!-- Header -->
     <header class="header">
       <button class="back-btn" @click="goBack" aria-label="ย้อนกลับ">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 18l-6-6 6-6"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
       <h1>ติดตามการจองคิว</h1>
@@ -160,9 +177,14 @@ onUnmounted(() => {
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
       <div class="error-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4M12 16h.01"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4M12 16h.01" />
         </svg>
       </div>
       <p>{{ error }}</p>
@@ -180,30 +202,46 @@ onUnmounted(() => {
 
       <!-- Cancelled Notice -->
       <div v-if="isCancelled" class="cancelled-notice">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M15 9l-6 6M9 9l6 6"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M15 9l-6 6M9 9l6 6" />
         </svg>
         <div class="notice-content">
           <span class="notice-title">การจองถูกยกเลิก</span>
-          <span class="notice-reason" v-if="currentRequest.cancel_reason">{{ currentRequest.cancel_reason }}</span>
-          <span class="notice-time" v-if="currentRequest.cancelled_at">{{ formatDateTime(currentRequest.cancelled_at) }}</span>
+          <span class="notice-reason" v-if="currentRequest.cancel_reason">{{
+            currentRequest.cancel_reason
+          }}</span>
+          <span class="notice-time" v-if="currentRequest.cancelled_at">{{
+            formatDateTime(currentRequest.cancelled_at)
+          }}</span>
         </div>
       </div>
 
       <!-- Status Timeline (not shown if cancelled) -->
       <div v-else class="status-timeline">
-        <div 
-          v-for="(step, index) in statusSteps" 
+        <div
+          v-for="(step, index) in statusSteps"
           :key="step.status"
-          :class="['timeline-step', { 
-            active: index <= currentStepIndex,
-            current: index === currentStepIndex
-          }]"
+          :class="[
+            'timeline-step',
+            {
+              active: index <= currentStepIndex,
+              current: index === currentStepIndex,
+            },
+          ]"
         >
           <div class="step-dot">
-            <svg v-if="index < currentStepIndex" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            <svg
+              v-if="index < currentStepIndex"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
             </svg>
             <span v-else>{{ index + 1 }}</span>
           </div>
@@ -215,113 +253,173 @@ onUnmounted(() => {
       <!-- Booking Details -->
       <div class="details-card">
         <h3>รายละเอียดการจอง</h3>
-        
+
         <div class="detail-row">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <path d="M3 9h18M9 21V9"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18M9 21V9" />
             </svg>
             ประเภท
           </span>
-          <span class="value">{{ categoryLabels[currentRequest.category] }}</span>
+          <span class="value">{{
+            categoryLabels[currentRequest.category]
+          }}</span>
         </div>
-        
+
         <div class="detail-row" v-if="currentRequest.place_name">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="10" r="3"/>
-              <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 10-16 0c0 3 2.7 7 8 11.7z"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="10" r="3" />
+              <path
+                d="M12 21.7C17.3 17 20 13 20 10a8 8 0 10-16 0c0 3 2.7 7 8 11.7z"
+              />
             </svg>
             สถานที่
           </span>
           <span class="value">{{ currentRequest.place_name }}</span>
         </div>
-        
+
         <div class="detail-row" v-if="currentRequest.place_address">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 21h18M9 8h6M12 5v6M5 21V7l7-4 7 4v14"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M3 21h18M9 8h6M12 5v6M5 21V7l7-4 7 4v14" />
             </svg>
             ที่อยู่
           </span>
           <span class="value">{{ currentRequest.place_address }}</span>
         </div>
-        
+
         <div class="detail-row">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2"/>
-              <path d="M16 2v4M8 2v4M3 10h18"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
             </svg>
             วันที่
           </span>
-          <span class="value">{{ formatDate(currentRequest.scheduled_date) }}</span>
+          <span class="value">{{
+            formatDate(currentRequest.scheduled_date)
+          }}</span>
         </div>
-        
+
         <div class="detail-row">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 6v6l4 2"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
             </svg>
             เวลา
           </span>
-          <span class="value">{{ formatTime(currentRequest.scheduled_time) }} น.</span>
+          <span class="value"
+            >{{ formatTime(currentRequest.scheduled_time) }} น.</span
+          >
         </div>
-        
+
         <div class="detail-row" v-if="currentRequest.details">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
             </svg>
             รายละเอียด
           </span>
           <span class="value">{{ currentRequest.details }}</span>
         </div>
-        
+
         <div class="detail-row fee">
           <span class="label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
             </svg>
             ค่าบริการ
           </span>
-          <span class="value">฿{{ currentRequest.final_fee || currentRequest.service_fee }}</span>
+          <span class="value"
+            >฿{{ currentRequest.final_fee || currentRequest.service_fee }}</span
+          >
         </div>
       </div>
 
       <!-- Action Buttons -->
       <div class="action-buttons">
         <!-- Cancel Button -->
-        <button 
+        <button
           v-if="canCancel(currentRequest)"
           class="btn-cancel"
           @click="handleCancel"
           :disabled="loading"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M15 9l-6 6M9 9l6 6"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M15 9l-6 6M9 9l6 6" />
           </svg>
           ยกเลิกการจอง
         </button>
 
         <!-- Rate Button -->
-        <button 
+        <button
           v-if="canRate(currentRequest)"
           class="btn-rate"
           @click="showRatingModal = true"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+            />
           </svg>
           ให้คะแนน
         </button>
 
         <!-- Back to Services -->
-        <button class="btn-secondary" @click="router.push('/customer/services')">
+        <button
+          class="btn-secondary"
+          @click="router.push('/customer/services')"
+        >
           กลับหน้าบริการ
         </button>
       </div>
@@ -329,34 +427,51 @@ onUnmounted(() => {
 
     <!-- Rating Modal -->
     <Teleport to="body">
-      <div v-if="showRatingModal" class="modal-overlay" @click.self="showRatingModal = false">
+      <div
+        v-if="showRatingModal"
+        class="modal-overlay"
+        @click.self="showRatingModal = false"
+      >
         <div class="modal-box">
           <h3>ให้คะแนนบริการ</h3>
           <p>กรุณาให้คะแนนการบริการจองคิวครั้งนี้</p>
-          
+
           <div class="rating-stars">
-            <button 
-              v-for="star in 5" 
+            <button
+              v-for="star in 5"
               :key="star"
               :class="['star', { active: star <= ratingValue }]"
               @click="ratingValue = star"
             >
-              <svg viewBox="0 0 24 24" :fill="star <= ratingValue ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              <svg
+                viewBox="0 0 24 24"
+                :fill="star <= ratingValue ? 'currentColor' : 'none'"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                />
               </svg>
             </button>
           </div>
-          
-          <textarea 
+
+          <textarea
             v-model="ratingComment"
             placeholder="ความคิดเห็นเพิ่มเติม (ไม่บังคับ)"
             rows="3"
           ></textarea>
-          
+
           <div class="modal-actions">
-            <button class="btn-secondary" @click="showRatingModal = false">ยกเลิก</button>
-            <button class="btn-primary" @click="handleRate" :disabled="submittingRating">
-              {{ submittingRating ? 'กำลังส่ง...' : 'ส่งคะแนน' }}
+            <button class="btn-secondary" @click="showRatingModal = false">
+              ยกเลิก
+            </button>
+            <button
+              class="btn-primary"
+              @click="handleRate"
+              :disabled="submittingRating"
+            >
+              {{ submittingRating ? "กำลังส่ง..." : "ส่งคะแนน" }}
             </button>
           </div>
         </div>
@@ -369,7 +484,7 @@ onUnmounted(() => {
 .tracking-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #F5F5F5;
+  background: #f5f5f5;
   display: flex;
   flex-direction: column;
 }
@@ -381,8 +496,8 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 12px 16px;
   padding-top: calc(12px + env(safe-area-inset-top));
-  background: #FFFFFF;
-  border-bottom: 1px solid #F0F0F0;
+  background: #ffffff;
+  border-bottom: 1px solid #f0f0f0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -401,20 +516,29 @@ onUnmounted(() => {
   transition: background 0.15s;
 }
 
-.back-btn:active { background: #F5F5F5; }
-.back-btn svg { width: 24px; height: 24px; color: #1A1A1A; }
+.back-btn:active {
+  background: #f5f5f5;
+}
+.back-btn svg {
+  width: 24px;
+  height: 24px;
+  color: #1a1a1a;
+}
 
 .header h1 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0;
 }
 
-.spacer { width: 40px; }
+.spacer {
+  width: 40px;
+}
 
 /* Loading & Error States */
-.loading-state, .error-state {
+.loading-state,
+.error-state {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -427,18 +551,21 @@ onUnmounted(() => {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #F0F0F0;
-  border-top-color: #00A86B;
+  border: 3px solid #f0f0f0;
+  border-top-color: #00a86b;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-bottom: 16px;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.loading-state p, .error-state p {
+.loading-state p,
+.error-state p {
   color: #666666;
   font-size: 14px;
   margin: 0;
@@ -447,11 +574,14 @@ onUnmounted(() => {
 .error-icon {
   width: 48px;
   height: 48px;
-  color: #E53935;
+  color: #e53935;
   margin-bottom: 16px;
 }
 
-.error-icon svg { width: 100%; height: 100%; }
+.error-icon svg {
+  width: 100%;
+  height: 100%;
+}
 
 /* Content */
 .content {
@@ -462,8 +592,8 @@ onUnmounted(() => {
 
 /* Tracking ID Card */
 .tracking-id-card {
-  background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
-  color: #FFFFFF;
+  background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+  color: #ffffff;
   padding: 24px;
   border-radius: 16px;
   text-align: center;
@@ -486,7 +616,7 @@ onUnmounted(() => {
 .tracking-id-card .tracking-id {
   font-size: 22px;
   font-weight: 700;
-  font-family: 'SF Mono', 'Roboto Mono', monospace;
+  font-family: "SF Mono", "Roboto Mono", monospace;
   letter-spacing: 2px;
 }
 
@@ -494,7 +624,7 @@ onUnmounted(() => {
   display: inline-block;
   margin-top: 12px;
   padding: 4px 12px;
-  background: rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
@@ -506,7 +636,7 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  background: #FFEBEE;
+  background: #ffebee;
   border-radius: 12px;
   margin-bottom: 20px;
 }
@@ -514,7 +644,7 @@ onUnmounted(() => {
 .cancelled-notice svg {
   width: 24px;
   height: 24px;
-  color: #E53935;
+  color: #e53935;
   flex-shrink: 0;
 }
 
@@ -527,7 +657,7 @@ onUnmounted(() => {
 .notice-title {
   font-size: 14px;
   font-weight: 600;
-  color: #E53935;
+  color: #e53935;
 }
 
 .notice-reason {
@@ -545,7 +675,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   padding: 24px 16px;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 16px;
   margin-bottom: 20px;
 }
@@ -562,7 +692,7 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #E8E8E8;
+  background: #e8e8e8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,23 +707,28 @@ onUnmounted(() => {
 .step-dot svg {
   width: 16px;
   height: 16px;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .timeline-step.active .step-dot {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
 }
 
 .timeline-step.current .step-dot {
-  background: #9C27B0;
+  background: #9c27b0;
   box-shadow: 0 0 0 4px rgba(156, 39, 176, 0.2);
   animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(156, 39, 176, 0.2); }
-  50% { box-shadow: 0 0 0 8px rgba(156, 39, 176, 0.1); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(156, 39, 176, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(156, 39, 176, 0.1);
+  }
 }
 
 .step-label {
@@ -604,12 +739,12 @@ onUnmounted(() => {
 }
 
 .timeline-step.active .step-label {
-  color: #00A86B;
+  color: #00a86b;
   font-weight: 500;
 }
 
 .timeline-step.current .step-label {
-  color: #9C27B0;
+  color: #9c27b0;
   font-weight: 600;
 }
 
@@ -619,16 +754,16 @@ onUnmounted(() => {
   left: 50%;
   width: 100%;
   height: 2px;
-  background: #E8E8E8;
+  background: #e8e8e8;
 }
 
 .timeline-step.active .step-line {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 /* Details Card */
 .details-card {
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 16px;
   padding: 20px;
   margin-bottom: 20px;
@@ -637,7 +772,7 @@ onUnmounted(() => {
 .details-card h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 16px;
 }
 
@@ -646,7 +781,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: flex-start;
   padding: 14px 0;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .detail-row:last-child {
@@ -670,13 +805,13 @@ onUnmounted(() => {
 .detail-row .value {
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
   text-align: right;
   max-width: 55%;
 }
 
 .detail-row.fee .value {
-  color: #9C27B0;
+  color: #9c27b0;
   font-size: 18px;
   font-weight: 700;
 }
@@ -695,9 +830,9 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
   padding: 14px;
-  background: #FFFFFF;
-  color: #E53935;
-  border: 2px solid #E53935;
+  background: #ffffff;
+  color: #e53935;
+  border: 2px solid #e53935;
   border-radius: 14px;
   font-size: 15px;
   font-weight: 600;
@@ -706,7 +841,7 @@ onUnmounted(() => {
 }
 
 .btn-cancel:active {
-  background: #FFEBEE;
+  background: #ffebee;
 }
 
 .btn-cancel:disabled {
@@ -726,8 +861,8 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
   padding: 14px;
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
   border: none;
   border-radius: 14px;
   font-size: 15px;
@@ -749,8 +884,8 @@ onUnmounted(() => {
 .btn-secondary {
   width: 100%;
   padding: 14px;
-  background: #F5F5F5;
-  color: #1A1A1A;
+  background: #f5f5f5;
+  color: #1a1a1a;
   border: none;
   border-radius: 14px;
   font-size: 15px;
@@ -760,13 +895,13 @@ onUnmounted(() => {
 }
 
 .btn-secondary:active {
-  background: #E8E8E8;
+  background: #e8e8e8;
 }
 
 .btn-primary {
   padding: 12px 24px;
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
   border: none;
   border-radius: 12px;
   font-size: 14px;
@@ -792,7 +927,7 @@ onUnmounted(() => {
 }
 
 .modal-box {
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 20px;
   padding: 24px;
   width: 100%;
@@ -803,7 +938,7 @@ onUnmounted(() => {
 .modal-box h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 8px;
 }
 
@@ -827,12 +962,12 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: #E8E8E8;
+  color: #e8e8e8;
   transition: all 0.2s;
 }
 
 .star.active {
-  color: #F5A623;
+  color: #f5a623;
 }
 
 .star svg {
@@ -843,7 +978,7 @@ onUnmounted(() => {
 .modal-box textarea {
   width: 100%;
   padding: 12px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 14px;
   resize: none;
@@ -853,7 +988,7 @@ onUnmounted(() => {
 
 .modal-box textarea:focus {
   outline: none;
-  border-color: #00A86B;
+  border-color: #00a86b;
 }
 
 .modal-actions {

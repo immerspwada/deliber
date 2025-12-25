@@ -1576,7 +1576,6 @@ export function useProviderDashboard() {
     stopLocationUpdates()
   })
 
-  // =====================================================
   // RETURN
   // =====================================================
   return {
@@ -1613,6 +1612,7 @@ export function useProviderDashboard() {
     updateJobStatus,
     cancelActiveJob,
     resetFilters,
+    cleanup,
     
     // URL helpers
     updateUrlParams

@@ -3,44 +3,44 @@
  * SavedPlacesRow - แถวสถานที่บันทึกแบบน่ารัก
  * MUNEEF Style: สีเขียว #00A86B, icons น่ารัก
  */
-import { useHapticFeedback } from '../../composables/useHapticFeedback'
+import { useHapticFeedback } from "../../composables/useHapticFeedback";
 
 interface SavedPlace {
-  id?: string
-  name?: string
-  address?: string
-  type?: 'home' | 'work' | 'other'
-  place_type?: 'home' | 'work' | 'other'
-  lat?: number
-  lng?: number
+  id?: string;
+  name?: string;
+  address?: string;
+  type?: "home" | "work" | "other";
+  place_type?: "home" | "work" | "other";
+  lat?: number;
+  lng?: number;
 }
 
 interface Props {
-  homePlace?: SavedPlace | null | undefined
-  workPlace?: SavedPlace | null | undefined
-  title?: string
+  homePlace?: SavedPlace | null | undefined;
+  workPlace?: SavedPlace | null | undefined;
+  title?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  title: 'สถานที่บันทึก'
-})
+  title: "สถานที่บันทึก",
+});
 
 const emit = defineEmits<{
-  'place-click': [type: 'home' | 'work']
-  'manage-click': []
-}>()
+  "place-click": [type: "home" | "work"];
+  "manage-click": [];
+}>();
 
-const { vibrate } = useHapticFeedback()
+const { vibrate } = useHapticFeedback();
 
-const handlePlaceClick = (type: 'home' | 'work') => {
-  vibrate('light')
-  emit('place-click', type)
-}
+const handlePlaceClick = (type: "home" | "work") => {
+  vibrate("light");
+  emit("place-click", type);
+};
 
 const handleManage = () => {
-  vibrate('light')
-  emit('manage-click')
-}
+  vibrate("light");
+  emit("manage-click");
+};
 </script>
 
 <template>
@@ -49,46 +49,88 @@ const handleManage = () => {
       <h3 class="section-title">{{ title }}</h3>
       <button class="manage-btn" @click="handleManage">จัดการ</button>
     </div>
-    
+
     <div class="places-row">
       <!-- Home -->
       <button class="place-card" @click="handlePlaceClick('home')">
         <div class="place-icon home">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            />
           </svg>
         </div>
         <div class="place-info">
-          <span class="place-name">{{ homePlace?.name || 'บ้าน' }}</span>
-          <span class="place-hint">{{ homePlace?.address ? 'กดเพื่อไป' : 'กดเพื่อเพิ่ม' }}</span>
+          <span class="place-name">{{ homePlace?.name || "บ้าน" }}</span>
+          <span class="place-hint">{{
+            homePlace?.address ? "กดเพื่อไป" : "กดเพื่อเพิ่ม"
+          }}</span>
         </div>
         <div class="place-status" :class="{ active: homePlace?.lat }">
-          <svg v-if="homePlace?.lat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12l5 5L20 7"/>
+          <svg
+            v-if="homePlace?.lat"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M5 12l5 5L20 7" />
           </svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14"/>
+          <svg
+            v-else
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 5v14M5 12h14" />
           </svg>
         </div>
       </button>
-      
+
       <!-- Work -->
       <button class="place-card" @click="handlePlaceClick('work')">
         <div class="place-icon work">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            />
           </svg>
         </div>
         <div class="place-info">
-          <span class="place-name">{{ workPlace?.name || 'ที่ทำงาน' }}</span>
-          <span class="place-hint">{{ workPlace?.address ? 'กดเพื่อไป' : 'กดเพื่อเพิ่ม' }}</span>
+          <span class="place-name">{{ workPlace?.name || "ที่ทำงาน" }}</span>
+          <span class="place-hint">{{
+            workPlace?.address ? "กดเพื่อไป" : "กดเพื่อเพิ่ม"
+          }}</span>
         </div>
         <div class="place-status" :class="{ active: workPlace?.lat }">
-          <svg v-if="workPlace?.lat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12l5 5L20 7"/>
+          <svg
+            v-if="workPlace?.lat"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M5 12l5 5L20 7" />
           </svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14"/>
+          <svg
+            v-else
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 5v14M5 12h14" />
           </svg>
         </div>
       </button>
@@ -111,7 +153,7 @@ const handleManage = () => {
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .manage-btn {
@@ -122,7 +164,7 @@ const handleManage = () => {
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: #00A86B;
+  color: #00a86b;
   cursor: pointer;
   transition: all 0.2s ease;
   /* Touch optimizations */
@@ -130,15 +172,18 @@ const handleManage = () => {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  /* Ensure button is clickable */
+  position: relative;
+  z-index: 1;
 }
 
 .manage-btn:hover {
-  background: #E8F5EF;
+  background: #e8f5ef;
 }
 
 .manage-btn:active {
   transform: scale(0.95);
-  background: #D4EDE3;
+  background: #d4ede3;
 }
 
 .places-row {
@@ -153,8 +198,8 @@ const handleManage = () => {
   gap: 12px;
   padding: 14px;
   min-height: 72px; /* Touch target optimization */
-  background: #FFFFFF;
-  border: 2px solid #F5F5F5;
+  background: #ffffff;
+  border: 2px solid #f5f5f5;
   border-radius: 16px;
   cursor: pointer;
   text-align: left;
@@ -167,26 +212,26 @@ const handleManage = () => {
 }
 
 .place-card:hover {
-  border-color: #00A86B;
-  background: #F8FBF9;
+  border-color: #00a86b;
+  background: #f8fbf9;
 }
 
 .place-card:active {
   transform: scale(0.98);
-  border-color: #00A86B;
-  background: #E8F5EF;
+  border-color: #00a86b;
+  background: #e8f5ef;
 }
 
 /* Touch-specific styles */
 @media (hover: none) {
   .place-card:hover {
-    border-color: #F5F5F5;
-    background: #FFFFFF;
+    border-color: #f5f5f5;
+    background: #ffffff;
   }
-  
+
   .place-card:active {
-    border-color: #00A86B;
-    background: #E8F5EF;
+    border-color: #00a86b;
+    background: #e8f5ef;
   }
 }
 
@@ -201,11 +246,11 @@ const handleManage = () => {
 }
 
 .place-icon.home {
-  background: #E8F5EF;
+  background: #e8f5ef;
 }
 
 .place-icon.work {
-  background: #E3F2FD;
+  background: #e3f2fd;
 }
 
 .place-icon svg {
@@ -214,11 +259,11 @@ const handleManage = () => {
 }
 
 .place-icon.home svg {
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .place-icon.work svg {
-  color: #2196F3;
+  color: #2196f3;
 }
 
 .place-info {
@@ -230,7 +275,7 @@ const handleManage = () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -249,22 +294,22 @@ const handleManage = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 8px;
   flex-shrink: 0;
 }
 
 .place-status.active {
-  background: #E8F5EF;
+  background: #e8f5ef;
 }
 
 .place-status svg {
   width: 16px;
   height: 16px;
-  color: #CCCCCC;
+  color: #cccccc;
 }
 
 .place-status.active svg {
-  color: #00A86B;
+  color: #00a86b;
 }
 </style>

@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
+import './styles/transitions.css'
 import App from './App.vue'
 
 // Import router with guards
@@ -58,7 +59,15 @@ initSentry(app, router)
 
 app.use(pinia)
 app.use(router)
-app.mount('#app')
+
+// Initialize auth store before mounting
+import { useAuthStore } from './stores/auth'
+const authStore = useAuthStore()
+
+// Initialize auth and then mount app
+authStore.initialize().finally(() => {
+  app.mount('#app')
+})
 
 // Set Sentry user context when auth changes
 supabase.auth.onAuthStateChange((_event, session) => {

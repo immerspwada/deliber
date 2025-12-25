@@ -3,9 +3,12 @@
  * Admin Incidents View
  * Incident management and tracking
  */
-import { ref, onMounted, onUnmounted } from 'vue'
-import AdminLayout from '../components/AdminLayout.vue'
-import { useIncidentManagement, type Incident } from '../composables/useIncidentManagement'
+import { ref, onMounted, onUnmounted } from "vue";
+import AdminLayout from "../components/AdminLayout.vue";
+import {
+  useIncidentManagement,
+  type Incident,
+} from "../composables/useIncidentManagement";
 
 const {
   incidents,
@@ -18,83 +21,104 @@ const {
   createIncident,
   updateStatus,
   fetchOnCall,
-  fetchStats
-} = useIncidentManagement()
+  fetchStats,
+} = useIncidentManagement();
 
-const activeTab = ref<'active' | 'all' | 'stats'>('active')
-const showCreateModal = ref(false)
+const activeTab = ref<"active" | "all" | "stats">("active");
+const showCreateModal = ref(false);
 const newIncident = ref({
-  title: '',
-  description: '',
-  severity: 'medium' as Incident['severity'],
-  affectedServices: [] as string[]
-})
+  title: "",
+  description: "",
+  severity: "medium" as Incident["severity"],
+  affectedServices: [] as string[],
+});
 
-const adminId = localStorage.getItem('admin_token') || 'admin'
-let refreshInterval: ReturnType<typeof setInterval> | null = null
+const adminId = localStorage.getItem("admin_token") || "admin";
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
-  await Promise.all([
-    fetchIncidents(),
-    fetchOnCall(),
-    fetchStats()
-  ])
-  
+  await Promise.all([fetchIncidents(), fetchOnCall(), fetchStats()]);
+
   // Auto-refresh every 30 seconds
   refreshInterval = setInterval(() => {
-    fetchIncidents()
-  }, 30000)
-})
+    fetchIncidents();
+  }, 30000);
+});
 
 onUnmounted(() => {
-  if (refreshInterval) clearInterval(refreshInterval)
-})
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+});
 
 const handleCreate = async () => {
-  if (!newIncident.value.title) return
-  
+  if (!newIncident.value.title) return;
+
   await createIncident({
     title: newIncident.value.title,
     description: newIncident.value.description,
     severity: newIncident.value.severity,
     affectedServices: newIncident.value.affectedServices,
-    createdBy: adminId
-  })
-  
-  showCreateModal.value = false
-  newIncident.value = { title: '', description: '', severity: 'medium', affectedServices: [] }
-}
+    createdBy: adminId,
+  });
 
-const handleStatusUpdate = async (incident: Incident, status: Incident['status']) => {
-  await updateStatus(incident.id, status, `Status updated to ${status}`, adminId)
-}
+  showCreateModal.value = false;
+  newIncident.value = {
+    title: "",
+    description: "",
+    severity: "medium",
+    affectedServices: [],
+  };
+};
+
+const handleStatusUpdate = async (
+  incident: Incident,
+  status: Incident["status"]
+) => {
+  await updateStatus(
+    incident.id,
+    status,
+    `Status updated to ${status}`,
+    adminId
+  );
+};
 
 const getSeverityColor = (severity: string) => {
   switch (severity) {
-    case 'critical': return '#E53935'
-    case 'high': return '#F5A623'
-    case 'medium': return '#2196F3'
-    default: return '#666'
+    case "critical":
+      return "#E53935";
+    case "high":
+      return "#F5A623";
+    case "medium":
+      return "#2196F3";
+    default:
+      return "#666";
   }
-}
+};
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'resolved': return '#00A86B'
-    case 'monitoring': return '#2196F3'
-    case 'identified': return '#F5A623'
-    case 'investigating': return '#FF9800'
-    default: return '#E53935'
+    case "resolved":
+      return "#00A86B";
+    case "monitoring":
+      return "#2196F3";
+    case "identified":
+      return "#F5A623";
+    case "investigating":
+      return "#FF9800";
+    default:
+      return "#E53935";
   }
-}
+};
 
 const formatDuration = (minutes?: number) => {
-  if (!minutes) return '-'
-  if (minutes < 60) return `${Math.round(minutes)}m`
-  return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`
-}
+  if (!minutes) return "-";
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+};
 
-const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
+const formatTime = (date: string) => new Date(date).toLocaleString("th-TH");
 </script>
 
 <template>
@@ -107,8 +131,17 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
         </div>
         <div class="header-actions">
           <div v-if="onCallTeam.length > 0" class="oncall-badge">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72"
+              />
             </svg>
             On-Call: {{ onCallTeam[0]?.user_name }}
           </div>
@@ -120,7 +153,10 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 
       <!-- Stats Cards -->
       <div class="stats-row">
-        <div class="stat-card" :class="{ danger: criticalIncidents.length > 0 }">
+        <div
+          class="stat-card"
+          :class="{ danger: criticalIncidents.length > 0 }"
+        >
           <span class="stat-value">{{ openIncidents.length }}</span>
           <span class="stat-label">Open</span>
         </div>
@@ -129,27 +165,31 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
           <span class="stat-label">Resolved (30d)</span>
         </div>
         <div class="stat-card">
-          <span class="stat-value">{{ formatDuration(stats?.mttr_minutes) }}</span>
+          <span class="stat-value">{{
+            formatDuration(stats?.mttr_minutes)
+          }}</span>
           <span class="stat-label">MTTR</span>
         </div>
       </div>
 
       <!-- Tabs -->
       <div class="tabs">
-        <button 
+        <button
           :class="['tab', { active: activeTab === 'active' }]"
           @click="activeTab = 'active'"
         >
           Active
-          <span v-if="openIncidents.length > 0" class="badge">{{ openIncidents.length }}</span>
+          <span v-if="openIncidents.length > 0" class="badge">{{
+            openIncidents.length
+          }}</span>
         </button>
-        <button 
+        <button
           :class="['tab', { active: activeTab === 'all' }]"
           @click="activeTab = 'all'"
         >
           All Incidents
         </button>
-        <button 
+        <button
           :class="['tab', { active: activeTab === 'stats' }]"
           @click="activeTab = 'stats'"
         >
@@ -160,65 +200,81 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
       <!-- Active Incidents -->
       <div v-if="activeTab === 'active'" class="tab-content">
         <div v-if="openIncidents.length === 0" class="empty-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#00A86B" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#00A86B"
+            stroke-width="2"
+          >
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           <p>ไม่มี Incident ที่ต้องดำเนินการ</p>
         </div>
-        
+
         <div v-else class="incident-list">
-          <div 
-            v-for="incident in openIncidents" 
+          <div
+            v-for="incident in openIncidents"
             :key="incident.id"
             class="incident-card"
             :class="incident.severity"
           >
             <div class="incident-header">
-              <span 
+              <span
                 class="severity-badge"
                 :style="{ background: getSeverityColor(incident.severity) }"
               >
                 {{ incident.severity.toUpperCase() }}
               </span>
-              <span 
+              <span
                 class="status-badge"
                 :style="{ background: getStatusColor(incident.status) }"
               >
                 {{ incident.status }}
               </span>
-              <span class="incident-time">{{ formatTime(incident.started_at) }}</span>
+              <span class="incident-time">{{
+                formatTime(incident.started_at)
+              }}</span>
             </div>
             <h3>#{{ incident.incident_number }} - {{ incident.title }}</h3>
             <p v-if="incident.description">{{ incident.description }}</p>
-            <div v-if="incident.affected_services?.length" class="affected-services">
-              <span v-for="service in incident.affected_services" :key="service" class="service-tag">
+            <div
+              v-if="incident.affected_services?.length"
+              class="affected-services"
+            >
+              <span
+                v-for="service in incident.affected_services"
+                :key="service"
+                class="service-tag"
+              >
                 {{ service }}
               </span>
             </div>
             <div class="incident-actions">
-              <button 
+              <button
                 v-if="incident.status === 'open'"
                 class="btn-small"
                 @click="handleStatusUpdate(incident, 'investigating')"
               >
                 Investigating
               </button>
-              <button 
+              <button
                 v-if="incident.status === 'investigating'"
                 class="btn-small"
                 @click="handleStatusUpdate(incident, 'identified')"
               >
                 Identified
               </button>
-              <button 
+              <button
                 v-if="incident.status === 'identified'"
                 class="btn-small"
                 @click="handleStatusUpdate(incident, 'monitoring')"
               >
                 Monitoring
               </button>
-              <button 
+              <button
                 class="btn-small success"
                 @click="handleStatusUpdate(incident, 'resolved')"
               >
@@ -247,7 +303,7 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
               <td>{{ incident.incident_number }}</td>
               <td>{{ incident.title }}</td>
               <td>
-                <span 
+                <span
                   class="severity-badge small"
                   :style="{ background: getSeverityColor(incident.severity) }"
                 >
@@ -255,7 +311,7 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
                 </span>
               </td>
               <td>
-                <span 
+                <span
                   class="status-badge small"
                   :style="{ background: getStatusColor(incident.status) }"
                 >
@@ -278,13 +334,19 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
           </div>
           <div class="stat-box">
             <h4>Mean Time to Resolve</h4>
-            <span class="big-number">{{ formatDuration(stats?.mttr_minutes) }}</span>
+            <span class="big-number">{{
+              formatDuration(stats?.mttr_minutes)
+            }}</span>
           </div>
           <div class="stat-box">
             <h4>By Severity</h4>
             <div v-if="stats?.by_severity" class="severity-breakdown">
-              <div v-for="(count, sev) in stats.by_severity" :key="sev" class="severity-item">
-                <span 
+              <div
+                v-for="(count, sev) in stats.by_severity"
+                :key="sev"
+                class="severity-item"
+              >
+                <span
                   class="severity-dot"
                   :style="{ background: getSeverityColor(sev as string) }"
                 ></span>
@@ -296,16 +358,27 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
       </div>
 
       <!-- Create Modal -->
-      <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+      <div
+        v-if="showCreateModal"
+        class="modal-overlay"
+        @click.self="showCreateModal = false"
+      >
         <div class="modal">
           <h2>New Incident</h2>
           <div class="form-group">
             <label>Title</label>
-            <input v-model="newIncident.title" type="text" placeholder="Incident title" />
+            <input
+              v-model="newIncident.title"
+              type="text"
+              placeholder="Incident title"
+            />
           </div>
           <div class="form-group">
             <label>Description</label>
-            <textarea v-model="newIncident.description" placeholder="Description"></textarea>
+            <textarea
+              v-model="newIncident.description"
+              placeholder="Description"
+            ></textarea>
           </div>
           <div class="form-group">
             <label>Severity</label>
@@ -317,7 +390,9 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
             </select>
           </div>
           <div class="modal-actions">
-            <button class="btn-secondary" @click="showCreateModal = false">Cancel</button>
+            <button class="btn-secondary" @click="showCreateModal = false">
+              Cancel
+            </button>
             <button class="btn-primary" @click="handleCreate">Create</button>
           </div>
         </div>
@@ -364,8 +439,8 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 500;
@@ -373,7 +448,7 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 
 .btn-primary {
   padding: 10px 20px;
-  background: #00A86B;
+  background: #00a86b;
   color: white;
   border: none;
   border-radius: 10px;
@@ -396,7 +471,7 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 }
 
 .stat-card.danger {
-  background: #FFEBEE;
+  background: #ffebee;
 }
 
 .stat-value {
@@ -433,12 +508,12 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 }
 
 .tab.active {
-  background: #00A86B;
+  background: #00a86b;
   color: white;
 }
 
 .tab .badge {
-  background: #E53935;
+  background: #e53935;
   color: white;
   padding: 2px 8px;
   border-radius: 10px;
@@ -465,15 +540,15 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 }
 
 .incident-card.critical {
-  border-left-color: #E53935;
+  border-left-color: #e53935;
 }
 
 .incident-card.high {
-  border-left-color: #F5A623;
+  border-left-color: #f5a623;
 }
 
 .incident-card.medium {
-  border-left-color: #2196F3;
+  border-left-color: #2196f3;
 }
 
 .incident-header {
@@ -483,7 +558,8 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
   margin-bottom: 12px;
 }
 
-.severity-badge, .status-badge {
+.severity-badge,
+.status-badge {
   padding: 4px 12px;
   border-radius: 12px;
   color: white;
@@ -491,7 +567,8 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
   font-weight: 600;
 }
 
-.severity-badge.small, .status-badge.small {
+.severity-badge.small,
+.status-badge.small {
   padding: 2px 8px;
   font-size: 10px;
 }
@@ -543,7 +620,7 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 }
 
 .btn-small.success {
-  background: #00A86B;
+  background: #00a86b;
   color: white;
 }
 
@@ -614,7 +691,7 @@ const formatTime = (date: string) => new Date(date).toLocaleString('th-TH')
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;

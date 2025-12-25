@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:check": "vue-tsc -b && vite build",
+    "build:analyze": "vite build && open dist/stats.html",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",
@@ -17,6 +18,8 @@
     "lint": "eslint src --ext .vue,.js,.ts",
     "lint:fix": "eslint src --ext .vue,.js,.ts --fix",
     "lint:secrets": "node scripts/check-secrets.js",
+    "bundle:analyze": "npm run build && open dist/stats.html",
+    "bundle:size": "npm run build && du -sh dist/* | sort -h",
     "prepare": "cd .. && husky install .husky || true"
   },
   "lint-staged": {
@@ -56,8 +59,10 @@
     "eslint-plugin-vue": "^9.32.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
+    "rollup-plugin-visualizer": "^6.0.5",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
+    "vite-plugin-compression": "^0.5.1",
     "vite-plugin-vue-devtools": "^8.0.5",
     "vue-tsc": "^3.1.4"
   }

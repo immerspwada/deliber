@@ -334,6 +334,11 @@ export function usePerformanceMetrics() {
     // TTI estimation: FCP + time until main thread is idle
     // Simplified: use Long Tasks API or estimate from load time
     try {
+      // Check if PerformanceObserver supports longtask
+      if (!('PerformanceObserver' in window)) {
+        return 0
+      }
+      
       const entries = performance.getEntriesByType('longtask') as PerformanceEntry[]
       let lastLongTaskEnd = 0
       

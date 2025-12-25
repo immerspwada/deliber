@@ -123,25 +123,19 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/ride',
     name: 'CustomerRide',
-    component: () => import('../views/customer/RideBookingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
-  },
-  {
-    path: '/customer/ride-v2',
-    name: 'CustomerRideV2',
-    component: () => import('../views/RideViewV2.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/ride-legacy',
-    name: 'CustomerRideLegacy',
     component: () => import('../views/RideView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true }
   },
   {
+    path: '/customer/ride-v2',
+    name: 'CustomerRideV2',
+    component: () => import('../views/customer/RideBookingView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
+  },
+  {
     path: '/customer/delivery',
     name: 'CustomerDelivery',
-    component: () => import('../views/DeliveryViewV2.vue'),
+    component: () => import('../views/DeliveryView.vue'),
     meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
   },
   {
@@ -318,12 +312,6 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/provider',
     name: 'ProviderDashboard',
-    component: () => import('../views/provider/ProviderDashboardV4.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider-legacy',
-    name: 'ProviderDashboardLegacy',
     component: () => import('../views/provider/ProviderDashboardView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
@@ -598,15 +586,9 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
-    path: '/admin/payment-settings',
-    name: 'AdminPaymentSettings',
-    component: () => import('../views/AdminPaymentSettingsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
     path: '/admin/settings',
     name: 'AdminSettings',
-    component: () => import('../views/AdminSettingsViewV2.vue'),
+    component: () => import('../views/AdminSettingsView.vue'),
     meta: { requiresAdmin: true, hideNavigation: true }
   },
   {
@@ -845,52 +827,6 @@ export const routes: RouteRecordRaw[] = [
   // ========================================
   // Multi-Role Ride Booking System V3
   // ========================================
-  {
-    path: '/admin/rides-v3',
-    name: 'AdminRideMonitoringV3',
-    component: () => import('../views/AdminRideMonitoringViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-  {
-    path: '/admin/rides/:id',
-    name: 'AdminRideDetailV3',
-    component: () => import('../views/AdminRideDetailViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-  {
-    path: '/admin/provider-cancellations-v3',
-    name: 'AdminProviderCancellationsV3',
-    component: () => import('../views/AdminProviderCancellationsViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-
-  // Customer V3 Routes
-  {
-    path: '/customer/ride-booking-v3',
-    name: 'RideBookingV3',
-    component: () => import('../views/RideBookingViewV3.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/ride-tracking-v3/:rideId',
-    name: 'RideTrackingV3',
-    component: () => import('../views/RideTrackingViewV3.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-
-  // Provider V3 Routes
-  {
-    path: '/provider/available-rides-v3',
-    name: 'ProviderAvailableRidesV3',
-    component: () => import('../views/provider/ProviderAvailableRidesV3.vue'),
-    meta: { requiresAuth: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/active-ride-v3',
-    name: 'ProviderActiveRideV3',
-    component: () => import('../views/provider/ProviderActiveRideV3.vue'),
-    meta: { requiresAuth: true, isProviderRoute: true }
-  }
 ]
 
 
@@ -904,26 +840,39 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
-  // Check if route requires provider access
-  if (to.meta.isProviderRoute) {
-    // Wait for auth to initialize if needed
-    if (!authStore.user && authStore.loading) {
-      await new Promise(resolve => {
-        const unwatch = authStore.$subscribe(() => {
-          if (!authStore.loading) {
-            unwatch()
-            resolve(true)
-          }
-        })
+  // Skip auth check for public routes
+  if (to.meta.public) {
+    return next()
+  }
+  
+  // Wait for auth to initialize if needed
+  if (authStore.loading && !authStore.user) {
+    console.log('[Router] Waiting for auth to initialize...')
+    await new Promise(resolve => {
+      const unwatch = authStore.$subscribe(() => {
+        if (!authStore.loading) {
+          unwatch()
+          resolve(true)
+        }
       })
-    }
-
-    // Check if user is authenticated
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        unwatch()
+        resolve(true)
+      }, 3000)
+    })
+  }
+  
+  // Check if route requires authentication (customer or provider routes)
+  if (to.meta.requiresAuth || to.meta.isCustomerRoute || to.meta.isProviderRoute) {
     if (!authStore.isAuthenticated) {
-      console.warn('[Router] Provider route requires authentication')
+      console.warn('[Router] Route requires authentication, redirecting to login')
       return next('/login')
     }
-
+  }
+  
+  // Check if route requires provider access
+  if (to.meta.isProviderRoute) {
     // Allow access to onboarding/registration pages without provider check
     const allowedWithoutProvider = [
       '/provider/onboarding',
@@ -981,17 +930,6 @@ router.beforeEach(async (to, from, next) => {
       console.error('[Router] Provider check exception:', err)
       return next('/provider/onboarding')
     }
-  }
-
-  // Check if route requires customer access
-  if (to.meta.isCustomerRoute) {
-    if (!authStore.isAuthenticated) {
-      return next('/login')
-    }
-
-    // Allow all authenticated users to access customer routes
-    // Even providers (approved or pending) can use customer features
-    // No redirect needed - customer routes are accessible to everyone
   }
 
   // Check if route requires admin access (with session caching)

@@ -4,25 +4,29 @@
  * Enhanced UX: Better flow, animations, quick booking
  * MUNEEF Style: Clean, modern, green accent
  */
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQueueBooking } from '../composables/useQueueBooking'
-import { useQueueFavorites, type QueueFavoriteWithStats, type EstimatedWaitTime } from '../composables/useQueueFavorites'
-import { useServices } from '../composables/useServices'
-import { useToast } from '../composables/useToast'
-import { useAuthStore } from '../stores/auth'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { useRouter } from "vue-router";
+import { useQueueBooking } from "../composables/useQueueBooking";
+import {
+  useQueueFavorites,
+  type QueueFavoriteWithStats,
+  type EstimatedWaitTime,
+} from "../composables/useQueueFavorites";
+import { useServices } from "../composables/useServices";
+import { useToast } from "../composables/useToast";
+import { useAuthStore } from "../stores/auth";
 
-const router = useRouter()
-const authStore = useAuthStore()
-const { 
-  createQueueBooking, 
+const router = useRouter();
+const authStore = useAuthStore();
+const {
+  createQueueBooking,
   fetchUserBookings,
   activeBookings,
-  loading, 
-  error, 
-  categoryLabels, 
-  clearError 
-} = useQueueBooking()
+  loading,
+  error,
+  categoryLabels,
+  clearError,
+} = useQueueBooking();
 const {
   favorites,
   topFavorites,
@@ -34,288 +38,351 @@ const {
   formatWaitTime,
   getConfidenceLabel,
   getConfidenceColor,
-  loading: favoritesLoading
-} = useQueueFavorites()
-const { recentPlaces, fetchRecentPlaces } = useServices()
-const toast = useToast()
+  loading: favoritesLoading,
+} = useQueueFavorites();
+const { recentPlaces, fetchRecentPlaces } = useServices();
+const { showSuccess, showError, showWarning, showInfo } = useToast();
 
 // Step Flow - Simplified to 3 steps
-type Step = 'select' | 'schedule' | 'confirm'
-const currentStep = ref<Step>('select')
+type Step = "select" | "schedule" | "confirm";
+const currentStep = ref<Step>("select");
 
 const steps = [
-  { key: 'select', label: 'เลือกบริการ', number: 1 },
-  { key: 'schedule', label: 'นัดหมาย', number: 2 },
-  { key: 'confirm', label: 'ยืนยัน', number: 3 }
-] as const
+  { key: "select", label: "เลือกบริการ", number: 1 },
+  { key: "schedule", label: "นัดหมาย", number: 2 },
+  { key: "confirm", label: "ยืนยัน", number: 3 },
+] as const;
 
-const currentStepIndex = computed(() => steps.findIndex(s => s.key === currentStep.value))
+const currentStepIndex = computed(() =>
+  steps.findIndex((s) => s.key === currentStep.value)
+);
 
 // Categories with icons
 const categories = [
-  { id: 'hospital', name: 'โรงพยาบาล', color: '#E53935', bgColor: '#FFEBEE', desc: 'นัดพบแพทย์, ตรวจสุขภาพ' },
-  { id: 'bank', name: 'ธนาคาร', color: '#2196F3', bgColor: '#E3F2FD', desc: 'เปิดบัญชี, ทำธุรกรรม' },
-  { id: 'government', name: 'หน่วยงานราชการ', color: '#9C27B0', bgColor: '#F3E5F5', desc: 'ทำบัตร, จดทะเบียน' },
-  { id: 'restaurant', name: 'ร้านอาหาร', color: '#F5A623', bgColor: '#FFF8E1', desc: 'จองโต๊ะ, สั่งล่วงหน้า' },
-  { id: 'salon', name: 'ร้านเสริมสวย', color: '#E91E63', bgColor: '#FCE4EC', desc: 'ทำผม, สปา, นวด' },
-  { id: 'other', name: 'อื่นๆ', color: '#607D8B', bgColor: '#ECEFF1', desc: 'บริการอื่นๆ' }
-] as const
+  {
+    id: "hospital",
+    name: "โรงพยาบาล",
+    color: "#E53935",
+    bgColor: "#FFEBEE",
+    desc: "นัดพบแพทย์, ตรวจสุขภาพ",
+  },
+  {
+    id: "bank",
+    name: "ธนาคาร",
+    color: "#2196F3",
+    bgColor: "#E3F2FD",
+    desc: "เปิดบัญชี, ทำธุรกรรม",
+  },
+  {
+    id: "government",
+    name: "หน่วยงานราชการ",
+    color: "#9C27B0",
+    bgColor: "#F3E5F5",
+    desc: "ทำบัตร, จดทะเบียน",
+  },
+  {
+    id: "restaurant",
+    name: "ร้านอาหาร",
+    color: "#F5A623",
+    bgColor: "#FFF8E1",
+    desc: "จองโต๊ะ, สั่งล่วงหน้า",
+  },
+  {
+    id: "salon",
+    name: "ร้านเสริมสวย",
+    color: "#E91E63",
+    bgColor: "#FCE4EC",
+    desc: "ทำผม, สปา, นวด",
+  },
+  {
+    id: "other",
+    name: "อื่นๆ",
+    color: "#607D8B",
+    bgColor: "#ECEFF1",
+    desc: "บริการอื่นๆ",
+  },
+] as const;
 
 // Form state
-const selectedCategory = ref<'hospital' | 'bank' | 'government' | 'restaurant' | 'salon' | 'other' | ''>('')
-const placeName = ref('')
-const placeAddress = ref('')
-const queueDetails = ref('')
-const selectedDate = ref('')
-const selectedTime = ref('')
+const selectedCategory = ref<
+  "hospital" | "bank" | "government" | "restaurant" | "salon" | "other" | ""
+>("");
+const placeName = ref("");
+const placeAddress = ref("");
+const queueDetails = ref("");
+const selectedDate = ref("");
+const selectedTime = ref("");
 
 // UI state
-const showExitConfirm = ref(false)
-const showSaveFavoriteModal = ref(false)
-const selectedFavorite = ref<QueueFavoriteWithStats | null>(null)
-const isQuickBooking = ref(false)
+const showExitConfirm = ref(false);
+const showSaveFavoriteModal = ref(false);
+const selectedFavorite = ref<QueueFavoriteWithStats | null>(null);
+const isQuickBooking = ref(false);
 
 // Estimated wait time
-const estimatedWait = ref<EstimatedWaitTime | null>(null)
-const loadingWaitTime = ref(false)
+const estimatedWait = ref<EstimatedWaitTime | null>(null);
+const loadingWaitTime = ref(false);
 
 // Set minimum date to today
-const today = new Date().toISOString().split('T')[0]
+const today = new Date().toISOString().split("T")[0];
 
 // Initialize
 onMounted(async () => {
-  clearError()
-  await Promise.all([fetchUserBookings(), fetchRecentPlaces(5), fetchFavorites()])
-})
+  clearError();
+  await Promise.all([
+    fetchUserBookings(),
+    fetchRecentPlaces(5),
+    fetchFavorites(),
+  ]);
+});
 
 // Watch for place changes to fetch estimated wait time
-watch([placeName, selectedCategory, selectedTime], async ([name, category, time]) => {
-  if (name && category) {
-    loadingWaitTime.value = true
-    estimatedWait.value = await getEstimatedWaitTime(name, category, time || undefined)
-    loadingWaitTime.value = false
-  } else {
-    estimatedWait.value = null
-  }
-}, { debounce: 500 } as any)
+watch(
+  [placeName, selectedCategory, selectedTime],
+  async ([name, category, time]) => {
+    if (name && category) {
+      loadingWaitTime.value = true;
+      estimatedWait.value = await getEstimatedWaitTime(
+        name,
+        category,
+        time || undefined
+      );
+      loadingWaitTime.value = false;
+    } else {
+      estimatedWait.value = null;
+    }
+  },
+  { debounce: 500 } as any
+);
 
 onUnmounted(() => {
-  clearError()
-})
+  clearError();
+});
 
 // Haptic feedback
-const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
-  if ('vibrate' in navigator) {
-    const patterns = { light: 10, medium: 25, heavy: 50 }
-    navigator.vibrate(patterns[type])
+const triggerHaptic = (type: "light" | "medium" | "heavy" = "light") => {
+  if ("vibrate" in navigator) {
+    const patterns = { light: 10, medium: 25, heavy: 50 };
+    navigator.vibrate(patterns[type]);
   }
-}
+};
 
 // Navigation
 const goBack = () => {
-  if (currentStep.value === 'select') {
+  if (currentStep.value === "select") {
     if (selectedCategory.value || placeName.value) {
-      showExitConfirm.value = true
+      showExitConfirm.value = true;
     } else {
-      router.back()
+      router.back();
     }
   } else {
-    prevStep()
+    prevStep();
   }
-}
+};
 
 const confirmExit = () => {
-  triggerHaptic('heavy')
-  showExitConfirm.value = false
-  router.back()
-}
+  triggerHaptic("heavy");
+  showExitConfirm.value = false;
+  router.back();
+};
 
 // Step navigation
 const nextStep = () => {
-  triggerHaptic('medium')
-  const stepOrder: Step[] = ['select', 'schedule', 'confirm']
-  const currentIndex = stepOrder.indexOf(currentStep.value)
+  triggerHaptic("medium");
+  const stepOrder: Step[] = ["select", "schedule", "confirm"];
+  const currentIndex = stepOrder.indexOf(currentStep.value);
   if (currentIndex < stepOrder.length - 1) {
-    currentStep.value = stepOrder[currentIndex + 1] as Step
+    currentStep.value = stepOrder[currentIndex + 1] as Step;
   }
-}
+};
 
 const prevStep = () => {
-  triggerHaptic('light')
-  const stepOrder: Step[] = ['select', 'schedule', 'confirm']
-  const currentIndex = stepOrder.indexOf(currentStep.value)
+  triggerHaptic("light");
+  const stepOrder: Step[] = ["select", "schedule", "confirm"];
+  const currentIndex = stepOrder.indexOf(currentStep.value);
   if (currentIndex > 0) {
-    currentStep.value = stepOrder[currentIndex - 1] as Step
+    currentStep.value = stepOrder[currentIndex - 1] as Step;
   }
-}
+};
 
 // Category selection
 const selectCategory = (id: string) => {
-  triggerHaptic('medium')
-  selectedCategory.value = id as typeof selectedCategory.value
-  selectedFavorite.value = null
-  isQuickBooking.value = false
-}
+  triggerHaptic("medium");
+  selectedCategory.value = id as typeof selectedCategory.value;
+  selectedFavorite.value = null;
+  isQuickBooking.value = false;
+};
 
 // Quick booking from favorite
 const quickBookFromFavorite = (fav: QueueFavoriteWithStats) => {
-  triggerHaptic('medium')
-  selectedFavorite.value = fav
-  selectedCategory.value = fav.category as typeof selectedCategory.value
-  placeName.value = fav.place_name
-  placeAddress.value = fav.place_address || ''
-  queueDetails.value = fav.default_details || ''
-  isQuickBooking.value = true
-  
+  triggerHaptic("medium");
+  selectedFavorite.value = fav;
+  selectedCategory.value = fav.category as typeof selectedCategory.value;
+  placeName.value = fav.place_name;
+  placeAddress.value = fav.place_address || "";
+  queueDetails.value = fav.default_details || "";
+  isQuickBooking.value = true;
+
   if (fav.avg_wait_time) {
     estimatedWait.value = {
       avg_wait: fav.avg_wait_time,
       min_wait: Math.max(10, fav.avg_wait_time - 15),
       max_wait: fav.avg_wait_time + 30,
       time_based_wait: fav.avg_wait_time,
-      confidence: fav.confidence
-    }
+      confidence: fav.confidence,
+    };
   }
-  
+
   // Auto advance to schedule
-  nextTick(() => nextStep())
-}
+  nextTick(() => nextStep());
+};
 
 // Save current place as favorite
 const saveAsFavorite = async () => {
-  if (!placeName.value || !selectedCategory.value) return
-  
-  triggerHaptic('medium')
+  if (!placeName.value || !selectedCategory.value) return;
+
+  triggerHaptic("medium");
   const result = await saveFavoritePlace({
     category: selectedCategory.value,
     place_name: placeName.value,
     place_address: placeAddress.value || undefined,
-    default_details: queueDetails.value || undefined
-  })
-  
+    default_details: queueDetails.value || undefined,
+  });
+
   if (result) {
-    toast.success('บันทึกสถานที่โปรดแล้ว')
-    showSaveFavoriteModal.value = false
+    showSuccess("บันทึกสถานที่โปรดแล้ว");
+    showSaveFavoriteModal.value = false;
   } else {
-    toast.error('ไม่สามารถบันทึกได้')
+    showError("ไม่สามารถบันทึกได้");
   }
-}
+};
 
 // Check if current place is already favorite
 const isCurrentPlaceFavorite = computed(() => {
-  if (!placeName.value || !selectedCategory.value) return false
-  return isFavorite(placeName.value, selectedCategory.value)
-})
+  if (!placeName.value || !selectedCategory.value) return false;
+  return isFavorite(placeName.value, selectedCategory.value);
+});
 
 // Get favorites for current category
 const categoryFavorites = computed(() => {
-  if (!selectedCategory.value) return []
-  return getFavoritesByCategory(selectedCategory.value)
-})
+  if (!selectedCategory.value) return [];
+  return getFavoritesByCategory(selectedCategory.value);
+});
 
 // Validation
-const canProceedFromSelect = computed(() => !!selectedCategory.value)
+const canProceedFromSelect = computed(() => !!selectedCategory.value);
 const canProceedFromSchedule = computed(() => {
-  if (!selectedDate.value || !selectedTime.value) return false
-  const scheduledDateTime = new Date(`${selectedDate.value}T${selectedTime.value}`)
-  return scheduledDateTime > new Date()
-})
+  if (!selectedDate.value || !selectedTime.value) return false;
+  const scheduledDateTime = new Date(
+    `${selectedDate.value}T${selectedTime.value}`
+  );
+  return scheduledDateTime > new Date();
+});
 
-const isFormValid = computed(() => 
-  canProceedFromSelect.value && canProceedFromSchedule.value
-)
+const isFormValid = computed(
+  () => canProceedFromSelect.value && canProceedFromSchedule.value
+);
 
 // Quick time slots
 const timeSlots = [
-  { label: 'เช้า', time: '09:00', period: 'morning' },
-  { label: 'สาย', time: '11:00', period: 'late-morning' },
-  { label: 'บ่าย', time: '14:00', period: 'afternoon' },
-  { label: 'เย็น', time: '17:00', period: 'evening' }
-]
+  { label: "เช้า", time: "09:00", period: "morning" },
+  { label: "สาย", time: "11:00", period: "late-morning" },
+  { label: "บ่าย", time: "14:00", period: "afternoon" },
+  { label: "เย็น", time: "17:00", period: "evening" },
+];
 
 const selectTimeSlot = (time: string) => {
-  triggerHaptic('light')
-  selectedTime.value = time
-}
+  triggerHaptic("light");
+  selectedTime.value = time;
+};
 
 // Quick date options
 const dateOptions = computed(() => {
-  const options = []
-  const now = new Date()
-  
+  const options = [];
+  const now = new Date();
+
   for (let i = 0; i < 7; i++) {
-    const date = new Date(now)
-    date.setDate(date.getDate() + i)
-    const dateStr = date.toISOString().split('T')[0]
-    
-    let label = ''
-    let subLabel = ''
+    const date = new Date(now);
+    date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().split("T")[0];
+
+    let label = "";
+    let subLabel = "";
     if (i === 0) {
-      label = 'วันนี้'
-      subLabel = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+      label = "วันนี้";
+      subLabel = date.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "short",
+      });
     } else if (i === 1) {
-      label = 'พรุ่งนี้'
-      subLabel = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+      label = "พรุ่งนี้";
+      subLabel = date.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "short",
+      });
     } else {
-      label = date.toLocaleDateString('th-TH', { weekday: 'short' })
-      subLabel = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+      label = date.toLocaleDateString("th-TH", { weekday: "short" });
+      subLabel = date.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "short",
+      });
     }
-    
-    options.push({ date: dateStr, label, subLabel })
+
+    options.push({ date: dateStr, label, subLabel });
   }
-  return options
-})
+  return options;
+});
 
 const selectDate = (date: string) => {
-  triggerHaptic('light')
-  selectedDate.value = date
-}
+  triggerHaptic("light");
+  selectedDate.value = date;
+};
 
 // Submit booking
 const submitBooking = async () => {
-  if (!isFormValid.value || !selectedCategory.value) return
-  
-  triggerHaptic('heavy')
-  
+  if (!isFormValid.value || !selectedCategory.value) return;
+
+  triggerHaptic("heavy");
+
   const result = await createQueueBooking({
     category: selectedCategory.value,
     place_name: placeName.value || undefined,
     place_address: placeAddress.value || undefined,
     details: queueDetails.value || undefined,
     scheduled_date: selectedDate.value,
-    scheduled_time: selectedTime.value
-  })
-  
+    scheduled_time: selectedTime.value,
+  });
+
   if (result) {
-    toast.success('จองคิวสำเร็จ!')
-    router.push({ name: 'queue-tracking', params: { id: result.id } })
+    showSuccess("จองคิวสำเร็จ!");
+    router.push({ name: "queue-tracking", params: { id: result.id } });
   } else if (error.value) {
-    toast.error(error.value)
+    showError(error.value);
   }
-}
+};
 
 // Format helpers
 const formatDate = (date: string) => {
-  if (!date) return ''
-  return new Date(date).toLocaleDateString('th-TH', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
+  if (!date) return "";
+  return new Date(date).toLocaleDateString("th-TH", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
 
 const formatTime = (time: string) => {
-  if (!time) return ''
-  return time.substring(0, 5) + ' น.'
-}
+  if (!time) return "";
+  return time.substring(0, 5) + " น.";
+};
 
 const getCategoryInfo = (id: string) => {
-  return categories.find(c => c.id === id)
-}
+  return categories.find((c) => c.id === id);
+};
 
 // Service fee
-const serviceFee = 50
+const serviceFee = 50;
 </script>
 
 <template>
@@ -323,8 +390,13 @@ const serviceFee = 50
     <!-- Header -->
     <header class="header">
       <button class="back-btn" @click="goBack" aria-label="ย้อนกลับ">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 18l-6-6 6-6"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
       <h1>จองคิว</h1>
@@ -334,15 +406,25 @@ const serviceFee = 50
     <!-- Progress Steps -->
     <div class="progress-container">
       <div class="progress-steps">
-        <div 
-          v-for="(step, index) in steps" 
+        <div
+          v-for="(step, index) in steps"
           :key="step.key"
-          :class="['step', { active: index === currentStepIndex, completed: index < currentStepIndex }]"
+          :class="[
+            'step',
+            {
+              active: index === currentStepIndex,
+              completed: index < currentStepIndex,
+            },
+          ]"
         >
           <div class="step-indicator">
             <div class="step-dot">
-              <svg v-if="index < currentStepIndex" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              <svg
+                v-if="index < currentStepIndex"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
               </svg>
               <span v-else>{{ step.number }}</span>
             </div>
@@ -351,24 +433,44 @@ const serviceFee = 50
         </div>
       </div>
       <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }"></div>
+        <div
+          class="progress-fill"
+          :style="{
+            width: `${(currentStepIndex / (steps.length - 1)) * 100}%`,
+          }"
+        ></div>
       </div>
     </div>
 
     <!-- Active Bookings Alert -->
-    <div v-if="activeBookings.length > 0" class="active-alert" @click="router.push('/customer/queue-history')">
+    <div
+      v-if="activeBookings.length > 0"
+      class="active-alert"
+      @click="router.push('/customer/queue-history')"
+    >
       <div class="alert-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 6v6l4 2"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
         </svg>
       </div>
       <div class="alert-content">
         <span class="alert-title">คิวที่กำลังดำเนินการ</span>
         <span class="alert-count">{{ activeBookings.length }} รายการ</span>
       </div>
-      <svg class="alert-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 18l6-6-6-6"/>
+      <svg
+        class="alert-arrow"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M9 18l6-6-6-6" />
       </svg>
     </div>
 
@@ -376,9 +478,14 @@ const serviceFee = 50
     <main class="content">
       <!-- Error Message -->
       <div v-if="error" class="error-banner">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4M12 16h.01"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4M12 16h.01" />
         </svg>
         <span>{{ error }}</span>
       </div>
@@ -389,13 +496,15 @@ const serviceFee = 50
         <div v-if="topFavorites.length > 0" class="quick-section">
           <h2 class="section-title">
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              <path
+                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+              />
             </svg>
             จองด่วนจากสถานที่โปรด
           </h2>
           <div class="quick-cards">
-            <button 
-              v-for="fav in topFavorites.slice(0, 3)" 
+            <button
+              v-for="fav in topFavorites.slice(0, 3)"
               :key="fav.id"
               class="quick-card"
               @click="quickBookFromFavorite(fav)"
@@ -405,11 +514,18 @@ const serviceFee = 50
                 <span class="quick-badge">{{ fav.visit_count }}x</span>
               </div>
               <div class="quick-card-meta">
-                <span class="quick-category">{{ categoryLabels[fav.category as keyof typeof categoryLabels] }}</span>
+                <span class="quick-category">{{
+                  categoryLabels[fav.category as keyof typeof categoryLabels]
+                }}</span>
                 <span v-if="fav.avg_wait_time" class="quick-wait">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
                   </svg>
                   {{ formatWaitTime(fav.avg_wait_time) }}
                 </span>
@@ -422,39 +538,84 @@ const serviceFee = 50
         <div class="category-section">
           <h2 class="section-title">เลือกประเภทบริการ</h2>
           <div class="category-grid">
-            <button 
-              v-for="cat in categories" 
+            <button
+              v-for="cat in categories"
               :key="cat.id"
-              :class="['category-card', { active: selectedCategory === cat.id }]"
+              :class="[
+                'category-card',
+                { active: selectedCategory === cat.id },
+              ]"
               :style="{ '--cat-color': cat.color, '--cat-bg': cat.bgColor }"
               @click="selectCategory(cat.id)"
             >
               <div class="cat-icon-wrap">
-                <svg v-if="cat.id === 'hospital'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 21h18M9 8h6M12 5v6M5 21V7l7-4 7 4v14"/>
+                <svg
+                  v-if="cat.id === 'hospital'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M3 21h18M9 8h6M12 5v6M5 21V7l7-4 7 4v14" />
                 </svg>
-                <svg v-else-if="cat.id === 'bank'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/>
+                <svg
+                  v-else-if="cat.id === 'bank'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"
+                  />
                 </svg>
-                <svg v-else-if="cat.id === 'government'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/>
+                <svg
+                  v-else-if="cat.id === 'government'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6" />
                 </svg>
-                <svg v-else-if="cat.id === 'restaurant'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3v7"/>
+                <svg
+                  v-else-if="cat.id === 'restaurant'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3v7"
+                  />
                 </svg>
-                <svg v-else-if="cat.id === 'salon'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 3v18M18 3v18M6 8h12M6 16h12"/>
-                  <circle cx="12" cy="12" r="3"/>
+                <svg
+                  v-else-if="cat.id === 'salon'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M6 3v18M18 3v18M6 8h12M6 16h12" />
+                  <circle cx="12" cy="12" r="3" />
                 </svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+                  />
                 </svg>
               </div>
               <span class="cat-name">{{ cat.name }}</span>
               <div v-if="selectedCategory === cat.id" class="cat-check">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                 </svg>
               </div>
             </button>
@@ -464,17 +625,19 @@ const serviceFee = 50
         <!-- Place Details (shown when category selected) -->
         <div v-if="selectedCategory" class="place-section">
           <h3 class="subsection-title">ข้อมูลสถานที่</h3>
-          
+
           <!-- Category Favorites -->
           <div v-if="categoryFavorites.length > 0" class="fav-chips">
-            <button 
-              v-for="fav in categoryFavorites.slice(0, 4)" 
+            <button
+              v-for="fav in categoryFavorites.slice(0, 4)"
               :key="fav.id"
               :class="['fav-chip', { active: selectedFavorite?.id === fav.id }]"
               @click="quickBookFromFavorite(fav)"
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                <path
+                  d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                />
               </svg>
               {{ fav.place_name }}
             </button>
@@ -483,25 +646,36 @@ const serviceFee = 50
           <div class="form-group">
             <label class="form-label">ชื่อสถานที่</label>
             <div class="input-wrapper">
-              <input 
+              <input
                 v-model="placeName"
                 type="text"
-                :placeholder="getCategoryInfo(selectedCategory)?.desc || 'ระบุชื่อสถานที่'"
+                :placeholder="
+                  getCategoryInfo(selectedCategory)?.desc || 'ระบุชื่อสถานที่'
+                "
                 class="text-input"
               />
-              <button 
+              <button
                 v-if="placeName && !isCurrentPlaceFavorite"
                 class="input-action"
                 @click="showSaveFavoriteModal = true"
                 title="บันทึกเป็นสถานที่โปรด"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                  />
                 </svg>
               </button>
               <div v-else-if="isCurrentPlaceFavorite" class="input-badge">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  <path
+                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                  />
                 </svg>
               </div>
             </div>
@@ -510,23 +684,33 @@ const serviceFee = 50
           <!-- Wait Time Preview -->
           <div v-if="estimatedWait" class="wait-preview">
             <div class="wait-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
               </svg>
             </div>
             <div class="wait-info">
               <span class="wait-label">เวลารอโดยประมาณ</span>
-              <span class="wait-value">{{ formatWaitTime(estimatedWait.time_based_wait) }}</span>
+              <span class="wait-value">{{
+                formatWaitTime(estimatedWait.time_based_wait)
+              }}</span>
             </div>
-            <span class="wait-confidence" :style="{ color: getConfidenceColor(estimatedWait.confidence) }">
+            <span
+              class="wait-confidence"
+              :style="{ color: getConfidenceColor(estimatedWait.confidence) }"
+            >
               {{ getConfidenceLabel(estimatedWait.confidence) }}
             </span>
           </div>
 
           <div class="form-group">
             <label class="form-label">รายละเอียดเพิ่มเติม</label>
-            <textarea 
+            <textarea
               v-model="queueDetails"
               placeholder="เช่น บริการที่ต้องการ, แผนกที่ต้องไป..."
               class="textarea-input"
@@ -537,14 +721,19 @@ const serviceFee = 50
 
         <!-- Next Button -->
         <div class="step-footer">
-          <button 
+          <button
             class="btn-primary"
             :disabled="!canProceedFromSelect"
             @click="nextStep"
           >
             ถัดไป
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
         </div>
@@ -556,10 +745,12 @@ const serviceFee = 50
 
         <!-- Date Selection -->
         <div class="schedule-group">
-          <label class="form-label">วันที่ <span class="required">*</span></label>
+          <label class="form-label"
+            >วันที่ <span class="required">*</span></label
+          >
           <div class="date-scroll">
-            <button 
-              v-for="opt in dateOptions" 
+            <button
+              v-for="opt in dateOptions"
               :key="opt.date"
               :class="['date-card', { active: selectedDate === opt.date }]"
               @click="selectDate(opt.date)"
@@ -574,54 +765,90 @@ const serviceFee = 50
         <div class="schedule-group">
           <label class="form-label">เวลา <span class="required">*</span></label>
           <div class="time-grid">
-            <button 
-              v-for="slot in timeSlots" 
+            <button
+              v-for="slot in timeSlots"
               :key="slot.time"
               :class="['time-card', { active: selectedTime === slot.time }]"
               @click="selectTimeSlot(slot.time)"
             >
-              <svg v-if="slot.period === 'morning'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+              <svg
+                v-if="slot.period === 'morning'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+                />
               </svg>
-              <svg v-else-if="slot.period === 'late-morning'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="5"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
+              <svg
+                v-else-if="slot.period === 'late-morning'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="5" />
+                <path
+                  d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"
+                />
               </svg>
-              <svg v-else-if="slot.period === 'afternoon'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 3v1M12 20v1M3 12h1M20 12h1M5.6 5.6l.7.7M17.7 17.7l.7.7"/>
+              <svg
+                v-else-if="slot.period === 'afternoon'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 3v1M12 20v1M3 12h1M20 12h1M5.6 5.6l.7.7M17.7 17.7l.7.7"
+                />
               </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
               </svg>
               <span class="time-label">{{ slot.label }}</span>
               <span class="time-value">{{ slot.time }}</span>
             </button>
           </div>
-          <input 
-            type="time" 
-            v-model="selectedTime"
-            class="time-input"
-          />
+          <input type="time" v-model="selectedTime" class="time-input" />
         </div>
 
         <!-- Footer Actions -->
         <div class="step-footer dual">
           <button class="btn-secondary" @click="prevStep">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 18l-6-6 6-6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M15 18l-6-6 6-6" />
             </svg>
             ย้อนกลับ
           </button>
-          <button 
+          <button
             class="btn-primary"
             :disabled="!canProceedFromSchedule"
             @click="nextStep"
           >
             ถัดไป
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
         </div>
@@ -634,31 +861,79 @@ const serviceFee = 50
         <div class="confirm-card">
           <!-- Category & Place -->
           <div class="confirm-item">
-            <div class="confirm-icon" :style="{ background: getCategoryInfo(selectedCategory)?.bgColor, color: getCategoryInfo(selectedCategory)?.color }">
-              <svg v-if="selectedCategory === 'hospital'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 21h18M9 8h6M12 5v6M5 21V7l7-4 7 4v14"/>
+            <div
+              class="confirm-icon"
+              :style="{
+                background: getCategoryInfo(selectedCategory)?.bgColor,
+                color: getCategoryInfo(selectedCategory)?.color,
+              }"
+            >
+              <svg
+                v-if="selectedCategory === 'hospital'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 21h18M9 8h6M12 5v6M5 21V7l7-4 7 4v14" />
               </svg>
-              <svg v-else-if="selectedCategory === 'bank'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/>
+              <svg
+                v-else-if="selectedCategory === 'bank'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"
+                />
               </svg>
-              <svg v-else-if="selectedCategory === 'government'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6"/>
+              <svg
+                v-else-if="selectedCategory === 'government'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 21h18M4 21V10l8-6 8 6v11M9 21v-6h6v6" />
               </svg>
-              <svg v-else-if="selectedCategory === 'restaurant'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3v7"/>
+              <svg
+                v-else-if="selectedCategory === 'restaurant'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3v7"
+                />
               </svg>
-              <svg v-else-if="selectedCategory === 'salon'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 3v18M18 3v18M6 8h12M6 16h12"/>
-                <circle cx="12" cy="12" r="3"/>
+              <svg
+                v-else-if="selectedCategory === 'salon'"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 3v18M18 3v18M6 8h12M6 16h12" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 2v4M12 18v4"/>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v4M12 18v4" />
               </svg>
             </div>
             <div class="confirm-info">
               <span class="confirm-label">ประเภท</span>
-              <span class="confirm-value">{{ categoryLabels[selectedCategory as keyof typeof categoryLabels] }}</span>
+              <span class="confirm-value">{{
+                categoryLabels[selectedCategory as keyof typeof categoryLabels]
+              }}</span>
               <span v-if="placeName" class="confirm-sub">{{ placeName }}</span>
             </div>
           </div>
@@ -666,24 +941,38 @@ const serviceFee = 50
           <!-- Schedule -->
           <div class="confirm-item">
             <div class="confirm-icon schedule">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="4" width="18" height="18" rx="2"/>
-                <path d="M16 2v4M8 2v4M3 10h18"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
               </svg>
             </div>
             <div class="confirm-info">
               <span class="confirm-label">วันและเวลา</span>
               <span class="confirm-value">{{ formatDate(selectedDate) }}</span>
-              <span class="confirm-sub">เวลา {{ formatTime(selectedTime) }}</span>
+              <span class="confirm-sub"
+                >เวลา {{ formatTime(selectedTime) }}</span
+              >
             </div>
           </div>
 
           <!-- Details -->
           <div v-if="queueDetails" class="confirm-item">
             <div class="confirm-icon details">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                />
+                <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
               </svg>
             </div>
             <div class="confirm-info">
@@ -705,18 +994,23 @@ const serviceFee = 50
         <!-- Footer Actions -->
         <div class="step-footer dual">
           <button class="btn-secondary" @click="prevStep">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 18l-6-6 6-6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M15 18l-6-6 6-6" />
             </svg>
             แก้ไข
           </button>
-          <button 
+          <button
             class="btn-primary submit"
             :disabled="!isFormValid || loading"
             @click="submitBooking"
           >
             <span v-if="loading" class="spinner"></span>
-            <span>{{ loading ? 'กำลังจอง...' : 'ยืนยันจองคิว' }}</span>
+            <span>{{ loading ? "กำลังจอง..." : "ยืนยันจองคิว" }}</span>
           </button>
         </div>
       </section>
@@ -724,18 +1018,31 @@ const serviceFee = 50
 
     <!-- Exit Confirmation Modal -->
     <Teleport to="body">
-      <div v-if="showExitConfirm" class="modal-overlay" @click.self="showExitConfirm = false">
+      <div
+        v-if="showExitConfirm"
+        class="modal-overlay"
+        @click.self="showExitConfirm = false"
+      >
         <div class="modal-box">
           <div class="modal-icon warning">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <path d="M12 9v4M12 17h.01"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
+              <path d="M12 9v4M12 17h.01" />
             </svg>
           </div>
           <h3>ยกเลิกการจอง?</h3>
           <p>ข้อมูลที่กรอกไว้จะหายไป</p>
           <div class="modal-actions">
-            <button class="btn-secondary" @click="showExitConfirm = false">กลับไปกรอก</button>
+            <button class="btn-secondary" @click="showExitConfirm = false">
+              กลับไปกรอก
+            </button>
             <button class="btn-danger" @click="confirmExit">ยกเลิก</button>
           </div>
         </div>
@@ -744,19 +1051,34 @@ const serviceFee = 50
 
     <!-- Save Favorite Modal -->
     <Teleport to="body">
-      <div v-if="showSaveFavoriteModal" class="modal-overlay" @click.self="showSaveFavoriteModal = false">
+      <div
+        v-if="showSaveFavoriteModal"
+        class="modal-overlay"
+        @click.self="showSaveFavoriteModal = false"
+      >
         <div class="modal-box">
           <div class="modal-icon favorite">
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              <path
+                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+              />
             </svg>
           </div>
           <h3>บันทึกสถานที่โปรด</h3>
           <p>บันทึก "{{ placeName }}" เพื่อจองคิวได้เร็วขึ้นในครั้งถัดไป</p>
           <div class="modal-actions">
-            <button class="btn-secondary" @click="showSaveFavoriteModal = false">ยกเลิก</button>
-            <button class="btn-primary" @click="saveAsFavorite" :disabled="favoritesLoading">
-              {{ favoritesLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
+            <button
+              class="btn-secondary"
+              @click="showSaveFavoriteModal = false"
+            >
+              ยกเลิก
+            </button>
+            <button
+              class="btn-primary"
+              @click="saveAsFavorite"
+              :disabled="favoritesLoading"
+            >
+              {{ favoritesLoading ? "กำลังบันทึก..." : "บันทึก" }}
             </button>
           </div>
         </div>
@@ -770,7 +1092,7 @@ const serviceFee = 50
 .queue-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #FFFFFF;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -782,8 +1104,8 @@ const serviceFee = 50
   justify-content: space-between;
   padding: 12px 16px;
   padding-top: calc(12px + env(safe-area-inset-top));
-  background: #FFFFFF;
-  border-bottom: 1px solid #F0F0F0;
+  background: #ffffff;
+  border-bottom: 1px solid #f0f0f0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -802,22 +1124,30 @@ const serviceFee = 50
   transition: background 0.15s;
 }
 
-.back-btn:active { background: #F5F5F5; }
-.back-btn svg { width: 24px; height: 24px; color: #1A1A1A; }
+.back-btn:active {
+  background: #f5f5f5;
+}
+.back-btn svg {
+  width: 24px;
+  height: 24px;
+  color: #1a1a1a;
+}
 
 .header h1 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0;
 }
 
-.header-spacer { width: 40px; }
+.header-spacer {
+  width: 40px;
+}
 
 /* Progress */
 .progress-container {
   padding: 16px 20px;
-  background: #FFFFFF;
+  background: #ffffff;
 }
 
 .progress-steps {
@@ -835,13 +1165,15 @@ const serviceFee = 50
   z-index: 1;
 }
 
-.step-indicator { position: relative; }
+.step-indicator {
+  position: relative;
+}
 
 .step-dot {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #E8E8E8;
+  background: #e8e8e8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -852,18 +1184,21 @@ const serviceFee = 50
 }
 
 .step.active .step-dot {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
   transform: scale(1.1);
   box-shadow: 0 2px 8px rgba(0, 168, 107, 0.3);
 }
 
 .step.completed .step-dot {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
 }
 
-.step.completed .step-dot svg { width: 18px; height: 18px; }
+.step.completed .step-dot svg {
+  width: 18px;
+  height: 18px;
+}
 
 .step-label {
   font-size: 12px;
@@ -872,18 +1207,20 @@ const serviceFee = 50
 }
 
 .step.active .step-label,
-.step.completed .step-label { color: #00A86B; }
+.step.completed .step-label {
+  color: #00a86b;
+}
 
 .progress-bar {
   height: 4px;
-  background: #E8E8E8;
+  background: #e8e8e8;
   border-radius: 2px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #00A86B, #00C77B);
+  background: linear-gradient(90deg, #00a86b, #00c77b);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -895,41 +1232,53 @@ const serviceFee = 50
   gap: 12px;
   margin: 0 16px 12px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #E8F5EF 0%, #D4EDDA 100%);
+  background: linear-gradient(135deg, #e8f5ef 0%, #d4edda 100%);
   border-radius: 14px;
   cursor: pointer;
   transition: transform 0.15s;
 }
 
-.active-alert:active { transform: scale(0.98); }
+.active-alert:active {
+  transform: scale(0.98);
+}
 
 .alert-icon {
   width: 40px;
   height: 40px;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.alert-icon svg { width: 20px; height: 20px; color: #00A86B; }
+.alert-icon svg {
+  width: 20px;
+  height: 20px;
+  color: #00a86b;
+}
 
-.alert-content { flex: 1; }
+.alert-content {
+  flex: 1;
+}
 
 .alert-title {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .alert-count {
   font-size: 12px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
-.alert-arrow { width: 20px; height: 20px; color: #00A86B; }
+.alert-arrow {
+  width: 20px;
+  height: 20px;
+  color: #00a86b;
+}
 
 /* Content */
 .content {
@@ -943,22 +1292,32 @@ const serviceFee = 50
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: #FFEBEE;
-  color: #E53935;
+  background: #ffebee;
+  color: #e53935;
   border-radius: 12px;
   font-size: 14px;
   margin-bottom: 16px;
 }
 
-.error-banner svg { width: 20px; height: 20px; flex-shrink: 0; }
+.error-banner svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
 
 .step-content {
   animation: slideIn 0.25s ease;
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .section-title {
@@ -967,14 +1326,14 @@ const serviceFee = 50
   gap: 8px;
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 16px;
 }
 
 .section-title svg {
   width: 20px;
   height: 20px;
-  color: #F5A623;
+  color: #f5a623;
 }
 
 .subsection-title {
@@ -988,7 +1347,7 @@ const serviceFee = 50
 .quick-section {
   margin-bottom: 24px;
   padding-bottom: 20px;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .quick-cards {
@@ -1002,8 +1361,8 @@ const serviceFee = 50
   flex-direction: column;
   gap: 6px;
   padding: 14px 16px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%);
-  border: 2px solid #F0F0F0;
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  border: 2px solid #f0f0f0;
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.15s;
@@ -1013,7 +1372,7 @@ const serviceFee = 50
 
 .quick-card:active {
   transform: scale(0.98);
-  border-color: #00A86B;
+  border-color: #00a86b;
 }
 
 .quick-card-header {
@@ -1025,14 +1384,14 @@ const serviceFee = 50
 .quick-name {
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .quick-badge {
   font-size: 11px;
   font-weight: 600;
-  color: #00A86B;
-  background: #E8F5EF;
+  color: #00a86b;
+  background: #e8f5ef;
   padding: 4px 8px;
   border-radius: 8px;
 }
@@ -1056,7 +1415,10 @@ const serviceFee = 50
   color: #999999;
 }
 
-.quick-wait svg { width: 14px; height: 14px; }
+.quick-wait svg {
+  width: 14px;
+  height: 14px;
+}
 
 /* Category Grid */
 .category-grid {
@@ -1079,7 +1441,9 @@ const serviceFee = 50
   position: relative;
 }
 
-.category-card:active { transform: scale(0.95); }
+.category-card:active {
+  transform: scale(0.95);
+}
 
 .category-card.active {
   border-color: var(--cat-color);
@@ -1089,7 +1453,7 @@ const serviceFee = 50
 .cat-icon-wrap {
   width: 48px;
   height: 48px;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -1098,12 +1462,15 @@ const serviceFee = 50
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.cat-icon-wrap svg { width: 24px; height: 24px; }
+.cat-icon-wrap svg {
+  width: 24px;
+  height: 24px;
+}
 
 .cat-name {
   font-size: 12px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   text-align: center;
 }
 
@@ -1118,16 +1485,19 @@ const serviceFee = 50
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
-.cat-check svg { width: 14px; height: 14px; }
+.cat-check svg {
+  width: 14px;
+  height: 14px;
+}
 
 /* Place Section */
 .place-section {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid #F0F0F0;
+  border-top: 1px solid #f0f0f0;
 }
 
 .fav-chips {
@@ -1142,36 +1512,44 @@ const serviceFee = 50
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  background: #FFF8E1;
+  background: #fff8e1;
   border: 2px solid transparent;
   border-radius: 20px;
   font-size: 13px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.fav-chip svg { width: 14px; height: 14px; color: #F5A623; }
+.fav-chip svg {
+  width: 14px;
+  height: 14px;
+  color: #f5a623;
+}
 
 .fav-chip:active,
 .fav-chip.active {
-  border-color: #F5A623;
-  background: #FFF3E0;
+  border-color: #f5a623;
+  background: #fff3e0;
 }
 
 /* Form Elements */
-.form-group { margin-bottom: 16px; }
+.form-group {
+  margin-bottom: 16px;
+}
 
 .form-label {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 8px;
 }
 
-.required { color: #E53935; }
+.required {
+  color: #e53935;
+}
 
 .input-wrapper {
   position: relative;
@@ -1183,20 +1561,22 @@ const serviceFee = 50
   width: 100%;
   padding: 14px 16px;
   padding-right: 48px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 15px;
-  color: #1A1A1A;
-  background: #FFFFFF;
+  color: #1a1a1a;
+  background: #ffffff;
   transition: border-color 0.15s;
 }
 
 .text-input:focus {
   outline: none;
-  border-color: #00A86B;
+  border-color: #00a86b;
 }
 
-.text-input::placeholder { color: #999999; }
+.text-input::placeholder {
+  color: #999999;
+}
 
 .input-action {
   position: absolute;
@@ -1206,37 +1586,47 @@ const serviceFee = 50
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #FFF3E0;
+  background: #fff3e0;
   border: none;
   border-radius: 10px;
   cursor: pointer;
   transition: transform 0.15s;
 }
 
-.input-action:active { transform: scale(0.9); }
-.input-action svg { width: 18px; height: 18px; color: #F5A623; }
+.input-action:active {
+  transform: scale(0.9);
+}
+.input-action svg {
+  width: 18px;
+  height: 18px;
+  color: #f5a623;
+}
 
 .input-badge {
   position: absolute;
   right: 12px;
 }
 
-.input-badge svg { width: 20px; height: 20px; color: #F5A623; }
+.input-badge svg {
+  width: 20px;
+  height: 20px;
+  color: #f5a623;
+}
 
 .textarea-input {
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 15px;
-  color: #1A1A1A;
+  color: #1a1a1a;
   resize: none;
   font-family: inherit;
 }
 
 .textarea-input:focus {
   outline: none;
-  border-color: #00A86B;
+  border-color: #00a86b;
 }
 
 /* Wait Preview */
@@ -1245,7 +1635,7 @@ const serviceFee = 50
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #E3F2FD;
+  background: #e3f2fd;
   border-radius: 12px;
   margin-bottom: 16px;
 }
@@ -1253,16 +1643,22 @@ const serviceFee = 50
 .wait-icon {
   width: 40px;
   height: 40px;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.wait-icon svg { width: 20px; height: 20px; color: #2196F3; }
+.wait-icon svg {
+  width: 20px;
+  height: 20px;
+  color: #2196f3;
+}
 
-.wait-info { flex: 1; }
+.wait-info {
+  flex: 1;
+}
 
 .wait-label {
   display: block;
@@ -1273,19 +1669,21 @@ const serviceFee = 50
 .wait-value {
   font-size: 16px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .wait-confidence {
   font-size: 11px;
   font-weight: 600;
   padding: 4px 8px;
-  background: rgba(255,255,255,0.8);
+  background: rgba(255, 255, 255, 0.8);
   border-radius: 6px;
 }
 
 /* Schedule Section */
-.schedule-group { margin-bottom: 20px; }
+.schedule-group {
+  margin-bottom: 20px;
+}
 
 .date-scroll {
   display: flex;
@@ -1302,24 +1700,26 @@ const serviceFee = 50
   gap: 2px;
   min-width: 72px;
   padding: 12px 16px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border: 2px solid transparent;
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.date-card:active { transform: scale(0.95); }
+.date-card:active {
+  transform: scale(0.95);
+}
 
 .date-card.active {
-  background: #E8F5EF;
-  border-color: #00A86B;
+  background: #e8f5ef;
+  border-color: #00a86b;
 }
 
 .date-label {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .date-sub {
@@ -1328,7 +1728,9 @@ const serviceFee = 50
 }
 
 .date-card.active .date-label,
-.date-card.active .date-sub { color: #00A86B; }
+.date-card.active .date-sub {
+  color: #00a86b;
+}
 
 .time-grid {
   display: grid;
@@ -1343,18 +1745,20 @@ const serviceFee = 50
   align-items: center;
   gap: 4px;
   padding: 14px 8px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border: 2px solid transparent;
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.time-card:active { transform: scale(0.95); }
+.time-card:active {
+  transform: scale(0.95);
+}
 
 .time-card.active {
-  background: #E8F5EF;
-  border-color: #00A86B;
+  background: #e8f5ef;
+  border-color: #00a86b;
 }
 
 .time-card svg {
@@ -1363,12 +1767,14 @@ const serviceFee = 50
   color: #666666;
 }
 
-.time-card.active svg { color: #00A86B; }
+.time-card.active svg {
+  color: #00a86b;
+}
 
 .time-label {
   font-size: 12px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .time-value {
@@ -1377,26 +1783,28 @@ const serviceFee = 50
 }
 
 .time-card.active .time-label,
-.time-card.active .time-value { color: #00A86B; }
+.time-card.active .time-value {
+  color: #00a86b;
+}
 
 .time-input {
   width: 100%;
   padding: 12px 16px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 15px;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .time-input:focus {
   outline: none;
-  border-color: #00A86B;
+  border-color: #00a86b;
 }
 
 /* Confirmation */
 .confirm-card {
-  background: #FFFFFF;
-  border: 1px solid #F0F0F0;
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
   border-radius: 16px;
   overflow: hidden;
 }
@@ -1406,10 +1814,12 @@ const serviceFee = 50
   align-items: flex-start;
   gap: 14px;
   padding: 16px;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.confirm-item:last-child { border-bottom: none; }
+.confirm-item:last-child {
+  border-bottom: none;
+}
 
 .confirm-icon {
   width: 44px;
@@ -1421,19 +1831,24 @@ const serviceFee = 50
   flex-shrink: 0;
 }
 
-.confirm-icon svg { width: 22px; height: 22px; }
+.confirm-icon svg {
+  width: 22px;
+  height: 22px;
+}
 
 .confirm-icon.schedule {
-  background: #E3F2FD;
-  color: #2196F3;
+  background: #e3f2fd;
+  color: #2196f3;
 }
 
 .confirm-icon.details {
-  background: #FFF3E0;
-  color: #F5A623;
+  background: #fff3e0;
+  color: #f5a623;
 }
 
-.confirm-info { flex: 1; }
+.confirm-info {
+  flex: 1;
+}
 
 .confirm-label {
   display: block;
@@ -1448,7 +1863,7 @@ const serviceFee = 50
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .confirm-sub {
@@ -1462,7 +1877,7 @@ const serviceFee = 50
 .fee-summary {
   margin-top: 16px;
   padding: 16px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 14px;
 }
 
@@ -1474,13 +1889,13 @@ const serviceFee = 50
 
 .fee-row span:first-child {
   font-size: 15px;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .fee-amount {
   font-size: 22px;
   font-weight: 700;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .fee-note {
@@ -1488,7 +1903,7 @@ const serviceFee = 50
   color: #666666;
   margin: 12px 0 0;
   padding-top: 12px;
-  border-top: 1px solid #E8E8E8;
+  border-top: 1px solid #e8e8e8;
 }
 
 /* Footer Actions */
@@ -1499,8 +1914,8 @@ const serviceFee = 50
   right: 0;
   padding: 16px 0;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  background: #FFFFFF;
-  border-top: 1px solid #F0F0F0;
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
   margin-top: 24px;
 }
 
@@ -1516,8 +1931,8 @@ const serviceFee = 50
   justify-content: center;
   gap: 6px;
   padding: 16px;
-  background: #F5F5F5;
-  color: #1A1A1A;
+  background: #f5f5f5;
+  color: #1a1a1a;
   border: none;
   border-radius: 14px;
   font-size: 15px;
@@ -1526,8 +1941,13 @@ const serviceFee = 50
   transition: background 0.15s;
 }
 
-.btn-secondary:active { background: #E8E8E8; }
-.btn-secondary svg { width: 18px; height: 18px; }
+.btn-secondary:active {
+  background: #e8e8e8;
+}
+.btn-secondary svg {
+  width: 18px;
+  height: 18px;
+}
 
 .btn-primary {
   flex: 2;
@@ -1536,8 +1956,8 @@ const serviceFee = 50
   justify-content: center;
   gap: 8px;
   padding: 16px 24px;
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
   border: none;
   border-radius: 14px;
   font-size: 16px;
@@ -1551,8 +1971,13 @@ const serviceFee = 50
   cursor: not-allowed;
 }
 
-.btn-primary:not(:disabled):active { transform: scale(0.98); }
-.btn-primary svg { width: 18px; height: 18px; }
+.btn-primary:not(:disabled):active {
+  transform: scale(0.98);
+}
+.btn-primary svg {
+  width: 18px;
+  height: 18px;
+}
 
 .btn-primary.submit {
   box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
@@ -1561,19 +1986,23 @@ const serviceFee = 50
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #FFFFFF;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .btn-danger {
   flex: 1;
   padding: 14px;
-  background: #E53935;
-  color: #FFFFFF;
+  background: #e53935;
+  color: #ffffff;
   border: none;
   border-radius: 12px;
   font-size: 15px;
@@ -1581,7 +2010,9 @@ const serviceFee = 50
   cursor: pointer;
 }
 
-.btn-danger:active { opacity: 0.9; }
+.btn-danger:active {
+  opacity: 0.9;
+}
 
 /* Modal */
 .modal-overlay {
@@ -1600,12 +2031,16 @@ const serviceFee = 50
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-box {
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 20px;
   padding: 24px;
   width: 100%;
@@ -1615,8 +2050,14 @@ const serviceFee = 50
 }
 
 @keyframes scaleIn {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .modal-icon {
@@ -1630,21 +2071,24 @@ const serviceFee = 50
 }
 
 .modal-icon.warning {
-  background: #FFF3E0;
-  color: #F5A623;
+  background: #fff3e0;
+  color: #f5a623;
 }
 
 .modal-icon.favorite {
-  background: #FFF3E0;
-  color: #F5A623;
+  background: #fff3e0;
+  color: #f5a623;
 }
 
-.modal-icon svg { width: 28px; height: 28px; }
+.modal-icon svg {
+  width: 28px;
+  height: 28px;
+}
 
 .modal-box h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 8px;
 }
 

@@ -2,24 +2,25 @@
 /**
  * Feature: F152 - Provider Earnings Card
  * Display provider earnings summary
+ * UI Design: MUNEEF Style - Green Gradient #00A86B
  */
 
 interface Props {
-  todayEarnings: number
-  weekEarnings: number
-  monthEarnings: number
-  pendingPayout: number
-  currency?: string
+  todayEarnings: number;
+  weekEarnings: number;
+  monthEarnings: number;
+  pendingPayout: number;
+  currency?: string;
 }
 
 withDefaults(defineProps<Props>(), {
-  currency: '฿'
-})
+  currency: "฿",
+});
 
 const emit = defineEmits<{
-  viewDetails: []
-  withdraw: []
-}>()
+  viewDetails: [];
+  withdraw: [];
+}>();
 </script>
 
 <template>
@@ -30,32 +31,47 @@ const emit = defineEmits<{
         ดูรายละเอียด
       </button>
     </div>
-    
+
     <div class="today-earnings">
       <span class="earnings-label">วันนี้</span>
-      <span class="earnings-amount">{{ currency }}{{ todayEarnings.toLocaleString() }}</span>
+      <span class="earnings-amount"
+        >{{ currency }}{{ todayEarnings.toLocaleString() }}</span
+      >
     </div>
-    
+
     <div class="earnings-grid">
       <div class="earnings-item">
         <span class="item-label">สัปดาห์นี้</span>
-        <span class="item-value">{{ currency }}{{ weekEarnings.toLocaleString() }}</span>
+        <span class="item-value"
+          >{{ currency }}{{ weekEarnings.toLocaleString() }}</span
+        >
       </div>
       <div class="earnings-item">
         <span class="item-label">เดือนนี้</span>
-        <span class="item-value">{{ currency }}{{ monthEarnings.toLocaleString() }}</span>
+        <span class="item-value"
+          >{{ currency }}{{ monthEarnings.toLocaleString() }}</span
+        >
       </div>
     </div>
-    
+
     <div class="payout-section">
       <div class="payout-info">
         <span class="payout-label">รอถอนเงิน</span>
-        <span class="payout-amount">{{ currency }}{{ pendingPayout.toLocaleString() }}</span>
+        <span class="payout-amount"
+          >{{ currency }}{{ pendingPayout.toLocaleString() }}</span
+        >
       </div>
 
       <button type="button" class="withdraw-btn" @click="emit('withdraw')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 19V5M5 12l7-7 7 7"/>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M12 19V5M5 12l7-7 7 7" />
         </svg>
         ถอนเงิน
       </button>
@@ -65,7 +81,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .earnings-card {
-  background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%);
+  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
   border-radius: 20px;
   padding: 20px;
   color: #fff;
