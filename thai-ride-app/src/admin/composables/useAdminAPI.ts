@@ -979,6 +979,82 @@ export function useAdminAPI() {
     }
   }
 
+  // ============================================
+  // REAL-TIME ANALYTICS
+  // ============================================
+
+  async function getRealtimeOrderStats() {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_realtime_order_stats') as RpcResponse<any>
+      if (queryError) throw queryError
+      return data || {
+        today_orders: 0,
+        today_completed: 0,
+        today_cancelled: 0,
+        today_revenue: 0,
+        active_rides: 0,
+        online_providers: 0,
+        hourly_orders: []
+      }
+    } catch (e) {
+      console.error('getRealtimeOrderStats error:', e)
+      return {
+        today_orders: 0,
+        today_completed: 0,
+        today_cancelled: 0,
+        today_revenue: 0,
+        active_rides: 0,
+        online_providers: 0,
+        hourly_orders: []
+      }
+    }
+  }
+
+  async function getRealtimeServiceBreakdown() {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_realtime_service_breakdown') as RpcResponse<any>
+      if (queryError) throw queryError
+      return data || {}
+    } catch (e) {
+      console.error('getRealtimeServiceBreakdown error:', e)
+      return {}
+    }
+  }
+
+  async function getLiveProviderStats() {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_live_provider_stats') as RpcResponse<any>
+      if (queryError) throw queryError
+      return data || {
+        total_providers: 0,
+        online_providers: 0,
+        busy_providers: 0,
+        by_type: {},
+        pending_verification: 0
+      }
+    } catch (e) {
+      console.error('getLiveProviderStats error:', e)
+      return {
+        total_providers: 0,
+        online_providers: 0,
+        busy_providers: 0,
+        by_type: {},
+        pending_verification: 0
+      }
+    }
+  }
+
+  async function getRevenueTrends() {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_revenue_trends') as RpcResponse<any[]>
+      if (queryError) throw queryError
+      return data || []
+    } catch (e) {
+      console.error('getRevenueTrends error:', e)
+      return []
+    }
+  }
+
   return {
     isLoading,
     error,
@@ -1007,6 +1083,11 @@ export function useAdminAPI() {
     getServiceBundles,
     getServiceBundlesStats,
     // Dashboard
-    getDashboardStats
+    getDashboardStats,
+    // Real-time Analytics
+    getRealtimeOrderStats,
+    getRealtimeServiceBreakdown,
+    getLiveProviderStats,
+    getRevenueTrends
   }
 }
