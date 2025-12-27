@@ -165,7 +165,7 @@ const menuItems = computed<MenuItem[]>(() => [
         label: "Payment Settings",
         labelTh: "ตั้งค่าชำระเงิน",
         icon: "gear",
-        path: "/admin/v2/payment-settings",
+        path: "/admin/payment-settings",
         permission: "finance",
       },
     ],

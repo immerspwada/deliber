@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="view-header">
       <div>
-        <h1 class="view-title">🔍 System Logs</h1>
+        <h1 class="view-title">System Logs</h1>
         <p class="view-subtitle">ติดตาม logs แบบ realtime จากทุก users</p>
       </div>
 
@@ -70,8 +70,6 @@
         </button>
       </div>
     </div>
-  </div>
-</template>
 
     <!-- Loading State -->
     <div v-if="loading && !hasData" class="loading-state">
@@ -106,7 +104,9 @@
           </div>
           <div class="stat-content">
             <p class="stat-label">Errors</p>
-            <p class="stat-value">{{ formatNumber(stats?.error_count || 0) }}</p>
+            <p class="stat-value">
+              {{ formatNumber(stats?.error_count || 0) }}
+            </p>
             <p class="stat-change" :class="{ negative: errorRate > 5 }">
               {{ errorRate.toFixed(1) }}% error rate
             </p>
@@ -116,14 +116,18 @@
         <div class="stat-card">
           <div class="stat-icon" style="background: #fff4e6">
             <svg viewBox="0 0 24 24" fill="none" stroke="#F5A623">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
               <path d="M12 9v4M12 17h.01" />
             </svg>
           </div>
           <div class="stat-content">
             <p class="stat-label">Warnings</p>
             <p class="stat-value">{{ formatNumber(stats?.warn_count || 0) }}</p>
-            <p class="stat-change">{{ stats?.unique_users || 0 }} users affected</p>
+            <p class="stat-change">
+              {{ stats?.unique_users || 0 }} users affected
+            </p>
           </div>
         </div>
 
@@ -137,8 +141,12 @@
           </div>
           <div class="stat-content">
             <p class="stat-label">Active Users</p>
-            <p class="stat-value">{{ formatNumber(stats?.unique_users || 0) }}</p>
-            <p class="stat-change">{{ stats?.unique_sessions || 0 }} sessions</p>
+            <p class="stat-value">
+              {{ formatNumber(stats?.unique_users || 0) }}
+            </p>
+            <p class="stat-change">
+              {{ stats?.unique_sessions || 0 }} sessions
+            </p>
           </div>
         </div>
       </div>
@@ -159,17 +167,32 @@
 
         <div class="filter-group">
           <label>Category:</label>
-          <input v-model="filters.category" @input="applyFilters" type="text" placeholder="Filter by category..." />
+          <input
+            v-model="filters.category"
+            @input="applyFilters"
+            type="text"
+            placeholder="Filter by category..."
+          />
         </div>
 
         <div class="filter-group">
           <label>Page:</label>
-          <input v-model="filters.page" @input="applyFilters" type="text" placeholder="Filter by page..." />
+          <input
+            v-model="filters.page"
+            @input="applyFilters"
+            type="text"
+            placeholder="Filter by page..."
+          />
         </div>
 
         <div class="filter-group">
           <label>Search:</label>
-          <input v-model="filters.search" @input="applyFilters" type="text" placeholder="Search message..." />
+          <input
+            v-model="filters.search"
+            @input="applyFilters"
+            type="text"
+            placeholder="Search message..."
+          />
         </div>
 
         <button @click="clearFilters" class="btn-clear-filters">
@@ -181,15 +204,23 @@
       <div class="chart-card">
         <h3 class="chart-title">Most Common Errors (Top 10)</h3>
         <div class="errors-list">
-          <div v-for="(error, index) in commonErrors" :key="index" class="error-item">
+          <div
+            v-for="(error, index) in commonErrors"
+            :key="index"
+            class="error-item"
+          >
             <div class="error-rank">{{ index + 1 }}</div>
             <div class="error-content">
               <p class="error-message">{{ error.message }}</p>
               <p class="error-meta">
                 <span class="error-category">{{ error.category }}</span>
                 <span class="error-count">{{ error.count }} occurrences</span>
-                <span class="error-users">{{ error.affected_users }} users</span>
-                <span class="error-time">{{ formatTimeAgo(error.last_seen) }}</span>
+                <span class="error-users"
+                  >{{ error.affected_users }} users</span
+                >
+                <span class="error-time">{{
+                  formatTimeAgo(error.last_seen)
+                }}</span>
               </p>
             </div>
           </div>
@@ -202,7 +233,7 @@
           <h3 class="table-title">Recent Logs ({{ logs.length }})</h3>
           <div class="realtime-indicator" :class="{ active: isRealtimeActive }">
             <span class="indicator-dot"></span>
-            {{ isRealtimeActive ? 'Realtime Active' : 'Realtime Inactive' }}
+            {{ isRealtimeActive ? "Realtime Active" : "Realtime Inactive" }}
           </div>
         </div>
 
@@ -220,10 +251,18 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in logs" :key="log.id" class="log-row" :class="log.level">
+              <tr
+                v-for="log in logs"
+                :key="log.id"
+                class="log-row"
+                :class="log.level"
+              >
                 <td class="log-time">{{ formatTime(log.timestamp) }}</td>
                 <td>
-                  <span class="level-badge" :style="{ background: getLevelColor(log.level) }">
+                  <span
+                    class="level-badge"
+                    :style="{ background: getLevelColor(log.level) }"
+                  >
                     {{ log.level }}
                   </span>
                 </td>
@@ -231,12 +270,12 @@
                 <td class="log-message">{{ truncateMessage(log.message) }}</td>
                 <td class="log-user">
                   <div v-if="log.user_email">
-                    <p class="user-name">{{ log.user_name || 'Unknown' }}</p>
+                    <p class="user-name">{{ log.user_name || "Unknown" }}</p>
                     <p class="user-email">{{ log.user_email }}</p>
                   </div>
                   <span v-else class="user-guest">Guest</span>
                 </td>
-                <td class="log-page">{{ log.page || '-' }}</td>
+                <td class="log-page">{{ log.page || "-" }}</td>
                 <td>
                   <button @click="viewLogDetail(log)" class="btn-view">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -254,7 +293,12 @@
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <svg
+        class="empty-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+      >
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M3 9h18M9 21V9" />
       </svg>
@@ -276,11 +320,16 @@
         <div class="modal-body">
           <div class="detail-row">
             <span class="label">Time:</span>
-            <span class="value">{{ formatFullTime(selectedLog.timestamp) }}</span>
+            <span class="value">{{
+              formatFullTime(selectedLog.timestamp)
+            }}</span>
           </div>
           <div class="detail-row">
             <span class="label">Level:</span>
-            <span class="value" :style="{ color: getLevelColor(selectedLog.level) }">
+            <span
+              class="value"
+              :style="{ color: getLevelColor(selectedLog.level) }"
+            >
               {{ selectedLog.level }}
             </span>
           </div>
@@ -290,15 +339,17 @@
           </div>
           <div class="detail-row">
             <span class="label">Page:</span>
-            <span class="value">{{ selectedLog.page || 'N/A' }}</span>
+            <span class="value">{{ selectedLog.page || "N/A" }}</span>
           </div>
           <div class="detail-row">
             <span class="label">User:</span>
-            <span class="value">{{ selectedLog.user_name || selectedLog.user_email || 'Guest' }}</span>
+            <span class="value">{{
+              selectedLog.user_name || selectedLog.user_email || "Guest"
+            }}</span>
           </div>
           <div class="detail-row">
             <span class="label">Session ID:</span>
-            <span class="value">{{ selectedLog.session_id || 'N/A' }}</span>
+            <span class="value">{{ selectedLog.session_id || "N/A" }}</span>
           </div>
           <div class="detail-row full">
             <span class="label">Message:</span>
@@ -306,7 +357,9 @@
           </div>
           <div v-if="selectedLog.data" class="detail-row full">
             <span class="label">Data:</span>
-            <pre class="value">{{ JSON.stringify(selectedLog.data, null, 2) }}</pre>
+            <pre class="value">{{
+              JSON.stringify(selectedLog.data, null, 2)
+            }}</pre>
           </div>
           <div v-if="selectedLog.stack" class="detail-row full">
             <span class="label">Stack Trace:</span>
@@ -317,7 +370,11 @@
     </div>
 
     <!-- Clean Logs Modal -->
-    <div v-if="showCleanModal" class="modal-overlay" @click="showCleanModal = false">
+    <div
+      v-if="showCleanModal"
+      class="modal-overlay"
+      @click="showCleanModal = false"
+    >
       <div class="modal-content small" @click.stop>
         <div class="modal-header">
           <h3>Clean Old Logs</h3>
@@ -336,9 +393,15 @@
             <option :value="180">180 วัน</option>
           </select>
           <div class="modal-actions">
-            <button @click="showCleanModal = false" class="btn-cancel">ยกเลิก</button>
-            <button @click="handleCleanLogs" class="btn-confirm" :disabled="cleaning">
-              {{ cleaning ? 'กำลังลบ...' : 'ยืนยันลบ' }}
+            <button @click="showCleanModal = false" class="btn-cancel">
+              ยกเลิก
+            </button>
+            <button
+              @click="handleCleanLogs"
+              class="btn-confirm"
+              :disabled="cleaning"
+            >
+              {{ cleaning ? "กำลังลบ..." : "ยืนยันลบ" }}
             </button>
           </div>
         </div>
@@ -348,8 +411,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useSystemLogs, type LogFilters, type SystemLog } from '../composables/useSystemLogs'
+import { ref, onMounted, onUnmounted } from "vue";
+import {
+  useSystemLogs,
+  type LogFilters,
+  type SystemLog,
+} from "../composables/useSystemLogs";
 
 const {
   loading,
@@ -364,125 +431,129 @@ const {
   subscribeToLogs,
   unsubscribe,
   exportLogs,
-  cleanOldLogs
-} = useSystemLogs()
+  cleanOldLogs,
+} = useSystemLogs();
 
-const selectedHours = ref(24)
-const filters = ref<LogFilters>({})
-const selectedLog = ref<SystemLog | null>(null)
-const showCleanModal = ref(false)
-const cleanDays = ref(30)
-const cleaning = ref(false)
-const isRealtimeActive = ref(false)
+const selectedHours = ref(24);
+const filters = ref<LogFilters>({});
+const selectedLog = ref<SystemLog | null>(null);
+const showCleanModal = ref(false);
+const cleanDays = ref(30);
+const cleaning = ref(false);
+const isRealtimeActive = ref(false);
 
 onMounted(async () => {
-  await fetchAll(selectedHours.value, filters.value)
-  subscribeToLogs(filters.value)
-  isRealtimeActive.value = true
-})
+  await fetchAll(selectedHours.value, filters.value);
+  subscribeToLogs(filters.value);
+  isRealtimeActive.value = true;
+});
 
 onUnmounted(() => {
-  unsubscribe()
-  isRealtimeActive.value = false
-})
+  unsubscribe();
+  isRealtimeActive.value = false;
+});
 
 const handleTimeChange = async () => {
-  await fetchAll(selectedHours.value, filters.value)
-}
+  await fetchAll(selectedHours.value, filters.value);
+};
 
 const handleRefresh = async () => {
-  await fetchAll(selectedHours.value, filters.value)
-}
+  await fetchAll(selectedHours.value, filters.value);
+};
 
 const applyFilters = async () => {
-  await fetchAll(selectedHours.value, filters.value)
-  unsubscribe()
-  subscribeToLogs(filters.value)
-}
+  await fetchAll(selectedHours.value, filters.value);
+  unsubscribe();
+  subscribeToLogs(filters.value);
+};
 
 const clearFilters = async () => {
-  filters.value = {}
-  await fetchAll(selectedHours.value, filters.value)
-  unsubscribe()
-  subscribeToLogs(filters.value)
-}
+  filters.value = {};
+  await fetchAll(selectedHours.value, filters.value);
+  unsubscribe();
+  subscribeToLogs(filters.value);
+};
 
 const handleExport = async () => {
   try {
-    const count = await exportLogs(filters.value)
-    alert(`Exported ${count} logs successfully!`)
+    const count = await exportLogs(filters.value);
+    alert(`Exported ${count} logs successfully!`);
   } catch (err) {
-    alert('Failed to export logs')
+    alert("Failed to export logs");
   }
-}
+};
 
 const handleCleanLogs = async () => {
-  if (!confirm(`Are you sure you want to delete logs older than ${cleanDays.value} days?`)) {
-    return
+  if (
+    !confirm(
+      `Are you sure you want to delete logs older than ${cleanDays.value} days?`
+    )
+  ) {
+    return;
   }
 
-  cleaning.value = true
+  cleaning.value = true;
   try {
-    const deletedCount = await cleanOldLogs(cleanDays.value)
-    alert(`Deleted ${deletedCount} old logs successfully!`)
-    showCleanModal.value = false
-    await handleRefresh()
+    const deletedCount = await cleanOldLogs(cleanDays.value);
+    alert(`Deleted ${deletedCount} old logs successfully!`);
+    showCleanModal.value = false;
+    await handleRefresh();
   } catch (err) {
-    alert('Failed to clean logs')
+    alert("Failed to clean logs");
   } finally {
-    cleaning.value = false
+    cleaning.value = false;
   }
-}
+};
 
 const viewLogDetail = (log: SystemLog) => {
-  selectedLog.value = log
-}
+  selectedLog.value = log;
+};
 
 const formatNumber = (num: number) => {
-  return new Intl.NumberFormat('th-TH').format(num)
-}
+  return new Intl.NumberFormat("th-TH").format(num);
+};
 
 const formatTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleTimeString('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
+  return new Date(timestamp).toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+};
 
 const formatFullTime = (timestamp: string) => {
-  return new Date(timestamp).toLocaleString('th-TH')
-}
+  return new Date(timestamp).toLocaleString("th-TH");
+};
 
 const formatTimeAgo = (timestamp: string) => {
-  const now = new Date()
-  const time = new Date(timestamp)
-  const diff = now.getTime() - time.getTime()
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
+  const now = new Date();
+  const time = new Date(timestamp);
+  const diff = now.getTime() - time.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
 
-  if (days > 0) return `${days} วันที่แล้ว`
-  if (hours > 0) return `${hours} ชั่วโมงที่แล้ว`
-  if (minutes > 0) return `${minutes} นาทีที่แล้ว`
-  return 'เมื่อสักครู่'
-}
+  if (days > 0) return `${days} วันที่แล้ว`;
+  if (hours > 0) return `${hours} ชั่วโมงที่แล้ว`;
+  if (minutes > 0) return `${minutes} นาทีที่แล้ว`;
+  return "เมื่อสักครู่";
+};
 
 const getLevelColor = (level: string) => {
   const colors: Record<string, string> = {
-    error: '#E53935',
-    warn: '#F5A623',
-    info: '#2196F3',
-    success: '#00A86B',
-    debug: '#9C27B0'
-  }
-  return colors[level] || '#666666'
-}
+    error: "#E53935",
+    warn: "#F5A623",
+    info: "#2196F3",
+    success: "#00A86B",
+    debug: "#9C27B0",
+  };
+  return colors[level] || "#666666";
+};
 
 const truncateMessage = (message: string, maxLength = 80) => {
-  if (message.length <= maxLength) return message
-  return message.substring(0, maxLength) + '...'
-}
+  if (message.length <= maxLength) return message;
+  return message.substring(0, maxLength) + "...";
+};
 </script>
 
 <style scoped>
@@ -545,12 +616,12 @@ const truncateMessage = (message: string, maxLength = 80) => {
 }
 
 .btn-export {
-  background: #2196F3;
+  background: #2196f3;
   color: white;
 }
 
 .btn-clean {
-  background: #E53935;
+  background: #e53935;
   color: white;
 }
 
@@ -596,7 +667,9 @@ const truncateMessage = (message: string, maxLength = 80) => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Stats Grid */
@@ -656,7 +729,7 @@ const truncateMessage = (message: string, maxLength = 80) => {
 }
 
 .stat-change.negative {
-  color: #E53935;
+  color: #e53935;
 }
 
 /* Filters */
@@ -748,7 +821,7 @@ const truncateMessage = (message: string, maxLength = 80) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #E53935;
+  background: #e53935;
   color: white;
   border-radius: 8px;
   font-weight: 600;
@@ -832,8 +905,13 @@ const truncateMessage = (message: string, maxLength = 80) => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .logs-table-wrapper {
@@ -869,7 +947,7 @@ const truncateMessage = (message: string, maxLength = 80) => {
 }
 
 .log-time {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: #999;
 }
 
@@ -914,7 +992,7 @@ const truncateMessage = (message: string, maxLength = 80) => {
 
 .log-page {
   color: #666;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
 }
 
@@ -1038,7 +1116,7 @@ const truncateMessage = (message: string, maxLength = 80) => {
   padding: 12px;
   background: #f5f5f5;
   border-radius: 8px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -1067,7 +1145,7 @@ const truncateMessage = (message: string, maxLength = 80) => {
 }
 
 .btn-confirm {
-  background: #E53935;
+  background: #e53935;
   color: white;
 }
 

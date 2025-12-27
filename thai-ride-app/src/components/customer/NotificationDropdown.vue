@@ -2,8 +2,12 @@
 /**
  * NotificationDropdown - Dropdown แสดงรายการแจ้งเตือนล่าสุด
  * MUNEEF Style: สีเขียว #00A86B, สะอาด ทันสมัย
+ *
+ * Features:
+ * - Swipe-to-dismiss: ปัดซ้ายเพื่อลบ notification
+ * - Pull-to-refresh: ดึงลงเพื่อรีเฟรช
  */
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   useNotifications,
@@ -28,16 +32,135 @@ const {
   fetchNotifications,
   markAsRead,
   markAllAsRead,
+  deleteNotification,
   getNotificationUrl,
   getNotificationIcon,
 } = useNotifications();
 
 const dropdownRef = ref<HTMLElement | null>(null);
+const contentRef = ref<HTMLElement | null>(null);
+
+// ========== Pull-to-Refresh State ==========
+const isPulling = ref(false);
+const isRefreshing = ref(false);
+const pullDistance = ref(0);
+const pullStartY = ref(0);
+const PULL_THRESHOLD = 60;
+
+// ========== Swipe-to-Dismiss State ==========
+const swipeStates = ref<
+  Record<string, { x: number; swiping: boolean; startX: number }>
+>({});
+const SWIPE_THRESHOLD = 80;
 
 // แสดงแค่ 5 รายการล่าสุด
 const recentNotifications = computed(() => {
   return notifications.value.slice(0, 5);
 });
+
+// ========== Pull-to-Refresh Functions ==========
+const handlePullStart = (e: TouchEvent) => {
+  if (!contentRef.value || contentRef.value.scrollTop > 0) return;
+  pullStartY.value = e.touches[0].clientY;
+  isPulling.value = true;
+};
+
+const handlePullMove = (e: TouchEvent) => {
+  if (!isPulling.value || isRefreshing.value) return;
+  if (!contentRef.value || contentRef.value.scrollTop > 0) {
+    isPulling.value = false;
+    pullDistance.value = 0;
+    return;
+  }
+
+  const currentY = e.touches[0].clientY;
+  const diff = currentY - pullStartY.value;
+
+  if (diff > 0) {
+    e.preventDefault();
+    // Apply resistance
+    pullDistance.value = Math.min(diff * 0.5, PULL_THRESHOLD * 1.5);
+  }
+};
+
+const handlePullEnd = async () => {
+  if (!isPulling.value) return;
+  isPulling.value = false;
+
+  if (pullDistance.value >= PULL_THRESHOLD) {
+    isRefreshing.value = true;
+    pullDistance.value = PULL_THRESHOLD;
+
+    await fetchNotifications(10);
+
+    // Small delay for UX
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    isRefreshing.value = false;
+  }
+
+  pullDistance.value = 0;
+};
+
+// ========== Swipe-to-Dismiss Functions ==========
+const initSwipeState = (id: string) => {
+  if (!swipeStates.value[id]) {
+    swipeStates.value[id] = { x: 0, swiping: false, startX: 0 };
+  }
+};
+
+const handleSwipeStart = (e: TouchEvent, id: string) => {
+  initSwipeState(id);
+  swipeStates.value[id].startX = e.touches[0].clientX;
+  swipeStates.value[id].swiping = true;
+};
+
+const handleSwipeMove = (e: TouchEvent, id: string) => {
+  const state = swipeStates.value[id];
+  if (!state?.swiping) return;
+
+  const currentX = e.touches[0].clientX;
+  const diff = currentX - state.startX;
+
+  // Only allow left swipe (negative)
+  if (diff < 0) {
+    state.x = Math.max(diff, -SWIPE_THRESHOLD * 1.5);
+  } else {
+    state.x = Math.min(diff * 0.3, 20); // Small resistance for right swipe
+  }
+};
+
+const handleSwipeEnd = async (id: string) => {
+  const state = swipeStates.value[id];
+  if (!state) return;
+
+  state.swiping = false;
+
+  if (state.x <= -SWIPE_THRESHOLD) {
+    // Delete notification
+    state.x = -300; // Animate out
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await deleteNotification(id);
+    delete swipeStates.value[id];
+  } else {
+    // Reset position
+    state.x = 0;
+  }
+};
+
+const getSwipeStyle = (id: string) => {
+  const state = swipeStates.value[id];
+  if (!state) return {};
+  return {
+    transform: `translateX(${state.x}px)`,
+    transition: state.swiping ? "none" : "transform 0.2s ease-out",
+  };
+};
+
+const getDeleteIconOpacity = (id: string) => {
+  const state = swipeStates.value[id];
+  if (!state) return 0;
+  return Math.min(Math.abs(state.x) / SWIPE_THRESHOLD, 1);
+};
 
 // Format time ago
 const formatTimeAgo = (dateStr: string): string => {
@@ -156,9 +279,40 @@ onUnmounted(() => {
           </div>
 
           <!-- Content -->
-          <div class="dropdown-content">
+          <div
+            ref="contentRef"
+            class="dropdown-content"
+            @touchstart="handlePullStart"
+            @touchmove="handlePullMove"
+            @touchend="handlePullEnd"
+          >
+            <!-- Pull-to-Refresh Indicator -->
+            <div
+              class="pull-indicator"
+              :style="{
+                height: `${pullDistance}px`,
+                opacity: pullDistance / PULL_THRESHOLD,
+              }"
+            >
+              <div class="pull-spinner" :class="{ spinning: isRefreshing }">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </div>
+              <span class="pull-text">{{
+                isRefreshing ? "กำลังรีเฟรช..." : "ปล่อยเพื่อรีเฟรช"
+              }}</span>
+            </div>
+
             <!-- Loading -->
-            <div v-if="loading" class="loading-state">
+            <div v-if="loading && !isRefreshing" class="loading-state">
               <div v-for="i in 3" :key="i" class="skeleton-item">
                 <div class="skeleton-icon"></div>
                 <div class="skeleton-text">
@@ -189,43 +343,54 @@ onUnmounted(() => {
 
             <!-- Notifications List -->
             <div v-else class="notifications-list">
-              <button
+              <div
                 v-for="notification in recentNotifications"
                 :key="notification.id"
-                class="notification-item"
-                :class="{ unread: !notification.is_read }"
-                @click="handleNotificationClick(notification)"
+                class="notification-wrapper"
               >
-                <!-- Icon -->
-                <div
-                  class="notification-icon"
-                  :style="{
-                    backgroundColor: getTypeColor(notification.type) + '15',
-                    color: getTypeColor(notification.type),
-                  }"
+                <!-- Notification Item -->
+                <button
+                  class="notification-item"
+                  :class="{ unread: !notification.is_read }"
+                  :style="getSwipeStyle(notification.id)"
+                  @touchstart="handleSwipeStart($event, notification.id)"
+                  @touchmove="handleSwipeMove($event, notification.id)"
+                  @touchend="handleSwipeEnd(notification.id)"
+                  @click="handleNotificationClick(notification)"
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
+                  <!-- Icon -->
+                  <div
+                    class="notification-icon"
+                    :style="{
+                      backgroundColor: getTypeColor(notification.type) + '15',
+                      color: getTypeColor(notification.type),
+                    }"
                   >
-                    <path :d="getNotificationIcon(notification.type)" />
-                  </svg>
-                </div>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path :d="getNotificationIcon(notification.type)" />
+                    </svg>
+                  </div>
 
-                <!-- Content -->
-                <div class="notification-content">
-                  <p class="notification-title">{{ notification.title }}</p>
-                  <p class="notification-message">{{ notification.message }}</p>
-                  <span class="notification-time">{{
-                    formatTimeAgo(notification.created_at)
-                  }}</span>
-                </div>
+                  <!-- Content -->
+                  <div class="notification-content">
+                    <p class="notification-title">{{ notification.title }}</p>
+                    <p class="notification-message">
+                      {{ notification.message }}
+                    </p>
+                    <span class="notification-time">{{
+                      formatTimeAgo(notification.created_at)
+                    }}</span>
+                  </div>
 
-                <!-- Unread Dot -->
-                <div v-if="!notification.is_read" class="unread-dot"></div>
-              </button>
+                  <!-- Unread Dot -->
+                  <div v-if="!notification.is_read" class="unread-dot"></div>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -258,9 +423,11 @@ onUnmounted(() => {
   bottom: 0;
   z-index: 99999;
   display: flex;
-  justify-content: flex-end;
-  padding-top: calc(70px + env(safe-area-inset-top));
+  flex-direction: column;
+  align-items: flex-end;
+  padding-top: calc(60px + env(safe-area-inset-top));
   padding-right: 16px;
+  padding-left: 16px;
 }
 
 .dropdown-backdrop {
@@ -275,14 +442,19 @@ onUnmounted(() => {
 
 .dropdown-panel {
   width: 340px;
-  max-width: calc(100vw - 32px);
-  max-height: 50vh;
+  max-width: 100%;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Content wrapper */
+.dropdown-content {
+  overflow-y: auto;
+  max-height: 400px;
 }
 
 /* Header */
@@ -317,12 +489,7 @@ onUnmounted(() => {
   background: #d0ebe0;
 }
 
-/* Content */
-.dropdown-content {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
+/* Content - ลบ duplicate เพราะย้ายไปรวมกับ dropdown-panel แล้ว */
 
 /* Loading State */
 .loading-state {
@@ -378,7 +545,8 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 32px 20px;
+  min-height: 120px;
 }
 
 .empty-icon {
@@ -402,6 +570,12 @@ onUnmounted(() => {
 .notifications-list {
   display: flex;
   flex-direction: column;
+  padding-bottom: 4px;
+}
+
+.notification-wrapper {
+  position: relative;
+  overflow: hidden;
 }
 
 .notification-item {

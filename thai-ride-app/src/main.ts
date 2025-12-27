@@ -8,45 +8,6 @@ import App from './App.vue'
 import router from './router/index'
 import { supabase } from './lib/supabase'
 import { initSentry, setUser as setSentryUser } from './lib/sentry'
-import { getAdminAuthInstance } from './composables/useAdminAuth'
-
-// ========================================
-// Admin Auth Guard (uses useAdminAuth)
-// ========================================
-const adminAuth = getAdminAuthInstance()
-
-router.beforeEach(async (to, from, next) => {
-  const isAdminRoute = to.path.startsWith('/admin')
-  const requiresAdmin = to.meta.requiresAdmin
-
-  // Admin routes - ใช้ admin auth แยก
-  if (isAdminRoute) {
-    const isValidSession = adminAuth.isSessionValid()
-    
-    // ถ้าเป็น route ที่ต้องการ admin auth และ session ไม่ valid
-    if (requiresAdmin && !isValidSession) {
-      next('/admin/login')
-      return
-    }
-    // ถ้าอยู่หน้า login แต่มี valid session แล้ว ให้ไป dashboard
-    if (to.path === '/admin/login' && isValidSession) {
-      next('/admin/dashboard')
-      return
-    }
-  }
-  
-  next()
-})
-
-// ✅ FIX: Add afterEach guard for cleanup trigger
-router.afterEach((to, from) => {
-  // Trigger cleanup event for views to cleanup subscriptions/timers
-  if (from.path !== to.path) {
-    window.dispatchEvent(new CustomEvent('route-cleanup', { 
-      detail: { from: from.path, to: to.path } 
-    }))
-  }
-})
 
 // Create Pinia store
 const pinia = createPinia()

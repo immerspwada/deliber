@@ -14,7 +14,8 @@ import type {
   OrderFilters, 
   PaginationParams, 
   PaginatedResult,
-  ProviderStatus
+  ProviderStatus,
+  ServiceType
 } from '../types'
 
 // Type for RPC responses (Supabase doesn't auto-type custom RPCs)
@@ -35,10 +36,14 @@ export function useAdminAPI() {
     isLoading.value = true
     error.value = null
     
+    console.log('[Admin API] getCustomers called with:', { filters, pagination })
+    
     try {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
+      console.log('[Admin API] Building query for users table...')
+      
       // Build query directly on users table
       let query = supabase
         .from('users')
@@ -62,8 +67,15 @@ export function useAdminAPI() {
 
       const { data, error: queryError, count } = await query
 
+      console.log('[Admin API] Query result:', { 
+        dataLength: data?.length, 
+        count, 
+        error: queryError,
+        firstItem: data?.[0]
+      })
+
       if (queryError) {
-        console.error('Query error:', queryError)
+        console.error('[Admin API] Query error:', queryError)
         throw queryError
       }
 
@@ -96,7 +108,7 @@ export function useAdminAPI() {
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch customers'
-      console.error('getCustomers error:', e)
+      console.error('[Admin API] getCustomers error:', e)
       return { data: [], total: 0, page: 1, limit: 20, totalPages: 0 }
     } finally {
       isLoading.value = false
@@ -263,9 +275,18 @@ export function useAdminAPI() {
     isLoading.value = true
     error.value = null
 
+    console.log('[Admin API] getOrders called with:', { filters, pagination })
+
     try {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
+
+      console.log('[Admin API] Calling RPC get_all_orders_for_admin with:', {
+        p_type: filters.service_type || null,
+        p_status: filters.status || null,
+        p_limit: limit,
+        p_offset: offset
+      })
 
       // Use RPC function to bypass RLS (works with demo mode)
       const { data, error: queryError } = await (supabase.rpc as any)('get_all_orders_for_admin', {
@@ -275,7 +296,16 @@ export function useAdminAPI() {
         p_offset: offset
       }) as RpcResponse<any[]>
 
-      if (queryError) throw queryError
+      console.log('[Admin API] RPC get_all_orders_for_admin result:', { 
+        dataLength: data?.length, 
+        error: queryError,
+        firstItem: data?.[0]
+      })
+
+      if (queryError) {
+        console.error('[Admin API] RPC error:', queryError)
+        throw queryError
+      }
 
       // Get total count
       const { data: countData, error: countError } = await (supabase.rpc as any)('count_all_orders_for_admin', {
@@ -283,7 +313,12 @@ export function useAdminAPI() {
         p_status: filters.status || null
       }) as RpcResponse<number>
 
-      if (countError) throw countError
+      console.log('[Admin API] count_all_orders_for_admin result:', { countData, countError })
+
+      if (countError) {
+        console.error('[Admin API] Count error:', countError)
+        throw countError
+      }
 
       const total = countData || 0
 
@@ -832,6 +867,118 @@ export function useAdminAPI() {
     }
   }
 
+  // ============================================
+  // SCHEDULED RIDES
+  // ============================================
+
+  async function getScheduledRides(
+    filters: { status?: string } = {},
+    pagination: PaginationParams = { page: 1, limit: 20 }
+  ): Promise<PaginatedResult<any>> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const { page, limit } = pagination
+      const offset = (page - 1) * limit
+
+      const { data, error: queryError } = await (supabase.rpc as any)('get_all_scheduled_rides_for_admin', {
+        p_status: filters.status || null,
+        p_limit: limit,
+        p_offset: offset
+      }) as RpcResponse<any[]>
+
+      if (queryError) throw queryError
+
+      const { data: countData, error: countError } = await (supabase.rpc as any)('count_scheduled_rides_for_admin', {
+        p_status: filters.status || null
+      }) as RpcResponse<number>
+
+      if (countError) throw countError
+
+      const total = countData || 0
+
+      return {
+        data: data || [],
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch scheduled rides'
+      console.error('getScheduledRides error:', e)
+      return { data: [], total: 0, page: 1, limit: 20, totalPages: 0 }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ============================================
+  // SERVICE BUNDLES
+  // ============================================
+
+  async function getBundleTemplates(): Promise<any[]> {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_all_bundle_templates_for_admin') as RpcResponse<any[]>
+
+      if (queryError) throw queryError
+      return data || []
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch bundle templates'
+      console.error('getBundleTemplates error:', e)
+      return []
+    }
+  }
+
+  async function getServiceBundles(
+    filters: { status?: string } = {},
+    pagination: PaginationParams = { page: 1, limit: 20 }
+  ): Promise<PaginatedResult<any>> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const { page, limit } = pagination
+      const offset = (page - 1) * limit
+
+      const { data, error: queryError } = await (supabase.rpc as any)('get_all_service_bundles_for_admin', {
+        p_status: filters.status || null,
+        p_limit: limit,
+        p_offset: offset
+      }) as RpcResponse<any[]>
+
+      if (queryError) throw queryError
+
+      return {
+        data: data || [],
+        total: data?.length || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((data?.length || 0) / limit)
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch service bundles'
+      console.error('getServiceBundles error:', e)
+      return { data: [], total: 0, page: 1, limit: 20, totalPages: 0 }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function getServiceBundlesStats(): Promise<any> {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_service_bundles_stats_for_admin') as RpcResponse<any[]>
+
+      if (queryError) throw queryError
+      return data?.[0] || { total_bundles: 0, active_bundles: 0, completed_bundles: 0, total_customers: 0, total_revenue: 0 }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch bundle stats'
+      console.error('getServiceBundlesStats error:', e)
+      return { total_bundles: 0, active_bundles: 0, completed_bundles: 0, total_customers: 0, total_revenue: 0 }
+    }
+  }
+
   return {
     isLoading,
     error,
@@ -853,6 +1000,12 @@ export function useAdminAPI() {
     getLaundry,
     getCancellations,
     getActiveProvidersLocations,
+    // Scheduled Rides
+    getScheduledRides,
+    // Service Bundles
+    getBundleTemplates,
+    getServiceBundles,
+    getServiceBundlesStats,
     // Dashboard
     getDashboardStats
   }

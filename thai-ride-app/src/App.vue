@@ -127,13 +127,23 @@ onMounted(async () => {
       :show-details="true"
       @error="(err) => console.error('[ErrorBoundary]', err)"
     >
-      <AppShell v-if="!hideNavigation">
+      <!-- Admin routes - NO AppShell wrapper (AdminShell is in admin routes) -->
+      <RouterView v-if="isAdminRoute" v-slot="{ Component }">
+        <transition :name="transitionName" mode="out-in">
+          <component :is="Component" :key="route.path" />
+        </transition>
+      </RouterView>
+
+      <!-- Customer/Provider routes with AppShell -->
+      <AppShell v-else-if="!hideNavigation">
         <RouterView v-slot="{ Component }">
           <transition :name="transitionName" mode="out-in">
             <component :is="Component" :key="route.path" />
           </transition>
         </RouterView>
       </AppShell>
+
+      <!-- Routes with hideNavigation (login, register, etc.) -->
       <RouterView v-else v-slot="{ Component }">
         <transition :name="transitionName" mode="out-in">
           <component :is="Component" :key="route.path" />

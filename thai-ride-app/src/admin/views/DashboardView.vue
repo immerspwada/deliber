@@ -5,85 +5,91 @@
 -->
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { supabase } from '../../lib/supabase'
+import { ref, onMounted } from "vue";
+import { useAdminAPI } from "../composables/useAdminAPI";
+
+const {
+  getDashboardStats,
+  getOrders,
+  getVerificationQueue,
+  isLoading: apiLoading,
+} = useAdminAPI();
 
 // Stats
 const stats = ref({
   totalOrders: 0,
   totalRevenue: 0,
   totalUsers: 0,
-  totalProviders: 0
-})
+  totalProviders: 0,
+  activeProviders: 0,
+  pendingProviders: 0,
+});
 
-const recentOrders = ref<any[]>([])
-const pendingProviders = ref<any[]>([])
-const isLoading = ref(true)
+const recentOrders = ref<any[]>([]);
+const pendingProviders = ref<any[]>([]);
+const isLoading = ref(true);
 
 onMounted(async () => {
-  await loadDashboardData()
-})
+  await loadDashboardData();
+});
 
 const loadDashboardData = async () => {
-  isLoading.value = true
-  
+  isLoading.value = true;
+
   try {
-    // Load stats
-    const [ordersResult, usersResult, providersResult] = await Promise.all([
-      supabase.from('ride_requests').select('id, total_price', { count: 'exact' }),
-      supabase.from('users').select('id', { count: 'exact' }),
-      supabase.from('service_providers').select('id', { count: 'exact' })
-    ])
+    // Load stats using RPC function
+    const dashboardStats = await getDashboardStats();
 
     stats.value = {
-      totalOrders: ordersResult.count || 0,
-      totalRevenue: ordersResult.data?.reduce((sum, order) => sum + (order.total_price || 0), 0) || 0,
-      totalUsers: usersResult.count || 0,
-      totalProviders: providersResult.count || 0
-    }
+      totalOrders: dashboardStats.totalOrders,
+      totalRevenue: dashboardStats.todayRevenue,
+      totalUsers: dashboardStats.totalCustomers,
+      totalProviders: dashboardStats.totalProviders,
+      activeProviders: dashboardStats.activeProviders,
+      pendingProviders: dashboardStats.pendingProviders,
+    };
 
-    // Load recent orders
-    const { data: orders } = await supabase
-      .from('ride_requests')
-      .select('id, tracking_id, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5)
-    
-    recentOrders.value = orders || []
+    // Load recent orders using RPC function
+    const ordersResult = await getOrders({}, { page: 1, limit: 5 });
+    recentOrders.value = ordersResult.data;
 
-    // Load pending providers
-    const { data: providers } = await supabase
-      .from('service_providers')
-      .select('id, provider_uid, provider_type, created_at')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(5)
-    
-    pendingProviders.value = providers || []
-
+    // Load pending providers using RPC function
+    const providers = await getVerificationQueue();
+    pendingProviders.value = providers.slice(0, 5);
   } catch (error) {
-    console.error('Error loading dashboard:', error)
+    console.error("Error loading dashboard:", error);
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
+};
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('th-TH', {
-    style: 'currency',
-    currency: 'THB'
-  }).format(amount)
-}
+  return new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+  }).format(amount);
+};
 
 const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+  return new Date(date).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    pending: "รอดำเนินการ",
+    matched: "จับคู่แล้ว",
+    in_progress: "กำลังดำเนินการ",
+    completed: "เสร็จสิ้น",
+    cancelled: "ยกเลิก",
+  };
+  return labels[status] || status;
+};
 </script>
 
 <template>
@@ -102,55 +108,93 @@ const formatDate = (date: string) => {
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-icon orders">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-              <rect x="9" y="3" width="6" height="4" rx="1"/>
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"
+              />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
             </svg>
           </div>
           <div class="stat-content">
             <div class="stat-label">ออเดอร์ทั้งหมด</div>
-            <div class="stat-value">{{ stats.totalOrders.toLocaleString() }}</div>
+            <div class="stat-value">
+              {{ stats.totalOrders.toLocaleString() }}
+            </div>
           </div>
         </div>
 
         <div class="stat-card">
           <div class="stat-icon revenue">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
             </svg>
           </div>
           <div class="stat-content">
             <div class="stat-label">รายได้ทั้งหมด</div>
-            <div class="stat-value">{{ formatCurrency(stats.totalRevenue) }}</div>
+            <div class="stat-value">
+              {{ formatCurrency(stats.totalRevenue) }}
+            </div>
           </div>
         </div>
 
         <div class="stat-card">
           <div class="stat-icon users">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
             </svg>
           </div>
           <div class="stat-content">
             <div class="stat-label">ผู้ใช้ทั้งหมด</div>
-            <div class="stat-value">{{ stats.totalUsers.toLocaleString() }}</div>
+            <div class="stat-value">
+              {{ stats.totalUsers.toLocaleString() }}
+            </div>
           </div>
         </div>
 
         <div class="stat-card">
           <div class="stat-icon providers">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="3" width="15" height="13"/>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/>
-              <circle cx="18.5" cy="18.5" r="2.5"/>
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="1" y="3" width="15" height="13" />
+              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+              <circle cx="5.5" cy="18.5" r="2.5" />
+              <circle cx="18.5" cy="18.5" r="2.5" />
             </svg>
           </div>
           <div class="stat-content">
             <div class="stat-label">ผู้ให้บริการ</div>
-            <div class="stat-value">{{ stats.totalProviders.toLocaleString() }}</div>
+            <div class="stat-value">
+              {{ stats.totalProviders.toLocaleString() }}
+            </div>
           </div>
         </div>
       </div>
@@ -225,7 +269,7 @@ const formatDate = (date: string) => {
 .page-title {
   font-size: 24px;
   font-weight: 600;
-  color: #1F2937;
+  color: #1f2937;
   margin: 0 0 24px 0;
 }
 
@@ -236,20 +280,22 @@ const formatDate = (date: string) => {
   justify-content: center;
   padding: 60px 20px;
   gap: 16px;
-  color: #6B7280;
+  color: #6b7280;
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #E5E7EB;
-  border-top-color: #00A86B;
+  border: 3px solid #e5e7eb;
+  border-top-color: #00a86b;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .dashboard-content {
@@ -271,7 +317,7 @@ const formatDate = (date: string) => {
   display: flex;
   align-items: center;
   gap: 16px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #e5e7eb;
 }
 
 .stat-icon {
@@ -284,23 +330,23 @@ const formatDate = (date: string) => {
 }
 
 .stat-icon.orders {
-  background: #DBEAFE;
-  color: #1E40AF;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .stat-icon.revenue {
-  background: #D1FAE5;
-  color: #065F46;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .stat-icon.users {
-  background: #FEF3C7;
-  color: #92400E;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .stat-icon.providers {
-  background: #E0E7FF;
-  color: #3730A3;
+  background: #e0e7ff;
+  color: #3730a3;
 }
 
 .stat-content {
@@ -309,14 +355,14 @@ const formatDate = (date: string) => {
 
 .stat-label {
   font-size: 14px;
-  color: #6B7280;
+  color: #6b7280;
   margin-bottom: 4px;
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #1F2937;
+  color: #1f2937;
 }
 
 .content-grid {
@@ -329,20 +375,20 @@ const formatDate = (date: string) => {
   background: white;
   border-radius: 12px;
   padding: 20px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #e5e7eb;
 }
 
 .card-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1F2937;
+  color: #1f2937;
   margin: 0 0 16px 0;
 }
 
 .empty-state {
   padding: 40px 20px;
   text-align: center;
-  color: #9CA3AF;
+  color: #9ca3af;
   font-size: 14px;
 }
 
@@ -360,15 +406,15 @@ const formatDate = (date: string) => {
   padding: 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #6B7280;
-  border-bottom: 1px solid #E5E7EB;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .data-table td {
   padding: 12px;
   font-size: 14px;
-  color: #1F2937;
-  border-bottom: 1px solid #F3F4F6;
+  color: #1f2937;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .status-badge {
@@ -379,28 +425,28 @@ const formatDate = (date: string) => {
 }
 
 .status-badge.pending {
-  background: #FEF3C7;
-  color: #92400E;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .status-badge.matched {
-  background: #DBEAFE;
-  color: #1E40AF;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .status-badge.in_progress {
-  background: #E0E7FF;
-  color: #3730A3;
+  background: #e0e7ff;
+  color: #3730a3;
 }
 
 .status-badge.completed {
-  background: #D1FAE5;
-  color: #065F46;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .status-badge.cancelled {
-  background: #FEE2E2;
-  color: #991B1B;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 @media (max-width: 768px) {

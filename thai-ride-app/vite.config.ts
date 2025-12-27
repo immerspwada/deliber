@@ -365,10 +365,6 @@ export default defineConfig({
     minify: 'terser',
     sourcemap: false,
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        admin: resolve(__dirname, 'admin.html')
-      },
       output: {
         manualChunks: {
           'vue-vendor': ['vue', 'vue-router', 'pinia'],

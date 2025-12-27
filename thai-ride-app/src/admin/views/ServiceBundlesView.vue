@@ -60,20 +60,24 @@
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ stats.activeBundles }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
           <div class="stat-label">Active Templates</div>
         </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-icon" style="background: #E8F5FF;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2196F3">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-width="2"/>
-            <circle cx="12" cy="7" r="4" stroke-width="2"/>
+        <div class="stat-icon" style="background: #e8f5ff">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#2196F3"
+          >
+            <path
+              d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+              stroke-width="2"
+            />
+            <circle cx="12" cy="7" r="4" stroke-width="2" />
           </svg>
         </div>
         <div class="stat-content">
@@ -83,13 +87,24 @@
       </div>
 
       <div class="stat-card">
-        <div class="stat-icon" style="background: #F3E8FF;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9C27B0">
-            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-width="2"/>
+        <div class="stat-icon" style="background: #f3e8ff">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#9C27B0"
+          >
+            <path
+              d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+              stroke-width="2"
+            />
           </svg>
         </div>
         <div class="stat-content">
-          <div class="stat-value">฿{{ stats.totalRevenue.toLocaleString() }}</div>
+          <div class="stat-value">
+            ฿{{ stats.totalRevenue.toLocaleString() }}
+          </div>
           <div class="stat-label">Total Revenue</div>
         </div>
       </div>
@@ -97,19 +112,19 @@
 
     <!-- Tabs -->
     <div class="tabs">
-      <button 
+      <button
         :class="['tab', { active: activeTab === 'templates' }]"
         @click="activeTab = 'templates'"
       >
         Bundle Templates
       </button>
-      <button 
+      <button
         :class="['tab', { active: activeTab === 'active' }]"
         @click="activeTab = 'active'"
       >
         Active Bundles
       </button>
-      <button 
+      <button
         :class="['tab', { active: activeTab === 'history' }]"
         @click="activeTab = 'history'"
       >
@@ -120,10 +135,10 @@
     <!-- Templates Tab -->
     <div v-if="activeTab === 'templates'" class="content-section">
       <div v-if="loading" class="loading">Loading templates...</div>
-      
+
       <div v-else class="templates-grid">
-        <div 
-          v-for="template in templates" 
+        <div
+          v-for="template in templates"
           :key="template.id"
           class="template-card"
         >
@@ -132,18 +147,21 @@
               <h3>{{ template.name }}</h3>
               <p class="template-name-th">{{ template.name_th }}</p>
             </div>
-            <span 
-              :class="['status-badge', template.is_active ? 'active' : 'inactive']"
+            <span
+              :class="[
+                'status-badge',
+                template.is_active ? 'active' : 'inactive',
+              ]"
             >
-              {{ template.is_active ? 'Active' : 'Inactive' }}
+              {{ template.is_active ? "Active" : "Inactive" }}
             </span>
           </div>
 
           <p class="template-description">{{ template.description }}</p>
 
           <div class="template-services">
-            <span 
-              v-for="service in template.service_types" 
+            <span
+              v-for="service in template.service_types"
               :key="service"
               class="service-tag"
             >
@@ -152,8 +170,17 @@
           </div>
 
           <div class="template-discount">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00A86B">
-              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke-width="2"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#00A86B"
+            >
+              <path
+                d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
+                stroke-width="2"
+              />
             </svg>
             <span>{{ template.discount_percentage }}% Discount</span>
           </div>
@@ -162,11 +189,14 @@
             <button @click="editTemplate(template)" class="btn-secondary">
               Edit
             </button>
-            <button 
-              @click="toggleTemplateStatus(template)" 
-              :class="['btn-outline', template.is_active ? 'danger' : 'success']"
+            <button
+              @click="toggleTemplateStatus(template)"
+              :class="[
+                'btn-outline',
+                template.is_active ? 'danger' : 'success',
+              ]"
             >
-              {{ template.is_active ? 'Deactivate' : 'Activate' }}
+              {{ template.is_active ? "Deactivate" : "Activate" }}
             </button>
           </div>
         </div>
@@ -176,7 +206,7 @@
     <!-- Active Bundles Tab -->
     <div v-if="activeTab === 'active'" class="content-section">
       <div v-if="loading" class="loading">Loading active bundles...</div>
-      
+
       <div v-else class="bundles-table">
         <table>
           <thead>
@@ -205,8 +235,8 @@
               </td>
               <td>
                 <div class="services-list">
-                  <span 
-                    v-for="(service, idx) in bundle.services" 
+                  <span
+                    v-for="(service, idx) in bundle.services"
                     :key="idx"
                     class="service-badge"
                   >
@@ -216,14 +246,20 @@
               </td>
               <td>
                 <div class="price-info">
-                  <div class="final-price">฿{{ bundle.total_final_price || bundle.total_estimated_price }}</div>
+                  <div class="final-price">
+                    ฿{{
+                      bundle.total_final_price || bundle.total_estimated_price
+                    }}
+                  </div>
                   <div v-if="bundle.total_final_price" class="estimated-price">
                     Est: ฿{{ bundle.total_estimated_price }}
                   </div>
                 </div>
               </td>
               <td>
-                <span class="discount-badge">-฿{{ bundle.bundle_discount }}</span>
+                <span class="discount-badge"
+                  >-฿{{ bundle.bundle_discount }}</span
+                >
               </td>
               <td>
                 <span :class="['status-badge', bundle.status]">
@@ -233,22 +269,39 @@
               <td>
                 <div class="progress-info">
                   <div class="progress-bar">
-                    <div 
-                      class="progress-fill" 
-                      :style="{ width: `${(bundle.completed_services_count / bundle.total_services_count) * 100}%` }"
+                    <div
+                      class="progress-fill"
+                      :style="{
+                        width: `${
+                          (bundle.completed_services_count /
+                            bundle.total_services_count) *
+                          100
+                        }%`,
+                      }"
                     ></div>
                   </div>
                   <span class="progress-text">
-                    {{ bundle.completed_services_count }}/{{ bundle.total_services_count }}
+                    {{ bundle.completed_services_count }}/{{
+                      bundle.total_services_count
+                    }}
                   </span>
                 </div>
               </td>
               <td>{{ formatDate(bundle.created_at) }}</td>
               <td>
                 <button @click="viewBundleDetails(bundle)" class="btn-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke-width="2"/>
-                    <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                      stroke-width="2"
+                    />
+                    <circle cx="12" cy="12" r="3" stroke-width="2" />
                   </svg>
                 </button>
               </td>
@@ -261,9 +314,9 @@
     <!-- History Tab -->
     <div v-if="activeTab === 'history'" class="content-section">
       <div class="filters">
-        <input 
-          v-model="searchQuery" 
-          type="text" 
+        <input
+          v-model="searchQuery"
+          type="text"
           placeholder="Search by Bundle ID or Customer..."
           class="search-input"
         />
@@ -276,7 +329,7 @@
       </div>
 
       <div v-if="loading" class="loading">Loading history...</div>
-      
+
       <div v-else class="bundles-table">
         <!-- Similar table structure as active bundles -->
         <p v-if="filteredHistory.length === 0" class="empty-state">
@@ -288,156 +341,150 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useServiceBundles } from '@/composables/useServiceBundles'
-import { supabase } from '@/lib/supabase'
+import { ref, computed, onMounted } from "vue";
+import { useAdminAPI } from "../composables/useAdminAPI";
+import { supabase } from "@/lib/supabase";
 
-const { 
-  bundles, 
-  loading, 
-  fetchBundles,
-  calculateDiscountPercentage 
-} = useServiceBundles()
+const api = useAdminAPI();
 
-const activeTab = ref('templates')
-const showCreateModal = ref(false)
-const searchQuery = ref('')
-const statusFilter = ref('')
-const templates = ref([])
-const activeBundles = ref([])
-const historyBundles = ref([])
+const activeTab = ref("templates");
+const showCreateModal = ref(false);
+const searchQuery = ref("");
+const statusFilter = ref("");
+const templates = ref<any[]>([]);
+const activeBundles = ref<any[]>([]);
+const historyBundles = ref<any[]>([]);
+const loading = ref(false);
 
 const stats = ref({
   totalBundles: 0,
   activeBundles: 0,
   totalCustomers: 0,
-  totalRevenue: 0
-})
+  totalRevenue: 0,
+});
 
 onMounted(async () => {
-  await loadData()
-})
+  await loadData();
+});
 
 async function loadData() {
-  await Promise.all([
-    loadTemplates(),
-    loadActiveBundles(),
-    loadStats()
-  ])
+  loading.value = true;
+  try {
+    await Promise.all([loadTemplates(), loadActiveBundles(), loadStats()]);
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function loadTemplates() {
-  const { data } = await supabase
-    .from('bundle_templates')
-    .select('*')
-    .order('display_order')
-  
-  templates.value = data || []
+  try {
+    // Use RPC function to bypass RLS
+    templates.value = await api.getBundleTemplates();
+  } catch (e) {
+    console.error("Error loading templates:", e);
+    templates.value = [];
+  }
 }
 
 async function loadActiveBundles() {
-  const { data } = await supabase
-    .from('service_bundles')
-    .select(`
-      *,
-      users!inner(first_name, last_name, member_uid)
-    `)
-    .in('status', ['pending', 'active'])
-    .order('created_at', { ascending: false })
-  
-  activeBundles.value = data?.map(b => ({
-    ...b,
-    customer_name: `${b.users.first_name} ${b.users.last_name}`,
-    member_uid: b.users.member_uid
-  })) || []
+  try {
+    // Use RPC function to bypass RLS
+    const result = await api.getServiceBundles(
+      { status: "active" },
+      { page: 1, limit: 50 }
+    );
+    activeBundles.value = result.data;
+  } catch (e) {
+    console.error("Error loading active bundles:", e);
+    activeBundles.value = [];
+  }
 }
 
 async function loadStats() {
-  const { data: bundlesData } = await supabase
-    .from('service_bundles')
-    .select('status, total_final_price, user_id')
-  
-  if (bundlesData) {
+  try {
+    // Use RPC function to bypass RLS
+    const statsData = await api.getServiceBundlesStats();
     stats.value = {
-      totalBundles: bundlesData.length,
-      activeBundles: bundlesData.filter(b => b.status === 'active').length,
-      totalCustomers: new Set(bundlesData.map(b => b.user_id)).size,
-      totalRevenue: bundlesData
-        .filter(b => b.status === 'completed')
-        .reduce((sum, b) => sum + (b.total_final_price || 0), 0)
-    }
+      totalBundles: statsData.total_bundles || 0,
+      activeBundles: statsData.active_bundles || 0,
+      totalCustomers: statsData.total_customers || 0,
+      totalRevenue: statsData.total_revenue || 0,
+    };
+  } catch (e) {
+    console.error("Error loading stats:", e);
   }
 }
 
 const filteredHistory = computed(() => {
-  let result = historyBundles.value
-  
+  let result = historyBundles.value;
+
   if (searchQuery.value) {
-    result = result.filter(b => 
-      b.bundle_uid.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      b.customer_name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+    result = result.filter(
+      (b) =>
+        b.bundle_uid.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        b.customer_name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    );
   }
-  
+
   if (statusFilter.value) {
-    result = result.filter(b => b.status === statusFilter.value)
+    result = result.filter((b) => b.status === statusFilter.value);
   }
-  
-  return result
-})
+
+  return result;
+});
 
 function formatServiceType(type: string): string {
   const types: Record<string, string> = {
-    ride: 'Ride',
-    delivery: 'Delivery',
-    shopping: 'Shopping',
-    queue: 'Queue',
-    moving: 'Moving',
-    laundry: 'Laundry'
-  }
-  return types[type] || type
+    ride: "Ride",
+    delivery: "Delivery",
+    shopping: "Shopping",
+    queue: "Queue",
+    moving: "Moving",
+    laundry: "Laundry",
+  };
+  return types[type] || type;
 }
 
 function formatStatus(status: string): string {
   const statuses: Record<string, string> = {
-    pending: 'Pending',
-    active: 'Active',
-    completed: 'Completed',
-    cancelled: 'Cancelled',
-    partial: 'Partial'
-  }
-  return statuses[status] || status
+    pending: "Pending",
+    active: "Active",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    partial: "Partial",
+  };
+  return statuses[status] || status;
 }
 
 function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return new Date(date).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function editTemplate(template: any) {
   // TODO: Open edit modal
-  console.log('Edit template:', template)
+  console.log("Edit template:", template);
 }
 
 async function toggleTemplateStatus(template: any) {
   const { error } = await supabase
-    .from('bundle_templates')
+    .from("bundle_templates")
     .update({ is_active: !template.is_active })
-    .eq('id', template.id)
-  
+    .eq("id", template.id);
+
   if (!error) {
-    await loadTemplates()
+    await loadTemplates();
   }
 }
 
 function viewBundleDetails(bundle: any) {
   // TODO: Open details modal
-  console.log('View bundle:', bundle)
+  console.log("View bundle:", bundle);
 }
 </script>
 
@@ -458,7 +505,7 @@ function viewBundleDetails(bundle: any) {
 .view-header h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 4px 0;
 }
 
@@ -471,7 +518,7 @@ function viewBundleDetails(bundle: any) {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #00A86B;
+  background: #00a86b;
   color: white;
   border: none;
   border-radius: 12px;
@@ -482,7 +529,7 @@ function viewBundleDetails(bundle: any) {
 }
 
 .btn-primary:hover {
-  background: #008F5B;
+  background: #008f5b;
   transform: translateY(-1px);
 }
 
@@ -499,7 +546,7 @@ function viewBundleDetails(bundle: any) {
   padding: 20px;
   display: flex;
   gap: 16px;
-  border: 1px solid #F0F0F0;
+  border: 1px solid #f0f0f0;
 }
 
 .stat-icon {
@@ -519,7 +566,7 @@ function viewBundleDetails(bundle: any) {
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 4px;
 }
 
@@ -532,7 +579,7 @@ function viewBundleDetails(bundle: any) {
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
-  border-bottom: 2px solid #F0F0F0;
+  border-bottom: 2px solid #f0f0f0;
 }
 
 .tab {
@@ -548,15 +595,15 @@ function viewBundleDetails(bundle: any) {
 }
 
 .tab.active {
-  color: #00A86B;
-  border-bottom-color: #00A86B;
+  color: #00a86b;
+  border-bottom-color: #00a86b;
 }
 
 .content-section {
   background: white;
   border-radius: 16px;
   padding: 24px;
-  border: 1px solid #F0F0F0;
+  border: 1px solid #f0f0f0;
 }
 
 .templates-grid {
@@ -566,14 +613,14 @@ function viewBundleDetails(bundle: any) {
 }
 
 .template-card {
-  border: 1px solid #E8E8E8;
+  border: 1px solid #e8e8e8;
   border-radius: 12px;
   padding: 20px;
   transition: all 0.2s;
 }
 
 .template-card:hover {
-  border-color: #00A86B;
+  border-color: #00a86b;
   box-shadow: 0 4px 12px rgba(0, 168, 107, 0.1);
 }
 
@@ -587,7 +634,7 @@ function viewBundleDetails(bundle: any) {
 .template-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 4px 0;
 }
 
@@ -605,12 +652,12 @@ function viewBundleDetails(bundle: any) {
 }
 
 .status-badge.active {
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
 }
 
 .status-badge.inactive {
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #999999;
 }
 
@@ -629,10 +676,10 @@ function viewBundleDetails(bundle: any) {
 
 .service-tag {
   padding: 6px 12px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 8px;
   font-size: 13px;
-  color: #1A1A1A;
+  color: #1a1a1a;
   font-weight: 500;
 }
 
@@ -640,7 +687,7 @@ function viewBundleDetails(bundle: any) {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #00A86B;
+  color: #00a86b;
   font-weight: 600;
   margin-bottom: 16px;
 }
@@ -661,29 +708,29 @@ function viewBundleDetails(bundle: any) {
 }
 
 .btn-secondary {
-  background: #F5F5F5;
+  background: #f5f5f5;
   border: none;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .btn-secondary:hover {
-  background: #E8E8E8;
+  background: #e8e8e8;
 }
 
 .btn-outline {
   background: white;
-  border: 2px solid #00A86B;
-  color: #00A86B;
+  border: 2px solid #00a86b;
+  color: #00a86b;
 }
 
 .btn-outline.danger {
-  border-color: #E53935;
-  color: #E53935;
+  border-color: #e53935;
+  color: #e53935;
 }
 
 .btn-outline.success {
-  border-color: #00A86B;
-  color: #00A86B;
+  border-color: #00a86b;
+  color: #00a86b;
 }
 
 .bundles-table {
@@ -698,7 +745,7 @@ table {
 th {
   text-align: left;
   padding: 12px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #666666;
   font-weight: 600;
   font-size: 13px;
@@ -707,13 +754,13 @@ th {
 
 td {
   padding: 16px 12px;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .bundle-uid {
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: "Monaco", "Courier New", monospace;
   font-size: 13px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   padding: 4px 8px;
   border-radius: 4px;
 }
@@ -726,7 +773,7 @@ td {
 
 .customer-name {
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .customer-uid {
@@ -742,8 +789,8 @@ td {
 
 .service-badge {
   padding: 4px 8px;
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -757,7 +804,7 @@ td {
 
 .final-price {
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .estimated-price {
@@ -767,8 +814,8 @@ td {
 }
 
 .discount-badge {
-  background: #FFF4E6;
-  color: #F5A623;
+  background: #fff4e6;
+  color: #f5a623;
   padding: 4px 8px;
   border-radius: 6px;
   font-weight: 600;
@@ -784,14 +831,14 @@ td {
 .progress-bar {
   width: 100px;
   height: 6px;
-  background: #F0F0F0;
+  background: #f0f0f0;
   border-radius: 3px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #00A86B;
+  background: #00a86b;
   transition: width 0.3s;
 }
 
@@ -811,8 +858,8 @@ td {
 }
 
 .btn-icon:hover {
-  background: #F5F5F5;
-  color: #00A86B;
+  background: #f5f5f5;
+  color: #00a86b;
 }
 
 .filters {
@@ -824,7 +871,7 @@ td {
 .search-input,
 .filter-select {
   padding: 10px 16px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 8px;
   font-size: 14px;
 }
@@ -850,22 +897,22 @@ td {
 }
 
 .status-badge.pending {
-  background: #FFF4E6;
-  color: #F5A623;
+  background: #fff4e6;
+  color: #f5a623;
 }
 
 .status-badge.completed {
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
 }
 
 .status-badge.cancelled {
-  background: #FFEBEE;
-  color: #E53935;
+  background: #ffebee;
+  color: #e53935;
 }
 
 .status-badge.partial {
-  background: #E8F5FF;
-  color: #2196F3;
+  background: #e8f5ff;
+  color: #2196f3;
 }
 </style>
