@@ -239,6 +239,12 @@ const moreServices = [
 // Shortcuts
 const shortcuts = [
   {
+    id: "bundles",
+    name: "แพ็คเกจ",
+    route: "/customer/bundles",
+    color: "#9C27B0",
+  },
+  {
     id: "scheduled",
     name: "นัดล่วงหน้า",
     route: "/customer/scheduled-rides",
@@ -275,12 +281,6 @@ const shortcuts = [
     color: "#00A86B",
   },
   { id: "help", name: "ช่วยเหลือ", route: "/customer/help", color: "#666666" },
-  {
-    id: "safety",
-    name: "ความปลอดภัย",
-    route: "/customer/safety",
-    color: "#E53935",
-  },
 ];
 
 // Status text mapping
