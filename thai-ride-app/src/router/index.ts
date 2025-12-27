@@ -440,7 +440,8 @@ const router = createRouter({
 // Navigation guard - ADMIN FIRST, then customer/provider
 router.beforeEach(async (to, _from, next) => {
   // ========================================
-  // 1. ADMIN ROUTES - Check FIRST (no customer auth needed)
+  // 1. ADMIN ROUTES - Completely separate from customer auth
+  // Admin uses adminAuth.store.ts (Demo Mode with localStorage)
   // ========================================
   const isAdminRoute = to.path.startsWith('/admin')
   
@@ -462,7 +463,7 @@ router.beforeEach(async (to, _from, next) => {
       }
     }
     
-    // Admin route with valid session - proceed
+    // Admin route with valid session - proceed WITHOUT touching customer auth
     return next()
   }
   
@@ -475,12 +476,16 @@ router.beforeEach(async (to, _from, next) => {
   
   // ========================================
   // 3. CUSTOMER/PROVIDER ROUTES - Need customer auth
+  // Only initialize customer auth for non-admin routes
   // ========================================
+  
+  // Lazy import auth store to avoid loading for admin routes
+  const { useAuthStore } = await import('../stores/auth')
   const authStore = useAuthStore()
   
   // Wait for auth to initialize if needed
   if (authStore.loading && !authStore.user) {
-    console.log('[Router] Waiting for auth to initialize...')
+    console.log('[Router] Waiting for customer auth to initialize...')
     await new Promise(resolve => {
       const unwatch = authStore.$subscribe(() => {
         if (!authStore.loading) {

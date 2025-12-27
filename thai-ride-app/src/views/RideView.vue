@@ -1958,7 +1958,9 @@ watch(rideType, () => {
                   <div class="confirm-dot pickup"></div>
                   <div class="confirm-route-text">
                     <span class="confirm-route-label">จุดรับ</span>
-                    <span class="confirm-route-value">{{ pickupAddress }}</span>
+                    <span class="confirm-route-value">{{
+                      pickupAddress || pickupLocation?.address || "ไม่ระบุ"
+                    }}</span>
                   </div>
                 </div>
                 <div class="confirm-route-line"></div>
@@ -1967,7 +1969,9 @@ watch(rideType, () => {
                   <div class="confirm-route-text">
                     <span class="confirm-route-label">จุดหมาย</span>
                     <span class="confirm-route-value">{{
-                      destinationAddress
+                      destinationAddress ||
+                      destinationLocation?.address ||
+                      "ไม่ระบุ"
                     }}</span>
                   </div>
                 </div>
@@ -5155,36 +5159,36 @@ watch(rideType, () => {
   color: #666666;
 }
 
-/* Vue Transitions */
+/* Vue Transitions - Enhanced Smooth Animations */
 .slide-fade-enter-active {
-  transition: all 0.3s ease-out;
+  transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .slide-fade-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19);
 }
 
 .slide-fade-enter-from {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-12px);
 }
 
 .slide-fade-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px);
 }
 
 .scale-fade-enter-active {
-  transition: all 0.3s ease-out;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .scale-fade-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all 0.2s cubic-bezier(0.55, 0.06, 0.68, 0.19);
 }
 
 .scale-fade-enter-from {
   opacity: 0;
-  transform: scale(0.95);
+  transform: scale(0.9);
 }
 
 .scale-fade-leave-to {
@@ -5193,26 +5197,26 @@ watch(rideType, () => {
 }
 
 .slide-up-enter-active {
-  transition: all 0.3s ease-out;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .slide-up-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19);
 }
 
 .slide-up-enter-from {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(24px);
 }
 
 .slide-up-leave-to {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(16px);
 }
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .fade-enter-from,

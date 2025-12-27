@@ -6,7 +6,6 @@ import App from './App.vue'
 
 // Import router with guards
 import router from './router/index'
-import { supabase } from './lib/supabase'
 import { initSentry, setUser as setSentryUser } from './lib/sentry'
 
 // Create Pinia store
@@ -21,27 +20,47 @@ initSentry(app, router)
 app.use(pinia)
 app.use(router)
 
-// Initialize auth store before mounting
-import { useAuthStore } from './stores/auth'
-const authStore = useAuthStore()
+// ========================================
+// IMPORTANT: Admin and Customer auth are COMPLETELY SEPARATE
+// ========================================
+// - Admin uses: adminAuth.store.ts (Demo Mode with localStorage session)
+// - Customer uses: stores/auth.ts (Supabase Auth)
+// 
+// We DON'T initialize customer auth here anymore.
+// App.vue handles initialization based on route type:
+// - Admin routes (/admin/*) → Skip customer auth, use admin auth
+// - Customer routes → Initialize customer auth
+// ========================================
 
-// Initialize auth and then mount app
-authStore.initialize().finally(() => {
-  app.mount('#app')
-})
+// Mount app immediately - auth initialization is handled by App.vue
+app.mount('#app')
 
-// Set Sentry user context when auth changes
-supabase.auth.onAuthStateChange((_event, session) => {
-  if (session?.user) {
-    setSentryUser({
-      id: session.user.id,
-      email: session.user.email,
-      role: session.user.user_metadata?.role
-    })
-  } else {
-    setSentryUser(null)
+// Set Sentry user context when customer auth changes (lazy load to avoid admin routes)
+// Only setup listener for non-admin routes
+const setupCustomerAuthListener = async () => {
+  const currentPath = window.location.pathname
+  if (currentPath.startsWith('/admin')) {
+    // Admin route - don't setup customer auth listener
+    return
   }
-})
+  
+  // Customer route - setup Supabase auth listener
+  const { supabase } = await import('./lib/supabase')
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      setSentryUser({
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.user_metadata?.role
+      })
+    } else {
+      setSentryUser(null)
+    }
+  })
+}
+
+// Setup listener after a small delay to ensure router is ready
+setTimeout(setupCustomerAuthListener, 100)
 
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {

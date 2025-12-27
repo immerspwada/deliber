@@ -31,6 +31,10 @@ export { default as LiveProviderTracker } from './LiveProviderTracker.vue'
 export { default as StatusUpdateBanner } from './StatusUpdateBanner.vue'
 export { default as ETACountdown } from './ETACountdown.vue'
 
+// Smart UX Components (F270-F272)
+export { default as SmartSuggestionsCard } from './SmartSuggestionsCard.vue'
+export { default as CelebrationOverlay } from './CelebrationOverlay.vue'
+
 // Re-export cross-role utilities
 export { useCrossRoleEvents, CrossRoleEvents, eventBus } from '../../lib/crossRoleEventBus'
 

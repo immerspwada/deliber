@@ -18,6 +18,7 @@ const selectedOrder = ref<Order | null>(null);
 const showDetailModal = ref(false);
 const showStatusModal = ref(false);
 const newStatus = ref<OrderStatus>("pending");
+const loadError = ref<string | null>(null);
 
 const filters = computed<OrderFilters>(() => ({
   search: searchQuery.value || undefined,
@@ -33,21 +34,35 @@ async function loadOrders() {
     limit: pageSize.value,
   });
 
-  const result = await api.getOrders(filters.value, {
-    page: currentPage.value,
-    limit: pageSize.value,
-  });
+  loadError.value = null;
 
-  console.log("[OrdersView] API result:", {
-    dataLength: result.data.length,
-    total: result.total,
-    totalPages: result.totalPages,
-    firstItem: result.data[0],
-  });
+  try {
+    const result = await api.getOrders(filters.value, {
+      page: currentPage.value,
+      limit: pageSize.value,
+    });
 
-  orders.value = result.data;
-  totalOrders.value = result.total;
-  totalPages.value = result.totalPages;
+    console.log("[OrdersView] API result:", {
+      dataLength: result.data.length,
+      total: result.total,
+      totalPages: result.totalPages,
+      firstItem: result.data[0],
+    });
+
+    // Check if there's an API error
+    if (api.error.value) {
+      loadError.value = api.error.value;
+      console.error("[OrdersView] API error:", api.error.value);
+    }
+
+    orders.value = result.data;
+    totalOrders.value = result.total;
+    totalPages.value = result.totalPages;
+  } catch (err) {
+    loadError.value =
+      err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+    console.error("[OrdersView] loadOrders error:", err);
+  }
 }
 
 function viewOrder(order: Order) {
@@ -187,7 +202,32 @@ onMounted(() => {
     </div>
 
     <div class="table-container">
-      <div v-if="api.isLoading.value" class="loading-state">
+      <!-- Error State -->
+      <div v-if="loadError" class="error-state">
+        <div class="error-icon">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h3>เกิดข้อผิดพลาด</h3>
+        <p class="error-message">{{ loadError }}</p>
+        <p class="error-hint">
+          กรุณารัน SQL script ใน Supabase SQL Editor:<br />
+          <code>thai-ride-app/scripts/fix-admin-dashboard-v7.sql</code>
+        </p>
+        <button class="btn btn-primary" @click="loadOrders">ลองใหม่</button>
+      </div>
+
+      <div v-else-if="api.isLoading.value" class="loading-state">
         <div class="skeleton" v-for="i in 10" :key="i" />
       </div>
       <table v-else-if="orders.length > 0" class="data-table">
@@ -592,10 +632,53 @@ onMounted(() => {
 }
 .empty-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 60px;
   color: #9ca3af;
+}
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+.error-icon {
+  color: #ef4444;
+  margin-bottom: 16px;
+}
+.error-state h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+.error-message {
+  color: #ef4444;
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  padding: 12px 16px;
+  background: #fee2e2;
+  border-radius: 8px;
+  max-width: 500px;
+}
+.error-hint {
+  color: #6b7280;
+  font-size: 13px;
+  margin: 0 0 20px 0;
+  line-height: 1.6;
+}
+.error-hint code {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
 }
 .pagination {
   display: flex;

@@ -60,6 +60,9 @@ const ProviderCTA = defineAsyncComponent(
 const QuickReorderCard = defineAsyncComponent(
   () => import("../components/customer/QuickReorderCard.vue")
 );
+const SmartSuggestionsCard = defineAsyncComponent(
+  () => import("../components/customer/SmartSuggestionsCard.vue")
+);
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -739,6 +742,9 @@ onUnmounted(() => {
           />
         </div>
       </section>
+
+      <!-- Smart Suggestions Section -->
+      <SmartSuggestionsCard />
 
       <!-- Main Services -->
       <CuteServiceGrid

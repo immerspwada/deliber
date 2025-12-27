@@ -34,6 +34,7 @@ const AdminFraudAlertsView = () => import('../views/AdminFraudAlertsView.vue')
 const AdminAnalyticsView = () => import('../views/AdminAnalyticsView.vue')
 const AdminReportsView = () => import('../views/AdminReportsView.vue')
 const AdminUXAnalyticsView = () => import('../views/AdminUXAnalyticsView.vue')
+const CustomerUXAnalyticsView = () => import('./views/CustomerUXAnalyticsView.vue')
 const AdminSettingsView = () => import('../views/AdminSettingsView.vue')
 const AdminNotificationsView = () => import('../views/AdminNotificationsView.vue')
 const AdminServiceAreasView = () => import('../views/AdminServiceAreaView.vue')
@@ -284,6 +285,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         path: 'ux-analytics',
         name: 'AdminUXAnalyticsV2',
         component: AdminUXAnalyticsView,
+        meta: { module: 'analytics' }
+      },
+      {
+        path: 'customer-ux-analytics',
+        name: 'AdminCustomerUXAnalyticsV2',
+        component: CustomerUXAnalyticsView,
         meta: { module: 'analytics' }
       },
       {

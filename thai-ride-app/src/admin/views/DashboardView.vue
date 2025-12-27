@@ -51,6 +51,7 @@ const lastUpdated = ref<Date | null>(null);
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
+  console.log("[Dashboard] Component mounted, starting data load...");
   await loadDashboardData();
   // Auto-refresh every 30 seconds
   refreshInterval = setInterval(loadRealtimeData, 30000);
@@ -66,6 +67,8 @@ const loadDashboardData = async () => {
   isLoading.value = true;
 
   try {
+    console.log("[Dashboard] Loading dashboard data...");
+
     // Load all data in parallel
     const [
       dashboardStats,
@@ -85,6 +88,15 @@ const loadDashboardData = async () => {
       getRevenueTrends(),
     ]);
 
+    console.log("[Dashboard] Data loaded:", {
+      dashboardStats,
+      ordersCount: ordersResult.data.length,
+      providersCount: providers.length,
+      realtime,
+      services,
+      provStats,
+    });
+
     stats.value = {
       totalOrders: dashboardStats.totalOrders,
       totalRevenue: dashboardStats.todayRevenue,
@@ -102,7 +114,7 @@ const loadDashboardData = async () => {
     revenueTrends.value = trends || [];
     lastUpdated.value = new Date();
   } catch (error) {
-    console.error("Error loading dashboard:", error);
+    console.error("[Dashboard] Error loading dashboard:", error);
   } finally {
     isLoading.value = false;
   }

@@ -2,30 +2,21 @@
  * Admin Authentication Store
  * ==========================
  * Pinia store for admin authentication state management
+ * 
+ * PRODUCTION MODE ONLY - Uses real Supabase Auth
+ * Admin users must have role = 'admin' or 'super_admin' in users table
  */
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../../lib/supabase'
-import type { AdminUser, AdminSession, AdminRole, Permission } from '../types'
+import type { AdminUser, AdminSession, AdminRole } from '../types'
 import { DEFAULT_PERMISSIONS, ROLE_LEVELS } from '../types/auth.types'
 
 // Constants
 const SESSION_TTL = 8 * 60 * 60 * 1000 // 8 hours
 const STORAGE_KEYS = {
-  TOKEN: 'admin_v2_token',
-  USER: 'admin_v2_user',
   SESSION: 'admin_v2_session'
-}
-
-// Demo admin for development
-const DEMO_ADMIN: AdminUser = {
-  id: 'demo-admin-001',
-  email: 'admin@demo.com',
-  name: 'Demo Admin',
-  role: 'admin',
-  permissions: DEFAULT_PERMISSIONS.admin,
-  created_at: new Date().toISOString()
 }
 
 export const useAdminAuthStore = defineStore('adminAuth', () => {
@@ -40,7 +31,7 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
 
   // Computed
   const isAuthenticated = computed(() => !!user.value && !!session.value)
-  const isDemoMode = computed(() => session.value?.isDemoMode ?? false)
+  const isDemoMode = computed(() => false) // Always false - no demo mode
   const userRole = computed(() => user.value?.role ?? 'viewer')
   const userPermissions = computed(() => user.value?.permissions ?? [])
   
@@ -56,7 +47,7 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     if (user.value.role === 'super_admin') return true
     
     const permission = user.value.permissions.find(
-      p => p.module === module || p.module === '*'
+      (p: { module: string; actions: string[] }) => p.module === module || p.module === '*'
     )
     
     return permission?.actions.includes(action) ?? false
@@ -66,7 +57,7 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     return hasPermission(module, 'view')
   }
 
-  // Session management
+  // Session management - stores admin user info (Supabase handles actual auth)
   const loadSession = (): boolean => {
     try {
       const storedSession = localStorage.getItem(STORAGE_KEYS.SESSION)
@@ -89,14 +80,14 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     }
   }
 
-  const saveSession = (adminUser: AdminUser, token: string, demoMode: boolean) => {
+  const saveSession = (adminUser: AdminUser, token: string) => {
     const now = Date.now()
     const newSession: AdminSession = {
       token,
       user: adminUser,
       loginTime: now,
       expiresAt: now + SESSION_TTL,
-      isDemoMode: demoMode
+      isDemoMode: false // Always false
     }
 
     session.value = newSession
@@ -108,11 +99,9 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     session.value = null
     user.value = null
     localStorage.removeItem(STORAGE_KEYS.SESSION)
-    localStorage.removeItem(STORAGE_KEYS.TOKEN)
-    localStorage.removeItem(STORAGE_KEYS.USER)
   }
 
-  // Login
+  // Login - PRODUCTION MODE: Real Supabase Auth only
   const login = async (email: string, password: string): Promise<boolean> => {
     const trimmedEmail = email.trim().toLowerCase()
     
@@ -133,23 +122,16 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     error.value = null
 
     try {
-      // Demo mode login
-      if (trimmedEmail === 'admin@demo.com' && password === 'admin1234') {
-        await new Promise(resolve => setTimeout(resolve, 500)) // UX delay
-        saveSession(DEMO_ADMIN, 'demo_token', true)
-        loginAttempts.value = 0
-        isLocked.value = false
-        isLoading.value = false
-        return true
-      }
-
-      // Supabase login
+      // Real Supabase Auth login
+      console.log('[Admin Auth] Attempting Supabase login for:', trimmedEmail)
+      
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password
       })
 
       if (authError) {
+        console.error('[Admin Auth] Supabase auth error:', authError)
         handleFailedLogin()
         return false
       }
@@ -160,7 +142,9 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
         return false
       }
 
-      // Check admin role
+      console.log('[Admin Auth] Supabase auth successful, checking admin role...')
+
+      // Check admin role in users table
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, email, first_name, last_name, role')
@@ -168,6 +152,7 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
         .single()
 
       if (userError || !userData) {
+        console.error('[Admin Auth] User lookup error:', userError)
         error.value = 'ไม่พบข้อมูลผู้ใช้ในระบบ'
         await supabase.auth.signOut()
         isLoading.value = false
@@ -176,31 +161,40 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
 
       const userRecord = userData as { id: string; email: string; first_name?: string; last_name?: string; role?: string }
       
+      console.log('[Admin Auth] User role:', userRecord.role)
+      
       if (userRecord.role !== 'admin' && userRecord.role !== 'super_admin') {
-        error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin'
+        error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin (ต้องมี role = admin หรือ super_admin)'
         await supabase.auth.signOut()
         isLoading.value = false
         return false
       }
 
-      // Create admin user
+      // Create admin user object
       const role = (userRecord.role as AdminRole) || 'admin'
+      const permissions = DEFAULT_PERMISSIONS[role] as { module: string; actions: string[] }[]
+      
       const adminUser: AdminUser = {
         id: userRecord.id,
         email: userRecord.email,
         name: `${userRecord.first_name || ''} ${userRecord.last_name || ''}`.trim() || userRecord.email,
         role,
-        permissions: DEFAULT_PERMISSIONS[role],
+        permissions,
         created_at: new Date().toISOString()
       }
 
-      saveSession(adminUser, authData.session?.access_token || 'admin_token', false)
+      // Save session with real access token
+      saveSession(adminUser, authData.session?.access_token || '')
+      
+      console.log('[Admin Auth] Login successful for admin:', adminUser.email)
+      
       loginAttempts.value = 0
       isLocked.value = false
       isLoading.value = false
       return true
 
     } catch (e) {
+      console.error('[Admin Auth] Login error:', e)
       error.value = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
       isLoading.value = false
       return false
@@ -228,33 +222,64 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     
     try {
       await supabase.auth.signOut()
-    } catch {
-      // Ignore errors
+      console.log('[Admin Auth] Logged out successfully')
+    } catch (e) {
+      console.error('[Admin Auth] Logout error:', e)
     }
   }
 
-  // Initialize
+  // Initialize - verify Supabase session is valid
   const initialize = async (): Promise<boolean> => {
-    const hasSession = loadSession()
+    console.log('[Admin Auth] Initializing...')
     
-    if (!hasSession) {
+    // First check if we have a stored session
+    const hasStoredSession = loadSession()
+    
+    if (!hasStoredSession) {
+      console.log('[Admin Auth] No stored session found')
       return false
     }
 
-    // Verify Supabase session for non-demo mode
-    if (!session.value?.isDemoMode) {
-      try {
-        const { data: { session: supaSession } } = await supabase.auth.getSession()
-        if (!supaSession) {
-          clearSession()
-          return false
-        }
-      } catch {
-        // Keep session if network error
+    // Verify Supabase session is still valid
+    try {
+      const { data: { session: supaSession } } = await supabase.auth.getSession()
+      
+      if (!supaSession) {
+        console.log('[Admin Auth] Supabase session expired, clearing local session')
+        clearSession()
+        return false
       }
-    }
 
-    return true
+      // Verify user still has admin role
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', supaSession.user.id)
+        .single()
+
+      if (userError || !userData) {
+        console.log('[Admin Auth] User not found, clearing session')
+        clearSession()
+        await supabase.auth.signOut()
+        return false
+      }
+
+      const userRecord = userData as { role?: string }
+      
+      if (userRecord.role !== 'admin' && userRecord.role !== 'super_admin') {
+        console.log('[Admin Auth] User no longer has admin role')
+        clearSession()
+        await supabase.auth.signOut()
+        return false
+      }
+
+      console.log('[Admin Auth] Session valid, user authenticated')
+      return true
+    } catch (e) {
+      console.error('[Admin Auth] Initialize error:', e)
+      // Keep session if network error (offline support)
+      return hasStoredSession
+    }
   }
 
   return {

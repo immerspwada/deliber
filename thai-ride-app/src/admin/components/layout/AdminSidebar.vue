@@ -284,6 +284,14 @@ const menuItems = computed<MenuItem[]>(() => [
         permission: "analytics",
       },
       {
+        id: "customer-ux",
+        label: "Customer UX",
+        labelTh: "Customer UX",
+        icon: "sparkle",
+        path: "/admin/customer-ux-analytics",
+        permission: "analytics",
+      },
+      {
         id: "reorder",
         label: "Reorder Analytics",
         labelTh: "การสั่งซ้ำ",

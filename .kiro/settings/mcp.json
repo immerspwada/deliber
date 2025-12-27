@@ -15,7 +15,8 @@
         "search_files",
         "get_file_info",
         "read_text_file",
-        "write_file"
+        "write_file",
+        "list_allowed_directories"
       ]
     }
   }

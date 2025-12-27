@@ -142,52 +142,95 @@ export function useAdminAPI() {
     isLoading.value = true
     error.value = null
 
+    console.log('[Admin API] getProviders called with:', { filters, pagination })
+
     try {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      // Use RPC function to bypass RLS (works with demo mode)
-      const { data, error: queryError } = await (supabase.rpc as any)('get_all_providers_for_admin', {
-        p_status: filters.status || null,
-        p_provider_type: null,
-        p_limit: limit,
-        p_offset: offset
-      }) as RpcResponse<any[]>
+      // Query directly from service_providers table with user join
+      // Note: Using actual columns from schema (no is_online, total_rides, total_earnings)
+      let query = supabase
+        .from('service_providers')
+        .select(`
+          id,
+          user_id,
+          provider_uid,
+          provider_type,
+          status,
+          is_available,
+          is_verified,
+          rating,
+          total_trips,
+          vehicle_type,
+          vehicle_plate,
+          created_at,
+          approved_at,
+          users!service_providers_user_id_fkey (
+            id,
+            email,
+            first_name,
+            last_name,
+            phone_number
+          )
+        `, { count: 'exact' })
 
-      if (queryError) throw queryError
+      // Apply status filter
+      if (filters.status) {
+        query = query.eq('status', filters.status)
+      }
 
-      // Get total count
-      const { data: countData, error: countError } = await (supabase.rpc as any)('count_providers_for_admin', {
-        p_status: filters.status || null,
-        p_provider_type: null
-      }) as RpcResponse<number>
+      // Apply search filter
+      if (filters.search) {
+        query = query.or(`provider_uid.ilike.%${filters.search}%,provider_type.ilike.%${filters.search}%`)
+      }
 
-      if (countError) throw countError
+      // Apply pagination and ordering
+      query = query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
 
-      const total = countData || 0
+      const { data, error: queryError, count } = await query
 
-      // Map to Provider type
-      const providers: Provider[] = (data || []).map((p: any) => ({
-        id: p.id,
-        user_id: p.user_id,
-        provider_uid: p.provider_uid,
-        provider_type: p.provider_type,
-        status: p.status,
-        first_name: p.user_first_name,
-        last_name: p.user_last_name,
-        phone_number: p.user_phone,
-        email: p.user_email,
-        avatar_url: null,
-        vehicle_type: null,
-        vehicle_plate: null,
-        is_online: p.is_available,
-        is_verified: p.is_verified,
-        rating: p.rating || 0,
-        total_trips: p.total_rides || 0,
-        total_earnings: p.total_earnings || 0,
-        created_at: p.created_at,
-        approved_at: null
-      }))
+      console.log('[Admin API] getProviders result:', { 
+        dataLength: data?.length, 
+        count, 
+        error: queryError,
+        firstItem: data?.[0]
+      })
+
+      if (queryError) {
+        console.error('[Admin API] getProviders error:', queryError)
+        throw queryError
+      }
+
+      const total = count || 0
+
+      // Map to Provider type - using actual schema columns
+      const providers: Provider[] = (data || []).map((p: any) => {
+        const user = p.users || {}
+        return {
+          id: p.id,
+          user_id: p.user_id,
+          provider_uid: p.provider_uid,
+          provider_type: p.provider_type,
+          status: p.status,
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          phone_number: user.phone_number || '',
+          email: user.email || '',
+          avatar_url: null,
+          vehicle_type: p.vehicle_type,
+          vehicle_plate: p.vehicle_plate,
+          is_online: p.is_available || false, // is_available is the actual column
+          is_verified: p.is_verified || false,
+          rating: p.rating || 0,
+          total_trips: p.total_trips || 0, // total_trips is the actual column
+          total_earnings: 0, // Not stored in service_providers table
+          created_at: p.created_at,
+          approved_at: p.approved_at
+        }
+      })
 
       return {
         data: providers,
@@ -234,29 +277,55 @@ export function useAdminAPI() {
   }
 
   async function getVerificationQueue(): Promise<Provider[]> {
+    console.log('[Admin API] getVerificationQueue called')
+    
     try {
-      // Use RPC function to bypass RLS (works with demo mode)
-      const { data, error: queryError } = await (supabase.rpc as any)('get_all_providers_for_admin', {
-        p_status: 'pending',
-        p_provider_type: null,
-        p_limit: 50,
-        p_offset: 0
-      }) as RpcResponse<any[]>
+      // Query directly from service_providers table with pending status
+      const { data, error: queryError } = await supabase
+        .from('service_providers')
+        .select(`
+          id,
+          user_id,
+          provider_uid,
+          provider_type,
+          status,
+          is_verified,
+          created_at,
+          users!service_providers_user_id_fkey (
+            id,
+            email,
+            first_name,
+            last_name,
+            phone_number
+          )
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      console.log('[Admin API] getVerificationQueue result:', { 
+        dataLength: data?.length, 
+        error: queryError 
+      })
 
       if (queryError) throw queryError
 
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        user_id: p.user_id,
-        provider_uid: p.provider_uid,
-        provider_type: p.provider_type,
-        status: p.status,
-        first_name: p.user_first_name,
-        last_name: p.user_last_name,
-        phone_number: p.user_phone,
-        email: p.user_email,
-        created_at: p.created_at
-      })) as Provider[]
+      return (data || []).map((p: any) => {
+        const user = p.users || {}
+        return {
+          id: p.id,
+          user_id: p.user_id,
+          provider_uid: p.provider_uid,
+          provider_type: p.provider_type,
+          status: p.status,
+          first_name: user.first_name || '',
+          last_name: user.last_name || '',
+          phone_number: user.phone_number || '',
+          email: user.email || '',
+          is_verified: p.is_verified || false,
+          created_at: p.created_at
+        }
+      }) as Provider[]
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch verification queue'
       console.error('getVerificationQueue error:', e)
@@ -826,18 +895,21 @@ export function useAdminAPI() {
       // Use RPC function to bypass RLS (works with demo mode)
       const { data, error: queryError } = await (supabase.rpc as any)('get_admin_dashboard_stats') as RpcResponse<any>
 
+      console.log('[Admin API] getDashboardStats result:', { data, error: queryError })
+
       if (queryError) throw queryError
 
       if (data) {
+        // Handle both old and new field names from RPC
         return {
-          totalCustomers: data.total_users || 0,
-          totalProviders: data.total_providers || 0,
-          activeProviders: data.online_providers || 0,
-          pendingProviders: data.pending_verifications || 0,
-          totalOrders: data.total_rides || 0,
-          pendingOrders: data.active_rides || 0,
-          todayOrders: 0, // Not in RPC, would need separate query
-          todayRevenue: data.total_revenue || 0
+          totalCustomers: data.totalCustomers || data.total_users || 0,
+          totalProviders: data.totalProviders || data.total_providers || 0,
+          activeProviders: data.activeProviders || data.online_providers || 0,
+          pendingProviders: data.pendingProviders || data.pending_verifications || 0,
+          totalOrders: data.totalOrders || data.total_rides || 0,
+          pendingOrders: data.pendingOrders || data.active_rides || 0,
+          todayOrders: data.todayOrders || 0,
+          todayRevenue: data.todayRevenue || data.total_revenue || 0
         }
       }
 

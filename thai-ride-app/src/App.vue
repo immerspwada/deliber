@@ -1,18 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, onErrorCaptured } from "vue";
+import { computed, onMounted, ref, onErrorCaptured, watch } from "vue";
 import { RouterView, useRoute } from "vue-router";
 import AppShell from "./components/AppShell.vue";
 import PWAInstallBanner from "./components/PWAInstallBanner.vue";
 import ToastContainer from "./components/ToastContainer.vue";
 import ErrorBoundary from "./components/ErrorBoundary.vue";
 import OfflineIndicator from "./components/OfflineIndicator.vue";
-import { useAuthStore } from "./stores/auth";
-import { useRideStore } from "./stores/ride";
+import CelebrationOverlay from "./components/customer/CelebrationOverlay.vue";
 import { usePageTransitions } from "./composables/usePageTransitions";
 
 const route = useRoute();
-const authStore = useAuthStore();
-const rideStore = useRideStore();
 
 // Setup page transitions
 const { transitionName, setupTransitions } = usePageTransitions();
@@ -31,13 +28,22 @@ onErrorCaptured((err) => {
   return true;
 });
 
-// Initialize auth and restore active ride on app mount
-onMounted(async () => {
+/**
+ * Initialize Customer Auth (only for non-admin routes)
+ * Admin routes use their own auth system (adminAuth.store.ts)
+ */
+const initializeCustomerAuth = async () => {
+  // Lazy import to avoid loading customer auth for admin routes
+  const { useAuthStore } = await import("./stores/auth");
+  const { useRideStore } = await import("./stores/ride");
+
+  const authStore = useAuthStore();
+  const rideStore = useRideStore();
+
   // Check demo mode first - instant ready
   const isDemoMode = localStorage.getItem("demo_mode") === "true";
 
   if (isDemoMode) {
-    // Demo mode - initialize and show app immediately
     try {
       await authStore.initialize();
     } catch (err) {
@@ -45,7 +51,6 @@ onMounted(async () => {
         console.debug("[Demo Init]", err);
       }
     }
-    isReady.value = true;
 
     // Initialize ride store in background if user exists
     if (authStore.user?.id) {
@@ -62,8 +67,7 @@ onMounted(async () => {
   const hasStoredSession = localStorage.getItem(`sb-${projectRef}-auth-token`);
 
   if (!hasStoredSession) {
-    // No stored session - show app immediately (user is not logged in)
-    isReady.value = true;
+    // No stored session - user is not logged in
     return;
   }
 
@@ -72,13 +76,11 @@ onMounted(async () => {
 
   const timeout = setTimeout(() => {
     if (!initCompleted) {
-      // Use debug level - this is expected behavior, not a warning
       if (import.meta.env.DEV) {
-        console.debug("[App] Init taking longer than expected, showing app");
+        console.debug("[App] Customer auth init taking longer than expected");
       }
-      isReady.value = true;
     }
-  }, 2000); // Increased to 2s for slower networks
+  }, 2000);
 
   try {
     await authStore.initialize();
@@ -97,11 +99,44 @@ onMounted(async () => {
     if (import.meta.env.DEV) {
       console.debug("[App Init]", err);
     }
-    // Don't block app for init errors
   } finally {
     clearTimeout(timeout);
-    isReady.value = true;
   }
+};
+
+// Initialize app based on route type
+onMounted(async () => {
+  // ========================================
+  // ADMIN ROUTES - Skip customer auth entirely
+  // Admin uses its own auth system (adminAuth.store.ts)
+  // ========================================
+  if (isAdminRoute.value) {
+    console.log(
+      "[App] Admin route detected - skipping customer auth initialization"
+    );
+    isReady.value = true;
+    return;
+  }
+
+  // ========================================
+  // CUSTOMER/PROVIDER ROUTES - Initialize customer auth
+  // ========================================
+  await initializeCustomerAuth();
+  isReady.value = true;
+});
+
+// Watch for route changes between admin and customer
+// This handles cases where user navigates from admin to customer or vice versa
+watch(isAdminRoute, async (newIsAdmin, oldIsAdmin) => {
+  if (oldIsAdmin && !newIsAdmin) {
+    // Navigating FROM admin TO customer - initialize customer auth
+    console.log(
+      "[App] Navigating from admin to customer - initializing customer auth"
+    );
+    await initializeCustomerAuth();
+  }
+  // Note: When navigating from customer to admin, we don't need to do anything
+  // Admin auth is handled by adminAuth.store.ts independently
 });
 </script>
 
@@ -128,11 +163,23 @@ onMounted(async () => {
       @error="(err) => console.error('[ErrorBoundary]', err)"
     >
       <!-- Admin routes - NO AppShell wrapper (AdminShell is in admin routes) -->
-      <RouterView v-if="isAdminRoute" v-slot="{ Component }">
-        <transition :name="transitionName" mode="out-in">
-          <component :is="Component" :key="route.path" />
-        </transition>
-      </RouterView>
+      <template v-if="isAdminRoute">
+        <RouterView v-slot="{ Component }">
+          <Suspense>
+            <template #default>
+              <transition :name="transitionName" mode="out-in">
+                <component :is="Component" :key="route.path" />
+              </transition>
+            </template>
+            <template #fallback>
+              <div class="admin-loading">
+                <div class="loading-spinner"></div>
+                <span>กำลังโหลด Admin...</span>
+              </div>
+            </template>
+          </Suspense>
+        </RouterView>
+      </template>
 
       <!-- Customer/Provider routes with AppShell -->
       <AppShell v-else-if="!hideNavigation">
@@ -156,6 +203,9 @@ onMounted(async () => {
 
     <!-- Global Toast Notifications -->
     <ToastContainer />
+
+    <!-- Celebration Overlay (Global) -->
+    <CelebrationOverlay v-if="!isAdminRoute" />
   </div>
 </template>
 
@@ -215,5 +265,16 @@ onMounted(async () => {
   padding: 4px 12px;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* Admin Loading */
+.admin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 16px;
+  color: #6b7280;
 }
 </style>
