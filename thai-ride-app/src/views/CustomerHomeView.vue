@@ -135,6 +135,7 @@ const cachedOrders = getCache<ActiveOrder[]>(CACHE_KEYS.orders);
 // Active orders
 interface ActiveOrder {
   id: string;
+  trackingId?: string;
   type: "ride" | "delivery" | "shopping" | "queue" | "moving" | "laundry";
   typeName: string;
   status: string;
@@ -341,22 +342,24 @@ const fetchActiveOrders = async () => {
     const [ridesResult, deliveriesResult, shoppingResult, queuesResult] =
       await Promise.allSettled([
         (supabase.from("ride_requests") as any)
-          .select("id, status, pickup_address, destination_address")
+          .select(
+            "id, tracking_id, status, pickup_address, destination_address"
+          )
           .eq("user_id", userId)
           .in("status", ["pending", "matched", "arrived", "in_progress"])
           .limit(3),
         (supabase.from("delivery_requests") as any)
-          .select("id, status, sender_address, recipient_address")
+          .select("id, tracking_id, status, sender_address, recipient_address")
           .eq("user_id", userId)
           .in("status", ["pending", "matched", "picked_up", "in_transit"])
           .limit(3),
         (supabase.from("shopping_requests") as any)
-          .select("id, status, store_name, delivery_address")
+          .select("id, tracking_id, status, store_name, delivery_address")
           .eq("user_id", userId)
           .in("status", ["pending", "matched", "purchased", "delivering"])
           .limit(3),
         (supabase.from("queue_bookings") as any)
-          .select("id, status, service_name, location_name")
+          .select("id, tracking_id, status, service_name, location_name")
           .eq("user_id", userId)
           .in("status", ["pending", "confirmed", "in_progress"])
           .limit(3),
@@ -367,6 +370,7 @@ const fetchActiveOrders = async () => {
       ridesResult.value.data.forEach((r: any) => {
         orders.push({
           id: r.id,
+          trackingId: r.tracking_id,
           type: "ride",
           typeName: "เรียกรถ",
           status: r.status,
@@ -386,6 +390,7 @@ const fetchActiveOrders = async () => {
       deliveriesResult.value.data.forEach((d: any) => {
         orders.push({
           id: d.id,
+          trackingId: d.tracking_id,
           type: "delivery",
           typeName: "ส่งของ",
           status: d.status,
@@ -402,6 +407,7 @@ const fetchActiveOrders = async () => {
       shoppingResult.value.data.forEach((s: any) => {
         orders.push({
           id: s.id,
+          trackingId: s.tracking_id,
           type: "shopping",
           typeName: "ซื้อของ",
           status: s.status,
@@ -418,6 +424,7 @@ const fetchActiveOrders = async () => {
       queuesResult.value.data.forEach((q: any) => {
         orders.push({
           id: q.id,
+          trackingId: q.tracking_id,
           type: "queue",
           typeName: "จองคิว",
           status: q.status,

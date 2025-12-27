@@ -42,7 +42,7 @@ const AdminServiceZonesView = () => import('../views/AdminServiceZonesView.vue')
 const AdminSecurityView = () => import('../views/AdminSecurityView.vue')
 const AdminAuditLogView = () => import('../views/AdminAuditLogView.vue')
 const AdminLiveMapView = () => import('../views/AdminLiveMapView.vue')
-const AdminScheduledRidesView = () => import('../views/AdminScheduledRidesView.vue')
+const AdminScheduledRidesView = () => import('./views/ScheduledRidesView.vue')
 const AdminCancellationsView = () => import('../views/AdminCancellationsView.vue')
 
 // Service Views

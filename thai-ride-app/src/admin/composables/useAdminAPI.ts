@@ -445,14 +445,68 @@ export function useAdminAPI() {
     }
   }
 
-  async function updateOrderStatus(orderId: string, status: string): Promise<boolean> {
+  async function updateOrderStatus(
+    orderId: string, 
+    status: string, 
+    options?: { 
+      cancelReason?: string;
+      serviceType?: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry';
+    }
+  ): Promise<boolean> {
     try {
+      const tableName = options?.serviceType ? `${options.serviceType}_requests` : 'ride_requests'
+      
+      // Build update object
+      const updateData: Record<string, any> = { status }
+      
+      // If cancelling, add cancellation details
+      if (status === 'cancelled') {
+        updateData.cancelled_at = new Date().toISOString()
+        updateData.cancelled_by = 'admin'
+        updateData.cancel_reason = options?.cancelReason || 'ยกเลิกโดย Admin'
+      }
+      
       const { error: updateError } = await supabase
-        .from('ride_requests')
-        .update({ status })
+        .from(tableName)
+        .update(updateData)
         .eq('id', orderId)
 
       if (updateError) throw updateError
+      
+      // Send notification to customer about status change
+      try {
+        // Get order details to find user_id
+        const { data: orderData } = await supabase
+          .from(tableName)
+          .select('user_id, tracking_id')
+          .eq('id', orderId)
+          .single()
+        
+        if (orderData?.user_id) {
+          const statusMessages: Record<string, string> = {
+            cancelled: `คำสั่ง ${orderData.tracking_id} ถูกยกเลิกแล้ว`,
+            completed: `คำสั่ง ${orderData.tracking_id} เสร็จสิ้นแล้ว`,
+            in_progress: `คำสั่ง ${orderData.tracking_id} กำลังดำเนินการ`,
+          }
+          
+          const message = statusMessages[status] || `สถานะคำสั่ง ${orderData.tracking_id} เปลี่ยนเป็น ${status}`
+          
+          // Map service type to notification type
+          const notificationType = options?.serviceType || 'ride'
+          
+          await supabase.from('user_notifications').insert({
+            user_id: orderData.user_id,
+            type: notificationType,
+            title: status === 'cancelled' ? 'คำสั่งถูกยกเลิก' : 'อัพเดทสถานะคำสั่ง',
+            message,
+            data: { order_id: orderId, tracking_id: orderData.tracking_id, status }
+          })
+        }
+      } catch (notifyError) {
+        console.error('Failed to send notification:', notifyError)
+        // Don't fail the whole operation if notification fails
+      }
+      
       return true
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to update order'
@@ -829,20 +883,28 @@ export function useAdminAPI() {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      const { data, error: queryError } = await (supabase.rpc as any)('get_all_cancellations_for_admin', {
-        p_service_type: serviceType || null,
-        p_limit: limit,
-        p_offset: offset
-      }) as RpcResponse<any[]>
+      // Get data and count in parallel
+      const [dataResult, countResult] = await Promise.all([
+        (supabase.rpc as any)('get_all_cancellations_for_admin', {
+          p_service_type: serviceType || null,
+          p_limit: limit,
+          p_offset: offset
+        }) as Promise<RpcResponse<any[]>>,
+        (supabase.rpc as any)('count_cancellations_for_admin', {
+          p_service_type: serviceType || null
+        }) as Promise<RpcResponse<number>>
+      ])
 
-      if (queryError) throw queryError
+      if (dataResult.error) throw dataResult.error
+
+      const total = countResult.data || dataResult.data?.length || 0
 
       return {
-        data: data || [],
-        total: data?.length || 0,
+        data: dataResult.data || [],
+        total,
         page,
         limit,
-        totalPages: Math.ceil((data?.length || 0) / limit)
+        totalPages: Math.ceil(total / limit)
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch cancellations'
@@ -1014,7 +1076,8 @@ export function useAdminAPI() {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      const { data, error: queryError } = await (supabase.rpc as any)('get_all_service_bundles_for_admin', {
+      // Use correct RPC function name from migration 184
+      const { data, error: queryError } = await (supabase.rpc as any)('get_service_bundles_for_admin', {
         p_status: filters.status || null,
         p_limit: limit,
         p_offset: offset

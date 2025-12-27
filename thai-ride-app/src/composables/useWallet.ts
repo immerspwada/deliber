@@ -44,18 +44,20 @@ export interface WalletTransaction {
 
 export interface TopupRequest {
   id: string
-  user_id: string
+  user_id?: string
   tracking_id: string
   amount: number
   payment_method: 'promptpay' | 'bank_transfer' | 'credit_card'
   payment_reference: string | null
   slip_url: string | null
+  slip_image_url?: string | null
   status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'
   admin_note: string | null
   created_at: string
   updated_at: string
-  processed_at: string | null
-  processed_by: string | null
+  approved_at?: string | null
+  rejected_at?: string | null
+  expires_at?: string | null
 }
 
 export function useWallet() {
@@ -66,7 +68,7 @@ export function useWallet() {
   const loading = ref(false)
 
   // Fetch wallet balance
-  // ใช้ maybeSingle() แทน single() เพื่อหลีกเลี่ยง 406 error เมื่อไม่มี wallet
+  // ใช้ RPC function ที่จะ auto-create wallet ถ้ายังไม่มี
   const fetchBalance = async () => {
     if (!authStore.user?.id) {
       balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
@@ -74,7 +76,22 @@ export function useWallet() {
     }
 
     try {
-      // ใช้ maybeSingle() - returns null ถ้าไม่พบ row (ไม่ throw 406)
+      // ลองใช้ RPC function ก่อน (จะ auto-create wallet)
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_customer_wallet', {
+        p_user_id: authStore.user.id
+      })
+
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        const walletData = rpcData[0]
+        balance.value = {
+          balance: walletData.balance || 0,
+          total_earned: walletData.total_earned || 0,
+          total_spent: walletData.total_spent || 0
+        }
+        return balance.value
+      }
+
+      // Fallback: query directly with maybeSingle()
       const { data, error } = await (supabase
         .from('user_wallets') as any)
         .select('balance, total_earned, total_spent')
@@ -239,6 +256,17 @@ export function useWallet() {
     }
 
     try {
+      // ลองใช้ RPC function ก่อน
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_customer_topup_requests', {
+        p_limit: 20
+      })
+
+      if (!rpcError && rpcData) {
+        topupRequests.value = rpcData as TopupRequest[]
+        return topupRequests.value
+      }
+
+      // Fallback: query directly
       const { data, error } = await (supabase
         .from('topup_requests') as any)
         .select('*')
@@ -278,7 +306,30 @@ export function useWallet() {
     }
 
     try {
-      // Generate tracking ID
+      // ลองใช้ RPC function ก่อน
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('customer_create_topup_request', {
+        p_amount: amount,
+        p_payment_method: paymentMethod,
+        p_payment_reference: paymentReference || null,
+        p_slip_url: slipUrl || null
+      })
+
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        const result = rpcData[0]
+        if (result.success) {
+          await fetchTopupRequests()
+          return {
+            success: true,
+            message: result.message,
+            trackingId: result.tracking_id,
+            data: { id: result.request_id }
+          }
+        } else {
+          return { success: false, message: result.message }
+        }
+      }
+
+      // Fallback: insert directly
       const trackingId = `TOP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`
 
       const { data, error } = await (supabase
@@ -290,6 +341,7 @@ export function useWallet() {
           payment_method: paymentMethod,
           payment_reference: paymentReference || null,
           slip_url: slipUrl || null,
+          slip_image_url: slipUrl || null,
           status: 'pending'
         })
         .select()
@@ -322,6 +374,20 @@ export function useWallet() {
     }
 
     try {
+      // ลองใช้ RPC function ก่อน
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('customer_cancel_topup_request', {
+        p_request_id: requestId
+      })
+
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        const result = rpcData[0]
+        if (result.success) {
+          await fetchTopupRequests()
+        }
+        return { success: result.success, message: result.message }
+      }
+
+      // Fallback: update directly
       const { error } = await (supabase
         .from('topup_requests') as any)
         .update({ status: 'cancelled' })

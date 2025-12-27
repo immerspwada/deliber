@@ -337,6 +337,159 @@
         </p>
       </div>
     </div>
+
+    <!-- Create/Edit Bundle Template Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showCreateModal"
+        class="modal-overlay"
+        @click.self="closeModal"
+      >
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>
+              {{
+                editingTemplate
+                  ? "Edit Bundle Template"
+                  : "Create Bundle Template"
+              }}
+            </h2>
+            <button @click="closeModal" class="close-btn">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <form @submit.prevent="saveTemplate" class="modal-body">
+            <div class="form-group">
+              <label>Name (English) *</label>
+              <input
+                v-model="formData.name"
+                type="text"
+                required
+                placeholder="e.g., Moving + Laundry Package"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Name (Thai) *</label>
+              <input
+                v-model="formData.name_th"
+                type="text"
+                required
+                placeholder="e.g., แพ็คเกจขนย้าย + ซักผ้า"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Description (English)</label>
+              <textarea
+                v-model="formData.description"
+                rows="2"
+                placeholder="Brief description..."
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Description (Thai)</label>
+              <textarea
+                v-model="formData.description_th"
+                rows="2"
+                placeholder="คำอธิบายสั้นๆ..."
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Services Included *</label>
+              <div class="services-checkboxes">
+                <label
+                  v-for="service in availableServices"
+                  :key="service.id"
+                  class="checkbox-label"
+                >
+                  <input
+                    type="checkbox"
+                    :value="service.id"
+                    v-model="formData.service_types"
+                  />
+                  <span class="checkbox-text">{{ service.name }}</span>
+                </label>
+              </div>
+              <p
+                v-if="formData.service_types.length < 2"
+                class="form-hint error"
+              >
+                Select at least 2 services
+              </p>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Discount Percentage *</label>
+                <div class="input-with-suffix">
+                  <input
+                    v-model.number="formData.discount_percentage"
+                    type="number"
+                    min="0"
+                    max="50"
+                    required
+                  />
+                  <span class="suffix">%</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Display Order</label>
+                <input
+                  v-model.number="formData.display_order"
+                  type="number"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="formData.is_popular" />
+                <span class="checkbox-text">Mark as Popular</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="formData.is_active" />
+                <span class="checkbox-text">Active (visible to customers)</span>
+              </label>
+            </div>
+          </form>
+
+          <div class="modal-footer">
+            <button type="button" @click="closeModal" class="btn-secondary">
+              Cancel
+            </button>
+            <button
+              type="button"
+              @click="saveTemplate"
+              class="btn-primary"
+              :disabled="saving || formData.service_types.length < 2"
+            >
+              <span v-if="saving">Saving...</span>
+              <span v-else
+                >{{ editingTemplate ? "Update" : "Create" }} Template</span
+              >
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -355,6 +508,8 @@ const templates = ref<any[]>([]);
 const activeBundles = ref<any[]>([]);
 const historyBundles = ref<any[]>([]);
 const loading = ref(false);
+const saving = ref(false);
+const editingTemplate = ref<any>(null);
 
 const stats = ref({
   totalBundles: 0,
@@ -362,6 +517,31 @@ const stats = ref({
   totalCustomers: 0,
   totalRevenue: 0,
 });
+
+// Available services for bundle
+const availableServices = [
+  { id: "ride", name: "Ride (เรียกรถ)" },
+  { id: "delivery", name: "Delivery (ส่งของ)" },
+  { id: "shopping", name: "Shopping (ซื้อของ)" },
+  { id: "queue", name: "Queue (จองคิว)" },
+  { id: "moving", name: "Moving (ขนย้าย)" },
+  { id: "laundry", name: "Laundry (ซักรีด)" },
+];
+
+// Form data for create/edit
+const defaultFormData = {
+  name: "",
+  name_th: "",
+  description: "",
+  description_th: "",
+  service_types: [] as string[],
+  discount_percentage: 10,
+  display_order: 0,
+  is_popular: false,
+  is_active: true,
+};
+
+const formData = ref({ ...defaultFormData });
 
 onMounted(async () => {
   await loadData();
@@ -467,8 +647,72 @@ function formatDate(date: string): string {
 }
 
 function editTemplate(template: any) {
-  // TODO: Open edit modal
-  console.log("Edit template:", template);
+  editingTemplate.value = template;
+  formData.value = {
+    name: template.name || "",
+    name_th: template.name_th || "",
+    description: template.description || "",
+    description_th: template.description_th || "",
+    service_types: template.service_types || [],
+    discount_percentage: template.discount_percentage || 10,
+    display_order: template.display_order || 0,
+    is_popular: template.is_popular || false,
+    is_active: template.is_active ?? true,
+  };
+  showCreateModal.value = true;
+}
+
+function closeModal() {
+  showCreateModal.value = false;
+  editingTemplate.value = null;
+  formData.value = { ...defaultFormData };
+}
+
+async function saveTemplate() {
+  if (formData.value.service_types.length < 2) {
+    alert("Please select at least 2 services");
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const templateData = {
+      name: formData.value.name,
+      name_th: formData.value.name_th,
+      description: formData.value.description || null,
+      description_th: formData.value.description_th || null,
+      service_types: formData.value.service_types,
+      discount_percentage: formData.value.discount_percentage,
+      display_order: formData.value.display_order,
+      is_popular: formData.value.is_popular,
+      is_active: formData.value.is_active,
+    };
+
+    if (editingTemplate.value) {
+      // Update existing template
+      const { error } = await supabase
+        .from("bundle_templates")
+        .update(templateData)
+        .eq("id", editingTemplate.value.id);
+
+      if (error) throw error;
+    } else {
+      // Create new template
+      const { error } = await supabase
+        .from("bundle_templates")
+        .insert(templateData);
+
+      if (error) throw error;
+    }
+
+    closeModal();
+    await loadTemplates();
+  } catch (e: any) {
+    console.error("Error saving template:", e);
+    alert("Failed to save template: " + (e.message || "Unknown error"));
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function toggleTemplateStatus(template: any) {
@@ -914,5 +1158,185 @@ td {
 .status-badge.partial {
   background: #e8f5ff;
   color: #2196f3;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #666666;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #00a86b;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.input-with-suffix {
+  display: flex;
+  align-items: center;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.input-with-suffix input {
+  flex: 1;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.input-with-suffix .suffix {
+  padding: 12px 16px;
+  background: #f5f5f5;
+  color: #666666;
+  font-weight: 600;
+}
+
+.services-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 10px 12px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.checkbox-label:has(input:checked) {
+  border-color: #00a86b;
+  background: #e8f5ef;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #00a86b;
+}
+
+.checkbox-text {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #666666;
+  margin-top: 6px;
+}
+
+.form-hint.error {
+  color: #e53935;
+}
+
+.btn-primary:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
 }
 </style>

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useAdminAPI } from "../composables/useAdminAPI";
 import { useAdminUIStore } from "../stores/adminUI.store";
+import { useAdminRealtime } from "../composables/useAdminRealtime";
 import type { Order, OrderFilters, OrderStatus } from "../types";
 
 const api = useAdminAPI();
 const uiStore = useAdminUIStore();
+const realtime = useAdminRealtime();
 
 const orders = ref<Order[]>([]);
 const totalOrders = ref(0);
@@ -98,6 +100,14 @@ function formatDate(date: string) {
     minute: "2-digit",
   });
 }
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("th-TH", {
     style: "currency",
@@ -136,9 +146,23 @@ watch([searchQuery, statusFilter], () => {
   loadOrders();
 });
 watch(currentPage, loadOrders);
+
 onMounted(() => {
   uiStore.setBreadcrumbs([{ label: "Orders" }, { label: "ออเดอร์ทั้งหมด" }]);
   loadOrders();
+
+  // Setup realtime subscriptions for all order tables
+  realtime.subscribeToOrders((table, eventType, _payload) => {
+    console.log(`[OrdersView] Realtime update: ${table} ${eventType}`);
+    loadOrders();
+    uiStore.showInfo(
+      `${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)}`
+    );
+  });
+});
+
+onUnmounted(() => {
+  realtime.unsubscribe();
 });
 </script>
 
@@ -150,26 +174,44 @@ onMounted(() => {
         <span class="total-count"
           >{{ totalOrders.toLocaleString() }} รายการ</span
         >
-      </div>
-      <button
-        class="refresh-btn"
-        @click="loadOrders"
-        :disabled="api.isLoading.value"
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
+        <span
+          class="realtime-indicator"
+          :class="{ connected: realtime.isConnected.value }"
+          :title="
+            realtime.isConnected.value
+              ? 'Realtime เชื่อมต่อแล้ว'
+              : 'กำลังเชื่อมต่อ...'
+          "
         >
-          <path d="M23 4v6h-6M1 20v-6h6" />
-          <path
-            d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
-          />
-        </svg>
-      </button>
+          <span class="pulse-dot"></span>
+          {{ realtime.isConnected.value ? "Live" : "Connecting..." }}
+        </span>
+      </div>
+      <div class="header-right">
+        <span v-if="realtime.lastUpdate.value" class="last-update">
+          อัพเดทล่าสุด: {{ formatTime(realtime.lastUpdate.value) }}
+        </span>
+        <button
+          class="refresh-btn"
+          @click="loadOrders"
+          :disabled="api.isLoading.value"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            :class="{ spinning: api.isLoading.value }"
+          >
+            <path d="M23 4v6h-6M1 20v-6h6" />
+            <path
+              d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="filters-bar">
@@ -463,6 +505,11 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
 }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .page-title {
   font-size: 24px;
   font-weight: 700;
@@ -477,6 +524,59 @@ onMounted(() => {
   font-weight: 500;
   border-radius: 16px;
 }
+.realtime-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+.realtime-indicator.connected {
+  background: #d1fae5;
+  color: #065f46;
+}
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: pulse 2s infinite;
+}
+.realtime-indicator.connected .pulse-dot {
+  background: #10b981;
+  animation: pulse-green 1.5s infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+@keyframes pulse-green {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+  }
+}
+.last-update {
+  font-size: 12px;
+  color: #6b7280;
+}
 .refresh-btn {
   width: 40px;
   height: 40px;
@@ -488,6 +588,27 @@ onMounted(() => {
   border-radius: 10px;
   cursor: pointer;
   color: #6b7280;
+  transition: all 0.2s;
+}
+.refresh-btn:hover {
+  background: #f9fafb;
+  border-color: #00a86b;
+  color: #00a86b;
+}
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .filters-bar {
   display: flex;

@@ -1,20 +1,59 @@
 # Admin Dashboard Rules
 
-## 🚨 กฎบังคับ: Auto-Run Migrations
+## 🚨 กฎบังคับ: Auto-Run Migrations ผ่าน MCP (CRITICAL)
 
-**เมื่อสร้าง migration file ใหม่ ต้อง run ทันทีอัตโนมัติ:**
+**เมื่อสร้าง migration file ใหม่ ต้อง run ทันทีอัตโนมัติผ่าน MCP Supabase:**
 
-```bash
-cd thai-ride-app && npx supabase db push
+### วิธีที่ 1: ใช้ MCP Supabase (แนะนำ - บังคับใช้)
+
+```
+ใช้ kiroPowers tool เพื่อรัน migration:
+1. Activate power: supabase-hosted หรือ supabase-local
+2. ใช้ tool: execute_sql หรือ run_migration
+3. ส่ง SQL content จาก migration file ที่สร้าง
 ```
 
-หรือถ้าใช้ hosted Supabase:
+**ขั้นตอนบังคับหลังสร้าง Migration:**
+
+1. **สร้าง migration file** → `supabase/migrations/XXX_feature_name.sql`
+2. **รัน migration ทันที** ผ่าน MCP Supabase power
+3. **ตรวจสอบผลลัพธ์** ว่า migration สำเร็จ
+4. **ถ้า error** → แก้ไขและรันใหม่จนสำเร็จ
+
+### วิธีที่ 2: ใช้ CLI (Fallback)
 
 ```bash
 cd thai-ride-app && npx supabase db push --linked
 ```
 
-**ห้ามสร้าง migration แล้วไม่ run** - ต้อง execute ทันทีเสมอ!
+### ⚠️ กฎเหล็ก
+
+| ❌ ห้ามทำ                    | ✅ ต้องทำ                             |
+| ---------------------------- | ------------------------------------- |
+| สร้าง migration แล้วไม่ run  | รัน migration ทันทีหลังสร้าง          |
+| รอให้ user รัน migration เอง | Agent ต้องรัน migration อัตโนมัติ     |
+| ข้าม error แล้วไปต่อ         | แก้ไข error จนกว่า migration จะสำเร็จ |
+| ใช้ bash command เมื่อมี MCP | ใช้ MCP Supabase power เป็นหลัก       |
+
+### ตัวอย่างการใช้ MCP รัน Migration
+
+```typescript
+// 1. Activate Supabase power
+kiroPowers({ action: "activate", powerName: "supabase-hosted" });
+
+// 2. Execute SQL migration
+kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    sql: "-- SQL content from migration file",
+  },
+});
+```
+
+**ห้ามสร้าง migration แล้วไม่ run** - ต้อง execute ผ่าน MCP ทันทีเสมอ!
 
 ---
 
