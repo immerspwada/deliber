@@ -882,17 +882,47 @@ export function useProvider() {
         pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
         return true
       }
-      const { data, error: acceptError } = await (supabase.rpc as any)('accept_ride_request', { p_ride_id: requestId, p_provider_id: profile.value.id })
-      if (acceptError) throw acceptError
-      const result = data?.[0]
-      if (!result?.success) {
-        pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
-        throw new Error(result?.message || 'ไม่สามารถรับงานได้')
+      
+      // Generate idempotency key for race condition prevention
+      const idempotencyKey = `${profile.value.id}-${requestId}-${Date.now()}`
+      
+      // Try V2 atomic function first (production-ready with race condition prevention)
+      let rideData: any = null
+      try {
+        const { data, error: acceptError } = await (supabase.rpc as any)('accept_ride_atomic_v2', { 
+          p_ride_id: requestId, 
+          p_provider_id: profile.value.id,
+          p_idempotency_key: idempotencyKey
+        })
+        
+        if (acceptError) throw acceptError
+        
+        // V2 returns JSONB directly
+        if (!data?.success) {
+          pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
+          throw new Error(data?.message || 'ไม่สามารถรับงานได้')
+        }
+        
+        rideData = data.ride_data || data
+      } catch (v2Error: any) {
+        // Fallback to V1 if V2 doesn't exist
+        if (v2Error.message?.includes('does not exist')) {
+          const { data, error: acceptError } = await (supabase.rpc as any)('accept_ride_request', { p_ride_id: requestId, p_provider_id: profile.value.id })
+          if (acceptError) throw acceptError
+          const result = data?.[0]
+          if (!result?.success) {
+            pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
+            throw new Error(result?.message || 'ไม่สามารถรับงานได้')
+          }
+          rideData = result.ride_data
+        } else {
+          throw v2Error
+        }
       }
-      const rideData = result.ride_data
+      
       activeRide.value = {
         id: rideData.id, tracking_id: rideData.tracking_id || 'TR' + rideData.id.slice(0, 8).toUpperCase(),
-        passenger: { id: rideData.passenger?.id || rideData.user_id, name: rideData.passenger?.name || 'ผู้โดยสาร', phone: rideData.passenger?.phone || '', rating: 4.5, photo: rideData.passenger?.avatar_url },
+        passenger: { id: rideData.passenger?.id || rideData.user_id || rideData.customer?.id, name: rideData.passenger?.name || rideData.customer?.name || 'ผู้โดยสาร', phone: rideData.passenger?.phone || rideData.customer?.phone || '', rating: 4.5, photo: rideData.passenger?.avatar_url },
         pickup: { lat: rideData.pickup_lat, lng: rideData.pickup_lng, address: rideData.pickup_address },
         destination: { lat: rideData.destination_lat, lng: rideData.destination_lng, address: rideData.destination_address },
         fare: rideData.estimated_fare, status: 'matched',
@@ -929,18 +959,46 @@ export function useProvider() {
         }
         return true
       }
-      const { data, error: updateError } = await (supabase.rpc as any)('update_ride_status', {
-        p_ride_id: activeRide.value.id, p_provider_id: profile.value?.id, p_new_status: dbStatus
-      })
-      if (updateError) throw updateError
-      if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
-      activeRide.value.status = status
-      saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache
-      if (status === 'completed') {
-        earnings.value.today += activeRide.value.fare
-        earnings.value.todayTrips += 1
-        clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on complete
-        setTimeout(() => { activeRide.value = null; unsubscribeFromRide() }, 3000)
+      
+      // Try V2 function first (production-ready with validation)
+      let updateSuccess = false
+      try {
+        const { data, error: updateError } = await (supabase.rpc as any)('update_ride_status_v2', {
+          p_ride_id: activeRide.value.id, 
+          p_provider_id: profile.value?.id, 
+          p_new_status: dbStatus
+        })
+        
+        if (updateError) throw updateError
+        
+        // V2 returns JSONB directly
+        if (data && !data.success) {
+          throw new Error(data.message || 'ไม่สามารถอัพเดทสถานะได้')
+        }
+        updateSuccess = true
+      } catch (v2Error: any) {
+        // Fallback to V1 if V2 doesn't exist
+        if (v2Error.message?.includes('does not exist')) {
+          const { data, error: updateError } = await (supabase.rpc as any)('update_ride_status', {
+            p_ride_id: activeRide.value.id, p_provider_id: profile.value?.id, p_new_status: dbStatus
+          })
+          if (updateError) throw updateError
+          if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
+          updateSuccess = true
+        } else {
+          throw v2Error
+        }
+      }
+      
+      if (updateSuccess) {
+        activeRide.value.status = status
+        saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache
+        if (status === 'completed') {
+          earnings.value.today += activeRide.value.fare
+          earnings.value.todayTrips += 1
+          clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on complete
+          setTimeout(() => { activeRide.value = null; unsubscribeFromRide() }, 3000)
+        }
       }
       return true
     } catch (e: any) { error.value = e.message; return false }

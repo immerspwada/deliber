@@ -137,9 +137,9 @@ export function useRideBooking() {
   }
 
   /**
-   * Cancel current ride
+   * Cancel current ride with pending refund (requires Admin approval)
    */
-  async function cancelRide(rideId: string, reason: string): Promise<void> {
+  async function cancelRide(rideId: string, reason: string): Promise<{ success: boolean; refundAmount?: number; message?: string }> {
     isLoading.value = true
     error.value = null
 
@@ -147,14 +147,23 @@ export function useRideBooking() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { data, error: rpcError } = await supabase.rpc('cancel_ride_atomic', {
-        p_ride_id: rideId,
+      // Use atomic cancel function with pending refund
+      const { data, error: rpcError } = await supabase.rpc('cancel_request_with_pending_refund', {
+        p_request_id: rideId,
+        p_request_type: 'ride',
         p_cancelled_by: user.id,
         p_cancelled_by_role: 'customer',
         p_cancel_reason: reason
       })
 
-      if (rpcError) throw rpcError
+      if (rpcError) {
+        if (rpcError.message?.includes('REQUEST_NOT_FOUND')) {
+          throw new Error('ไม่พบคำขอนี้')
+        } else if (rpcError.message?.includes('REQUEST_ALREADY_FINALIZED')) {
+          throw new Error('ไม่สามารถยกเลิกได้ คำขอนี้ดำเนินการเสร็จสิ้นแล้ว')
+        }
+        throw rpcError
+      }
 
       // Clear current ride
       currentRide.value = null
@@ -165,7 +174,11 @@ export function useRideBooking() {
         realtimeChannel.value = null
       }
 
-      return data
+      return {
+        success: true,
+        refundAmount: data?.refund_amount,
+        message: data?.message || 'ยกเลิกสำเร็จ คำขอคืนเงินรอการอนุมัติจาก Admin'
+      }
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการยกเลิก'
       throw err

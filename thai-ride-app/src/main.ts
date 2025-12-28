@@ -2,6 +2,8 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
 import './styles/transitions.css'
+// NO ANIMATIONS - กดปุ๊บ มาปั๊บ (must be imported LAST to override everything)
+import './styles/no-animations.css'
 import App from './App.vue'
 
 // Import router with guards

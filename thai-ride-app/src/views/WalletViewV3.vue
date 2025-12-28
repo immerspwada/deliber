@@ -79,6 +79,20 @@ const topUpLoading = ref(false);
 const showCancelConfirm = ref(false);
 const cancelRequestId = ref("");
 
+
+// Withdrawal Modal State
+const showWithdrawModal = ref(false);
+const withdrawStep = ref<"bank" | "amount" | "confirm">("bank");
+const selectedBankAccount = ref<string>("");
+const withdrawAmount = ref(100);
+const customWithdrawAmount = ref("");
+const showAddBankModal = ref(false);
+const newBankCode = ref("");
+const newAccountNumber = ref("");
+const newAccountName = ref("");
+const newIsDefault = ref(false);
+const showCancelWithdrawConfirm = ref(false);
+const cancelWithdrawId = ref("");
 // Result Toast
 const toast = ref({ show: false, success: false, text: "" });
 
@@ -366,6 +380,149 @@ const getStatusColor = (status: string): string => {
   };
   return colors[status] || "gray";
 };
+
+// =====================================================
+// WITHDRAWAL FLOW
+// =====================================================
+const openWithdrawModal = () => {
+  console.log("[WalletView] openWithdrawModal called");
+  console.log("[WalletView] bankAccounts:", bankAccounts.value);
+  console.log("[WalletView] availableForWithdrawal:", availableForWithdrawal.value);
+  try {
+    resetWithdrawForm();
+    showWithdrawModal.value = true;
+    console.log("[WalletView] Modal opened successfully");
+  } catch (err) {
+    console.error("[WalletView] Error opening withdraw modal:", err);
+    showToast(false, "เกิดข้อผิดพลาด กรุณาลองใหม่");
+  }
+};
+
+const closeWithdrawModal = () => {
+  showWithdrawModal.value = false;
+  resetWithdrawForm();
+};
+
+const resetWithdrawForm = () => {
+  withdrawStep.value = "bank";
+  const accounts = bankAccounts.value || [];
+  selectedBankAccount.value = accounts.find((b) => b.is_default)?.id || "";
+  withdrawAmount.value = 100;
+  customWithdrawAmount.value = "";
+};
+
+const finalWithdrawAmount = computed(() => {
+  const custom = customWithdrawAmount.value ? Number(customWithdrawAmount.value) : 0;
+  return custom > 0 ? custom : withdrawAmount.value;
+});
+
+const isValidWithdrawAmount = computed(() => {
+  const amount = finalWithdrawAmount.value || 0;
+  const available = availableForWithdrawal.value ?? 0;
+  return amount >= 100 && amount <= available;
+});
+
+const selectWithdrawAmount = (amt: number) => {
+  withdrawAmount.value = amt;
+  customWithdrawAmount.value = "";
+};
+
+const nextWithdrawStep = () => {
+  if (withdrawStep.value === "bank" && selectedBankAccount.value) {
+    withdrawStep.value = "amount";
+  } else if (withdrawStep.value === "amount" && isValidWithdrawAmount.value) {
+    withdrawStep.value = "confirm";
+  }
+};
+
+const prevWithdrawStep = () => {
+  if (withdrawStep.value === "amount") withdrawStep.value = "bank";
+  else if (withdrawStep.value === "confirm") withdrawStep.value = "amount";
+};
+
+const submitWithdrawal = async () => {
+  if (!isValidWithdrawAmount.value || !selectedBankAccount.value) {
+    showToast(false, "กรุณาตรวจสอบข้อมูล");
+    return;
+  }
+
+  try {
+    const result = await requestWithdrawal(
+      selectedBankAccount.value,
+      finalWithdrawAmount.value
+    );
+
+    if (result.success) {
+      closeWithdrawModal();
+      showToast(true, result.message);
+      activeTab.value = "withdraw";
+    } else {
+      showToast(false, result.message);
+    }
+  } catch (err: any) {
+    console.error("[WalletView] Withdrawal error:", err);
+    showToast(false, err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
+  }
+};
+
+// Bank Account Management
+const openAddBankModal = () => {
+  newBankCode.value = "";
+  newAccountNumber.value = "";
+  newAccountName.value = "";
+  newIsDefault.value = (bankAccounts.value || []).length === 0;
+  showAddBankModal.value = true;
+};
+
+const closeAddBankModal = () => {
+  showAddBankModal.value = false;
+};
+
+const submitAddBank = async () => {
+  if (!newBankCode.value || !newAccountNumber.value || !newAccountName.value) {
+    showToast(false, "กรุณากรอกข้อมูลให้ครบ");
+    return;
+  }
+
+  const result = await addBankAccount(
+    newBankCode.value,
+    newAccountNumber.value,
+    newAccountName.value,
+    newIsDefault.value
+  );
+
+  if (result.success) {
+    closeAddBankModal();
+    showToast(true, result.message);
+    if (result.accountId) {
+      selectedBankAccount.value = result.accountId;
+    }
+  } else {
+    showToast(false, result.message);
+  }
+};
+
+const handleDeleteBank = async (accountId: string) => {
+  const result = await deleteBankAccount(accountId);
+  showToast(result.success, result.message);
+};
+
+// Cancel Withdrawal
+const openCancelWithdrawConfirm = (id: string) => {
+  cancelWithdrawId.value = id;
+  showCancelWithdrawConfirm.value = true;
+};
+
+const handleCancelWithdrawal = async () => {
+  const result = await cancelWithdrawal(cancelWithdrawId.value);
+  showCancelWithdrawConfirm.value = false;
+  showToast(result.success, result.message);
+};
+
+const getSelectedBankInfo = computed(() => {
+  const accounts = bankAccounts.value || [];
+  return accounts.find((b) => b.id === selectedBankAccount.value);
+});
 </script>
 
 <template>
@@ -490,17 +647,35 @@ const getStatusColor = (status: string): string => {
             </div>
           </div>
 
-          <button @click="openTopUpModal" class="topup-btn">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
-            </svg>
-            เติมเงิน
-          </button>
+          <!-- Action Buttons: Top-up & Withdraw -->
+          <div class="balance-actions">
+            <button @click="openTopUpModal" class="topup-btn">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+              เติมเงิน
+            </button>
+            <button 
+              @click="openWithdrawModal"
+              class="withdraw-main-btn"
+              :disabled="(availableForWithdrawal ?? 0) < 100"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
+              ถอนเงิน
+            </button>
+          </div>
         </section>
 
         <!-- Provider Earnings Link (for approved providers) -->
@@ -1500,6 +1675,49 @@ const getStatusColor = (status: string): string => {
 }
 
 .topup-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Balance Actions Container */
+.balance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Withdraw Main Button (on balance card) */
+.withdraw-main-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.withdraw-main-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.withdraw-main-btn:active {
+  transform: scale(0.96);
+}
+
+.withdraw-main-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.withdraw-main-btn svg {
   width: 20px;
   height: 20px;
 }

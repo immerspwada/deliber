@@ -67,9 +67,10 @@ body {
   }
 }
 
-/* ===== GLOBAL TRANSITIONS ===== */
+/* ===== GLOBAL TRANSITIONS - DISABLED ===== */
+/* กดปุ๊บ มาปั๊บ - No animations */
 button, a, input, select, textarea {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: none !important;
 }
 
 /* ===== BUTTONS - MUNEEF Style ===== */
@@ -357,56 +358,19 @@ button, a, input, select, textarea {
   color: #1565C0;
 }
 
-/* ===== ANIMATIONS ===== */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* ===== ANIMATIONS - DISABLED ===== */
+/* กดปุ๊บ มาปั๊บ - No animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+.animate-fadeIn { animation: none !important; }
+.animate-fadeInUp { animation: none !important; }
+.animate-slideUp { animation: none !important; }
+.animate-scaleIn { animation: none !important; }
+.animate-pulse { animation: none !important; }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
-.animate-fadeInUp { animation: fadeInUp 0.4s ease-out; }
-.animate-slideUp { animation: slideUp 0.3s ease-out; }
-.animate-scaleIn { animation: scaleIn 0.2s ease-out; }
-.animate-pulse { animation: pulse 2s ease-in-out infinite; }
-
-/* Skeleton loading */
+/* Skeleton loading - keep for UX */
 .skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
   background-size: 200% 100%;
@@ -414,7 +378,7 @@ button, a, input, select, textarea {
   border-radius: var(--radius-sm);
 }
 
-/* ===== MODAL OVERLAY ===== */
+/* ===== MODAL OVERLAY - INSTANT ===== */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -424,7 +388,6 @@ button, a, input, select, textarea {
   align-items: flex-end;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
 }
 
 .modal-content {
@@ -435,7 +398,6 @@ button, a, input, select, textarea {
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: 24px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  animation: slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   overflow-y: auto;
 }
 
@@ -447,7 +409,6 @@ button, a, input, select, textarea {
 .modal-center .modal-content {
   border-radius: var(--radius-xl);
   max-width: 400px;
-  animation: scaleIn 0.2s ease-out;
 }
 
 /* ===== BOTTOM SHEET ===== */

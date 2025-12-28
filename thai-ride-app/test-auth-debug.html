@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug-info { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #00A86B; color: white; }
+        .btn-secondary { background: #666; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug Test</h1>
+    
+    <div class="debug-info">
+        <h3>Current Auth State:</h3>
+        <div id="auth-state">Loading...</div>
+    </div>
+    
+    <div>
+        <button class="btn-primary" onclick="testLogin()">Test Login</button>
+        <button class="btn-secondary" onclick="testTopup()">Test Topup Request</button>
+        <button class="btn-secondary" onclick="refreshAuthState()">Refresh Auth State</button>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Test Results:</h3>
+        <div id="test-results"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+        
+        const supabaseUrl = 'https://onsflqhkgqhydeupiqyt.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk';
+        
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        let currentSession = null;
+        let currentUser = null;
+        
+        // Initialize auth state
+        async function initAuth() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) {
+                    console.error('Session error:', error);
+                    updateAuthState('Error getting session: ' + error.message, 'error');
+                    return;
+                }
+                
+                currentSession = session;
+                currentUser = session?.user || null;
+                updateAuthState();
+                
+                // Listen for auth changes
+                supabase.auth.onAuthStateChange((event, session) => {
+                    console.log('Auth state changed:', event, session);
+                    currentSession = session;
+                    currentUser = session?.user || null;
+                    updateAuthState();
+                });
+                
+            } catch (err) {
+                console.error('Init auth error:', err);
+                updateAuthState('Init error: ' + err.message, 'error');
+            }
+        }
+        
+        function updateAuthState(message = null, type = 'info') {
+            const authStateDiv = document.getElementById('auth-state');
+            
+            if (message) {
+                authStateDiv.innerHTML = `<div class="${type}">${message}</div>`;
+                return;
+            }
+            
+            const authInfo = {
+                'Session exists': !!currentSession,
+                'User ID': currentUser?.id || 'null',
+                'User email': currentUser?.email || 'null',
+                'Session user ID': currentSession?.user?.id || 'null',
+                'Access token exists': !!currentSession?.access_token,
+                'Token expires at': currentSession?.expires_at ? new Date(currentSession.expires_at * 1000).toLocaleString() : 'null'
+            };
+            
+            let html = '<table border="1" style="border-collapse: collapse; width: 100%;">';
+            for (const [key, value] of Object.entries(authInfo)) {
+                html += `<tr><td style="padding: 8px; font-weight: bold;">${key}</td><td style="padding: 8px;">${value}</td></tr>`;
+            }
+            html += '</table>';
+            
+            authStateDiv.innerHTML = html;
+        }
+        
+        async function testLogin() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div>Testing login...</div>';
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: 'test@example.com',
+                    password: 'password123'
+                });
+                
+                if (error) {
+                    resultsDiv.innerHTML = `<div class="error">Login failed: ${error.message}</div>`;
+                    return;
+                }
+                
+                resultsDiv.innerHTML = `<div class="success">Login successful! User ID: ${data.user?.id}</div>`;
+                
+                // Wait a moment then update auth state
+                setTimeout(() => {
+                    updateAuthState();
+                }, 1000);
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<div class="error">Login exception: ${err.message}</div>`;
+            }
+        }
+        
+        async function testTopup() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div>Testing topup request...</div>';
+            
+            try {
+                // Get current user ID
+                const userId = currentUser?.id || currentSession?.user?.id;
+                
+                if (!userId) {
+                    resultsDiv.innerHTML = '<div class="error">No user ID available. Please login first.</div>';
+                    return;
+                }
+                
+                console.log('Testing topup with user ID:', userId);
+                
+                // Test the RPC function
+                const { data, error } = await supabase.rpc('create_simple_topup_request', {
+                    p_user_id: userId,
+                    p_amount: 100,
+                    p_payment_method: 'promptpay',
+                    p_payment_reference: 'TEST-DEBUG-001',
+                    p_slip_url: null
+                });
+                
+                if (error) {
+                    resultsDiv.innerHTML = `<div class="error">Topup RPC failed: ${error.message}</div>`;
+                    console.error('Topup RPC error:', error);
+                    return;
+                }
+                
+                console.log('Topup RPC result:', data);
+                resultsDiv.innerHTML = `<div class="success">Topup RPC successful: ${JSON.stringify(data)}</div>`;
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<div class="error">Topup exception: ${err.message}</div>`;
+                console.error('Topup exception:', err);
+            }
+        }
+        
+        function refreshAuthState() {
+            updateAuthState();
+        }
+        
+        // Make functions global
+        window.testLogin = testLogin;
+        window.testTopup = testTopup;
+        window.refreshAuthState = refreshAuthState;
+        
+        // Initialize on load
+        initAuth();
+    </script>
+</body>
+</html>

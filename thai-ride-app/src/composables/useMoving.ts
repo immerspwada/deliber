@@ -67,7 +67,7 @@ export function useMoving() {
     return basePrice + helperFee
   }
 
-  // Create Moving Request
+  // Create Moving Request using atomic function
   async function createMovingRequest(input: CreateMovingInput): Promise<MovingRequest | null> {
     loading.value = true
     error.value = null
@@ -82,30 +82,60 @@ export function useMoving() {
       const helperCount = input.helper_count || 1
       const estimatedPrice = calculatePrice(input.service_type, helperCount)
 
-      const { data, error: insertError } = await (supabase
-        .from('moving_requests') as any)
-        .insert({
-          user_id: user.id,
-          service_type: input.service_type,
-          pickup_address: input.pickup_address,
-          pickup_lat: input.pickup_lat || null,
-          pickup_lng: input.pickup_lng || null,
-          destination_address: input.destination_address,
-          destination_lat: input.destination_lat || null,
-          destination_lng: input.destination_lng || null,
-          item_description: input.item_description || null,
-          helper_count: helperCount,
-          estimated_price: estimatedPrice,
-          status: 'pending'
-        })
-        .select()
-        .single()
+      // Map service_type to moving_type for atomic function
+      const movingTypeMap: Record<string, string> = {
+        'small': 'small',
+        'medium': 'medium',
+        'large': 'large'
+      }
 
-      if (insertError) throw insertError
+      // Use atomic function for wallet check and order creation
+      const { data: result, error: rpcError } = await supabase.rpc('create_moving_atomic', {
+        p_user_id: user.id,
+        p_pickup_lat: input.pickup_lat || 0,
+        p_pickup_lng: input.pickup_lng || 0,
+        p_pickup_address: input.pickup_address,
+        p_destination_lat: input.destination_lat || 0,
+        p_destination_lng: input.destination_lng || 0,
+        p_destination_address: input.destination_address,
+        p_moving_type: movingTypeMap[input.service_type] || 'small',
+        p_helpers_count: helperCount,
+        p_floor_from: 1, // Default floor
+        p_floor_to: 1,
+        p_has_elevator: false,
+        p_estimated_fare: estimatedPrice,
+        p_promo_code: null
+      })
 
-      currentRequest.value = data
-      requests.value.unshift(data)
-      return data
+      if (rpcError) {
+        console.error('Atomic create error:', rpcError)
+        // Handle specific error types
+        if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
+          error.value = 'ยอดเงินใน Wallet ไม่เพียงพอ กรุณาเติมเงินก่อนสั่งบริการ'
+          return null
+        }
+        if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
+          error.value = 'ไม่พบ Wallet กรุณาติดต่อฝ่ายสนับสนุน'
+          return null
+        }
+        throw rpcError
+      }
+
+      if (result?.success) {
+        // Fetch the created moving request
+        const { data, error: fetchError } = await supabase
+          .from('moving_requests')
+          .select('*')
+          .eq('id', result.moving_id)
+          .single()
+
+        if (!fetchError && data) {
+          currentRequest.value = data
+          requests.value.unshift(data)
+          return data
+        }
+      }
+      return null
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการสร้างคำขอ'
       return null
@@ -258,41 +288,65 @@ export function useMoving() {
     }
   }
 
-  // Cancel Request
-  async function cancelRequest(requestId: string, reason?: string): Promise<boolean> {
+  // Cancel Request with pending refund (requires Admin approval)
+  async function cancelRequest(requestId: string, reason?: string): Promise<{ success: boolean; refundAmount?: number; message?: string } | null> {
     loading.value = true
     error.value = null
 
     try {
-      const { error: updateError } = await (supabase
-        .from('moving_requests') as any)
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancel_reason: reason || null
-        })
-        .eq('id', requestId)
-
-      if (updateError) throw updateError
-
-      // Update local state
-      const index = requests.value.findIndex(r => r.id === requestId)
-      if (index !== -1) {
-        requests.value[index]!.status = 'cancelled'
-        requests.value[index]!.cancelled_at = new Date().toISOString()
-        requests.value[index]!.cancel_reason = reason || null
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return null
       }
 
-      if (currentRequest.value && currentRequest.value.id === requestId) {
-        currentRequest.value.status = 'cancelled'
-        currentRequest.value.cancelled_at = new Date().toISOString()
-        currentRequest.value.cancel_reason = reason || null
+      // Use atomic cancel function with pending refund
+      const { data: result, error: rpcError } = await supabase.rpc('cancel_request_with_pending_refund', {
+        p_request_id: requestId,
+        p_request_type: 'moving',
+        p_cancelled_by: user.id,
+        p_cancelled_by_role: 'customer',
+        p_cancel_reason: reason || 'ลูกค้ายกเลิก'
+      })
+
+      if (rpcError) {
+        console.error('Cancel error:', rpcError)
+        if (rpcError.message?.includes('REQUEST_NOT_FOUND')) {
+          error.value = 'ไม่พบคำขอนี้'
+        } else if (rpcError.message?.includes('REQUEST_ALREADY_FINALIZED')) {
+          error.value = 'ไม่สามารถยกเลิกได้ คำขอนี้ดำเนินการเสร็จสิ้นแล้ว'
+        } else {
+          error.value = rpcError.message || 'เกิดข้อผิดพลาดในการยกเลิก'
+        }
+        return null
       }
 
-      return true
+      if (result?.success) {
+        // Update local state
+        const index = requests.value.findIndex(r => r.id === requestId)
+        if (index !== -1) {
+          requests.value[index]!.status = 'cancelled'
+          requests.value[index]!.cancelled_at = new Date().toISOString()
+          requests.value[index]!.cancel_reason = reason || null
+        }
+
+        if (currentRequest.value && currentRequest.value.id === requestId) {
+          currentRequest.value.status = 'cancelled'
+          currentRequest.value.cancelled_at = new Date().toISOString()
+          currentRequest.value.cancel_reason = reason || null
+        }
+
+        return {
+          success: true,
+          refundAmount: result.refund_amount,
+          message: result.message || 'ยกเลิกสำเร็จ คำขอคืนเงินรอการอนุมัติจาก Admin'
+        }
+      }
+
+      return null
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการยกเลิก'
-      return false
+      return null
     } finally {
       loading.value = false
     }

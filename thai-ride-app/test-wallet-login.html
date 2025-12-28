@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Wallet Login</title>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #00a86b;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e8e8e8;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        input:focus {
+            border-color: #00a86b;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #00a86b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #008f5b;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔐 Test Wallet Login</h1>
+        
+        <div class="form-group">
+            <label>อีเมล:</label>
+            <input type="email" id="email" value="test@example.com" placeholder="test@example.com">
+        </div>
+        
+        <div class="form-group">
+            <label>รหัสผ่าน:</label>
+            <input type="password" id="password" value="test1234" placeholder="test1234">
+        </div>
+        
+        <button onclick="testLogin()">เข้าสู่ระบบ</button>
+        
+        <div id="result"></div>
+        
+        <div class="info" style="margin-top: 20px;">
+            <strong>วิธีทดสอบ:</strong><br>
+            1. กดปุ่ม "เข้าสู่ระบบ" ด้านบน<br>
+            2. เปิด Developer Tools (F12)<br>
+            3. ไปที่ Application > Local Storage<br>
+            4. ตรวจสอบ session token<br>
+            5. ไปที่หน้า Wallet (/customer/wallet)
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+        
+        const supabase = createClient(
+            'https://onsflqhkgqhydeupiqyt.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk'
+        )
+        
+        window.testLogin = async function() {
+            const email = document.getElementById('email').value
+            const password = document.getElementById('password').value
+            const resultDiv = document.getElementById('result')
+            
+            resultDiv.innerHTML = '<div class="info">กำลังเข้าสู่ระบบ...</div>'
+            
+            try {
+                // First, try to sign up the user (in case they don't exist in auth.users)
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            first_name: 'Test',
+                            last_name: 'User',
+                            phone: '0812345678'
+                        }
+                    }
+                })
+                
+                if (signUpError && !signUpError.message.includes('already registered')) {
+                    throw signUpError
+                }
+                
+                // Now try to sign in
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                })
+                
+                if (error) {
+                    throw error
+                }
+                
+                if (data.session) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ เข้าสู่ระบบสำเร็จ!</strong><br>
+                            User ID: ${data.user.id}<br>
+                            Email: ${data.user.email}<br>
+                            <br>
+                            <a href="/customer/wallet" style="color: #00a86b; font-weight: 600;">
+                                🔗 ไปที่หน้า Wallet
+                            </a>
+                        </div>
+                    `
+                } else {
+                    throw new Error('ไม่ได้รับ session')
+                }
+                
+            } catch (err) {
+                console.error('Login error:', err)
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ เข้าสู่ระบบไม่สำเร็จ</strong><br>
+                        ${err.message}
+                    </div>
+                `
+            }
+        }
+        
+        // Check current session on load
+        window.addEventListener('load', async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session) {
+                document.getElementById('result').innerHTML = `
+                    <div class="success">
+                        <strong>✅ มี Session อยู่แล้ว</strong><br>
+                        User ID: ${session.user.id}<br>
+                        Email: ${session.user.email}<br>
+                        <br>
+                        <a href="/customer/wallet" style="color: #00a86b; font-weight: 600;">
+                            🔗 ไปที่หน้า Wallet
+                        </a>
+                    </div>
+                `
+            }
+        })
+    </script>
+</body>
+</html>

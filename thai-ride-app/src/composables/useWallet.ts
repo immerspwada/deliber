@@ -111,6 +111,7 @@ export function useWallet() {
   const transactions = ref<WalletTransaction[]>([])
   const topupRequests = ref<TopupRequest[]>([])
   const loading = ref(false)
+  const isInitialized = ref(false) // เพิ่ม flag สำหรับ track initialization
 
   // =====================================================
   // CUSTOMER WITHDRAWAL STATE
@@ -136,11 +137,14 @@ export function useWallet() {
 
       if (!rpcError && rpcData && rpcData.length > 0) {
         const walletData = rpcData[0]
+        // Force reactivity update by replacing entire object
         balance.value = {
-          balance: walletData.balance || 0,
-          total_earned: walletData.total_earned || 0,
-          total_spent: walletData.total_spent || 0
+          balance: Number(walletData.balance) || 0,
+          total_earned: Number(walletData.total_earned) || 0,
+          total_spent: Number(walletData.total_spent) || 0
         }
+        isInitialized.value = true
+        console.log('💰 Balance updated:', balance.value)
         return balance.value
       }
 
@@ -1047,24 +1051,40 @@ export function useWallet() {
 
     withdrawalLoading.value = true
     try {
+      console.log('[Wallet] Requesting withdrawal:', { userId, bankAccountId, amount })
+      
       const { data, error } = await (supabase.rpc as any)('request_customer_withdrawal', {
         p_user_id: userId,
         p_bank_account_id: bankAccountId,
         p_amount: amount
       })
 
-      if (error) throw error
+      console.log('[Wallet] Withdrawal response:', { data, error })
+
+      if (error) {
+        console.error('[Wallet] Withdrawal RPC error:', error)
+        return { success: false, message: error.message || 'เกิดข้อผิดพลาดในการถอนเงิน' }
+      }
 
       if (data && data.length > 0 && data[0].success) {
-        await fetchWithdrawals()
-        await fetchBalance()
+        // Refresh data in background, don't let errors affect the result
+        try {
+          await fetchWithdrawals()
+        } catch (e) {
+          console.warn('[Wallet] Error refreshing withdrawals:', e)
+        }
+        try {
+          await fetchBalance()
+        } catch (e) {
+          console.warn('[Wallet] Error refreshing balance:', e)
+        }
         return { success: true, message: data[0].message, withdrawalId: data[0].withdrawal_id }
       }
 
       return { success: false, message: data?.[0]?.message || 'ไม่สามารถถอนเงินได้' }
     } catch (err: any) {
-      console.error('Error requesting withdrawal:', err)
-      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+      console.error('[Wallet] Error requesting withdrawal:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่' }
     } finally {
       withdrawalLoading.value = false
     }
@@ -1113,9 +1133,19 @@ export function useWallet() {
 
   /**
    * Get available balance for withdrawal (balance - pending withdrawals)
+   * Only show withdrawal button when initialized and balance >= 100
    */
   const availableForWithdrawal = computed(() => {
-    return Math.max(0, balance.value.balance - pendingWithdrawalAmount.value)
+    // Defensive: ensure balance.value exists and has balance property
+    const currentBalance = balance.value?.balance ?? 0
+    const pending = pendingWithdrawalAmount.value ?? 0
+    const available = Math.max(0, currentBalance - pending)
+    console.log('🔍 availableForWithdrawal computed:', {
+      balance: currentBalance,
+      pendingWithdrawalAmount: pending,
+      available
+    })
+    return available
   })
 
   /**
@@ -1161,11 +1191,119 @@ export function useWallet() {
     }
   }
 
+  // =====================================================
+  // CANCELLATION REFUND REQUESTS (Pending Admin Approval)
+  // =====================================================
+
+  interface CancellationRefundRequest {
+    id: string
+    tracking_id: string
+    request_type: string
+    request_tracking_id: string
+    refund_amount: number
+    status: 'pending' | 'approved' | 'rejected' | 'expired'
+    admin_note: string | null
+    created_at: string
+    processed_at: string | null
+  }
+
+  const cancellationRefunds = ref<CancellationRefundRequest[]>([])
+
+  /**
+   * Fetch user's cancellation refund requests
+   */
+  const fetchCancellationRefunds = async (limit: number = 20) => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      cancellationRefunds.value = []
+      return []
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_user_cancellation_refunds', {
+        p_user_id: userId,
+        p_limit: limit
+      })
+
+      if (error) {
+        console.error('Error fetching cancellation refunds:', error)
+        cancellationRefunds.value = []
+        return []
+      }
+
+      cancellationRefunds.value = data || []
+      return cancellationRefunds.value
+    } catch (err) {
+      console.error('Error fetching cancellation refunds:', err)
+      cancellationRefunds.value = []
+      return []
+    }
+  }
+
+  /**
+   * Get pending cancellation refund count
+   */
+  const pendingCancellationRefundCount = computed(() => {
+    return cancellationRefunds.value.filter(r => r.status === 'pending').length
+  })
+
+  /**
+   * Get pending cancellation refund amount
+   */
+  const pendingCancellationRefundAmount = computed(() => {
+    return cancellationRefunds.value
+      .filter(r => r.status === 'pending')
+      .reduce((sum, r) => sum + r.refund_amount, 0)
+  })
+
+  /**
+   * Format cancellation refund status
+   */
+  const formatCancellationRefundStatus = (status: string) => {
+    const statuses: Record<string, { label: string; color: string }> = {
+      pending: { label: 'รอการอนุมัติ', color: 'warning' },
+      approved: { label: 'อนุมัติแล้ว', color: 'success' },
+      rejected: { label: 'ปฏิเสธ', color: 'error' },
+      expired: { label: 'หมดอายุ', color: 'gray' }
+    }
+    return statuses[status] || { label: status, color: 'gray' }
+  }
+
+  /**
+   * Subscribe to cancellation refund changes
+   */
+  const subscribeToCancellationRefunds = () => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) return { unsubscribe: () => {} }
+
+    const channel = supabase
+      .channel(`cancellation_refunds:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cancellation_refund_requests',
+          filter: `user_id=eq.${userId}`
+        },
+        () => {
+          fetchCancellationRefunds()
+          fetchBalance()
+        }
+      )
+      .subscribe()
+
+    return {
+      unsubscribe: () => channel.unsubscribe()
+    }
+  }
+
   return {
     balance,
     transactions,
     topupRequests,
     loading,
+    isInitialized,
     hasPendingTopup,
     pendingTopupAmount,
     fetchBalance,
@@ -1202,6 +1340,13 @@ export function useWallet() {
     formatWithdrawalStatus,
     subscribeToWithdrawals,
     THAI_BANKS,
+    // Cancellation refund functions (pending admin approval)
+    cancellationRefunds,
+    fetchCancellationRefunds,
+    pendingCancellationRefundCount,
+    pendingCancellationRefundAmount,
+    formatCancellationRefundStatus,
+    subscribeToCancellationRefunds,
     // Debug function
     debugAuthState
   }

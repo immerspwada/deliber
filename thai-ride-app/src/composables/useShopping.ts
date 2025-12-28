@@ -78,7 +78,7 @@ export function useShopping() {
     return Math.ceil(baseFee + (distanceKm * perKm) + percentageFee)
   }
 
-  // Create shopping request
+  // Create shopping request using atomic function
   const createShoppingRequest = async (data: {
     storeName?: string
     storeAddress?: string
@@ -103,41 +103,51 @@ export function useShopping() {
         .filter(line => line.trim())
         .map(line => ({ name: line.trim(), quantity: 1 }))
 
-      const { data: shopping, error } = await (supabase
-        .from('shopping_requests') as any)
-        .insert({
-          user_id: authStore.user.id,
-          store_name: data.storeName || null,
-          store_address: data.storeAddress || null,
-          store_lat: data.storeLocation?.lat || null,
-          store_lng: data.storeLocation?.lng || null,
-          delivery_address: data.deliveryAddress,
-          delivery_lat: data.deliveryLocation.lat,
-          delivery_lng: data.deliveryLocation.lng,
-          items: items,
-          item_list: data.itemList,
-          budget_limit: data.budgetLimit,
-          special_instructions: data.specialInstructions || null,
-          service_fee: serviceFee,
-          status: 'pending',
-          reference_images: data.referenceImages || null
-        })
-        .select()
-        .single()
+      // Use atomic function for wallet check and order creation
+      const { data: result, error: rpcError } = await supabase.rpc('create_shopping_atomic', {
+        p_user_id: authStore.user.id,
+        p_pickup_lat: data.storeLocation?.lat || 0,
+        p_pickup_lng: data.storeLocation?.lng || 0,
+        p_pickup_address: data.storeAddress || 'ร้านค้า',
+        p_destination_lat: data.deliveryLocation.lat,
+        p_destination_lng: data.deliveryLocation.lng,
+        p_destination_address: data.deliveryAddress,
+        p_store_name: data.storeName || null,
+        p_shopping_list: items,
+        p_estimated_total: data.budgetLimit,
+        p_estimated_fare: serviceFee,
+        p_promo_code: null
+      })
 
-      if (error) {
-        console.error('Supabase error creating shopping:', error)
-        return null
+      if (rpcError) {
+        console.error('Atomic create error:', rpcError)
+        // Handle specific error types
+        if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
+          throw new Error('ยอดเงินใน Wallet ไม่เพียงพอ กรุณาเติมเงินก่อนสั่งบริการ')
+        }
+        if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
+          throw new Error('ไม่พบ Wallet กรุณาติดต่อฝ่ายสนับสนุน')
+        }
+        throw rpcError
       }
-      
-      if (shopping) {
-        currentShopping.value = shopping as ShoppingRequest
-        return shopping
+
+      if (result?.success) {
+        // Fetch the created shopping request
+        const { data: shopping, error: fetchError } = await (supabase
+          .from('shopping_requests') as any)
+          .select('*')
+          .eq('id', result.shopping_id)
+          .single()
+
+        if (!fetchError && shopping) {
+          currentShopping.value = shopping as ShoppingRequest
+          return shopping
+        }
       }
       return null
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating shopping request:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -242,25 +252,41 @@ export function useShopping() {
     }
   }
 
-  // Cancel shopping
-  const cancelShopping = async (shoppingId: string) => {
-    try {
-      const { error } = await (supabase
-        .from('shopping_requests') as any)
-        .update({ status: 'cancelled' })
-        .eq('id', shoppingId)
-        .eq('user_id', authStore.user?.id || '')
-        .in('status', ['pending', 'matched'])
+  // Cancel shopping with pending refund (requires Admin approval)
+  const cancelShopping = async (shoppingId: string, reason?: string) => {
+    if (!authStore.user?.id) return null
 
-      if (!error) {
+    loading.value = true
+    try {
+      // Use atomic cancel function with pending refund
+      const { data: result, error: rpcError } = await supabase.rpc('cancel_request_with_pending_refund', {
+        p_request_id: shoppingId,
+        p_request_type: 'shopping',
+        p_cancelled_by: authStore.user.id,
+        p_cancelled_by_role: 'customer',
+        p_cancel_reason: reason || 'ลูกค้ายกเลิก'
+      })
+
+      if (rpcError) {
+        console.error('Cancel error:', rpcError)
+        return null
+      }
+
+      if (result?.success) {
         if (currentShopping.value?.id === shoppingId) {
           currentShopping.value = null
         }
-        return true
+        return {
+          success: true,
+          refundAmount: result.refund_amount,
+          message: result.message || 'ยกเลิกสำเร็จ คำขอคืนเงินรอการอนุมัติจาก Admin'
+        }
       }
-      return false
+      return null
     } catch {
-      return false
+      return null
+    } finally {
+      loading.value = false
     }
   }
 
