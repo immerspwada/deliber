@@ -60,6 +60,51 @@ export interface TopupRequest {
   expires_at?: string | null
 }
 
+// =====================================================
+// CUSTOMER WITHDRAWAL TYPES
+// =====================================================
+export interface CustomerBankAccount {
+  id: string
+  bank_code: string
+  bank_name: string
+  account_number: string
+  account_name: string
+  is_default: boolean
+  is_verified: boolean
+  created_at: string
+}
+
+export interface CustomerWithdrawal {
+  id: string
+  amount: number
+  fee: number
+  net_amount: number
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  transaction_ref: string | null
+  failed_reason: string | null
+  bank_name: string | null
+  account_number: string | null
+  account_name: string | null
+  created_at: string
+  processed_at: string | null
+}
+
+// Thai banks list
+export const THAI_BANKS = [
+  { code: 'BBL', name: 'ธนาคารกรุงเทพ' },
+  { code: 'KBANK', name: 'ธนาคารกสิกรไทย' },
+  { code: 'KTB', name: 'ธนาคารกรุงไทย' },
+  { code: 'SCB', name: 'ธนาคารไทยพาณิชย์' },
+  { code: 'BAY', name: 'ธนาคารกรุงศรีอยุธยา' },
+  { code: 'TMB', name: 'ธนาคารทหารไทยธนชาต' },
+  { code: 'GSB', name: 'ธนาคารออมสิน' },
+  { code: 'BAAC', name: 'ธนาคาร ธ.ก.ส.' },
+  { code: 'CIMB', name: 'ธนาคารซีไอเอ็มบี' },
+  { code: 'UOB', name: 'ธนาคารยูโอบี' },
+  { code: 'LH', name: 'ธนาคารแลนด์ แอนด์ เฮ้าส์' },
+  { code: 'KK', name: 'ธนาคารเกียรตินาคินภัทร' }
+]
+
 export function useWallet() {
   const authStore = useAuthStore()
   const balance = ref<WalletBalance>({ balance: 0, total_earned: 0, total_spent: 0 })
@@ -67,10 +112,18 @@ export function useWallet() {
   const topupRequests = ref<TopupRequest[]>([])
   const loading = ref(false)
 
+  // =====================================================
+  // CUSTOMER WITHDRAWAL STATE
+  // =====================================================
+  const bankAccounts = ref<CustomerBankAccount[]>([])
+  const withdrawals = ref<CustomerWithdrawal[]>([])
+  const withdrawalLoading = ref(false)
+
   // Fetch wallet balance
   // ใช้ RPC function ที่จะ auto-create wallet ถ้ายังไม่มี
   const fetchBalance = async () => {
     if (!authStore.user?.id) {
+      console.warn('[Wallet] No authenticated user')
       balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
       return balance.value
     }
@@ -91,7 +144,22 @@ export function useWallet() {
         return balance.value
       }
 
-      // Fallback: query directly with maybeSingle()
+      // Fallback 1: Try simple function
+      const { data: simpleData, error: simpleError } = await (supabase.rpc as any)('get_wallet_balance', {
+        p_user_id: authStore.user.id
+      })
+
+      if (!simpleError && simpleData && simpleData.length > 0) {
+        const walletData = simpleData[0]
+        balance.value = {
+          balance: Number(walletData.balance) || 0,
+          total_earned: Number(walletData.total_earned) || 0,
+          total_spent: Number(walletData.total_spent) || 0
+        }
+        return balance.value
+      }
+
+      // Fallback 2: query directly with maybeSingle()
       const { data, error } = await (supabase
         .from('user_wallets') as any)
         .select('balance, total_earned, total_spent')
@@ -100,10 +168,15 @@ export function useWallet() {
 
       if (!error && data) {
         balance.value = {
-          balance: data.balance || 0,
-          total_earned: data.total_earned || 0,
-          total_spent: data.total_spent || 0
+          balance: Number(data.balance) || 0,
+          total_earned: Number(data.total_earned) || 0,
+          total_spent: Number(data.total_spent) || 0
         }
+      } else if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows returned, which is fine for new users
+        console.error('Error fetching wallet balance:', error)
+        // ไม่มี wallet - ใช้ค่า default (user ใหม่)
+        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
       } else {
         // ไม่มี wallet - ใช้ค่า default (user ใหม่)
         balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
@@ -111,6 +184,7 @@ export function useWallet() {
       return balance.value
     } catch (err) {
       console.error('Error fetching wallet balance:', err)
+      balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
       return balance.value
     }
   }
@@ -250,28 +324,59 @@ export function useWallet() {
 
   // Fetch topup requests
   const fetchTopupRequests = async () => {
-    if (!authStore.user?.id) {
+    // Get user ID from multiple sources
+    let userId = authStore.session?.user?.id || authStore.user?.id
+    
+    // If still no userId, try to get it directly from Supabase
+    if (!userId) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) userId = user.id
+      } catch (err) {
+        console.error('[Wallet] Error getting user from Supabase:', err)
+      }
+    }
+
+    if (!userId) {
+      console.warn('[Wallet] fetchTopupRequests: No user ID available')
       topupRequests.value = []
       return []
     }
 
+    console.log('[Wallet] fetchTopupRequests for user:', userId)
+
     try {
-      // ลองใช้ RPC function ก่อน
-      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_customer_topup_requests', {
+      // PRIMARY: Use new function that accepts user_id parameter
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_topup_requests_by_user', {
+        p_user_id: userId,
         p_limit: 20
       })
+
+      console.log('[Wallet] get_topup_requests_by_user result:', { rpcData, rpcError })
 
       if (!rpcError && rpcData) {
         topupRequests.value = rpcData as TopupRequest[]
         return topupRequests.value
       }
 
-      // Fallback: query directly
+      // FALLBACK 1: Try old function (uses auth.uid())
+      const { data: oldRpcData, error: oldRpcError } = await (supabase.rpc as any)('get_customer_topup_requests', {
+        p_limit: 20
+      })
+
+      if (!oldRpcError && oldRpcData && oldRpcData.length > 0) {
+        topupRequests.value = oldRpcData as TopupRequest[]
+        return topupRequests.value
+      }
+
+      // FALLBACK 2: Query directly
       const { data, error } = await (supabase
         .from('topup_requests') as any)
         .select('*')
-        .eq('user_id', authStore.user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
+
+      console.log('[Wallet] Direct query result:', { data, error })
 
       if (error) {
         // If table doesn't exist, return empty array
@@ -295,24 +400,123 @@ export function useWallet() {
   }
 
   // Create topup request
+  // Enhanced debugging function
+  const debugAuthState = () => {
+    const debugInfo = {
+      'authStore.isAuthenticated': authStore.isAuthenticated,
+      'authStore.loading': authStore.loading,
+      'authStore.user?.id': authStore.user?.id,
+      'authStore.user?.email': authStore.user?.email,
+      'authStore.session exists': !!authStore.session,
+      'authStore.session?.user?.id': authStore.session?.user?.id,
+      'supabase.auth.getUser()': 'checking...'
+    }
+    
+    console.log('[Wallet Debug] Auth State:', debugInfo)
+    
+    // Also check Supabase auth directly
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      console.log('[Wallet Debug] Supabase getUser():', { user: user?.id, error })
+    })
+    
+    return debugInfo
+  }
+
   const createTopupRequest = async (
     amount: number,
     paymentMethod: 'promptpay' | 'bank_transfer' | 'credit_card',
     paymentReference?: string,
     slipUrl?: string
   ) => {
-    if (!authStore.user?.id || amount <= 0) {
-      return { success: false, message: 'ข้อมูลไม่ถูกต้อง' }
+    // Enhanced debugging and validation
+    console.log('[Wallet] createTopupRequest called with:', { amount, paymentMethod, paymentReference })
+
+    // Wait for auth to be fully loaded if needed
+    if (authStore.loading) {
+      console.log('[Wallet] Auth still loading, waiting...')
+      await new Promise(resolve => {
+        const unwatch = authStore.$subscribe(() => {
+          if (!authStore.loading) {
+            unwatch()
+            resolve(true)
+          }
+        })
+        // Timeout after 3 seconds
+        setTimeout(() => {
+          unwatch()
+          resolve(true)
+        }, 3000)
+      })
     }
 
+    // Get user ID from multiple sources (prioritize session)
+    let userId = authStore.session?.user?.id || authStore.user?.id
+
+    // If still no userId, try to get it directly from Supabase
+    if (!userId) {
+      console.log('[Wallet] No userId found, checking Supabase directly...')
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (user && !error) {
+          userId = user.id
+          console.log('[Wallet] Got user ID from Supabase:', userId)
+        } else {
+          console.error('[Wallet] Supabase getUser error:', error)
+        }
+      } catch (err) {
+        console.error('[Wallet] Exception getting user from Supabase:', err)
+      }
+    }
+
+    if (!userId || amount <= 0) {
+      console.error('[Wallet] Validation failed:', { userId, amount })
+      return { success: false, message: !userId ? 'กรุณาเข้าสู่ระบบใหม่' : 'จำนวนเงินไม่ถูกต้อง' }
+    }
+
+    console.log('[Wallet] Using userId:', userId)
+
     try {
-      // ลองใช้ RPC function ก่อน
+      // PRIMARY: Use create_simple_topup_request which accepts user_id parameter
+      // This bypasses the auth.uid() issue
+      const { data: simpleData, error: simpleError } = await (supabase.rpc as any)('create_simple_topup_request', {
+        p_user_id: userId,
+        p_amount: amount,
+        p_payment_method: paymentMethod,
+        p_payment_reference: paymentReference || null,
+        p_slip_url: slipUrl || null
+      })
+
+      console.log('[Wallet] create_simple_topup_request result:', { simpleData, simpleError })
+
+      if (!simpleError && simpleData && simpleData.length > 0) {
+        const result = simpleData[0]
+        if (result.success) {
+          await fetchTopupRequests()
+          return {
+            success: true,
+            message: result.message,
+            trackingId: result.tracking_id,
+            data: { id: result.request_id }
+          }
+        } else {
+          return { success: false, message: result.message }
+        }
+      }
+
+      // Log the error for debugging
+      if (simpleError) {
+        console.error('[Wallet] create_simple_topup_request error:', simpleError)
+      }
+
+      // FALLBACK 1: Try customer_create_topup_request (uses auth.uid())
       const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('customer_create_topup_request', {
         p_amount: amount,
         p_payment_method: paymentMethod,
         p_payment_reference: paymentReference || null,
         p_slip_url: slipUrl || null
       })
+
+      console.log('[Wallet] customer_create_topup_request result:', { rpcData, rpcError })
 
       if (!rpcError && rpcData && rpcData.length > 0) {
         const result = rpcData[0]
@@ -329,13 +533,14 @@ export function useWallet() {
         }
       }
 
-      // Fallback: insert directly
+      // FALLBACK 2: Direct insert
+      console.log('[Wallet] Trying direct insert...')
       const trackingId = `TOP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`
 
       const { data, error } = await (supabase
         .from('topup_requests') as any)
         .insert({
-          user_id: authStore.user.id,
+          user_id: userId,
           tracking_id: trackingId,
           amount,
           payment_method: paymentMethod,
@@ -348,8 +553,18 @@ export function useWallet() {
         .single()
 
       if (error) {
-        console.error('Error creating topup request:', error)
-        return { success: false, message: 'ไม่สามารถสร้างคำขอได้' }
+        console.error('[Wallet] Direct insert error:', error)
+        
+        // Handle specific errors
+        if (error.code === '42P01') {
+          return { success: false, message: 'ระบบเติมเงินยังไม่พร้อมใช้งาน' }
+        } else if (error.code === '23503') {
+          return { success: false, message: 'ไม่พบข้อมูลผู้ใช้' }
+        } else if (error.message?.includes('permission') || error.message?.includes('policy')) {
+          return { success: false, message: 'ไม่มีสิทธิ์เข้าถึง กรุณาเข้าสู่ระบบใหม่' }
+        }
+        
+        return { success: false, message: 'ไม่สามารถสร้างคำขอได้: ' + error.message }
       }
 
       // Refresh topup requests
@@ -362,7 +577,7 @@ export function useWallet() {
         data
       }
     } catch (err: any) {
-      console.error('Error creating topup request:', err)
+      console.error('[Wallet] Error creating topup request:', err)
       return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
     }
   }
@@ -449,6 +664,503 @@ export function useWallet() {
     return ['topup', 'refund', 'cashback', 'referral', 'promo'].includes(type)
   }
 
+  // =====================================================
+  // NEW: Payment & Refund Functions using RPC
+  // =====================================================
+
+  /**
+   * Check wallet balance - ตรวจสอบยอดเงินคงเหลือ
+   * @param requiredAmount - จำนวนเงินที่ต้องการตรวจสอบ (optional)
+   */
+  const checkWalletBalance = async (requiredAmount?: number) => {
+    if (!authStore.user?.id) {
+      return { hasSufficientBalance: false, currentBalance: 0, shortfall: requiredAmount || 0 }
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('check_wallet_balance', {
+        p_user_id: authStore.user.id,
+        p_required_amount: requiredAmount || 0
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        return {
+          hasSufficientBalance: data[0].has_sufficient_balance,
+          currentBalance: Number(data[0].current_balance) || 0,
+          shortfall: Number(data[0].shortfall) || 0
+        }
+      }
+
+      return { hasSufficientBalance: false, currentBalance: 0, shortfall: requiredAmount || 0 }
+    } catch (err) {
+      console.error('Error checking wallet balance:', err)
+      return { hasSufficientBalance: false, currentBalance: 0, shortfall: requiredAmount || 0 }
+    }
+  }
+
+  /**
+   * Pay from wallet - หักเงินจาก wallet พร้อมตรวจสอบยอดเงิน
+   * @param amount - จำนวนเงินที่ต้องการหัก
+   * @param description - รายละเอียดการชำระเงิน
+   * @param referenceType - ประเภทอ้างอิง (เช่น 'ride_request', 'delivery_request')
+   * @param referenceId - ID อ้างอิง
+   */
+  const payFromWallet = async (
+    amount: number,
+    description: string,
+    referenceType?: string,
+    referenceId?: string
+  ) => {
+    if (!authStore.user?.id || amount <= 0) {
+      return { success: false, message: 'ข้อมูลไม่ถูกต้อง', transactionId: null, newBalance: 0 }
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('pay_from_wallet', {
+        p_user_id: authStore.user.id,
+        p_amount: amount,
+        p_description: description,
+        p_reference_type: referenceType || null,
+        p_reference_id: referenceId || null
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const result = data[0]
+        if (result.success) {
+          await fetchBalance()
+          await fetchTransactions()
+        }
+        return {
+          success: result.success,
+          message: result.message,
+          transactionId: result.transaction_id,
+          newBalance: Number(result.new_balance) || 0
+        }
+      }
+
+      return { success: false, message: 'ไม่สามารถชำระเงินได้', transactionId: null, newBalance: 0 }
+    } catch (err: any) {
+      console.error('Error paying from wallet:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด', transactionId: null, newBalance: 0 }
+    }
+  }
+
+  /**
+   * Refund to wallet - คืนเงินเข้า wallet
+   * @param amount - จำนวนเงินที่ต้องการคืน
+   * @param description - รายละเอียดการคืนเงิน
+   * @param referenceType - ประเภทอ้างอิง
+   * @param referenceId - ID อ้างอิง
+   */
+  const refundToWallet = async (
+    amount: number,
+    description: string,
+    referenceType?: string,
+    referenceId?: string
+  ) => {
+    if (!authStore.user?.id || amount <= 0) {
+      return { success: false, message: 'ข้อมูลไม่ถูกต้อง', transactionId: null, newBalance: 0 }
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('refund_to_wallet', {
+        p_user_id: authStore.user.id,
+        p_amount: amount,
+        p_description: description,
+        p_reference_type: referenceType || null,
+        p_reference_id: referenceId || null
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const result = data[0]
+        if (result.success) {
+          await fetchBalance()
+          await fetchTransactions()
+        }
+        return {
+          success: result.success,
+          message: result.message,
+          transactionId: result.transaction_id,
+          newBalance: Number(result.new_balance) || 0
+        }
+      }
+
+      return { success: false, message: 'ไม่สามารถคืนเงินได้', transactionId: null, newBalance: 0 }
+    } catch (err: any) {
+      console.error('Error refunding to wallet:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด', transactionId: null, newBalance: 0 }
+    }
+  }
+
+  /**
+   * Process service payment - ชำระค่าบริการ (ride, delivery, shopping, queue, moving, laundry)
+   * @param serviceType - ประเภทบริการ
+   * @param serviceId - ID ของบริการ
+   * @param amount - จำนวนเงิน
+   */
+  const processServicePayment = async (
+    serviceType: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry',
+    serviceId: string,
+    amount: number
+  ) => {
+    if (!authStore.user?.id || amount <= 0) {
+      return { success: false, message: 'ข้อมูลไม่ถูกต้อง', transactionId: null, newBalance: 0 }
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('process_service_payment', {
+        p_user_id: authStore.user.id,
+        p_service_type: serviceType,
+        p_service_id: serviceId,
+        p_amount: amount
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const result = data[0]
+        if (result.success) {
+          await fetchBalance()
+          await fetchTransactions()
+        }
+        return {
+          success: result.success,
+          message: result.message,
+          transactionId: result.transaction_id,
+          newBalance: Number(result.new_balance) || 0
+        }
+      }
+
+      return { success: false, message: 'ไม่สามารถชำระค่าบริการได้', transactionId: null, newBalance: 0 }
+    } catch (err: any) {
+      console.error('Error processing service payment:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด', transactionId: null, newBalance: 0 }
+    }
+  }
+
+  /**
+   * Process service refund - คืนเงินค่าบริการ (เมื่อยกเลิก)
+   * @param serviceType - ประเภทบริการ
+   * @param serviceId - ID ของบริการ
+   * @param amount - จำนวนเงิน
+   * @param reason - เหตุผลการคืนเงิน (optional)
+   */
+  const processServiceRefund = async (
+    serviceType: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry',
+    serviceId: string,
+    amount: number,
+    reason?: string
+  ) => {
+    if (!authStore.user?.id || amount <= 0) {
+      return { success: false, message: 'ข้อมูลไม่ถูกต้อง', transactionId: null, newBalance: 0 }
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('process_service_refund', {
+        p_user_id: authStore.user.id,
+        p_service_type: serviceType,
+        p_service_id: serviceId,
+        p_amount: amount,
+        p_reason: reason || null
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const result = data[0]
+        if (result.success) {
+          await fetchBalance()
+          await fetchTransactions()
+        }
+        return {
+          success: result.success,
+          message: result.message,
+          transactionId: result.transaction_id,
+          newBalance: Number(result.new_balance) || 0
+        }
+      }
+
+      return { success: false, message: 'ไม่สามารถคืนเงินได้', transactionId: null, newBalance: 0 }
+    } catch (err: any) {
+      console.error('Error processing service refund:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด', transactionId: null, newBalance: 0 }
+    }
+  }
+
+  // =====================================================
+  // CUSTOMER WITHDRAWAL FUNCTIONS
+  // =====================================================
+
+  /**
+   * Fetch customer bank accounts
+   */
+  const fetchBankAccounts = async () => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      bankAccounts.value = []
+      return []
+    }
+
+    withdrawalLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_customer_bank_accounts', {
+        p_user_id: userId
+      })
+
+      if (error) throw error
+      bankAccounts.value = data || []
+      return bankAccounts.value
+    } catch (err) {
+      console.error('Error fetching bank accounts:', err)
+      bankAccounts.value = []
+      return []
+    } finally {
+      withdrawalLoading.value = false
+    }
+  }
+
+  /**
+   * Add a new bank account
+   */
+  const addBankAccount = async (
+    bankCode: string,
+    accountNumber: string,
+    accountName: string,
+    isDefault: boolean = false
+  ) => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      return { success: false, message: 'กรุณาเข้าสู่ระบบ' }
+    }
+
+    const bank = THAI_BANKS.find(b => b.code === bankCode)
+    if (!bank) {
+      return { success: false, message: 'ไม่พบธนาคารที่เลือก' }
+    }
+
+    withdrawalLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('add_customer_bank_account', {
+        p_user_id: userId,
+        p_bank_code: bankCode,
+        p_bank_name: bank.name,
+        p_account_number: accountNumber,
+        p_account_name: accountName,
+        p_is_default: isDefault
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0 && data[0].success) {
+        await fetchBankAccounts()
+        return { success: true, message: data[0].message, accountId: data[0].account_id }
+      }
+
+      return { success: false, message: data?.[0]?.message || 'ไม่สามารถเพิ่มบัญชีได้' }
+    } catch (err: any) {
+      console.error('Error adding bank account:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+    } finally {
+      withdrawalLoading.value = false
+    }
+  }
+
+  /**
+   * Delete a bank account
+   */
+  const deleteBankAccount = async (accountId: string) => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      return { success: false, message: 'กรุณาเข้าสู่ระบบ' }
+    }
+
+    withdrawalLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('delete_customer_bank_account', {
+        p_user_id: userId,
+        p_account_id: accountId
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0 && data[0].success) {
+        await fetchBankAccounts()
+        return { success: true, message: data[0].message }
+      }
+
+      return { success: false, message: data?.[0]?.message || 'ไม่สามารถลบบัญชีได้' }
+    } catch (err: any) {
+      console.error('Error deleting bank account:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+    } finally {
+      withdrawalLoading.value = false
+    }
+  }
+
+  /**
+   * Fetch customer withdrawals
+   */
+  const fetchWithdrawals = async (limit: number = 50) => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      withdrawals.value = []
+      return []
+    }
+
+    withdrawalLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_customer_withdrawals', {
+        p_user_id: userId,
+        p_limit: limit
+      })
+
+      if (error) throw error
+      withdrawals.value = data || []
+      return withdrawals.value
+    } catch (err) {
+      console.error('Error fetching withdrawals:', err)
+      withdrawals.value = []
+      return []
+    } finally {
+      withdrawalLoading.value = false
+    }
+  }
+
+  /**
+   * Request a withdrawal
+   */
+  const requestWithdrawal = async (bankAccountId: string, amount: number) => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      return { success: false, message: 'กรุณาเข้าสู่ระบบ' }
+    }
+
+    if (amount < 100) {
+      return { success: false, message: 'จำนวนเงินขั้นต่ำ 100 บาท' }
+    }
+
+    withdrawalLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('request_customer_withdrawal', {
+        p_user_id: userId,
+        p_bank_account_id: bankAccountId,
+        p_amount: amount
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0 && data[0].success) {
+        await fetchWithdrawals()
+        await fetchBalance()
+        return { success: true, message: data[0].message, withdrawalId: data[0].withdrawal_id }
+      }
+
+      return { success: false, message: data?.[0]?.message || 'ไม่สามารถถอนเงินได้' }
+    } catch (err: any) {
+      console.error('Error requesting withdrawal:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+    } finally {
+      withdrawalLoading.value = false
+    }
+  }
+
+  /**
+   * Cancel a withdrawal request
+   */
+  const cancelWithdrawal = async (withdrawalId: string) => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) {
+      return { success: false, message: 'กรุณาเข้าสู่ระบบ' }
+    }
+
+    withdrawalLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('cancel_customer_withdrawal', {
+        p_user_id: userId,
+        p_withdrawal_id: withdrawalId
+      })
+
+      if (error) throw error
+
+      if (data && data.length > 0 && data[0].success) {
+        await fetchWithdrawals()
+        return { success: true, message: data[0].message }
+      }
+
+      return { success: false, message: data?.[0]?.message || 'ไม่สามารถยกเลิกได้' }
+    } catch (err: any) {
+      console.error('Error cancelling withdrawal:', err)
+      return { success: false, message: err.message || 'เกิดข้อผิดพลาด' }
+    } finally {
+      withdrawalLoading.value = false
+    }
+  }
+
+  /**
+   * Get pending withdrawal amount
+   */
+  const pendingWithdrawalAmount = computed(() => {
+    return withdrawals.value
+      .filter(w => w.status === 'pending' || w.status === 'processing')
+      .reduce((sum, w) => sum + w.amount, 0)
+  })
+
+  /**
+   * Get available balance for withdrawal (balance - pending withdrawals)
+   */
+  const availableForWithdrawal = computed(() => {
+    return Math.max(0, balance.value.balance - pendingWithdrawalAmount.value)
+  })
+
+  /**
+   * Format withdrawal status
+   */
+  const formatWithdrawalStatus = (status: string) => {
+    const statuses: Record<string, { label: string; color: string }> = {
+      pending: { label: 'รอดำเนินการ', color: 'warning' },
+      processing: { label: 'กำลังดำเนินการ', color: 'info' },
+      completed: { label: 'สำเร็จ', color: 'success' },
+      failed: { label: 'ไม่สำเร็จ', color: 'error' },
+      cancelled: { label: 'ยกเลิกแล้ว', color: 'gray' }
+    }
+    return statuses[status] || { label: status, color: 'gray' }
+  }
+
+  /**
+   * Subscribe to withdrawal changes
+   */
+  const subscribeToWithdrawals = () => {
+    const userId = authStore.session?.user?.id || authStore.user?.id
+    if (!userId) return { unsubscribe: () => {} }
+
+    const channel = supabase
+      .channel(`customer_withdrawals:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customer_withdrawals',
+          filter: `user_id=eq.${userId}`
+        },
+        () => {
+          fetchWithdrawals()
+          fetchBalance()
+        }
+      )
+      .subscribe()
+
+    return {
+      unsubscribe: () => channel.unsubscribe()
+    }
+  }
+
   return {
     balance,
     transactions,
@@ -468,6 +1180,29 @@ export function useWallet() {
     formatTransactionType,
     formatTopupStatus,
     formatPaymentMethod,
-    isPositiveTransaction
+    isPositiveTransaction,
+    // New payment/refund functions
+    checkWalletBalance,
+    payFromWallet,
+    refundToWallet,
+    processServicePayment,
+    processServiceRefund,
+    // Customer withdrawal functions
+    bankAccounts,
+    withdrawals,
+    withdrawalLoading,
+    pendingWithdrawalAmount,
+    availableForWithdrawal,
+    fetchBankAccounts,
+    addBankAccount,
+    deleteBankAccount,
+    fetchWithdrawals,
+    requestWithdrawal,
+    cancelWithdrawal,
+    formatWithdrawalStatus,
+    subscribeToWithdrawals,
+    THAI_BANKS,
+    // Debug function
+    debugAuthState
   }
 }

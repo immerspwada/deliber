@@ -35,6 +35,22 @@ const {
   formatTopupStatus,
   formatPaymentMethod,
   isPositiveTransaction,
+  debugAuthState, // Add debug function
+  // Withdrawal functions
+  bankAccounts,
+  withdrawals,
+  withdrawalLoading,
+  pendingWithdrawalAmount,
+  availableForWithdrawal,
+  fetchBankAccounts,
+  addBankAccount,
+  deleteBankAccount,
+  fetchWithdrawals,
+  requestWithdrawal,
+  cancelWithdrawal,
+  formatWithdrawalStatus,
+  subscribeToWithdrawals,
+  THAI_BANKS,
 } = useWallet();
 
 const { paymentInfo, fetchPaymentInfo } = usePaymentSettings();
@@ -101,6 +117,12 @@ const recentTransactions = computed(() => transactions.value.slice(0, 5));
 // LIFECYCLE
 // =====================================================
 onMounted(async () => {
+  // Check authentication first
+  if (!authStore.isAuthenticated || !authStore.user?.id) {
+    router.push("/login");
+    return;
+  }
+
   await checkProviderStatus();
   await loadAllData();
   subscription = subscribeToWallet();
@@ -217,6 +239,15 @@ const submitTopUp = async () => {
     return;
   }
 
+  // Additional auth check before submitting
+  if (
+    !authStore.isAuthenticated ||
+    (!authStore.user?.id && !authStore.session?.user?.id)
+  ) {
+    showToast(false, "กรุณาเข้าสู่ระบบใหม่");
+    return;
+  }
+
   topUpLoading.value = true;
 
   try {
@@ -227,12 +258,20 @@ const submitTopUp = async () => {
       // slipUrl = await uploadSlip(slipFile.value)
     }
 
+    console.log("[WalletView] Submitting topup request...", {
+      amount: finalAmount.value,
+      method: selectedMethod.value,
+      userId: authStore.user?.id || authStore.session?.user?.id,
+    });
+
     const result = await createTopupRequest(
       finalAmount.value,
       selectedMethod.value,
       paymentReference.value || undefined,
       slipUrl
     );
+
+    console.log("[WalletView] Topup result:", result);
 
     if (result.success) {
       closeTopUpModal();
@@ -242,6 +281,7 @@ const submitTopUp = async () => {
       showToast(false, result.message);
     }
   } catch (err: any) {
+    console.error("[WalletView] Topup error:", err);
     showToast(false, err.message || "เกิดข้อผิดพลาด");
   } finally {
     topUpLoading.value = false;
@@ -330,784 +370,865 @@ const getStatusColor = (status: string): string => {
 
 <template>
   <div class="wallet-page">
-    <!-- Header -->
-    <header class="page-header">
-      <button @click="goBack" class="back-btn" aria-label="กลับ">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-      </button>
-      <h1>กระเป๋าเงิน</h1>
-      <button
-        @click="handleRefresh"
-        class="refresh-btn"
-        :class="{ spinning: isRefreshing }"
-        aria-label="รีเฟรช"
-      >
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      </button>
-    </header>
-
-    <!-- Toast -->
-    <Transition name="toast">
-      <div
-        v-if="toast.show"
-        :class="['toast', toast.success ? 'success' : 'error']"
-      >
-        <svg
-          v-if="toast.success"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M5 13l4 4L19 7"
-          />
-        </svg>
-        <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-        {{ toast.text }}
+    <!-- Loading State -->
+    <div
+      v-if="
+        !authStore.isAuthenticated ||
+        authStore.loading ||
+        (!authStore.user?.id && !authStore.session?.user?.id) ||
+        loading
+      "
+      class="loading-page"
+    >
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p>กำลังโหลด...</p>
       </div>
-    </Transition>
+    </div>
 
-    <main class="main-content">
-      <!-- Balance Card -->
-      <section class="balance-card">
-        <div class="balance-info">
-          <span class="balance-label">ยอดเงินคงเหลือ</span>
-          <div class="balance-amount">
-            <span class="currency">฿</span>
-            <span class="amount">{{
-              balance.balance.toLocaleString("th-TH", {
-                minimumFractionDigits: 2,
-              })
-            }}</span>
+    <!-- Main Content (only show when authenticated and user data is available) -->
+    <template
+      v-else-if="
+        authStore.isAuthenticated &&
+        (authStore.user?.id || authStore.session?.user?.id)
+      "
+    >
+      <!-- Header -->
+      <header class="page-header">
+        <button @click="goBack" class="back-btn" aria-label="กลับ">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </button>
+        <h1>กระเป๋าเงิน</h1>
+        <button
+          @click="handleRefresh"
+          class="refresh-btn"
+          :class="{ spinning: isRefreshing }"
+          aria-label="รีเฟรช"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+        <button
+          @click="debugAuthState"
+          class="refresh-btn"
+          aria-label="Debug Auth"
+          style="margin-left: 8px; background: #ff6b6b; color: white"
+        >
+          🐛
+        </button>
+      </header>
+
+      <!-- Toast -->
+      <Transition name="toast">
+        <div
+          v-if="toast.show"
+          :class="['toast', toast.success ? 'success' : 'error']"
+        >
+          <svg
+            v-if="toast.success"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+          {{ toast.text }}
+        </div>
+      </Transition>
+
+      <main class="main-content">
+        <!-- Balance Card -->
+        <section class="balance-card">
+          <div class="balance-info">
+            <span class="balance-label">ยอดเงินคงเหลือ</span>
+            <div class="balance-amount">
+              <span class="currency">฿</span>
+              <span class="amount">{{
+                balance.balance.toLocaleString("th-TH", {
+                  minimumFractionDigits: 2,
+                })
+              }}</span>
+            </div>
+
+            <!-- Pending Alert -->
+            <div v-if="hasPendingTopup" class="pending-badge">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              รอดำเนินการ ฿{{ pendingTopupAmount.toLocaleString() }}
+            </div>
           </div>
 
-          <!-- Pending Alert -->
-          <div v-if="hasPendingTopup" class="pending-badge">
+          <button @click="openTopUpModal" class="topup-btn">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
               />
             </svg>
-            รอดำเนินการ ฿{{ pendingTopupAmount.toLocaleString() }}
-          </div>
-        </div>
-
-        <button @click="openTopUpModal" class="topup-btn">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-          เติมเงิน
-        </button>
-      </section>
-
-      <!-- Provider Earnings Link (for approved providers) -->
-      <section
-        v-if="isApprovedProvider"
-        class="provider-link"
-        @click="goToProviderEarnings"
-      >
-        <div class="provider-icon">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </div>
-        <div class="provider-info">
-          <span class="provider-title">รายได้จากการให้บริการ</span>
-          <span class="provider-desc">ดูรายได้และถอนเงินจากการวิ่งงาน</span>
-        </div>
-        <svg
-          class="arrow"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </section>
-
-      <!-- Tabs -->
-      <nav class="tabs">
-        <button
-          :class="['tab', { active: activeTab === 'overview' }]"
-          @click="activeTab = 'overview'"
-        >
-          ภาพรวม
-        </button>
-        <button
-          :class="['tab', { active: activeTab === 'history' }]"
-          @click="activeTab = 'history'"
-        >
-          ประวัติ
-        </button>
-        <button
-          :class="['tab', { active: activeTab === 'topups' }]"
-          @click="activeTab = 'topups'"
-        >
-          เติมเงิน
-          <span v-if="pendingCount > 0" class="tab-badge">{{
-            pendingCount
-          }}</span>
-        </button>
-      </nav>
-
-      <!-- Tab Content: Overview -->
-      <section v-if="activeTab === 'overview'" class="tab-content">
-        <div class="stats-row">
-          <div class="stat-card">
-            <span class="stat-label">รับเข้าทั้งหมด</span>
-            <span class="stat-value positive"
-              >฿{{ balance.total_earned.toLocaleString() }}</span
-            >
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">ใช้ไปทั้งหมด</span>
-            <span class="stat-value negative"
-              >฿{{ balance.total_spent.toLocaleString() }}</span
-            >
-          </div>
-        </div>
-
-        <h3 class="section-title">รายการล่าสุด</h3>
-        <div v-if="recentTransactions.length === 0" class="empty-state">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-            />
-          </svg>
-          <p>ยังไม่มีรายการ</p>
-        </div>
-        <ul v-else class="transaction-list">
-          <li
-            v-for="tx in recentTransactions"
-            :key="tx.id"
-            class="transaction-item"
-          >
-            <div
-              class="tx-icon"
-              :class="{ positive: isPositiveTransaction(tx.type) }"
-            >
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  :d="getTransactionIcon(tx.type)"
-                />
-              </svg>
-            </div>
-            <div class="tx-info">
-              <span class="tx-desc">{{ tx.description || tx.type }}</span>
-              <span class="tx-date">{{ formatDate(tx.created_at) }}</span>
-            </div>
-            <span
-              :class="[
-                'tx-amount',
-                { positive: isPositiveTransaction(tx.type) },
-              ]"
-            >
-              {{ isPositiveTransaction(tx.type) ? "+" : "-" }}฿{{
-                Math.abs(tx.amount).toLocaleString()
-              }}
-            </span>
-          </li>
-        </ul>
-        <button
-          v-if="transactions.length > 5"
-          @click="activeTab = 'history'"
-          class="view-all-btn"
-        >
-          ดูทั้งหมด
-        </button>
-      </section>
-
-      <!-- Tab Content: History -->
-      <section v-if="activeTab === 'history'" class="tab-content">
-        <div v-if="loading" class="loading-state">
-          <div class="spinner"></div>
-        </div>
-        <div v-else-if="transactions.length === 0" class="empty-state">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-            />
-          </svg>
-          <p>ยังไม่มีรายการ</p>
-        </div>
-        <ul v-else class="transaction-list">
-          <li v-for="tx in transactions" :key="tx.id" class="transaction-item">
-            <div
-              class="tx-icon"
-              :class="{ positive: isPositiveTransaction(tx.type) }"
-            >
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  :d="getTransactionIcon(tx.type)"
-                />
-              </svg>
-            </div>
-            <div class="tx-info">
-              <span class="tx-desc">{{ tx.description || tx.type }}</span>
-              <span class="tx-date">{{ formatDateTime(tx.created_at) }}</span>
-            </div>
-            <span
-              :class="[
-                'tx-amount',
-                { positive: isPositiveTransaction(tx.type) },
-              ]"
-            >
-              {{ isPositiveTransaction(tx.type) ? "+" : "-" }}฿{{
-                Math.abs(tx.amount).toLocaleString()
-              }}
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Tab Content: Topups -->
-      <section v-if="activeTab === 'topups'" class="tab-content">
-        <div v-if="topupRequests.length === 0" class="empty-state">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-          <p>ยังไม่มีคำขอเติมเงิน</p>
-          <button @click="openTopUpModal" class="btn-outline">
-            เติมเงินเลย
+            เติมเงิน
           </button>
-        </div>
-        <ul v-else class="topup-list">
-          <li v-for="req in topupRequests" :key="req.id" class="topup-item">
-            <div class="topup-header">
-              <span class="topup-tracking">{{ req.tracking_id }}</span>
-              <span :class="['topup-status', getStatusColor(req.status)]">
-                {{ formatTopupStatus(req.status).label }}
-              </span>
-            </div>
-            <div class="topup-body">
-              <span class="topup-amount"
-                >฿{{ req.amount.toLocaleString() }}</span
-              >
-              <span class="topup-method">{{
-                formatPaymentMethod(req.payment_method)
-              }}</span>
-              <span class="topup-date">{{
-                formatDateTime(req.created_at)
-              }}</span>
-            </div>
-            <div v-if="req.admin_note" class="topup-note">
-              <strong>หมายเหตุ:</strong> {{ req.admin_note }}
-            </div>
-            <button
-              v-if="req.status === 'pending'"
-              @click="openCancelConfirm(req.id)"
-              class="btn-cancel"
-            >
-              ยกเลิกคำขอ
-            </button>
-          </li>
-        </ul>
-      </section>
-    </main>
+        </section>
 
-    <!-- Top-Up Modal -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div
-          v-if="showTopUpModal"
-          class="modal-overlay"
-          @click.self="closeTopUpModal"
+        <!-- Provider Earnings Link (for approved providers) -->
+        <section
+          v-if="isApprovedProvider"
+          class="provider-link"
+          @click="goToProviderEarnings"
         >
-          <div class="modal-sheet">
-            <!-- Modal Header -->
-            <div class="modal-header">
-              <button
-                v-if="topUpStep !== 'amount'"
-                @click="prevStep"
-                class="modal-back"
+          <div class="provider-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <div class="provider-info">
+            <span class="provider-title">รายได้จากการให้บริการ</span>
+            <span class="provider-desc">ดูรายได้และถอนเงินจากการวิ่งงาน</span>
+          </div>
+          <svg
+            class="arrow"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </section>
+
+        <!-- Tabs -->
+        <nav class="tabs">
+          <button
+            :class="['tab', { active: activeTab === 'overview' }]"
+            @click="activeTab = 'overview'"
+          >
+            ภาพรวม
+          </button>
+          <button
+            :class="['tab', { active: activeTab === 'history' }]"
+            @click="activeTab = 'history'"
+          >
+            ประวัติ
+          </button>
+          <button
+            :class="['tab', { active: activeTab === 'topups' }]"
+            @click="activeTab = 'topups'"
+          >
+            เติมเงิน
+            <span v-if="pendingCount > 0" class="tab-badge">{{
+              pendingCount
+            }}</span>
+          </button>
+        </nav>
+
+        <!-- Tab Content: Overview -->
+        <section v-if="activeTab === 'overview'" class="tab-content">
+          <div class="stats-row">
+            <div class="stat-card">
+              <span class="stat-label">รับเข้าทั้งหมด</span>
+              <span class="stat-value positive"
+                >฿{{ balance.total_earned.toLocaleString() }}</span
+              >
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">ใช้ไปทั้งหมด</span>
+              <span class="stat-value negative"
+                >฿{{ balance.total_spent.toLocaleString() }}</span
+              >
+            </div>
+          </div>
+
+          <h3 class="section-title">รายการล่าสุด</h3>
+          <div v-if="recentTransactions.length === 0" class="empty-state">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            <p>ยังไม่มีรายการ</p>
+          </div>
+          <ul v-else class="transaction-list">
+            <li
+              v-for="tx in recentTransactions"
+              :key="tx.id"
+              class="transaction-item"
+            >
+              <div
+                class="tx-icon"
+                :class="{ positive: isPositiveTransaction(tx.type) }"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M15 19l-7-7 7-7"
+                    :d="getTransactionIcon(tx.type)"
                   />
                 </svg>
-              </button>
-              <h2>เติมเงิน</h2>
-              <button @click="closeTopUpModal" class="modal-close">
+              </div>
+              <div class="tx-info">
+                <span class="tx-desc">{{ tx.description || tx.type }}</span>
+                <span class="tx-date">{{ formatDate(tx.created_at) }}</span>
+              </div>
+              <span
+                :class="[
+                  'tx-amount',
+                  { positive: isPositiveTransaction(tx.type) },
+                ]"
+              >
+                {{ isPositiveTransaction(tx.type) ? "+" : "-" }}฿{{
+                  Math.abs(tx.amount).toLocaleString()
+                }}
+              </span>
+            </li>
+          </ul>
+          <button
+            v-if="transactions.length > 5"
+            @click="activeTab = 'history'"
+            class="view-all-btn"
+          >
+            ดูทั้งหมด
+          </button>
+        </section>
+
+        <!-- Tab Content: History -->
+        <section v-if="activeTab === 'history'" class="tab-content">
+          <div v-if="loading" class="loading-state">
+            <div class="spinner"></div>
+          </div>
+          <div v-else-if="transactions.length === 0" class="empty-state">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            <p>ยังไม่มีรายการ</p>
+          </div>
+          <ul v-else class="transaction-list">
+            <li
+              v-for="tx in transactions"
+              :key="tx.id"
+              class="transaction-item"
+            >
+              <div
+                class="tx-icon"
+                :class="{ positive: isPositiveTransaction(tx.type) }"
+              >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
+                    :d="getTransactionIcon(tx.type)"
                   />
                 </svg>
-              </button>
-            </div>
+              </div>
+              <div class="tx-info">
+                <span class="tx-desc">{{ tx.description || tx.type }}</span>
+                <span class="tx-date">{{ formatDateTime(tx.created_at) }}</span>
+              </div>
+              <span
+                :class="[
+                  'tx-amount',
+                  { positive: isPositiveTransaction(tx.type) },
+                ]"
+              >
+                {{ isPositiveTransaction(tx.type) ? "+" : "-" }}฿{{
+                  Math.abs(tx.amount).toLocaleString()
+                }}
+              </span>
+            </li>
+          </ul>
+        </section>
 
-            <!-- Step Indicator -->
-            <div class="step-indicator">
-              <div
-                :class="[
-                  'step',
-                  {
-                    active: topUpStep === 'amount',
-                    done: ['method', 'payment', 'confirm'].includes(topUpStep),
-                  },
-                ]"
-              >
-                1
-              </div>
-              <div
-                class="step-line"
-                :class="{
-                  done: ['method', 'payment', 'confirm'].includes(topUpStep),
-                }"
-              ></div>
-              <div
-                :class="[
-                  'step',
-                  {
-                    active: topUpStep === 'method',
-                    done: ['payment', 'confirm'].includes(topUpStep),
-                  },
-                ]"
-              >
-                2
-              </div>
-              <div
-                class="step-line"
-                :class="{ done: ['payment', 'confirm'].includes(topUpStep) }"
-              ></div>
-              <div
-                :class="[
-                  'step',
-                  {
-                    active: topUpStep === 'payment',
-                    done: topUpStep === 'confirm',
-                  },
-                ]"
-              >
-                3
-              </div>
-              <div
-                class="step-line"
-                :class="{ done: topUpStep === 'confirm' }"
-              ></div>
-              <div :class="['step', { active: topUpStep === 'confirm' }]">
-                4
-              </div>
-            </div>
-
-            <!-- Step 1: Amount -->
-            <div v-if="topUpStep === 'amount'" class="modal-body">
-              <h3 class="step-title">เลือกจำนวนเงิน</h3>
-              <div class="amount-grid">
-                <button
-                  v-for="amt in topUpAmounts"
-                  :key="amt"
-                  @click="selectAmount(amt)"
-                  :class="[
-                    'amount-btn',
-                    { active: selectedAmount === amt && !customAmount },
-                  ]"
-                >
-                  ฿{{ amt.toLocaleString() }}
-                </button>
-              </div>
-              <div class="custom-amount">
-                <label>หรือใส่จำนวนเอง</label>
-                <div class="input-wrapper">
-                  <span class="input-prefix">฿</span>
-                  <input
-                    v-model="customAmount"
-                    type="number"
-                    min="20"
-                    max="50000"
-                    placeholder="20 - 50,000"
-                    inputmode="numeric"
-                  />
-                </div>
-                <span v-if="customAmount && !isValidAmount" class="input-error">
-                  จำนวนเงินต้องอยู่ระหว่าง 20 - 50,000 บาท
+        <!-- Tab Content: Topups -->
+        <section v-if="activeTab === 'topups'" class="tab-content">
+          <div v-if="topupRequests.length === 0" class="empty-state">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+            <p>ยังไม่มีคำขอเติมเงิน</p>
+            <button @click="openTopUpModal" class="btn-outline">
+              เติมเงินเลย
+            </button>
+          </div>
+          <ul v-else class="topup-list">
+            <li v-for="req in topupRequests" :key="req.id" class="topup-item">
+              <div class="topup-header">
+                <span class="topup-tracking">{{ req.tracking_id }}</span>
+                <span :class="['topup-status', getStatusColor(req.status)]">
+                  {{ formatTopupStatus(req.status).label }}
                 </span>
               </div>
-            </div>
-
-            <!-- Step 2: Method -->
-            <div v-if="topUpStep === 'method'" class="modal-body">
-              <h3 class="step-title">เลือกช่องทางชำระเงิน</h3>
-              <div class="method-list">
-                <label
-                  :class="[
-                    'method-card',
-                    { active: selectedMethod === 'promptpay' },
-                  ]"
+              <div class="topup-body">
+                <span class="topup-amount"
+                  >฿{{ req.amount.toLocaleString() }}</span
                 >
-                  <input
-                    type="radio"
-                    v-model="selectedMethod"
-                    value="promptpay"
-                  />
-                  <div class="method-icon promptpay">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path
-                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
-                      />
-                    </svg>
-                  </div>
-                  <div class="method-info">
-                    <span class="method-name">พร้อมเพย์ (PromptPay)</span>
-                    <span class="method-desc">สแกน QR Code ชำระเงินทันที</span>
-                  </div>
-                  <div class="method-check"></div>
-                </label>
-                <label
-                  :class="[
-                    'method-card',
-                    { active: selectedMethod === 'bank_transfer' },
-                  ]"
-                >
-                  <input
-                    type="radio"
-                    v-model="selectedMethod"
-                    value="bank_transfer"
-                  />
-                  <div class="method-icon bank">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"
-                      />
-                    </svg>
-                  </div>
-                  <div class="method-info">
-                    <span class="method-name">โอนเงินผ่านธนาคาร</span>
-                    <span class="method-desc">โอนเงินเข้าบัญชีบริษัท</span>
-                  </div>
-                  <div class="method-check"></div>
-                </label>
+                <span class="topup-method">{{
+                  formatPaymentMethod(req.payment_method)
+                }}</span>
+                <span class="topup-date">{{
+                  formatDateTime(req.created_at)
+                }}</span>
               </div>
-            </div>
+              <div v-if="req.admin_note" class="topup-note">
+                <strong>หมายเหตุ:</strong> {{ req.admin_note }}
+              </div>
+              <button
+                v-if="req.status === 'pending'"
+                @click="openCancelConfirm(req.id)"
+                class="btn-cancel"
+              >
+                ยกเลิกคำขอ
+              </button>
+            </li>
+          </ul>
+        </section>
+      </main>
 
-            <!-- Step 3: Payment Info -->
-            <div v-if="topUpStep === 'payment'" class="modal-body">
-              <h3 class="step-title">ข้อมูลการชำระเงิน</h3>
-
-              <!-- PromptPay QR -->
-              <div v-if="selectedMethod === 'promptpay'" class="payment-info">
-                <div class="qr-placeholder">
+      <!-- Top-Up Modal -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div
+            v-if="showTopUpModal"
+            class="modal-overlay"
+            @click.self="closeTopUpModal"
+          >
+            <div class="modal-sheet">
+              <!-- Modal Header -->
+              <div class="modal-header">
+                <button
+                  v-if="topUpStep !== 'amount'"
+                  @click="prevStep"
+                  class="modal-back"
+                >
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                      d="M15 19l-7-7 7-7"
                     />
                   </svg>
-                  <span>QR Code จะแสดงที่นี่</span>
+                </button>
+                <h2>เติมเงิน</h2>
+                <button @click="closeTopUpModal" class="modal-close">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Step Indicator -->
+              <div class="step-indicator">
+                <div
+                  :class="[
+                    'step',
+                    {
+                      active: topUpStep === 'amount',
+                      done: ['method', 'payment', 'confirm'].includes(
+                        topUpStep
+                      ),
+                    },
+                  ]"
+                >
+                  1
                 </div>
-                <div class="payment-detail">
-                  <div class="detail-row">
-                    <span class="detail-label">PromptPay ID</span>
-                    <div
-                      class="detail-value copyable"
-                      @click="copyToClipboard(bankInfo.promptPayId)"
-                    >
-                      {{ bankInfo.promptPayId }}
-                      <svg
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">ชื่อบัญชี</span>
-                    <span class="detail-value">{{ bankInfo.accountName }}</span>
-                  </div>
-                  <div class="detail-row highlight">
-                    <span class="detail-label">จำนวนเงิน</span>
-                    <span class="detail-value amount"
-                      >฿{{ finalAmount.toLocaleString() }}</span
-                    >
-                  </div>
+                <div
+                  class="step-line"
+                  :class="{
+                    done: ['method', 'payment', 'confirm'].includes(topUpStep),
+                  }"
+                ></div>
+                <div
+                  :class="[
+                    'step',
+                    {
+                      active: topUpStep === 'method',
+                      done: ['payment', 'confirm'].includes(topUpStep),
+                    },
+                  ]"
+                >
+                  2
+                </div>
+                <div
+                  class="step-line"
+                  :class="{ done: ['payment', 'confirm'].includes(topUpStep) }"
+                ></div>
+                <div
+                  :class="[
+                    'step',
+                    {
+                      active: topUpStep === 'payment',
+                      done: topUpStep === 'confirm',
+                    },
+                  ]"
+                >
+                  3
+                </div>
+                <div
+                  class="step-line"
+                  :class="{ done: topUpStep === 'confirm' }"
+                ></div>
+                <div :class="['step', { active: topUpStep === 'confirm' }]">
+                  4
                 </div>
               </div>
 
-              <!-- Bank Transfer -->
-              <div v-else class="payment-info">
-                <div class="bank-card">
-                  <div class="bank-logo">{{ bankInfo.bank }}</div>
-                </div>
-                <div class="payment-detail">
-                  <div class="detail-row">
-                    <span class="detail-label">ธนาคาร</span>
-                    <span class="detail-value">{{ bankInfo.bank }}</span>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">เลขบัญชี</span>
-                    <div
-                      class="detail-value copyable"
-                      @click="copyToClipboard(bankInfo.accountNumber)"
-                    >
-                      {{ bankInfo.accountNumber }}
-                      <svg
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">ชื่อบัญชี</span>
-                    <span class="detail-value">{{ bankInfo.accountName }}</span>
-                  </div>
-                  <div class="detail-row highlight">
-                    <span class="detail-label">จำนวนเงิน</span>
-                    <span class="detail-value amount"
-                      >฿{{ finalAmount.toLocaleString() }}</span
-                    >
-                  </div>
-                </div>
-              </div>
-
-              <!-- Slip Upload -->
-              <div class="slip-upload">
-                <label class="upload-label">แนบสลิปการโอนเงิน (ถ้ามี)</label>
-                <div v-if="!slipPreview" class="upload-area">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    @change="handleSlipUpload"
-                    id="slip-input"
-                  />
-                  <label for="slip-input" class="upload-btn">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <span>เลือกรูปสลิป</span>
-                  </label>
-                </div>
-                <div v-else class="slip-preview">
-                  <img :src="slipPreview" alt="Slip preview" />
-                  <button @click="removeSlip" class="remove-slip">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
+              <!-- Step 1: Amount -->
+              <div v-if="topUpStep === 'amount'" class="modal-body">
+                <h3 class="step-title">เลือกจำนวนเงิน</h3>
+                <div class="amount-grid">
+                  <button
+                    v-for="amt in topUpAmounts"
+                    :key="amt"
+                    @click="selectAmount(amt)"
+                    :class="[
+                      'amount-btn',
+                      { active: selectedAmount === amt && !customAmount },
+                    ]"
+                  >
+                    ฿{{ amt.toLocaleString() }}
                   </button>
                 </div>
+                <div class="custom-amount">
+                  <label>หรือใส่จำนวนเอง</label>
+                  <div class="input-wrapper">
+                    <span class="input-prefix">฿</span>
+                    <input
+                      v-model="customAmount"
+                      type="number"
+                      min="20"
+                      max="50000"
+                      placeholder="20 - 50,000"
+                      inputmode="numeric"
+                    />
+                  </div>
+                  <span
+                    v-if="customAmount && !isValidAmount"
+                    class="input-error"
+                  >
+                    จำนวนเงินต้องอยู่ระหว่าง 20 - 50,000 บาท
+                  </span>
+                </div>
               </div>
 
-              <!-- Reference -->
-              <div class="reference-input">
-                <label>เลขอ้างอิง/หมายเหตุ (ถ้ามี)</label>
-                <input
-                  v-model="paymentReference"
-                  type="text"
-                  placeholder="เช่น เลขอ้างอิงการโอน"
-                />
+              <!-- Step 2: Method -->
+              <div v-if="topUpStep === 'method'" class="modal-body">
+                <h3 class="step-title">เลือกช่องทางชำระเงิน</h3>
+                <div class="method-list">
+                  <label
+                    :class="[
+                      'method-card',
+                      { active: selectedMethod === 'promptpay' },
+                    ]"
+                  >
+                    <input
+                      type="radio"
+                      v-model="selectedMethod"
+                      value="promptpay"
+                    />
+                    <div class="method-icon promptpay">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                        />
+                      </svg>
+                    </div>
+                    <div class="method-info">
+                      <span class="method-name">พร้อมเพย์ (PromptPay)</span>
+                      <span class="method-desc"
+                        >สแกน QR Code ชำระเงินทันที</span
+                      >
+                    </div>
+                    <div class="method-check"></div>
+                  </label>
+                  <label
+                    :class="[
+                      'method-card',
+                      { active: selectedMethod === 'bank_transfer' },
+                    ]"
+                  >
+                    <input
+                      type="radio"
+                      v-model="selectedMethod"
+                      value="bank_transfer"
+                    />
+                    <div class="method-icon bank">
+                      <svg
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"
+                        />
+                      </svg>
+                    </div>
+                    <div class="method-info">
+                      <span class="method-name">โอนเงินผ่านธนาคาร</span>
+                      <span class="method-desc">โอนเงินเข้าบัญชีบริษัท</span>
+                    </div>
+                    <div class="method-check"></div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Step 3: Payment Info -->
+              <div v-if="topUpStep === 'payment'" class="modal-body">
+                <h3 class="step-title">ข้อมูลการชำระเงิน</h3>
+
+                <!-- PromptPay QR -->
+                <div v-if="selectedMethod === 'promptpay'" class="payment-info">
+                  <div class="qr-placeholder">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                      />
+                    </svg>
+                    <span>QR Code จะแสดงที่นี่</span>
+                  </div>
+                  <div class="payment-detail">
+                    <div class="detail-row">
+                      <span class="detail-label">PromptPay ID</span>
+                      <div
+                        class="detail-value copyable"
+                        @click="copyToClipboard(bankInfo.promptPayId)"
+                      >
+                        {{ bankInfo.promptPayId }}
+                        <svg
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">ชื่อบัญชี</span>
+                      <span class="detail-value">{{
+                        bankInfo.accountName
+                      }}</span>
+                    </div>
+                    <div class="detail-row highlight">
+                      <span class="detail-label">จำนวนเงิน</span>
+                      <span class="detail-value amount"
+                        >฿{{ finalAmount.toLocaleString() }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bank Transfer -->
+                <div v-else class="payment-info">
+                  <div class="bank-card">
+                    <div class="bank-logo">{{ bankInfo.bank }}</div>
+                  </div>
+                  <div class="payment-detail">
+                    <div class="detail-row">
+                      <span class="detail-label">ธนาคาร</span>
+                      <span class="detail-value">{{ bankInfo.bank }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">เลขบัญชี</span>
+                      <div
+                        class="detail-value copyable"
+                        @click="copyToClipboard(bankInfo.accountNumber)"
+                      >
+                        {{ bankInfo.accountNumber }}
+                        <svg
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">ชื่อบัญชี</span>
+                      <span class="detail-value">{{
+                        bankInfo.accountName
+                      }}</span>
+                    </div>
+                    <div class="detail-row highlight">
+                      <span class="detail-label">จำนวนเงิน</span>
+                      <span class="detail-value amount"
+                        >฿{{ finalAmount.toLocaleString() }}</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Slip Upload -->
+                <div class="slip-upload">
+                  <label class="upload-label">แนบสลิปการโอนเงิน (ถ้ามี)</label>
+                  <div v-if="!slipPreview" class="upload-area">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      @change="handleSlipUpload"
+                      id="slip-input"
+                    />
+                    <label for="slip-input" class="upload-btn">
+                      <svg
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      <span>เลือกรูปสลิป</span>
+                    </label>
+                  </div>
+                  <div v-else class="slip-preview">
+                    <img :src="slipPreview" alt="Slip preview" />
+                    <button @click="removeSlip" class="remove-slip">
+                      <svg
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Reference -->
+                <div class="reference-input">
+                  <label>เลขอ้างอิง/หมายเหตุ (ถ้ามี)</label>
+                  <input
+                    v-model="paymentReference"
+                    type="text"
+                    placeholder="เช่น เลขอ้างอิงการโอน"
+                  />
+                </div>
+              </div>
+
+              <!-- Step 4: Confirm -->
+              <div v-if="topUpStep === 'confirm'" class="modal-body">
+                <h3 class="step-title">ยืนยันคำขอเติมเงิน</h3>
+
+                <div class="confirm-summary">
+                  <div class="summary-row">
+                    <span class="summary-label">จำนวนเงิน</span>
+                    <span class="summary-value highlight"
+                      >฿{{ finalAmount.toLocaleString() }}</span
+                    >
+                  </div>
+                  <div class="summary-row">
+                    <span class="summary-label">ช่องทางชำระ</span>
+                    <span class="summary-value">{{
+                      formatPaymentMethod(selectedMethod)
+                    }}</span>
+                  </div>
+                  <div v-if="paymentReference" class="summary-row">
+                    <span class="summary-label">เลขอ้างอิง</span>
+                    <span class="summary-value">{{ paymentReference }}</span>
+                  </div>
+                  <div v-if="slipFile" class="summary-row">
+                    <span class="summary-label">สลิป</span>
+                    <span class="summary-value success">แนบแล้ว</span>
+                  </div>
+                </div>
+
+                <div class="info-box">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <p>
+                    หลังจากสร้างคำขอ ทีมงานจะตรวจสอบและอนุมัติภายใน 30 นาที
+                    (ในเวลาทำการ)
+                  </p>
+                </div>
+              </div>
+
+              <!-- Modal Footer -->
+              <div class="modal-footer">
+                <button
+                  v-if="topUpStep === 'amount'"
+                  @click="nextStep"
+                  :disabled="!isValidAmount"
+                  class="btn-primary"
+                >
+                  ถัดไป
+                </button>
+                <button
+                  v-else-if="topUpStep === 'method'"
+                  @click="nextStep"
+                  class="btn-primary"
+                >
+                  ถัดไป
+                </button>
+                <button
+                  v-else-if="topUpStep === 'payment'"
+                  @click="nextStep"
+                  class="btn-primary"
+                >
+                  ถัดไป
+                </button>
+                <button
+                  v-else
+                  @click="submitTopUp"
+                  :disabled="topUpLoading"
+                  class="btn-primary"
+                >
+                  <span v-if="topUpLoading" class="btn-spinner"></span>
+                  {{ topUpLoading ? "กำลังดำเนินการ..." : "ยืนยันเติมเงิน" }}
+                </button>
               </div>
             </div>
+          </div>
+        </Transition>
+      </Teleport>
 
-            <!-- Step 4: Confirm -->
-            <div v-if="topUpStep === 'confirm'" class="modal-body">
-              <h3 class="step-title">ยืนยันคำขอเติมเงิน</h3>
-
-              <div class="confirm-summary">
-                <div class="summary-row">
-                  <span class="summary-label">จำนวนเงิน</span>
-                  <span class="summary-value highlight"
-                    >฿{{ finalAmount.toLocaleString() }}</span
-                  >
-                </div>
-                <div class="summary-row">
-                  <span class="summary-label">ช่องทางชำระ</span>
-                  <span class="summary-value">{{
-                    formatPaymentMethod(selectedMethod)
-                  }}</span>
-                </div>
-                <div v-if="paymentReference" class="summary-row">
-                  <span class="summary-label">เลขอ้างอิง</span>
-                  <span class="summary-value">{{ paymentReference }}</span>
-                </div>
-                <div v-if="slipFile" class="summary-row">
-                  <span class="summary-label">สลิป</span>
-                  <span class="summary-value success">แนบแล้ว</span>
-                </div>
-              </div>
-
-              <div class="info-box">
+      <!-- Cancel Confirm Modal -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div
+            v-if="showCancelConfirm"
+            class="modal-overlay"
+            @click.self="showCancelConfirm = false"
+          >
+            <div class="confirm-dialog">
+              <div class="dialog-icon warning">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                   />
                 </svg>
-                <p>
-                  หลังจากสร้างคำขอ ทีมงานจะตรวจสอบและอนุมัติภายใน 30 นาที
-                  (ในเวลาทำการ)
-                </p>
+              </div>
+              <h3>ยืนยันยกเลิก?</h3>
+              <p>คุณต้องการยกเลิกคำขอเติมเงินนี้หรือไม่?</p>
+              <div class="dialog-actions">
+                <button
+                  @click="showCancelConfirm = false"
+                  class="btn-secondary"
+                >
+                  ไม่ใช่
+                </button>
+                <button @click="handleCancelRequest" class="btn-danger">
+                  ยกเลิก
+                </button>
               </div>
             </div>
-
-            <!-- Modal Footer -->
-            <div class="modal-footer">
-              <button
-                v-if="topUpStep === 'amount'"
-                @click="nextStep"
-                :disabled="!isValidAmount"
-                class="btn-primary"
-              >
-                ถัดไป
-              </button>
-              <button
-                v-else-if="topUpStep === 'method'"
-                @click="nextStep"
-                class="btn-primary"
-              >
-                ถัดไป
-              </button>
-              <button
-                v-else-if="topUpStep === 'payment'"
-                @click="nextStep"
-                class="btn-primary"
-              >
-                ถัดไป
-              </button>
-              <button
-                v-else
-                @click="submitTopUp"
-                :disabled="topUpLoading"
-                class="btn-primary"
-              >
-                <span v-if="topUpLoading" class="btn-spinner"></span>
-                {{ topUpLoading ? "กำลังดำเนินการ..." : "ยืนยันเติมเงิน" }}
-              </button>
-            </div>
           </div>
-        </div>
-      </Transition>
-    </Teleport>
+        </Transition>
+      </Teleport>
+    </template>
 
-    <!-- Cancel Confirm Modal -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div
-          v-if="showCancelConfirm"
-          class="modal-overlay"
-          @click.self="showCancelConfirm = false"
-        >
-          <div class="confirm-dialog">
-            <div class="dialog-icon warning">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <h3>ยืนยันยกเลิก?</h3>
-            <p>คุณต้องการยกเลิกคำขอเติมเงินนี้หรือไม่?</p>
-            <div class="dialog-actions">
-              <button @click="showCancelConfirm = false" class="btn-secondary">
-                ไม่ใช่
-              </button>
-              <button @click="handleCancelRequest" class="btn-danger">
-                ยกเลิก
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- Not Authenticated State -->
+    <div v-else class="auth-required">
+      <div class="auth-content">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+          />
+        </svg>
+        <h3>กรุณาเข้าสู่ระบบ</h3>
+        <p>เพื่อใช้งานกระเป๋าเงิน</p>
+        <button @click="router.push('/login')" class="btn-primary">
+          เข้าสู่ระบบ
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1118,6 +1239,87 @@ const getStatusColor = (status: string): string => {
 .wallet-page {
   min-height: 100vh;
   background: #f5f5f5;
+}
+
+/* Loading Page */
+.loading-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+.loading-content {
+  text-align: center;
+  color: #666;
+}
+
+.loading-content .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e8e8e8;
+  border-top-color: #00a86b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+.loading-content p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Auth Required */
+.auth-required {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  padding: 20px;
+}
+
+.auth-content {
+  text-align: center;
+  background: #fff;
+  padding: 40px 30px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 320px;
+  width: 100%;
+}
+
+.auth-content svg {
+  width: 64px;
+  height: 64px;
+  color: #00a86b;
+  margin-bottom: 20px;
+}
+
+.auth-content h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1a1a1a;
+}
+
+.auth-content p {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.auth-content .btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: #00a86b;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* Header */
