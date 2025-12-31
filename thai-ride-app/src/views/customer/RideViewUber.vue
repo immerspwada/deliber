@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Feature: F02 - Uber-Style Ride Booking (Enhanced V2)
- * UI: Clean, Modern, Mobile-First
- * Flow: 1.ไปไหน? → 2.เลือกรถ+จอง → 3.ติดตาม → 4.ให้คะแนน
+ * Feature: F02 - Simple Ride Booking (Grab/Bolt Style)
+ * UX: Super Simple - 2 taps to book
+ * Flow: 1.เลือกจุดหมาย → 2.กดจอง → 3.ติดตาม
  */
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -21,139 +21,81 @@ const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } =
   useServices();
 const { balance, fetchBalance } = useWallet();
 
-// ========== STATE ==========
-const currentStep = ref<
-  "where" | "confirm" | "searching" | "tracking" | "completed"
->("where");
+// ========== SIMPLE STATE ==========
+const currentStep = ref<"select" | "searching" | "tracking" | "rating">(
+  "select"
+);
 const pickup = ref<GeoLocation | null>(null);
 const destination = ref<GeoLocation | null>(null);
 const searchQuery = ref("");
-const isSearching = ref(false);
+const isSearchFocused = ref(false);
 const searchResults = ref<
   Array<{ id: string; name: string; address: string; lat: number; lng: number }>
 >([]);
-const selectedVehicle = ref<"economy" | "standard" | "premium">("standard");
+const selectedVehicle = ref<"bike" | "car" | "premium">("car");
 const isBooking = ref(false);
 const isGettingLocation = ref(false);
-const showPaymentSheet = ref(false);
-const showPromoSheet = ref(false);
-const promoCode = ref("");
-const promoDiscount = ref(0);
-const selectedPayment = ref<"wallet" | "cash">("wallet");
 const searchingSeconds = ref(0);
 let searchingInterval: ReturnType<typeof setInterval> | null = null;
 
-// NEW: Enhanced features
-const passengerCount = ref(1);
-const rideNote = ref("");
-const showNoteSheet = ref(false);
-const showScheduleSheet = ref(false);
-const showFareBreakdown = ref(false);
-const showRatingModal = ref(false);
-const showSafetySheet = ref(false);
-const isScheduled = ref(false);
-const scheduledDate = ref("");
-const scheduledTime = ref("");
-const userRating = ref(0);
-const ratingComment = ref("");
-const isSubmittingRating = ref(false);
-const driverLocation = ref<{ lat: number; lng: number } | null>(null);
-const shareLink = ref("");
-
-// Fare calculation
+// Fare & Trip
 const estimatedFare = ref(0);
 const estimatedTime = ref(0);
 const estimatedDistance = ref(0);
 
-// Active ride tracking
+// Active ride
 const activeRide = ref<any>(null);
 const matchedDriver = ref<any>(null);
 const driverETA = ref(0);
 let realtimeChannel: any = null;
-let driverLocationInterval: ReturnType<typeof setInterval> | null = null;
 
-// Vehicle options with SVG icons
+// Rating
+const userRating = ref(0);
+const isSubmittingRating = ref(false);
+
+// Vehicle options - simplified
 const vehicles = [
   {
-    id: "economy",
-    name: "ประหยัด",
+    id: "bike",
+    name: "มอเตอร์ไซค์",
     multiplier: 0.7,
-    eta: "2-4",
-    desc: "มอเตอร์ไซค์",
-    seats: 1,
-    type: "bike",
+    eta: "3 นาที",
+    icon: "bike",
   },
-  {
-    id: "standard",
-    name: "สบาย",
-    multiplier: 1.0,
-    eta: "4-6",
-    desc: "รถยนต์ 4 ที่นั่ง",
-    seats: 4,
-    type: "car",
-  },
+  { id: "car", name: "รถยนต์", multiplier: 1.0, eta: "5 นาที", icon: "car" },
   {
     id: "premium",
     name: "พรีเมียม",
     multiplier: 1.5,
-    eta: "5-8",
-    desc: "รถหรู",
-    seats: 4,
-    type: "premium",
+    eta: "7 นาที",
+    icon: "premium",
   },
 ] as const;
 
 // ========== COMPUTED ==========
-const canConfirm = computed(() => pickup.value && destination.value);
+const canBook = computed(
+  () => pickup.value && destination.value && !isBooking.value
+);
 const selectedVehicleInfo = computed(() =>
   vehicles.find((v) => v.id === selectedVehicle.value)
 );
-const baseFare = computed(() =>
+const finalFare = computed(() =>
   Math.round(estimatedFare.value * (selectedVehicleInfo.value?.multiplier || 1))
 );
-const finalFare = computed(() =>
-  Math.max(0, baseFare.value - promoDiscount.value)
-);
 const hasEnoughBalance = computed(
-  () =>
-    selectedPayment.value === "cash" || (balance.value ?? 0) >= finalFare.value
+  () => (balance.value ?? 0) >= finalFare.value
 );
+
 const statusText = computed(() => {
   if (!activeRide.value) return "";
   const s = activeRide.value.status;
-  if (s === "pending") return "กำลังหาคนขับให้คุณ...";
-  if (s === "matched") return "พบคนขับแล้ว!";
-  if (s === "arriving") return `คนขับกำลังมารับ (${driverETA.value} นาที)`;
-  if (s === "picked_up") return "รับผู้โดยสารแล้ว";
-  if (s === "in_progress") return "กำลังเดินทาง...";
-  if (s === "completed") return "เดินทางสำเร็จ!";
+  if (s === "pending") return "กำลังหาคนขับ...";
+  if (s === "matched") return `คนขับมาถึงใน ${driverETA.value} นาที`;
+  if (s === "arriving") return "คนขับใกล้ถึงแล้ว";
+  if (s === "picked_up") return "กำลังเดินทาง";
+  if (s === "in_progress") return "กำลังเดินทาง";
+  if (s === "completed") return "ถึงแล้ว!";
   return s;
-});
-
-// NEW: Fare breakdown
-const fareBreakdown = computed(() => {
-  const base = 35;
-  const perKm = 12;
-  const distance = estimatedDistance.value;
-  const distanceCost = Math.round(distance * perKm);
-  const vehicleMultiplier = selectedVehicleInfo.value?.multiplier || 1;
-  const subtotal = Math.round((base + distanceCost) * vehicleMultiplier);
-  return {
-    baseFare: base,
-    distanceCost,
-    vehicleAdjustment: Math.round(subtotal - base - distanceCost),
-    promoDiscount: promoDiscount.value,
-    total: Math.max(0, subtotal - promoDiscount.value),
-  };
-});
-
-// NEW: Can schedule
-const canSchedule = computed(() => {
-  if (!scheduledDate.value || !scheduledTime.value) return false;
-  const scheduled = new Date(`${scheduledDate.value}T${scheduledTime.value}`);
-  const now = new Date();
-  const minTime = new Date(now.getTime() + 30 * 60000); // At least 30 mins ahead
-  return scheduled > minTime;
 });
 
 // ========== LIFECYCLE ==========
@@ -173,21 +115,16 @@ onUnmounted(() => {
   rideStore.unsubscribeAll();
   if (searchingInterval) clearInterval(searchingInterval);
   if (realtimeChannel) supabase.removeChannel(realtimeChannel);
-  if (driverLocationInterval) clearInterval(driverLocationInterval);
 });
 
-// Watch for ride status changes
 watch(
   () => activeRide.value?.status,
   (newStatus) => {
     if (newStatus === "matched" || newStatus === "arriving") {
-      driverETA.value = 5; // Initial ETA
-      startDriverLocationTracking();
+      driverETA.value = 5;
     }
     if (newStatus === "completed") {
-      currentStep.value = "completed";
-      showRatingModal.value = true;
-      stopDriverLocationTracking();
+      currentStep.value = "rating";
     }
   }
 );
@@ -204,14 +141,13 @@ async function getCurrentLocation() {
         address: "ตำแหน่งปัจจุบัน",
       };
       isGettingLocation.value = false;
-      // Try reverse geocoding
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
           {
             headers: {
               Accept: "application/json",
-              "User-Agent": "ThaiRideApp/1.0 (https://thai-ride.app)",
+              "User-Agent": "ThaiRideApp/1.0",
             },
           }
         );
@@ -225,7 +161,7 @@ async function getCurrentLocation() {
           }
         }
       } catch {
-        /* ignore geocoding errors */
+        /* ignore */
       }
     },
     () => {
@@ -272,13 +208,10 @@ function setupRealtimeTracking(rideId: string) {
       },
       (payload) => {
         activeRide.value = { ...activeRide.value, ...payload.new };
-        if (
-          payload.new.status === "completed" ||
-          payload.new.status === "cancelled"
-        ) {
-          currentStep.value = "where";
-          activeRide.value = null;
-          matchedDriver.value = null;
+        if (payload.new.status === "completed") {
+          currentStep.value = "rating";
+        } else if (payload.new.status === "cancelled") {
+          resetAll();
         } else if (payload.new.status !== "pending") {
           currentStep.value = "tracking";
         }
@@ -287,12 +220,11 @@ function setupRealtimeTracking(rideId: string) {
     .subscribe();
 }
 
-async function searchPlaces() {
+function searchPlaces() {
   if (searchQuery.value.length < 2) {
     searchResults.value = [];
     return;
   }
-  isSearching.value = true;
   const query = searchQuery.value.toLowerCase();
   const allPlaces = [
     ...(savedPlaces.value || []),
@@ -312,7 +244,6 @@ async function searchPlaces() {
       lat: p.lat,
       lng: p.lng,
     }));
-  isSearching.value = false;
 }
 
 function selectDestination(place: {
@@ -326,10 +257,10 @@ function selectDestination(place: {
     lng: place.lng,
     address: place.name || place.address,
   };
-  searchQuery.value = "";
+  searchQuery.value = place.name || place.address;
   searchResults.value = [];
+  isSearchFocused.value = false;
   calculateFare();
-  currentStep.value = "confirm";
 }
 
 function calculateFare() {
@@ -342,33 +273,11 @@ function calculateFare() {
   );
   estimatedDistance.value = dist;
   estimatedTime.value = calculateTravelTime(dist);
-  const base = 35;
-  const perKm = 12;
-  estimatedFare.value = Math.round(base + dist * perKm);
-}
-
-async function applyPromo() {
-  if (!promoCode.value.trim()) return;
-  // Simulate promo validation
-  if (promoCode.value.toUpperCase() === "RIDE50") {
-    promoDiscount.value = 50;
-  } else if (promoCode.value.toUpperCase() === "FIRST") {
-    promoDiscount.value = Math.round(baseFare.value * 0.2);
-  } else {
-    promoDiscount.value = 0;
-    alert("รหัสโปรโมชั่นไม่ถูกต้อง");
-    return;
-  }
-  showPromoSheet.value = false;
+  estimatedFare.value = Math.round(35 + dist * 12);
 }
 
 async function bookRide() {
   if (!pickup.value || !destination.value || !authStore.user) return;
-  if (!hasEnoughBalance.value) {
-    alert("ยอดเงินในกระเป๋าไม่เพียงพอ");
-    return;
-  }
-
   isBooking.value = true;
   currentStep.value = "searching";
   searchingSeconds.value = 0;
@@ -392,7 +301,7 @@ async function bookRide() {
   } catch (err) {
     console.error("Booking error:", err);
     alert("ไม่สามารถจองได้ กรุณาลองใหม่");
-    currentStep.value = "confirm";
+    currentStep.value = "select";
   } finally {
     isBooking.value = false;
     if (searchingInterval) {
@@ -406,93 +315,22 @@ async function cancelRide() {
   if (!activeRide.value) return;
   if (!confirm("ยกเลิกการเดินทาง?")) return;
   const success = await rideStore.cancelRide(activeRide.value.id);
-  if (success) {
-    activeRide.value = null;
-    matchedDriver.value = null;
-    currentStep.value = "where";
-    destination.value = null;
-  }
+  if (success) resetAll();
 }
 
-function goBack() {
-  if (currentStep.value === "confirm") {
-    currentStep.value = "where";
-    destination.value = null;
-    promoDiscount.value = 0;
-    promoCode.value = "";
-  } else if (currentStep.value === "searching") {
-    cancelRide();
-  } else {
-    router.back();
-  }
+function resetAll() {
+  activeRide.value = null;
+  matchedDriver.value = null;
+  currentStep.value = "select";
+  destination.value = null;
+  searchQuery.value = "";
+  userRating.value = 0;
 }
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-// ========== NEW METHODS ==========
-function startDriverLocationTracking() {
-  if (driverLocationInterval) return;
-  // Simulate driver location updates
-  driverLocationInterval = setInterval(() => {
-    if (pickup.value && matchedDriver.value) {
-      // Simulate driver moving towards pickup
-      const jitter = () => (Math.random() - 0.5) * 0.001;
-      driverLocation.value = {
-        lat: pickup.value.lat + jitter(),
-        lng: pickup.value.lng + jitter(),
-      };
-      // Decrease ETA
-      if (driverETA.value > 1) {
-        driverETA.value = Math.max(1, driverETA.value - 0.5);
-      }
-    }
-  }, 3000);
-}
-
-function stopDriverLocationTracking() {
-  if (driverLocationInterval) {
-    clearInterval(driverLocationInterval);
-    driverLocationInterval = null;
-  }
-}
-
-function generateShareLink() {
-  if (!activeRide.value) return;
-  const baseUrl = window.location.origin;
-  shareLink.value = `${baseUrl}/track/${activeRide.value.id}`;
-}
-
-async function shareTrip() {
-  generateShareLink();
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title: "ติดตามการเดินทาง",
-        text: `ติดตามการเดินทางของฉันได้ที่นี่`,
-        url: shareLink.value,
-      });
-    } catch {
-      copyShareLink();
-    }
-  } else {
-    copyShareLink();
-  }
-}
-
-function copyShareLink() {
-  generateShareLink();
-  navigator.clipboard.writeText(shareLink.value);
-  alert("คัดลอกลิงก์แล้ว!");
-}
-
-function callEmergency() {
-  if (confirm("โทรหาหมายเลขฉุกเฉิน 191?")) {
-    window.location.href = "tel:191";
-  }
 }
 
 async function submitRating() {
@@ -504,10 +342,8 @@ async function submitRating() {
       user_id: authStore.user?.id,
       provider_id: matchedDriver.value?.id,
       rating: userRating.value,
-      comment: ratingComment.value || null,
     });
-    showRatingModal.value = false;
-    resetBooking();
+    resetAll();
   } catch (err) {
     console.error("Rating error:", err);
   } finally {
@@ -516,1024 +352,892 @@ async function submitRating() {
 }
 
 function skipRating() {
-  showRatingModal.value = false;
-  resetBooking();
+  resetAll();
 }
-
-function resetBooking() {
-  activeRide.value = null;
-  matchedDriver.value = null;
-  currentStep.value = "where";
-  destination.value = null;
-  promoDiscount.value = 0;
-  promoCode.value = "";
-  rideNote.value = "";
-  passengerCount.value = 1;
-  isScheduled.value = false;
-  scheduledDate.value = "";
-  scheduledTime.value = "";
-  userRating.value = 0;
-  ratingComment.value = "";
+function callDriver() {
+  if (matchedDriver.value?.phone_number)
+    window.location.href = `tel:${matchedDriver.value.phone_number}`;
 }
-
-function getMinDate(): string {
-  const now = new Date();
-  return now.toISOString().split("T")[0];
-}
-
-function getMaxDate(): string {
-  const now = new Date();
-  now.setDate(now.getDate() + 7);
-  return now.toISOString().split("T")[0];
+function callEmergency() {
+  if (confirm("โทร 191?")) window.location.href = "tel:191";
 }
 </script>
 
 <template>
-  <div class="ride-app">
-    <!-- ========== SEARCHING STATE ========== -->
-    <div v-if="currentStep === 'searching'" class="searching-view">
-      <div class="searching-content">
-        <div class="pulse-ring">
-          <div class="pulse-dot"></div>
-        </div>
-        <h2>กำลังหาคนขับ...</h2>
-        <p class="search-time">{{ formatTime(searchingSeconds) }}</p>
-        <div class="search-info">
-          <div class="info-row">
-            <span class="label">ประเภทรถ</span>
-            <span class="value">{{ selectedVehicleInfo?.name }}</span>
+  <div class="ride-page">
+    <!-- STEP 1: SELECT DESTINATION -->
+    <div v-if="currentStep === 'select'" class="select-view">
+      <!-- Header with pickup -->
+      <div class="header-section">
+        <div class="pickup-display">
+          <div class="pickup-dot"></div>
+          <div class="pickup-info">
+            <span class="pickup-label">จุดรับ</span>
+            <span class="pickup-address">{{
+              pickup?.address || "กำลังหาตำแหน่ง..."
+            }}</span>
           </div>
-          <div class="info-row">
-            <span class="label">ราคา</span>
-            <span class="value price">฿{{ finalFare }}</span>
-          </div>
-        </div>
-        <button class="cancel-search-btn" @click="cancelRide">ยกเลิก</button>
-      </div>
-    </div>
-
-    <!-- ========== TRACKING STATE ========== -->
-    <div v-else-if="currentStep === 'tracking'" class="tracking-view">
-      <div class="tracking-header">
-        <div class="status-pill" :class="activeRide?.status">
-          <div class="status-dot"></div>
-          <span>{{ statusText }}</span>
-        </div>
-      </div>
-
-      <!-- Driver Card -->
-      <div v-if="matchedDriver" class="driver-card-enhanced">
-        <div class="driver-main">
-          <div class="driver-avatar">
-            <span>{{ matchedDriver.first_name?.[0] || "?" }}</span>
-            <div class="rating-badge">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-                />
-              </svg>
-              <span>4.9</span>
-            </div>
-          </div>
-          <div class="driver-details">
-            <h3>
-              {{ matchedDriver.first_name }} {{ matchedDriver.last_name?.[0] }}.
-            </h3>
-            <p class="vehicle-info">
-              {{ matchedDriver.vehicle_plate_number || "กข-1234" }}
-            </p>
-            <p class="vehicle-desc">{{ selectedVehicleInfo?.desc }}</p>
-          </div>
-        </div>
-        <div class="driver-actions">
-          <a
-            :href="`tel:${matchedDriver.phone_number || '0800000000'}`"
-            class="action-btn call"
-          >
+          <button v-if="isGettingLocation" class="refresh-btn" disabled>
             <svg
+              class="spin"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
             >
-              <path
-                d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"
-              />
+              <path d="M21 12a9 9 0 11-6.219-8.56" />
             </svg>
-          </a>
-          <button class="action-btn msg">
+          </button>
+          <button v-else class="refresh-btn" @click="getCurrentLocation">
             <svg
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
             >
-              <path
-                d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
-              />
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="3" />
             </svg>
           </button>
         </div>
       </div>
 
-      <!-- Route Summary -->
-      <div class="route-card-enhanced">
-        <div class="route-visual">
-          <div class="route-line-bg"></div>
-          <div class="route-stop pickup">
-            <div class="stop-marker green"></div>
-            <div class="stop-info">
-              <span class="stop-label">จุดรับ</span>
-              <span class="stop-address">{{
-                activeRide?.pickup_address || pickup?.address
-              }}</span>
-            </div>
-          </div>
-          <div class="route-stop dest">
-            <div class="stop-marker red"></div>
-            <div class="stop-info">
-              <span class="stop-label">จุดหมาย</span>
-              <span class="stop-address">{{
-                activeRide?.destination_address || destination?.address
-              }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Trip Info -->
-      <div class="trip-summary">
-        <div class="summary-item">
-          <span class="s-value">{{ estimatedDistance.toFixed(1) }} กม.</span>
-          <span class="s-label">ระยะทาง</span>
-        </div>
-        <div class="summary-divider"></div>
-        <div class="summary-item">
-          <span class="s-value">{{ estimatedTime }} นาที</span>
-          <span class="s-label">เวลาโดยประมาณ</span>
-        </div>
-        <div class="summary-divider"></div>
-        <div class="summary-item">
-          <span class="s-value price"
-            >฿{{ activeRide?.estimated_fare || finalFare }}</span
-          >
-          <span class="s-label">ค่าโดยสาร</span>
-        </div>
-      </div>
-
-      <!-- Safety Section -->
-      <div class="safety-section">
-        <button class="safety-btn share" @click="shareTrip">
+      <!-- Search destination -->
+      <div class="search-section">
+        <div class="search-box" :class="{ focused: isSearchFocused }">
           <svg
+            class="search-icon"
+            width="20"
+            height="20"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
           >
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
-          <span>แชร์การเดินทาง</span>
-        </button>
-        <button class="safety-btn sos" @click="callEmergency">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-            />
-          </svg>
-          <span>SOS</span>
-        </button>
-      </div>
-
-      <button class="cancel-ride-btn" @click="cancelRide">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-        ยกเลิกการเดินทาง
-      </button>
-    </div>
-
-    <!-- ========== BOOKING FLOW ========== -->
-    <div v-else class="booking-flow">
-      <!-- Header -->
-      <header class="app-header">
-        <button class="back-btn" @click="goBack" aria-label="กลับ">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="ไปไหนดี?"
+            class="search-input"
+            @focus="isSearchFocused = true"
+            @blur="setTimeout(() => (isSearchFocused = false), 200)"
+            @input="searchPlaces"
+          />
+          <button
+            v-if="searchQuery"
+            class="clear-btn"
+            @click="
+              searchQuery = '';
+              searchResults = [];
+            "
           >
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <h1>{{ currentStep === "where" ? "ไปไหนดี?" : "ยืนยันการจอง" }}</h1>
-        <div class="header-spacer"></div>
-      </header>
-
-      <!-- Step 1: Where to? -->
-      <div v-if="currentStep === 'where'" class="step-where">
-        <div class="location-inputs">
-          <div class="input-row">
-            <div class="input-marker green"></div>
-            <div class="input-content">
-              <span class="input-label">จุดรับ</span>
-              <span class="input-value">{{
-                pickup?.address || "กำลังหาตำแหน่ง..."
-              }}</span>
-            </div>
-            <div v-if="isGettingLocation" class="input-spinner"></div>
-            <button
-              v-else
-              class="input-action"
-              @click="getCurrentLocation"
-              aria-label="รีเฟรชตำแหน่ง"
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-          </div>
-          <div class="input-connector"></div>
-          <div class="input-row dest-row">
-            <div class="input-marker red"></div>
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="ค้นหาจุดหมายปลายทาง..."
-              class="dest-input"
-              @input="searchPlaces"
-            />
-          </div>
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <!-- Search Results -->
-        <div v-if="searchResults.length" class="search-results">
-          <div
+        <!-- Search results -->
+        <div v-if="searchResults.length > 0" class="search-results">
+          <button
             v-for="place in searchResults"
             :key="place.id"
             class="result-item"
             @click="selectDestination(place)"
           >
-            <div class="result-icon">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-                />
-              </svg>
-            </div>
-            <div class="result-content">
-              <span class="result-name">{{ place.name }}</span>
-              <span class="result-address">{{ place.address }}</span>
-            </div>
             <svg
-              class="result-arrow"
+              class="result-icon"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
             >
-              <path d="M9 18l6-6-6-6" />
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
             </svg>
+            <div class="result-text">
+              <span class="result-name">{{ place.name }}</span>
+              <span class="result-address">{{ place.address }}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick places -->
+      <div v-if="!isSearchFocused && !destination" class="quick-places">
+        <h3 class="section-title">สถานที่บันทึก</h3>
+        <div class="places-list">
+          <button
+            v-for="place in (savedPlaces || []).slice(0, 4)"
+            :key="place.id"
+            class="place-chip"
+            @click="selectDestination(place)"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+            </svg>
+            <span>{{ place.name }}</span>
+          </button>
+        </div>
+
+        <h3 class="section-title">ล่าสุด</h3>
+        <div class="recent-list">
+          <button
+            v-for="place in (recentPlaces || []).slice(0, 3)"
+            :key="place.id"
+            class="recent-item"
+            @click="selectDestination(place)"
+          >
+            <svg
+              class="recent-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12,6 12,12 16,14" />
+            </svg>
+            <div class="recent-text">
+              <span class="recent-name">{{ place.name }}</span>
+              <span class="recent-addr">{{ place.address }}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Vehicle selection (shows when destination selected) -->
+      <div v-if="destination" class="booking-section">
+        <div class="trip-summary">
+          <div class="trip-route">
+            <div class="route-line">
+              <div class="dot green"></div>
+              <div class="line"></div>
+              <div class="dot red"></div>
+            </div>
+            <div class="route-info">
+              <span class="route-from">{{ pickup?.address }}</span>
+              <span class="route-to">{{ destination?.address }}</span>
+            </div>
+          </div>
+          <div class="trip-meta">
+            <span>{{ estimatedDistance.toFixed(1) }} กม.</span>
+            <span>~{{ estimatedTime }} นาที</span>
           </div>
         </div>
 
-        <!-- Quick Picks -->
-        <div v-else class="quick-section">
-          <!-- Saved Places -->
-          <div v-if="savedPlaces?.length" class="section-block">
-            <h3 class="section-title">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                />
-              </svg>
-              สถานที่บันทึก
-            </h3>
-            <div class="saved-grid">
-              <button
-                v-for="place in savedPlaces.slice(0, 4)"
-                :key="place.id"
-                class="saved-card"
-                @click="selectDestination(place)"
-              >
-                <div class="saved-icon" :class="place.place_type">
-                  <svg
-                    v-if="place.place_type === 'home'"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-                  </svg>
-                  <svg
-                    v-else-if="place.place_type === 'work'"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"
-                    />
-                  </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-                    />
-                  </svg>
-                </div>
-                <span class="saved-name">{{ place.name }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Recent Places -->
-          <div v-if="recentPlaces?.length" class="section-block">
-            <h3 class="section-title">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9z"
-                />
-              </svg>
-              เดินทางล่าสุด
-            </h3>
-            <div class="recent-list">
-              <button
-                v-for="place in recentPlaces.slice(0, 3)"
-                :key="place.id"
-                class="recent-item"
-                @click="selectDestination(place)"
-              >
-                <div class="recent-icon">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-                    />
-                  </svg>
-                </div>
-                <div class="recent-content">
-                  <span class="recent-name">{{ place.name }}</span>
-                  <span class="recent-address">{{ place.address }}</span>
-                </div>
-                <svg
-                  class="recent-arrow"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div
-            v-if="!savedPlaces?.length && !recentPlaces?.length"
-            class="empty-state"
+        <div class="vehicle-options">
+          <button
+            v-for="v in vehicles"
+            :key="v.id"
+            class="vehicle-card"
+            :class="{ selected: selectedVehicle === v.id }"
+            @click="selectedVehicle = v.id"
           >
+            <div class="vehicle-icon">
+              <svg
+                v-if="v.icon === 'bike'"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <circle cx="5" cy="17" r="3" />
+                <circle cx="19" cy="17" r="3" />
+                <path d="M12 17V5l4 4M8 8h4" />
+              </svg>
+              <svg
+                v-else-if="v.icon === 'car'"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
+                <circle cx="7" cy="17" r="2" />
+                <circle cx="17" cy="17" r="2" />
+              </svg>
+              <svg
+                v-else
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
+                <circle cx="7" cy="17" r="2" />
+                <circle cx="17" cy="17" r="2" />
+                <path d="M9 7l1-3h4l1 3" />
+              </svg>
+            </div>
+            <span class="vehicle-name">{{ v.name }}</span>
+            <span class="vehicle-price"
+              >฿{{ Math.round(estimatedFare * v.multiplier) }}</span
+            >
+            <span class="vehicle-eta">{{ v.eta }}</span>
+          </button>
+        </div>
+
+        <!-- Book button -->
+        <button class="book-btn" :disabled="!canBook" @click="bookRide">
+          <span v-if="isBooking">กำลังจอง...</span>
+          <span v-else>จองเลย • ฿{{ finalFare }}</span>
+        </button>
+
+        <p v-if="!hasEnoughBalance" class="balance-warning">
+          ยอดเงินไม่พอ (คงเหลือ ฿{{ balance?.toLocaleString() || 0 }})
+        </p>
+      </div>
+    </div>
+
+    <!-- STEP 2: SEARCHING -->
+    <div v-else-if="currentStep === 'searching'" class="searching-view">
+      <div class="searching-content">
+        <div class="pulse-container">
+          <div class="pulse-ring"></div>
+          <div class="pulse-ring delay"></div>
+          <div class="pulse-center">
             <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
+              <circle cx="7" cy="17" r="2" />
+              <circle cx="17" cy="17" r="2" />
+            </svg>
+          </div>
+        </div>
+        <h2 class="searching-title">กำลังหาคนขับ</h2>
+        <p class="searching-time">{{ formatTime(searchingSeconds) }}</p>
+        <p class="searching-hint">โปรดรอสักครู่...</p>
+        <button class="cancel-search-btn" @click="cancelRide">ยกเลิก</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: TRACKING -->
+    <div v-else-if="currentStep === 'tracking'" class="tracking-view">
+      <!-- Map placeholder -->
+      <div class="map-area">
+        <div class="map-placeholder">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#00A86B"
+            stroke-width="1.5"
+          >
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          <span>แผนที่ติดตาม</span>
+        </div>
+      </div>
+
+      <!-- Driver card -->
+      <div class="driver-card">
+        <div class="status-bar">
+          <span class="status-text">{{ statusText }}</span>
+        </div>
+
+        <div v-if="matchedDriver" class="driver-info">
+          <div class="driver-avatar">
+            <svg
+              width="32"
+              height="32"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="1.5"
             >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 6v6l4 2" />
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
             </svg>
-            <p>ค้นหาจุดหมายปลายทางด้านบน</p>
           </div>
-        </div>
-      </div>
-
-      <!-- Step 2: Confirm Booking -->
-      <div v-else-if="currentStep === 'confirm'" class="step-confirm">
-        <!-- Route Card -->
-        <div class="confirm-route-card">
-          <div class="route-visual">
-            <div class="route-line-bg"></div>
-            <div class="route-stop pickup">
-              <div class="stop-marker green"></div>
-              <div class="stop-info">
-                <span class="stop-label">จุดรับ</span>
-                <span class="stop-address">{{ pickup?.address }}</span>
-              </div>
-            </div>
-            <div class="route-stop dest">
-              <div class="stop-marker red"></div>
-              <div class="stop-info">
-                <span class="stop-label">จุดหมาย</span>
-                <span class="stop-address">{{ destination?.address }}</span>
-              </div>
-            </div>
+          <div class="driver-details">
+            <span class="driver-name">{{
+              matchedDriver.first_name || "คนขับ"
+            }}</span>
+            <span class="driver-vehicle">{{
+              matchedDriver.vehicle_plate || "กข 1234"
+            }}</span>
           </div>
-          <div class="route-meta">
-            <span class="meta-item">
-              <svg viewBox="0 0 24 24" fill="currentColor">
+          <div class="driver-actions">
+            <button class="action-btn" @click="callDriver">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <path
-                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                  d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"
                 />
               </svg>
-              {{ estimatedDistance.toFixed(1) }} กม.
-            </span>
-            <span class="meta-item">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
-                />
-              </svg>
-              ~{{ estimatedTime }} นาที
-            </span>
-          </div>
-        </div>
-
-        <!-- Vehicle Selection -->
-        <div class="vehicle-section">
-          <h3 class="section-title">เลือกประเภทรถ</h3>
-          <div class="vehicle-list">
-            <button
-              v-for="v in vehicles"
-              :key="v.id"
-              class="vehicle-card"
-              :class="{ selected: selectedVehicle === v.id }"
-              @click="selectedVehicle = v.id"
-            >
-              <div class="vehicle-icon" :class="v.type">
-                <svg
-                  v-if="v.type === 'bike'"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1z"
-                  />
-                  <path
-                    d="M5 6h5v2H5zm14 7c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"
-                  />
-                </svg>
-                <svg
-                  v-else-if="v.type === 'car'"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"
-                  />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"
-                  />
-                  <path d="M12 2l-1 3h2l-1-3z" fill="#FFD700" />
-                </svg>
-              </div>
-              <div class="vehicle-info">
-                <span class="vehicle-name">{{ v.name }}</span>
-                <span class="vehicle-desc">{{ v.desc }}</span>
-                <span class="vehicle-eta">{{ v.eta }} นาที</span>
-              </div>
-              <div class="vehicle-price">
-                <span class="price-value"
-                  >฿{{ Math.round(estimatedFare * v.multiplier) }}</span
-                >
-              </div>
-              <div v-if="selectedVehicle === v.id" class="selected-check">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                </svg>
-              </div>
             </button>
           </div>
         </div>
 
-        <!-- Passenger Count & Note -->
-        <div class="options-section">
-          <div class="option-row">
-            <div class="option-icon passengers">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                />
-              </svg>
-            </div>
-            <div class="option-info">
-              <span class="option-label">จำนวนผู้โดยสาร</span>
-            </div>
-            <div class="passenger-selector">
-              <button
-                class="passenger-btn"
-                :disabled="passengerCount <= 1"
-                @click="passengerCount--"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 13H5v-2h14v2z" />
-                </svg>
-              </button>
-              <span class="passenger-count">{{ passengerCount }}</span>
-              <button
-                class="passenger-btn"
-                :disabled="passengerCount >= (selectedVehicleInfo?.seats || 4)"
-                @click="passengerCount++"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
-              </button>
-            </div>
+        <div class="trip-info-card">
+          <div class="trip-point">
+            <div class="point-dot green"></div>
+            <span>{{ pickup?.address }}</span>
           </div>
-
-          <button class="option-row clickable" @click="showNoteSheet = true">
-            <div class="option-icon note">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                />
-              </svg>
-            </div>
-            <div class="option-info">
-              <span class="option-label">หมายเหตุถึงคนขับ</span>
-              <span class="option-value" :class="{ active: rideNote }">{{
-                rideNote || "เพิ่มหมายเหตุ"
-              }}</span>
-            </div>
-            <svg
-              class="option-arrow"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
-
-          <button
-            class="option-row clickable"
-            @click="showScheduleSheet = true"
-          >
-            <div class="option-icon schedule" :class="{ active: isScheduled }">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
-                />
-              </svg>
-            </div>
-            <div class="option-info">
-              <span class="option-label">{{
-                isScheduled ? "จองล่วงหน้า" : "เดินทางตอนนี้"
-              }}</span>
-              <span v-if="isScheduled" class="option-value active"
-                >{{ scheduledDate }} {{ scheduledTime }}</span
-              >
-              <span v-else class="option-value">กดเพื่อจองล่วงหน้า</span>
-            </div>
-            <svg
-              class="option-arrow"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Fare Breakdown Toggle -->
-        <div class="fare-breakdown-section">
-          <button
-            class="breakdown-toggle"
-            @click="showFareBreakdown = !showFareBreakdown"
-          >
-            <span>รายละเอียดค่าโดยสาร</span>
-            <svg
-              :class="{ rotated: showFareBreakdown }"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <div v-if="showFareBreakdown" class="breakdown-content">
-            <div class="breakdown-row">
-              <span>ค่าโดยสารเริ่มต้น</span>
-              <span>฿{{ fareBreakdown.baseFare }}</span>
-            </div>
-            <div class="breakdown-row">
-              <span>ค่าระยะทาง ({{ estimatedDistance.toFixed(1) }} กม.)</span>
-              <span>฿{{ fareBreakdown.distanceCost }}</span>
-            </div>
-            <div
-              v-if="fareBreakdown.vehicleAdjustment !== 0"
-              class="breakdown-row"
-            >
-              <span>ปรับตามประเภทรถ</span>
-              <span :class="{ positive: fareBreakdown.vehicleAdjustment > 0 }">
-                {{ fareBreakdown.vehicleAdjustment > 0 ? "+" : "" }}฿{{
-                  fareBreakdown.vehicleAdjustment
-                }}
-              </span>
-            </div>
-            <div v-if="promoDiscount > 0" class="breakdown-row discount">
-              <span>ส่วนลดโปรโมชั่น</span>
-              <span>-฿{{ promoDiscount }}</span>
-            </div>
-            <div class="breakdown-row total">
-              <span>รวมทั้งหมด</span>
-              <span>฿{{ fareBreakdown.total }}</span>
-            </div>
+          <div class="trip-point">
+            <div class="point-dot red"></div>
+            <span>{{ destination?.address }}</span>
           </div>
         </div>
 
-        <!-- Payment & Promo -->
-        <div class="payment-section">
-          <button class="payment-row" @click="showPaymentSheet = true">
-            <div class="payment-icon" :class="selectedPayment">
-              <svg
-                v-if="selectedPayment === 'wallet'"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path
-                  d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
-                />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"
-                />
-              </svg>
-            </div>
-            <div class="payment-info">
-              <span class="payment-label">ชำระเงิน</span>
-              <span class="payment-value">{{
-                selectedPayment === "wallet"
-                  ? `กระเป๋าเงิน (฿${balance?.toLocaleString() || 0})`
-                  : "เงินสด"
-              }}</span>
-            </div>
+        <div class="card-actions">
+          <button class="sos-btn" @click="callEmergency">
             <svg
-              class="payment-arrow"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
             >
-              <path d="M9 18l6-6-6-6" />
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
+            SOS
           </button>
-
-          <button class="promo-row" @click="showPromoSheet = true">
-            <div class="promo-icon">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"
-                />
-              </svg>
-            </div>
-            <div class="promo-info">
-              <span class="promo-label">โปรโมชั่น</span>
-              <span
-                class="promo-value"
-                :class="{ active: promoDiscount > 0 }"
-                >{{
-                  promoDiscount > 0
-                    ? `ลด ฿${promoDiscount}`
-                    : "ใส่รหัสโปรโมชั่น"
-                }}</span
-              >
-            </div>
-            <svg
-              class="promo-arrow"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Book Button -->
-        <div class="book-footer">
-          <div class="fare-summary">
-            <span class="fare-label">ค่าโดยสาร</span>
-            <div class="fare-amount">
-              <span v-if="promoDiscount > 0" class="fare-original"
-                >฿{{ baseFare }}</span
-              >
-              <span class="fare-final">฿{{ finalFare }}</span>
-            </div>
-          </div>
-          <button
-            class="book-btn"
-            :disabled="isBooking || !hasEnoughBalance"
-            @click="bookRide"
-          >
-            <span v-if="isBooking" class="btn-spinner"></span>
-            <span v-else>{{
-              hasEnoughBalance ? "จองเลย" : "ยอดเงินไม่พอ"
-            }}</span>
-          </button>
+          <button class="cancel-btn" @click="cancelRide">ยกเลิก</button>
         </div>
       </div>
     </div>
 
-    <!-- Payment Sheet -->
-    <Teleport to="body">
-      <div
-        v-if="showPaymentSheet"
-        class="sheet-overlay"
-        @click="showPaymentSheet = false"
-      >
-        <div class="sheet-content" @click.stop>
-          <div class="sheet-handle"></div>
-          <h3 class="sheet-title">เลือกวิธีชำระเงิน</h3>
-          <div class="sheet-options">
-            <button
-              class="sheet-option"
-              :class="{ selected: selectedPayment === 'wallet' }"
-              @click="
-                selectedPayment = 'wallet';
-                showPaymentSheet = false;
-              "
-            >
-              <div class="option-icon wallet">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
-                  />
-                </svg>
-              </div>
-              <div class="option-info">
-                <span class="option-name">กระเป๋าเงิน</span>
-                <span class="option-balance"
-                  >ยอดคงเหลือ ฿{{ balance?.toLocaleString() || 0 }}</span
-                >
-              </div>
-              <div v-if="selectedPayment === 'wallet'" class="option-check">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                </svg>
-              </div>
-            </button>
-            <button
-              class="sheet-option"
-              :class="{ selected: selectedPayment === 'cash' }"
-              @click="
-                selectedPayment = 'cash';
-                showPaymentSheet = false;
-              "
-            >
-              <div class="option-icon cash">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"
-                  />
-                </svg>
-              </div>
-              <div class="option-info">
-                <span class="option-name">เงินสด</span>
-                <span class="option-desc">ชำระเงินกับคนขับ</span>
-              </div>
-              <div v-if="selectedPayment === 'cash'" class="option-check">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                </svg>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <!-- STEP 4: RATING -->
+    <div v-else-if="currentStep === 'rating'" class="rating-view">
+      <div class="rating-content">
+        <h2 class="rating-title">ถึงแล้ว!</h2>
+        <p class="rating-subtitle">ให้คะแนนคนขับ</p>
 
-    <!-- Promo Sheet -->
-    <Teleport to="body">
-      <div
-        v-if="showPromoSheet"
-        class="sheet-overlay"
-        @click="showPromoSheet = false"
-      >
-        <div class="sheet-content" @click.stop>
-          <div class="sheet-handle"></div>
-          <h3 class="sheet-title">ใส่รหัสโปรโมชั่น</h3>
-          <div class="promo-input-group">
-            <input
-              v-model="promoCode"
-              type="text"
-              placeholder="รหัสโปรโมชั่น"
-              class="promo-input"
-            />
-            <button class="promo-apply-btn" @click="applyPromo">ใช้งาน</button>
-          </div>
-          <p class="promo-hint">ลอง: RIDE50 หรือ FIRST</p>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Note Sheet -->
-    <Teleport to="body">
-      <div
-        v-if="showNoteSheet"
-        class="sheet-overlay"
-        @click="showNoteSheet = false"
-      >
-        <div class="sheet-content" @click.stop>
-          <div class="sheet-handle"></div>
-          <h3 class="sheet-title">หมายเหตุถึงคนขับ</h3>
-          <textarea
-            v-model="rideNote"
-            class="note-textarea"
-            placeholder="เช่น รอที่ประตูหน้า, มีสัมภาระ 2 ชิ้น..."
-            rows="4"
-          ></textarea>
-          <button class="sheet-confirm-btn" @click="showNoteSheet = false">
-            บันทึก
+        <div class="stars-container">
+          <button
+            v-for="star in 5"
+            :key="star"
+            class="star-btn"
+            :class="{ active: userRating >= star }"
+            @click="userRating = star"
+          >
+            <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              :fill="userRating >= star ? '#FFD700' : 'none'"
+              :stroke="userRating >= star ? '#FFD700' : '#ccc'"
+              stroke-width="2"
+            >
+              <polygon
+                points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+              />
+            </svg>
           </button>
         </div>
-      </div>
-    </Teleport>
 
-    <!-- Schedule Sheet -->
-    <Teleport to="body">
-      <div
-        v-if="showScheduleSheet"
-        class="sheet-overlay"
-        @click="showScheduleSheet = false"
-      >
-        <div class="sheet-content schedule-sheet" @click.stop>
-          <div class="sheet-handle"></div>
-          <h3 class="sheet-title">จองล่วงหน้า</h3>
-          <div class="schedule-inputs">
-            <div class="schedule-field">
-              <label>วันที่</label>
-              <input
-                v-model="scheduledDate"
-                type="date"
-                :min="getMinDate()"
-                :max="getMaxDate()"
-                class="schedule-input"
-              />
-            </div>
-            <div class="schedule-field">
-              <label>เวลา</label>
-              <input
-                v-model="scheduledTime"
-                type="time"
-                class="schedule-input"
-              />
-            </div>
-          </div>
-          <p class="schedule-hint">จองล่วงหน้าได้สูงสุด 7 วัน</p>
-          <div class="schedule-actions">
-            <button
-              class="schedule-cancel-btn"
-              @click="
-                isScheduled = false;
-                scheduledDate = '';
-                scheduledTime = '';
-                showScheduleSheet = false;
-              "
-            >
-              เดินทางตอนนี้
-            </button>
-            <button
-              class="schedule-confirm-btn"
-              :disabled="!canSchedule"
-              @click="
-                isScheduled = true;
-                showScheduleSheet = false;
-              "
-            >
-              ยืนยันเวลา
-            </button>
-          </div>
+        <div class="rating-actions">
+          <button
+            class="submit-rating-btn"
+            :disabled="userRating === 0 || isSubmittingRating"
+            @click="submitRating"
+          >
+            {{ isSubmittingRating ? "กำลังส่ง..." : "ส่งคะแนน" }}
+          </button>
+          <button class="skip-btn" @click="skipRating">ข้าม</button>
         </div>
       </div>
-    </Teleport>
-
-    <!-- Rating Modal -->
-    <Teleport to="body">
-      <div v-if="showRatingModal" class="rating-overlay">
-        <div class="rating-modal">
-          <div class="rating-header">
-            <div class="rating-check">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-              </svg>
-            </div>
-            <h2>เดินทางสำเร็จ!</h2>
-            <p>ให้คะแนนการเดินทางของคุณ</p>
-          </div>
-
-          <div class="rating-driver" v-if="matchedDriver">
-            <div class="rating-avatar">
-              <span>{{ matchedDriver.first_name?.[0] || "?" }}</span>
-            </div>
-            <span class="rating-driver-name">{{
-              matchedDriver.first_name
-            }}</span>
-          </div>
-
-          <div class="star-rating">
-            <button
-              v-for="star in 5"
-              :key="star"
-              class="star-btn"
-              :class="{ active: userRating >= star }"
-              @click="userRating = star"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <textarea
-            v-model="ratingComment"
-            class="rating-comment"
-            placeholder="แสดงความคิดเห็น (ไม่บังคับ)"
-            rows="3"
-          ></textarea>
-
-          <div class="rating-actions">
-            <button class="rating-skip-btn" @click="skipRating">ข้าม</button>
-            <button
-              class="rating-submit-btn"
-              :disabled="userRating === 0 || isSubmittingRating"
-              @click="submitRating"
-            >
-              <span v-if="isSubmittingRating" class="btn-spinner"></span>
-              <span v-else>ส่งคะแนน</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* ========== BASE ========== */
-.ride-app {
+.ride-page {
   min-height: 100vh;
   min-height: 100dvh;
   background: #f5f5f5;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* ========== SEARCHING VIEW ========== */
+/* SELECT VIEW */
+.select-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.header-section {
+  background: #00a86b;
+  padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top));
+}
+
+.pickup-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pickup-dot {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pickup-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.pickup-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pickup-address {
+  font-size: 14px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.refresh-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* SEARCH */
+.search-section {
+  padding: 16px;
+  background: #fff;
+  position: relative;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 12px 16px;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.search-box.focused {
+  border-color: #00a86b;
+  background: #fff;
+}
+
+.search-icon {
+  color: #999;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #999;
+}
+
+.clear-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}
+
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-item:active {
+  background: #f5f5f5;
+}
+
+.result-icon {
+  color: #00a86b;
+  flex-shrink: 0;
+}
+
+.result-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.result-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.result-address {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* QUICK PLACES */
+.quick-places {
+  padding: 16px;
+  flex: 1;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.places-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.place-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.place-chip:active {
+  background: #f5f5f5;
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.recent-item:active {
+  background: #f5f5f5;
+}
+
+.recent-icon {
+  color: #999;
+  flex-shrink: 0;
+}
+
+.recent-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.recent-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.recent-addr {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* BOOKING SECTION */
+.booking-section {
+  padding: 16px;
+  background: #fff;
+  flex: 1;
+}
+
+.trip-summary {
+  margin-bottom: 20px;
+}
+
+.trip-route {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.route-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot.green {
+  background: #00a86b;
+}
+.dot.red {
+  background: #e53935;
+}
+
+.line {
+  width: 2px;
+  flex: 1;
+  min-height: 20px;
+  background: #e0e0e0;
+}
+
+.route-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.route-from,
+.route-to {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.trip-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #666;
+}
+
+/* VEHICLE OPTIONS */
+.vehicle-options {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.vehicle-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: #f5f5f5;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  transition: all 0.2s;
+}
+
+.vehicle-card.selected {
+  background: #e8f5ef;
+  border-color: #00a86b;
+}
+
+.vehicle-icon {
+  color: #666;
+}
+
+.vehicle-card.selected .vehicle-icon {
+  color: #00a86b;
+}
+
+.vehicle-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.vehicle-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: #00a86b;
+}
+
+.vehicle-eta {
+  font-size: 11px;
+  color: #999;
+}
+
+/* BOOK BUTTON */
+.book-btn {
+  width: 100%;
+  padding: 16px;
+  background: #00a86b;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+}
+
+.book-btn:disabled {
+  background: #ccc;
+  box-shadow: none;
+}
+
+.book-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.balance-warning {
+  text-align: center;
+  font-size: 13px;
+  color: #e53935;
+  margin-top: 12px;
+}
+
+/* SEARCHING VIEW */
 .searching-view {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #00a86b 0%, #008f5b 100%);
-  padding: 24px;
+  background: #fff;
 }
+
 .searching-content {
   text-align: center;
-  color: white;
+  padding: 20px;
 }
-.pulse-ring {
+
+.pulse-container {
+  position: relative;
   width: 120px;
   height: 120px;
-  margin: 0 auto 32px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin: 0 auto 24px;
 }
-.pulse-ring::before,
-.pulse-ring::after {
-  content: "";
+
+.pulse-ring {
   position: absolute;
-  width: 100%;
-  height: 100%;
+  inset: 0;
+  border: 3px solid #00a86b;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.3);
   animation: pulse-ring 2s ease-out infinite;
 }
-.pulse-ring::after {
+
+.pulse-ring.delay {
   animation-delay: 1s;
 }
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.5);
@@ -1544,1466 +1248,275 @@ function getMaxDate(): string {
     opacity: 0;
   }
 }
-.pulse-dot {
-  width: 24px;
-  height: 24px;
-  background: white;
-  border-radius: 50%;
-  animation: pulse-dot 1s ease-in-out infinite;
-}
-@keyframes pulse-dot {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.2);
-  }
-}
-.searching-content h2 {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-.search-time {
-  font-size: 48px;
-  font-weight: 300;
-  margin-bottom: 32px;
-  opacity: 0.9;
-}
-.search-info {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  padding: 16px 24px;
-  margin-bottom: 32px;
-}
-.info-row {
+
+.pulse-center {
+  position: absolute;
+  inset: 0;
   display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-}
-.info-row .label {
-  opacity: 0.8;
-}
-.info-row .value {
-  font-weight: 600;
-}
-.info-row .value.price {
-  font-size: 20px;
-}
-.cancel-search-btn {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: none;
-  padding: 14px 48px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  background: #e8f5ef;
+  border-radius: 50%;
+  color: #00a86b;
 }
 
-/* ========== TRACKING VIEW ========== */
-.tracking-view {
-  padding: 16px;
-  padding-top: calc(16px + env(safe-area-inset-top));
+.searching-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 8px;
 }
-.tracking-header {
-  margin-bottom: 16px;
-}
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #e8f5ef;
+
+.searching-time {
+  font-size: 32px;
+  font-weight: 700;
   color: #00a86b;
-  padding: 10px 16px;
-  border-radius: 20px;
-  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.searching-hint {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 32px;
+}
+
+.cancel-search-btn {
+  padding: 12px 32px;
+  background: #f5f5f5;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #666;
+}
+
+/* TRACKING VIEW */
+.tracking-view {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-area {
+  flex: 1;
+  min-height: 45vh;
+  background: #e8f5ef;
+}
+
+.map-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #00a86b;
   font-size: 14px;
 }
-.status-pill.in_progress {
-  background: #fff3e0;
-  color: #f5a623;
-}
-.status-dot {
-  width: 8px;
-  height: 8px;
-  background: currentColor;
-  border-radius: 50%;
-  animation: pulse-dot 1s infinite;
-}
-.driver-card-enhanced {
-  background: white;
-  border-radius: 20px;
+
+.driver-card {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
   padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
 }
-.driver-main {
+
+.status-bar {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.status-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #00a86b;
+}
+
+.driver-info {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 12px;
   margin-bottom: 16px;
 }
+
 .driver-avatar {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #00a86b, #008f5b);
+  width: 48px;
+  height: 48px;
+  background: #e0e0e0;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 24px;
-  font-weight: 700;
-  position: relative;
+  color: #666;
 }
-.rating-badge {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  background: white;
-  border-radius: 12px;
-  padding: 2px 6px;
+
+.driver-details {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #1a1a1a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  flex-direction: column;
 }
-.rating-badge svg {
-  width: 12px;
-  height: 12px;
-  color: #f5a623;
-}
-.driver-details h3 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 4px;
-}
-.vehicle-info {
-  font-size: 16px;
+
+.driver-name {
+  font-size: 15px;
   font-weight: 600;
-  color: #00a86b;
+  color: #1a1a1a;
 }
-.vehicle-desc {
+
+.driver-vehicle {
   font-size: 13px;
   color: #666;
 }
+
 .driver-actions {
   display: flex;
-  gap: 12px;
-}
-.action-btn {
-  flex: 1;
-  height: 48px;
-  border-radius: 12px;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  text-decoration: none;
-}
-.action-btn svg {
-  width: 24px;
-  height: 24px;
-}
-.action-btn.call {
-  background: #00a86b;
-  color: white;
-}
-.action-btn.msg {
-  background: #f5f5f5;
-  color: #666;
-}
-.route-card-enhanced {
-  background: white;
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 16px;
-}
-.route-visual {
-  position: relative;
-  padding-left: 32px;
-}
-.route-line-bg {
-  position: absolute;
-  left: 11px;
-  top: 20px;
-  bottom: 20px;
-  width: 2px;
-  background: linear-gradient(180deg, #00a86b 0%, #e53935 100%);
-}
-.route-stop {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 0;
-}
-.route-stop.pickup {
-  margin-bottom: 16px;
-}
-.stop-marker {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  position: absolute;
-  left: 0;
-}
-.stop-marker.green {
-  background: #00a86b;
-}
-.stop-marker.red {
-  background: #e53935;
-}
-.stop-info {
-  flex: 1;
-}
-.stop-label {
-  display: block;
-  font-size: 12px;
-  color: #999;
-  margin-bottom: 2px;
-}
-.stop-address {
-  font-size: 14px;
-  color: #1a1a1a;
-  font-weight: 500;
-}
-.trip-summary {
-  display: flex;
-  background: white;
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-.summary-item {
-  flex: 1;
-  text-align: center;
-}
-.s-value {
-  display: block;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-}
-.s-value.price {
-  color: #00a86b;
-}
-.s-label {
-  font-size: 12px;
-  color: #999;
-}
-.summary-divider {
-  width: 1px;
-  background: #e8e8e8;
-  margin: 0 8px;
-}
-.cancel-ride-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 16px;
-  background: #fff5f5;
-  color: #e53935;
-  border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.cancel-ride-btn svg {
-  width: 20px;
-  height: 20px;
 }
 
-/* ========== BOOKING FLOW ========== */
-.booking-flow {
-  background: white;
-  min-height: 100vh;
-}
-.app-header {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  padding-top: calc(16px + env(safe-area-inset-top));
-  border-bottom: 1px solid #f0f0f0;
-}
-.back-btn {
-  width: 40px;
-  height: 40px;
+.action-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #00a86b;
+  border: none;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-}
-.back-btn svg {
-  width: 24px;
-  height: 24px;
-  color: #1a1a1a;
-}
-.app-header h1 {
-  flex: 1;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-}
-.header-spacer {
-  width: 40px;
 }
 
-/* Step Where */
-.step-where {
-  padding: 16px;
-}
-.location-inputs {
+.trip-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
   background: #f5f5f5;
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 24px;
+  border-radius: 12px;
+  margin-bottom: 16px;
 }
-.input-row {
+
+.trip-point {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 0;
+  gap: 10px;
+  font-size: 13px;
+  color: #1a1a1a;
 }
-.input-marker {
-  width: 12px;
-  height: 12px;
+
+.point-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.input-marker.green {
+
+.point-dot.green {
   background: #00a86b;
 }
-.input-marker.red {
+.point-dot.red {
   background: #e53935;
 }
-.input-content {
-  flex: 1;
-  min-width: 0;
-}
-.input-label {
-  display: block;
-  font-size: 12px;
-  color: #999;
-  margin-bottom: 2px;
-}
-.input-value {
-  font-size: 14px;
-  color: #1a1a1a;
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.input-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #e8e8e8;
-  border-top-color: #00a86b;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.input-action {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-}
-.input-action svg {
-  width: 20px;
-  height: 20px;
-  color: #00a86b;
-}
-.input-connector {
-  width: 2px;
-  height: 16px;
-  background: #ddd;
-  margin-left: 5px;
-}
-.dest-row {
-  border-top: 1px solid #e8e8e8;
-  padding-top: 16px;
-}
-.dest-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 15px;
-  color: #1a1a1a;
-  outline: none;
-}
-.dest-input::placeholder {
-  color: #999;
-}
 
-/* Search Results */
-.search-results {
-  background: white;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
-.result-item {
+.card-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
-}
-.result-item:last-child {
-  border-bottom: none;
-}
-.result-item:active {
-  background: #f5f5f5;
-}
-.result-icon {
-  width: 40px;
-  height: 40px;
-  background: #e8f5ef;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.result-icon svg {
-  width: 20px;
-  height: 20px;
-  color: #00a86b;
-}
-.result-content {
-  flex: 1;
-  min-width: 0;
-}
-.result-name {
-  display: block;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-.result-address {
-  font-size: 13px;
-  color: #666;
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.result-arrow {
-  width: 20px;
-  height: 20px;
-  color: #ccc;
-}
-
-/* Quick Section */
-.section-block {
-  margin-bottom: 24px;
-}
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 12px;
-}
-.section-title svg {
-  width: 20px;
-  height: 20px;
-  color: #00a86b;
-}
-.saved-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
-.saved-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  background: #f5f5f5;
-  border: none;
-  border-radius: 16px;
-  cursor: pointer;
-}
-.saved-card:active {
-  background: #e8e8e8;
-}
-.saved-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.saved-icon svg {
-  width: 24px;
-  height: 24px;
-}
-.saved-icon.home {
-  background: #e3f2fd;
-  color: #2196f3;
-}
-.saved-icon.work {
-  background: #fff3e0;
-  color: #f5a623;
-}
-.saved-icon:not(.home):not(.work) {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-.saved-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-.recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.recent-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: #f5f5f5;
-  border: none;
-  border-radius: 14px;
-  cursor: pointer;
-  text-align: left;
-}
-.recent-item:active {
-  background: #e8e8e8;
-}
-.recent-icon {
-  width: 40px;
-  height: 40px;
-  background: #e8f5ef;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.recent-icon svg {
-  width: 20px;
-  height: 20px;
-  color: #00a86b;
-}
-.recent-content {
-  flex: 1;
-  min-width: 0;
-}
-.recent-name {
-  display: block;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-.recent-address {
-  font-size: 13px;
-  color: #666;
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.recent-arrow {
-  width: 20px;
-  height: 20px;
-  color: #ccc;
-}
-.empty-state {
-  text-align: center;
-  padding: 48px 24px;
-  color: #999;
-}
-.empty-state svg {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-.empty-state p {
-  font-size: 15px;
-}
 
-/* Step Confirm */
-.step-confirm {
-  padding: 16px;
-  padding-bottom: 120px;
-}
-.confirm-route-card {
-  background: #f5f5f5;
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 24px;
-}
-.route-meta {
-  display: flex;
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e8e8e8;
-}
-.meta-item {
+.sos-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
-  color: #666;
-}
-.meta-item svg {
-  width: 18px;
-  height: 18px;
-  color: #00a86b;
-}
-.vehicle-section {
-  margin-bottom: 24px;
-}
-.vehicle-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.vehicle-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: #f5f5f5;
-  border: 2px solid transparent;
-  border-radius: 16px;
-  cursor: pointer;
-  position: relative;
-  text-align: left;
-}
-.vehicle-card.selected {
-  border-color: #00a86b;
-  background: #e8f5ef;
-}
-.vehicle-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.vehicle-icon svg {
-  width: 32px;
-  height: 32px;
-}
-.vehicle-icon.bike {
-  background: #e3f2fd;
-  color: #2196f3;
-}
-.vehicle-icon.car {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-.vehicle-icon.premium {
-  background: #fff3e0;
-  color: #f5a623;
-}
-.vehicle-info {
-  flex: 1;
-}
-.vehicle-name {
-  display: block;
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a1a1a;
-}
-.vehicle-desc {
-  font-size: 13px;
-  color: #666;
-}
-.vehicle-eta {
-  font-size: 12px;
-  color: #00a86b;
-  font-weight: 600;
-}
-.vehicle-price {
-  text-align: right;
-}
-.price-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-}
-.selected-check {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 24px;
-  height: 24px;
-  background: #00a86b;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.selected-check svg {
-  width: 16px;
-  height: 16px;
-  color: white;
-}
-.payment-section {
-  margin-bottom: 24px;
-}
-.payment-row,
-.promo-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 16px;
-  background: #f5f5f5;
-  border: none;
-  border-radius: 14px;
-  cursor: pointer;
-  text-align: left;
-  margin-bottom: 12px;
-}
-.payment-icon,
-.promo-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.payment-icon svg,
-.promo-icon svg {
-  width: 24px;
-  height: 24px;
-}
-.payment-icon.wallet {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-.payment-icon.cash {
-  background: #fff3e0;
-  color: #f5a623;
-}
-.promo-icon {
+  padding: 12px 20px;
   background: #ffebee;
-  color: #e53935;
-}
-.payment-info,
-.promo-info {
-  flex: 1;
-}
-.payment-label,
-.promo-label {
-  display: block;
-  font-size: 12px;
-  color: #999;
-}
-.payment-value,
-.promo-value {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-.promo-value.active {
-  color: #00a86b;
-}
-.payment-arrow,
-.promo-arrow {
-  width: 20px;
-  height: 20px;
-  color: #ccc;
-}
-.book-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: white;
-  padding: 16px;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  border-top: 1px solid #f0f0f0;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.fare-summary {
-  flex: 1;
-}
-.fare-label {
-  font-size: 12px;
-  color: #999;
-}
-.fare-amount {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.fare-original {
-  font-size: 14px;
-  color: #999;
-  text-decoration: line-through;
-}
-.fare-final {
-  font-size: 24px;
-  font-weight: 700;
-  color: #00a86b;
-}
-.book-btn {
-  flex: 1;
-  height: 56px;
-  background: #00a86b;
-  color: white;
-  border: none;
-  border-radius: 14px;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.book-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-.btn-spinner {
-  width: 24px;
-  height: 24px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-/* Sheets */
-.sheet-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: flex-end;
-  z-index: 1000;
-}
-.sheet-content {
-  width: 100%;
-  background: white;
-  border-radius: 24px 24px 0 0;
-  padding: 16px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  animation: slideUp 0.3s ease;
-}
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-.sheet-handle {
-  width: 40px;
-  height: 4px;
-  background: #e8e8e8;
-  border-radius: 2px;
-  margin: 0 auto 16px;
-}
-.sheet-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 16px;
-  text-align: center;
-}
-.sheet-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.sheet-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #f5f5f5;
-  border: 2px solid transparent;
-  border-radius: 14px;
-  cursor: pointer;
-  text-align: left;
-}
-.sheet-option.selected {
-  border-color: #00a86b;
-  background: #e8f5ef;
-}
-.option-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.option-icon svg {
-  width: 24px;
-  height: 24px;
-}
-.option-icon.wallet {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-.option-icon.cash {
-  background: #fff3e0;
-  color: #f5a623;
-}
-.option-info {
-  flex: 1;
-}
-.option-name {
-  display: block;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-.option-balance,
-.option-desc {
-  font-size: 13px;
-  color: #666;
-}
-.option-check {
-  width: 28px;
-  height: 28px;
-  background: #00a86b;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.option-check svg {
-  width: 18px;
-  height: 18px;
-  color: white;
-}
-.promo-input-group {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.promo-input {
-  flex: 1;
-  padding: 14px 16px;
-  border: 2px solid #e8e8e8;
-  border-radius: 12px;
-  font-size: 16px;
-  outline: none;
-}
-.promo-input:focus {
-  border-color: #00a86b;
-}
-.promo-apply-btn {
-  padding: 14px 24px;
-  background: #00a86b;
-  color: white;
   border: none;
   border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.promo-hint {
-  font-size: 13px;
-  color: #999;
-  text-align: center;
-}
-
-/* ========== OPTIONS SECTION ========== */
-.options-section {
-  background: #f5f5f5;
-  border-radius: 16px;
-  margin-bottom: 24px;
-  overflow: hidden;
-}
-.option-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid #e8e8e8;
-  width: 100%;
-  text-align: left;
-}
-.option-row:last-child {
-  border-bottom: none;
-}
-.option-row.clickable {
-  cursor: pointer;
-}
-.option-row.clickable:active {
-  background: rgba(0, 0, 0, 0.03);
-}
-.option-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.option-icon svg {
-  width: 24px;
-  height: 24px;
-}
-.option-icon.passengers {
-  background: #e3f2fd;
-  color: #2196f3;
-}
-.option-icon.note {
-  background: #fff3e0;
-  color: #f5a623;
-}
-.option-icon.schedule {
-  background: #f3e5f5;
-  color: #9c27b0;
-}
-.option-icon.schedule.active {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-.option-info {
-  flex: 1;
-}
-.option-label {
-  display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
-}
-.option-value {
-  font-size: 13px;
-  color: #999;
-}
-.option-value.active {
-  color: #00a86b;
-  font-weight: 500;
-}
-.option-arrow {
-  width: 20px;
-  height: 20px;
-  color: #ccc;
-}
-.passenger-selector {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.passenger-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid #e8e8e8;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.passenger-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.passenger-btn svg {
-  width: 20px;
-  height: 20px;
-  color: #1a1a1a;
-}
-.passenger-count {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-  min-width: 24px;
-  text-align: center;
-}
-
-/* ========== FARE BREAKDOWN ========== */
-.fare-breakdown-section {
-  background: #f5f5f5;
-  border-radius: 16px;
-  margin-bottom: 24px;
-  overflow: hidden;
-}
-.breakdown-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 16px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-.breakdown-toggle svg {
-  width: 20px;
-  height: 20px;
-  color: #666;
-  transition: transform 0.2s ease;
-}
-.breakdown-toggle svg.rotated {
-  transform: rotate(180deg);
-}
-.breakdown-content {
-  padding: 0 16px 16px;
-  animation: fadeIn 0.2s ease;
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.breakdown-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  font-size: 14px;
-  color: #666;
-}
-.breakdown-row span:last-child {
-  font-weight: 500;
-  color: #1a1a1a;
-}
-.breakdown-row span.positive {
-  color: #f5a623;
-}
-.breakdown-row.discount span {
-  color: #00a86b;
-}
-.breakdown-row.total {
-  border-top: 1px solid #e8e8e8;
-  margin-top: 8px;
-  padding-top: 12px;
-  font-weight: 700;
-}
-.breakdown-row.total span {
-  font-size: 16px;
-  color: #00a86b;
-}
-
-/* ========== SAFETY SECTION ========== */
-.safety-section {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.safety-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 14px;
-  border: none;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.safety-btn svg {
-  width: 20px;
-  height: 20px;
-}
-.safety-btn.share {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-.safety-btn.sos {
-  background: #ffebee;
   color: #e53935;
 }
 
-/* ========== NOTE SHEET ========== */
-.note-textarea {
-  width: 100%;
-  padding: 14px 16px;
-  border: 2px solid #e8e8e8;
-  border-radius: 12px;
-  font-size: 15px;
-  resize: none;
-  outline: none;
-  font-family: inherit;
-  margin-bottom: 16px;
-}
-.note-textarea:focus {
-  border-color: #00a86b;
-}
-.sheet-confirm-btn {
-  width: 100%;
-  padding: 16px;
-  background: #00a86b;
-  color: white;
-  border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* ========== SCHEDULE SHEET ========== */
-.schedule-sheet {
-  padding-bottom: calc(32px + env(safe-area-inset-bottom));
-}
-.schedule-inputs {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.schedule-field {
+.cancel-btn {
   flex: 1;
-}
-.schedule-field label {
-  display: block;
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 6px;
-}
-.schedule-input {
-  width: 100%;
-  padding: 14px 16px;
-  border: 2px solid #e8e8e8;
-  border-radius: 12px;
-  font-size: 15px;
-  outline: none;
-}
-.schedule-input:focus {
-  border-color: #00a86b;
-}
-.schedule-hint {
-  font-size: 13px;
-  color: #999;
-  text-align: center;
-  margin-bottom: 16px;
-}
-.schedule-actions {
-  display: flex;
-  gap: 12px;
-}
-.schedule-cancel-btn {
-  flex: 1;
-  padding: 16px;
+  padding: 12px;
   background: #f5f5f5;
-  color: #666;
   border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.schedule-confirm-btn {
-  flex: 1;
-  padding: 16px;
-  background: #00a86b;
-  color: white;
-  border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.schedule-confirm-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-/* ========== RATING MODAL ========== */
-.rating-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 24px;
-}
-.rating-modal {
-  width: 100%;
-  max-width: 360px;
-  background: white;
-  border-radius: 24px;
-  padding: 32px 24px;
-  text-align: center;
-  animation: scaleIn 0.3s ease;
-}
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-.rating-header {
-  margin-bottom: 24px;
-}
-.rating-check {
-  width: 64px;
-  height: 64px;
-  background: #e8f5ef;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-}
-.rating-check svg {
-  width: 32px;
-  height: 32px;
-  color: #00a86b;
-}
-.rating-header h2 {
-  font-size: 22px;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 4px;
-}
-.rating-header p {
+  border-radius: 12px;
   font-size: 14px;
   color: #666;
 }
-.rating-driver {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-.rating-avatar {
-  width: 56px;
-  height: 56px;
-  background: linear-gradient(135deg, #00a86b, #008f5b);
-  border-radius: 50%;
+
+/* RATING VIEW */
+.rating-view {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 22px;
+  background: #fff;
+}
+
+.rating-content {
+  text-align: center;
+  padding: 20px;
+}
+
+.rating-title {
+  font-size: 28px;
   font-weight: 700;
+  color: #00a86b;
+  margin-bottom: 8px;
 }
-.rating-driver-name {
+
+.rating-subtitle {
   font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
+  color: #666;
+  margin-bottom: 32px;
 }
-.star-rating {
+
+.stars-container {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 32px;
 }
+
 .star-btn {
-  width: 48px;
-  height: 48px;
   background: transparent;
   border: none;
-  cursor: pointer;
-  padding: 0;
+  padding: 4px;
+  transition: transform 0.2s;
 }
-.star-btn svg {
-  width: 100%;
-  height: 100%;
-  color: #e8e8e8;
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-.star-btn.active svg {
-  color: #f5a623;
-}
-.star-btn:active svg {
+
+.star-btn:active {
   transform: scale(1.2);
 }
-.rating-comment {
-  width: 100%;
-  padding: 14px 16px;
-  border: 2px solid #e8e8e8;
-  border-radius: 12px;
-  font-size: 15px;
-  resize: none;
-  outline: none;
-  font-family: inherit;
-  margin-bottom: 20px;
-}
-.rating-comment:focus {
-  border-color: #00a86b;
-}
+
 .rating-actions {
   display: flex;
+  flex-direction: column;
   gap: 12px;
 }
-.rating-skip-btn {
-  flex: 1;
-  padding: 16px;
-  background: #f5f5f5;
-  color: #666;
-  border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.rating-submit-btn {
-  flex: 1;
+
+.submit-rating-btn {
+  width: 100%;
   padding: 16px;
   background: #00a86b;
-  color: white;
+  color: #fff;
   border: none;
   border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-.rating-submit-btn:disabled {
+
+.submit-rating-btn:disabled {
   background: #ccc;
-  cursor: not-allowed;
+}
+
+.skip-btn {
+  padding: 12px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: #666;
 }
 </style>
