@@ -361,6 +361,12 @@ function callDriver() {
 function callEmergency() {
   if (confirm("โทร 191?")) window.location.href = "tel:191";
 }
+
+function handleSearchBlur() {
+  window.setTimeout(() => {
+    isSearchFocused.value = false;
+  }, 200);
+}
 </script>
 
 <template>
@@ -427,7 +433,7 @@ function callEmergency() {
             placeholder="ไปไหนดี?"
             class="search-input"
             @focus="isSearchFocused = true"
-            @blur="setTimeout(() => (isSearchFocused = false), 200)"
+            @blur="handleSearchBlur"
             @input="searchPlaces"
           />
           <button
