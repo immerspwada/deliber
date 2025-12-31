@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Feature: F02 - Uber-Style Ride Booking (Enhanced)
+ * Feature: F02 - Uber-Style Ride Booking (Enhanced V2)
  * UI: Clean, Modern, Mobile-First
- * Flow: 1.ไปไหน? → 2.เลือกรถ+จอง → 3.ติดตาม
+ * Flow: 1.ไปไหน? → 2.เลือกรถ+จอง → 3.ติดตาม → 4.ให้คะแนน
  */
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -22,9 +22,9 @@ const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } =
 const { balance, fetchBalance } = useWallet();
 
 // ========== STATE ==========
-const currentStep = ref<"where" | "confirm" | "searching" | "tracking">(
-  "where"
-);
+const currentStep = ref<
+  "where" | "confirm" | "searching" | "tracking" | "completed"
+>("where");
 const pickup = ref<GeoLocation | null>(null);
 const destination = ref<GeoLocation | null>(null);
 const searchQuery = ref("");
@@ -43,6 +43,23 @@ const selectedPayment = ref<"wallet" | "cash">("wallet");
 const searchingSeconds = ref(0);
 let searchingInterval: ReturnType<typeof setInterval> | null = null;
 
+// NEW: Enhanced features
+const passengerCount = ref(1);
+const rideNote = ref("");
+const showNoteSheet = ref(false);
+const showScheduleSheet = ref(false);
+const showFareBreakdown = ref(false);
+const showRatingModal = ref(false);
+const showSafetySheet = ref(false);
+const isScheduled = ref(false);
+const scheduledDate = ref("");
+const scheduledTime = ref("");
+const userRating = ref(0);
+const ratingComment = ref("");
+const isSubmittingRating = ref(false);
+const driverLocation = ref<{ lat: number; lng: number } | null>(null);
+const shareLink = ref("");
+
 // Fare calculation
 const estimatedFare = ref(0);
 const estimatedTime = ref(0);
@@ -53,6 +70,7 @@ const activeRide = ref<any>(null);
 const matchedDriver = ref<any>(null);
 const driverETA = ref(0);
 let realtimeChannel: any = null;
+let driverLocationInterval: ReturnType<typeof setInterval> | null = null;
 
 // Vehicle options with SVG icons
 const vehicles = [
@@ -108,7 +126,34 @@ const statusText = computed(() => {
   if (s === "arriving") return `คนขับกำลังมารับ (${driverETA.value} นาที)`;
   if (s === "picked_up") return "รับผู้โดยสารแล้ว";
   if (s === "in_progress") return "กำลังเดินทาง...";
+  if (s === "completed") return "เดินทางสำเร็จ!";
   return s;
+});
+
+// NEW: Fare breakdown
+const fareBreakdown = computed(() => {
+  const base = 35;
+  const perKm = 12;
+  const distance = estimatedDistance.value;
+  const distanceCost = Math.round(distance * perKm);
+  const vehicleMultiplier = selectedVehicleInfo.value?.multiplier || 1;
+  const subtotal = Math.round((base + distanceCost) * vehicleMultiplier);
+  return {
+    baseFare: base,
+    distanceCost,
+    vehicleAdjustment: Math.round(subtotal - base - distanceCost),
+    promoDiscount: promoDiscount.value,
+    total: Math.max(0, subtotal - promoDiscount.value),
+  };
+});
+
+// NEW: Can schedule
+const canSchedule = computed(() => {
+  if (!scheduledDate.value || !scheduledTime.value) return false;
+  const scheduled = new Date(`${scheduledDate.value}T${scheduledTime.value}`);
+  const now = new Date();
+  const minTime = new Date(now.getTime() + 30 * 60000); // At least 30 mins ahead
+  return scheduled > minTime;
 });
 
 // ========== LIFECYCLE ==========
@@ -128,6 +173,7 @@ onUnmounted(() => {
   rideStore.unsubscribeAll();
   if (searchingInterval) clearInterval(searchingInterval);
   if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  if (driverLocationInterval) clearInterval(driverLocationInterval);
 });
 
 // Watch for ride status changes
@@ -136,6 +182,12 @@ watch(
   (newStatus) => {
     if (newStatus === "matched" || newStatus === "arriving") {
       driverETA.value = 5; // Initial ETA
+      startDriverLocationTracking();
+    }
+    if (newStatus === "completed") {
+      currentStep.value = "completed";
+      showRatingModal.value = true;
+      stopDriverLocationTracking();
     }
   }
 );
@@ -372,6 +424,120 @@ function formatTime(seconds: number): string {
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+// ========== NEW METHODS ==========
+function startDriverLocationTracking() {
+  if (driverLocationInterval) return;
+  // Simulate driver location updates
+  driverLocationInterval = setInterval(() => {
+    if (pickup.value && matchedDriver.value) {
+      // Simulate driver moving towards pickup
+      const jitter = () => (Math.random() - 0.5) * 0.001;
+      driverLocation.value = {
+        lat: pickup.value.lat + jitter(),
+        lng: pickup.value.lng + jitter(),
+      };
+      // Decrease ETA
+      if (driverETA.value > 1) {
+        driverETA.value = Math.max(1, driverETA.value - 0.5);
+      }
+    }
+  }, 3000);
+}
+
+function stopDriverLocationTracking() {
+  if (driverLocationInterval) {
+    clearInterval(driverLocationInterval);
+    driverLocationInterval = null;
+  }
+}
+
+function generateShareLink() {
+  if (!activeRide.value) return;
+  const baseUrl = window.location.origin;
+  shareLink.value = `${baseUrl}/track/${activeRide.value.id}`;
+}
+
+async function shareTrip() {
+  generateShareLink();
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "ติดตามการเดินทาง",
+        text: `ติดตามการเดินทางของฉันได้ที่นี่`,
+        url: shareLink.value,
+      });
+    } catch {
+      copyShareLink();
+    }
+  } else {
+    copyShareLink();
+  }
+}
+
+function copyShareLink() {
+  generateShareLink();
+  navigator.clipboard.writeText(shareLink.value);
+  alert("คัดลอกลิงก์แล้ว!");
+}
+
+function callEmergency() {
+  if (confirm("โทรหาหมายเลขฉุกเฉิน 191?")) {
+    window.location.href = "tel:191";
+  }
+}
+
+async function submitRating() {
+  if (!activeRide.value || userRating.value === 0) return;
+  isSubmittingRating.value = true;
+  try {
+    await supabase.from("ride_ratings").insert({
+      ride_request_id: activeRide.value.id,
+      user_id: authStore.user?.id,
+      provider_id: matchedDriver.value?.id,
+      rating: userRating.value,
+      comment: ratingComment.value || null,
+    });
+    showRatingModal.value = false;
+    resetBooking();
+  } catch (err) {
+    console.error("Rating error:", err);
+  } finally {
+    isSubmittingRating.value = false;
+  }
+}
+
+function skipRating() {
+  showRatingModal.value = false;
+  resetBooking();
+}
+
+function resetBooking() {
+  activeRide.value = null;
+  matchedDriver.value = null;
+  currentStep.value = "where";
+  destination.value = null;
+  promoDiscount.value = 0;
+  promoCode.value = "";
+  rideNote.value = "";
+  passengerCount.value = 1;
+  isScheduled.value = false;
+  scheduledDate.value = "";
+  scheduledTime.value = "";
+  userRating.value = 0;
+  ratingComment.value = "";
+}
+
+function getMinDate(): string {
+  const now = new Date();
+  return now.toISOString().split("T")[0];
+}
+
+function getMaxDate(): string {
+  const now = new Date();
+  now.setDate(now.getDate() + 7);
+  return now.toISOString().split("T")[0];
+}
 </script>
 
 <template>
@@ -505,6 +671,32 @@ function formatTime(seconds: number): string {
           >
           <span class="s-label">ค่าโดยสาร</span>
         </div>
+      </div>
+
+      <!-- Safety Section -->
+      <div class="safety-section">
+        <button class="safety-btn share" @click="shareTrip">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
+          </svg>
+          <span>แชร์การเดินทาง</span>
+        </button>
+        <button class="safety-btn sos" @click="callEmergency">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          <span>SOS</span>
+        </button>
       </div>
 
       <button class="cancel-ride-btn" @click="cancelRide">
@@ -818,6 +1010,147 @@ function formatTime(seconds: number): string {
           </div>
         </div>
 
+        <!-- Passenger Count & Note -->
+        <div class="options-section">
+          <div class="option-row">
+            <div class="option-icon passengers">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                />
+              </svg>
+            </div>
+            <div class="option-info">
+              <span class="option-label">จำนวนผู้โดยสาร</span>
+            </div>
+            <div class="passenger-selector">
+              <button
+                class="passenger-btn"
+                :disabled="passengerCount <= 1"
+                @click="passengerCount--"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 13H5v-2h14v2z" />
+                </svg>
+              </button>
+              <span class="passenger-count">{{ passengerCount }}</span>
+              <button
+                class="passenger-btn"
+                :disabled="passengerCount >= (selectedVehicleInfo?.seats || 4)"
+                @click="passengerCount++"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button class="option-row clickable" @click="showNoteSheet = true">
+            <div class="option-icon note">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                />
+              </svg>
+            </div>
+            <div class="option-info">
+              <span class="option-label">หมายเหตุถึงคนขับ</span>
+              <span class="option-value" :class="{ active: rideNote }">{{
+                rideNote || "เพิ่มหมายเหตุ"
+              }}</span>
+            </div>
+            <svg
+              class="option-arrow"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+
+          <button
+            class="option-row clickable"
+            @click="showScheduleSheet = true"
+          >
+            <div class="option-icon schedule" :class="{ active: isScheduled }">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
+                />
+              </svg>
+            </div>
+            <div class="option-info">
+              <span class="option-label">{{
+                isScheduled ? "จองล่วงหน้า" : "เดินทางตอนนี้"
+              }}</span>
+              <span v-if="isScheduled" class="option-value active"
+                >{{ scheduledDate }} {{ scheduledTime }}</span
+              >
+              <span v-else class="option-value">กดเพื่อจองล่วงหน้า</span>
+            </div>
+            <svg
+              class="option-arrow"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Fare Breakdown Toggle -->
+        <div class="fare-breakdown-section">
+          <button
+            class="breakdown-toggle"
+            @click="showFareBreakdown = !showFareBreakdown"
+          >
+            <span>รายละเอียดค่าโดยสาร</span>
+            <svg
+              :class="{ rotated: showFareBreakdown }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div v-if="showFareBreakdown" class="breakdown-content">
+            <div class="breakdown-row">
+              <span>ค่าโดยสารเริ่มต้น</span>
+              <span>฿{{ fareBreakdown.baseFare }}</span>
+            </div>
+            <div class="breakdown-row">
+              <span>ค่าระยะทาง ({{ estimatedDistance.toFixed(1) }} กม.)</span>
+              <span>฿{{ fareBreakdown.distanceCost }}</span>
+            </div>
+            <div
+              v-if="fareBreakdown.vehicleAdjustment !== 0"
+              class="breakdown-row"
+            >
+              <span>ปรับตามประเภทรถ</span>
+              <span :class="{ positive: fareBreakdown.vehicleAdjustment > 0 }">
+                {{ fareBreakdown.vehicleAdjustment > 0 ? "+" : "" }}฿{{
+                  fareBreakdown.vehicleAdjustment
+                }}
+              </span>
+            </div>
+            <div v-if="promoDiscount > 0" class="breakdown-row discount">
+              <span>ส่วนลดโปรโมชั่น</span>
+              <span>-฿{{ promoDiscount }}</span>
+            </div>
+            <div class="breakdown-row total">
+              <span>รวมทั้งหมด</span>
+              <span>฿{{ fareBreakdown.total }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Payment & Promo -->
         <div class="payment-section">
           <button class="payment-row" @click="showPaymentSheet = true">
@@ -1001,6 +1334,148 @@ function formatTime(seconds: number): string {
             <button class="promo-apply-btn" @click="applyPromo">ใช้งาน</button>
           </div>
           <p class="promo-hint">ลอง: RIDE50 หรือ FIRST</p>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Note Sheet -->
+    <Teleport to="body">
+      <div
+        v-if="showNoteSheet"
+        class="sheet-overlay"
+        @click="showNoteSheet = false"
+      >
+        <div class="sheet-content" @click.stop>
+          <div class="sheet-handle"></div>
+          <h3 class="sheet-title">หมายเหตุถึงคนขับ</h3>
+          <textarea
+            v-model="rideNote"
+            class="note-textarea"
+            placeholder="เช่น รอที่ประตูหน้า, มีสัมภาระ 2 ชิ้น..."
+            rows="4"
+          ></textarea>
+          <button class="sheet-confirm-btn" @click="showNoteSheet = false">
+            บันทึก
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Schedule Sheet -->
+    <Teleport to="body">
+      <div
+        v-if="showScheduleSheet"
+        class="sheet-overlay"
+        @click="showScheduleSheet = false"
+      >
+        <div class="sheet-content schedule-sheet" @click.stop>
+          <div class="sheet-handle"></div>
+          <h3 class="sheet-title">จองล่วงหน้า</h3>
+          <div class="schedule-inputs">
+            <div class="schedule-field">
+              <label>วันที่</label>
+              <input
+                v-model="scheduledDate"
+                type="date"
+                :min="getMinDate()"
+                :max="getMaxDate()"
+                class="schedule-input"
+              />
+            </div>
+            <div class="schedule-field">
+              <label>เวลา</label>
+              <input
+                v-model="scheduledTime"
+                type="time"
+                class="schedule-input"
+              />
+            </div>
+          </div>
+          <p class="schedule-hint">จองล่วงหน้าได้สูงสุด 7 วัน</p>
+          <div class="schedule-actions">
+            <button
+              class="schedule-cancel-btn"
+              @click="
+                isScheduled = false;
+                scheduledDate = '';
+                scheduledTime = '';
+                showScheduleSheet = false;
+              "
+            >
+              เดินทางตอนนี้
+            </button>
+            <button
+              class="schedule-confirm-btn"
+              :disabled="!canSchedule"
+              @click="
+                isScheduled = true;
+                showScheduleSheet = false;
+              "
+            >
+              ยืนยันเวลา
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Rating Modal -->
+    <Teleport to="body">
+      <div v-if="showRatingModal" class="rating-overlay">
+        <div class="rating-modal">
+          <div class="rating-header">
+            <div class="rating-check">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              </svg>
+            </div>
+            <h2>เดินทางสำเร็จ!</h2>
+            <p>ให้คะแนนการเดินทางของคุณ</p>
+          </div>
+
+          <div class="rating-driver" v-if="matchedDriver">
+            <div class="rating-avatar">
+              <span>{{ matchedDriver.first_name?.[0] || "?" }}</span>
+            </div>
+            <span class="rating-driver-name">{{
+              matchedDriver.first_name
+            }}</span>
+          </div>
+
+          <div class="star-rating">
+            <button
+              v-for="star in 5"
+              :key="star"
+              class="star-btn"
+              :class="{ active: userRating >= star }"
+              @click="userRating = star"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <textarea
+            v-model="ratingComment"
+            class="rating-comment"
+            placeholder="แสดงความคิดเห็น (ไม่บังคับ)"
+            rows="3"
+          ></textarea>
+
+          <div class="rating-actions">
+            <button class="rating-skip-btn" @click="skipRating">ข้าม</button>
+            <button
+              class="rating-submit-btn"
+              :disabled="userRating === 0 || isSubmittingRating"
+              @click="submitRating"
+            >
+              <span v-if="isSubmittingRating" class="btn-spinner"></span>
+              <span v-else>ส่งคะแนน</span>
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -2060,5 +2535,467 @@ function formatTime(seconds: number): string {
   font-size: 13px;
   color: #999;
   text-align: center;
+}
+
+/* ========== OPTIONS SECTION ========== */
+.options-section {
+  background: #f5f5f5;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #e8e8e8;
+  width: 100%;
+  text-align: left;
+}
+.option-row:last-child {
+  border-bottom: none;
+}
+.option-row.clickable {
+  cursor: pointer;
+}
+.option-row.clickable:active {
+  background: rgba(0, 0, 0, 0.03);
+}
+.option-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.option-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.option-icon.passengers {
+  background: #e3f2fd;
+  color: #2196f3;
+}
+.option-icon.note {
+  background: #fff3e0;
+  color: #f5a623;
+}
+.option-icon.schedule {
+  background: #f3e5f5;
+  color: #9c27b0;
+}
+.option-icon.schedule.active {
+  background: #e8f5ef;
+  color: #00a86b;
+}
+.option-info {
+  flex: 1;
+}
+.option-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.option-value {
+  font-size: 13px;
+  color: #999;
+}
+.option-value.active {
+  color: #00a86b;
+  font-weight: 500;
+}
+.option-arrow {
+  width: 20px;
+  height: 20px;
+  color: #ccc;
+}
+.passenger-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.passenger-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #e8e8e8;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.passenger-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.passenger-btn svg {
+  width: 20px;
+  height: 20px;
+  color: #1a1a1a;
+}
+.passenger-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* ========== FARE BREAKDOWN ========== */
+.fare-breakdown-section {
+  background: #f5f5f5;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.breakdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.breakdown-toggle svg {
+  width: 20px;
+  height: 20px;
+  color: #666;
+  transition: transform 0.2s ease;
+}
+.breakdown-toggle svg.rotated {
+  transform: rotate(180deg);
+}
+.breakdown-content {
+  padding: 0 16px 16px;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #666;
+}
+.breakdown-row span:last-child {
+  font-weight: 500;
+  color: #1a1a1a;
+}
+.breakdown-row span.positive {
+  color: #f5a623;
+}
+.breakdown-row.discount span {
+  color: #00a86b;
+}
+.breakdown-row.total {
+  border-top: 1px solid #e8e8e8;
+  margin-top: 8px;
+  padding-top: 12px;
+  font-weight: 700;
+}
+.breakdown-row.total span {
+  font-size: 16px;
+  color: #00a86b;
+}
+
+/* ========== SAFETY SECTION ========== */
+.safety-section {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.safety-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.safety-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.safety-btn.share {
+  background: #e8f5ef;
+  color: #00a86b;
+}
+.safety-btn.sos {
+  background: #ffebee;
+  color: #e53935;
+}
+
+/* ========== NOTE SHEET ========== */
+.note-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 12px;
+  font-size: 15px;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 16px;
+}
+.note-textarea:focus {
+  border-color: #00a86b;
+}
+.sheet-confirm-btn {
+  width: 100%;
+  padding: 16px;
+  background: #00a86b;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ========== SCHEDULE SHEET ========== */
+.schedule-sheet {
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+}
+.schedule-inputs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.schedule-field {
+  flex: 1;
+}
+.schedule-field label {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 6px;
+}
+.schedule-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 12px;
+  font-size: 15px;
+  outline: none;
+}
+.schedule-input:focus {
+  border-color: #00a86b;
+}
+.schedule-hint {
+  font-size: 13px;
+  color: #999;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.schedule-actions {
+  display: flex;
+  gap: 12px;
+}
+.schedule-cancel-btn {
+  flex: 1;
+  padding: 16px;
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.schedule-confirm-btn {
+  flex: 1;
+  padding: 16px;
+  background: #00a86b;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.schedule-confirm-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* ========== RATING MODAL ========== */
+.rating-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+.rating-modal {
+  width: 100%;
+  max-width: 360px;
+  background: white;
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  animation: scaleIn 0.3s ease;
+}
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.rating-header {
+  margin-bottom: 24px;
+}
+.rating-check {
+  width: 64px;
+  height: 64px;
+  background: #e8f5ef;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.rating-check svg {
+  width: 32px;
+  height: 32px;
+  color: #00a86b;
+}
+.rating-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+.rating-header p {
+  font-size: 14px;
+  color: #666;
+}
+.rating-driver {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.rating-avatar {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #00a86b, #008f5b);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+}
+.rating-driver-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.star-rating {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.star-btn {
+  width: 48px;
+  height: 48px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.star-btn svg {
+  width: 100%;
+  height: 100%;
+  color: #e8e8e8;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.star-btn.active svg {
+  color: #f5a623;
+}
+.star-btn:active svg {
+  transform: scale(1.2);
+}
+.rating-comment {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 12px;
+  font-size: 15px;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 20px;
+}
+.rating-comment:focus {
+  border-color: #00a86b;
+}
+.rating-actions {
+  display: flex;
+  gap: 12px;
+}
+.rating-skip-btn {
+  flex: 1;
+  padding: 16px;
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rating-submit-btn {
+  flex: 1;
+  padding: 16px;
+  background: #00a86b;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rating-submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 </style>
