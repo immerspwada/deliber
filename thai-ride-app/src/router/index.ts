@@ -127,14 +127,14 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/customer/ride',
     name: 'CustomerRide',
-    component: () => import('../views/RideView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    component: () => import('../views/customer/RideViewUber.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
   },
   {
-    path: '/customer/ride-v2',
-    name: 'CustomerRideV2',
-    component: () => import('../views/customer/RideBookingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
+    path: '/customer/ride-legacy',
+    name: 'CustomerRideLegacy',
+    component: () => import('../views/RideView.vue'),
+    meta: { requiresAuth: true, isCustomerRoute: true }
   },
   {
     path: '/customer/delivery',
