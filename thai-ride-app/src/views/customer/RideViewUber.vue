@@ -207,17 +207,25 @@ async function getCurrentLocation() {
       // Try reverse geocoding
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`
+          `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
+          {
+            headers: {
+              Accept: "application/json",
+              "User-Agent": "ThaiRideApp/1.0 (https://thai-ride.app)",
+            },
+          }
         );
-        const data = await response.json();
-        if (data.display_name) {
-          pickup.value!.address = data.display_name
-            .split(",")
-            .slice(0, 2)
-            .join(", ");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.display_name) {
+            pickup.value!.address = data.display_name
+              .split(",")
+              .slice(0, 2)
+              .join(", ");
+          }
         }
       } catch {
-        /* ignore */
+        /* ignore geocoding errors */
       }
     },
     () => {
