@@ -1,102 +1,106 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, ref } from "vue";
+import { useRouter, useRoute } from "vue-router";
 
-const router = useRouter()
-const route = useRoute()
-
-
+const router = useRouter();
+const route = useRoute();
 
 // Navigation items for customer only (provider uses ProviderLayout)
 const customerNavItems = [
-  { name: 'หน้าหลัก', path: '/customer', icon: 'home' },
-  { name: 'บริการ', path: '/customer/services', icon: 'services' },
-  { name: 'โปรไฟล์', path: '/customer/profile', icon: 'user' }
-]
+  { name: "หน้าหลัก", path: "/customer", icon: "home" },
+  { name: "บริการ", path: "/customer/services", icon: "services" },
+  { name: "โปรไฟล์", path: "/customer/profile", icon: "user" },
+];
 
-const navigationItems = computed(() => customerNavItems)
+const navigationItems = computed(() => customerNavItems);
 
-const activeIndex = ref(0)
+const activeIndex = ref(0);
 
 const navigateTo = (path: string, index: number) => {
-  activeIndex.value = index
-  router.push(path)
-}
+  activeIndex.value = index;
+  router.push(path);
+};
 
 const isActive = (path: string) => {
-  if (path === '/customer/services') {
-    return ['/customer/services', '/customer/ride', '/customer/delivery', '/customer/shopping'].includes(route.path)
+  if (path === "/customer/services") {
+    return [
+      "/customer/services",
+      "/customer/ride",
+      "/customer/delivery",
+      "/customer/shopping",
+    ].includes(route.path);
   }
-  return route.path === path
-}
+  return route.path === path;
+};
 
 const showHeader = computed(() => {
   // Pages that have their own header (exact match only)
   const pagesWithOwnHeader = [
-    '/customer',
-    '/login',
-    '/register',
-    '/customer/queue-booking',
-    '/customer/moving',
-    '/customer/laundry',
-    '/customer/delivery',
-    '/customer/saved-places',
-    '/customer/profile',
-    '/customer/wallet'
-  ]
+    "/customer",
+    "/login",
+    "/register",
+    "/customer/queue-booking",
+    "/customer/moving",
+    "/customer/laundry",
+    "/customer/delivery",
+    "/customer/saved-places",
+    "/customer/profile",
+    "/customer/wallet",
+  ];
   // Normalize path (remove trailing slash)
-  const normalizedPath = route.path.replace(/\/$/, '') || '/'
-  return !pagesWithOwnHeader.includes(normalizedPath)
-})
+  const normalizedPath = route.path.replace(/\/$/, "") || "/";
+  return !pagesWithOwnHeader.includes(normalizedPath);
+});
 
 // Full screen pages that handle their own layout (no padding-bottom needed)
 const isFullScreenPage = computed(() => {
-  return ['/customer/services', '/customer/ride'].includes(route.path)
-})
+  return ["/customer/services", "/customer/ride"].includes(route.path);
+});
 
 // Pages that should hide bottom navigation to focus on the feature
 const hideBottomNav = computed(() => {
   const pagesWithoutNav = [
-    '/customer/ride',
-    '/customer/delivery',
-    '/customer/shopping',
-    '/customer/queue-booking',
-    '/customer/moving',
-    '/customer/laundry'
-  ]
-  return pagesWithoutNav.includes(route.path)
-})
+    "/customer/ride",
+    "/customer/delivery",
+    "/customer/shopping",
+    "/customer/queue-booking",
+    "/customer/moving",
+    "/customer/laundry",
+    "/customer/wallet",
+  ];
+  return pagesWithoutNav.includes(route.path);
+});
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
-    '/customer/services': 'บริการ',
-    '/customer/ride': 'เรียกรถ',
-    '/customer/delivery': 'ส่งของ',
-    '/customer/shopping': 'ซื้อของ',
-    '/customer/profile': 'โปรไฟล์',
-    '/customer/history': 'ประวัติการใช้งาน',
-    '/customer/payment-methods': 'วิธีการชำระเงิน',
-    '/customer/notifications': 'การแจ้งเตือน',
-    '/customer/wallet': 'กระเป๋าเงิน',
-    '/customer/promotions': 'โปรโมชั่น',
-    '/customer/settings': 'ตั้งค่า',
-    '/customer/help': 'ช่วยเหลือ'
-  }
-  return titles[route.path] || 'GOBEAR'
-})
+    "/customer/services": "บริการ",
+    "/customer/ride": "เรียกรถ",
+    "/customer/delivery": "ส่งของ",
+    "/customer/shopping": "ซื้อของ",
+    "/customer/profile": "โปรไฟล์",
+    "/customer/history": "ประวัติการใช้งาน",
+    "/customer/payment-methods": "วิธีการชำระเงิน",
+    "/customer/notifications": "การแจ้งเตือน",
+    "/customer/wallet": "กระเป๋าเงิน",
+    "/customer/promotions": "โปรโมชั่น",
+    "/customer/settings": "ตั้งค่า",
+    "/customer/help": "ช่วยเหลือ",
+  };
+  return titles[route.path] || "GOBEAR";
+});
 
 const canGoBack = computed(() => {
-  return route.path !== '/customer' && window.history.length > 1
-})
+  return route.path !== "/customer" && window.history.length > 1;
+});
 
 const goBack = () => {
-  router.back()
-}
+  router.back();
+};
 
 // Quick back to home for pages without bottom nav
 const goToHome = () => {
-  router.push('/customer')
-}
+  router.push("/customer");
+};
 </script>
 
 <template>
@@ -105,7 +109,12 @@ const goToHome = () => {
       <div class="header-content">
         <button v-if="canGoBack" @click="goBack" class="back-btn">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
         </button>
         <div v-else class="logo">
@@ -113,55 +122,124 @@ const goToHome = () => {
         </div>
         <h1 v-if="canGoBack" class="header-title">{{ pageTitle }}</h1>
         <!-- Quick Home Button - แสดงเมื่อซ่อน BottomNavigation -->
-        <button 
-          v-if="hideBottomNav" 
+        <button
+          v-if="hideBottomNav"
           class="header-home-btn"
           @click="goToHome"
           aria-label="กลับหน้าหลัก"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
           </svg>
         </button>
         <div v-else class="header-spacer"></div>
       </div>
     </header>
 
-    <main class="main-content" :class="{ 'no-header': !showHeader, 'full-screen': isFullScreenPage, 'no-bottom-nav': hideBottomNav }">
+    <main
+      class="main-content"
+      :class="{
+        'no-header': !showHeader,
+        'full-screen': isFullScreenPage,
+        'no-bottom-nav': hideBottomNav,
+      }"
+    >
       <slot />
     </main>
 
     <!-- Bottom Navigation with Transition -->
     <Transition name="slide-up">
       <nav v-if="!hideBottomNav" class="bottom-nav">
-      <div class="nav-container">
-        <button
-          v-for="(item, index) in navigationItems"
-          :key="item.path"
-          @click="navigateTo(item.path, index)"
-          :class="['nav-item', { 'nav-item-active': isActive(item.path) }]"
-        >
-          <div class="nav-icon-wrapper">
-            <svg v-if="item.icon === 'home'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-            </svg>
-            <svg v-else-if="item.icon === 'services'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-            </svg>
-            <svg v-else-if="item.icon === 'work'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-            </svg>
-            <svg v-else-if="item.icon === 'history'" class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            <svg v-else class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-            </svg>
-            <span class="active-dot" v-if="isActive(item.path)"></span>
-          </div>
-          <span class="nav-label">{{ item.name }}</span>
-        </button>
-      </div>
+        <div class="nav-container">
+          <button
+            v-for="(item, index) in navigationItems"
+            :key="item.path"
+            @click="navigateTo(item.path, index)"
+            :class="['nav-item', { 'nav-item-active': isActive(item.path) }]"
+          >
+            <div class="nav-icon-wrapper">
+              <svg
+                v-if="item.icon === 'home'"
+                class="nav-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                />
+              </svg>
+              <svg
+                v-else-if="item.icon === 'services'"
+                class="nav-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                />
+              </svg>
+              <svg
+                v-else-if="item.icon === 'work'"
+                class="nav-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                />
+              </svg>
+              <svg
+                v-else-if="item.icon === 'history'"
+                class="nav-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <svg
+                v-else
+                class="nav-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              <span class="active-dot" v-if="isActive(item.path)"></span>
+            </div>
+            <span class="nav-label">{{ item.name }}</span>
+          </button>
+        </div>
       </nav>
     </Transition>
   </div>
@@ -395,7 +473,7 @@ const goToHome = () => {
 .header-home-btn svg {
   width: 22px;
   height: 22px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 /* Bottom Nav Slide Up Transition */
@@ -416,6 +494,4 @@ const goToHome = () => {
   opacity: 0;
   transform: translateY(100%);
 }
-
-
 </style>

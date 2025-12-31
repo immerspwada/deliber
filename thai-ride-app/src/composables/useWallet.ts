@@ -105,6 +105,22 @@ export const THAI_BANKS = [
   { code: 'KK', name: 'ธนาคารเกียรตินาคินภัทร' }
 ]
 
+
+// =====================================================
+// SINGLETON STATE - For reset on logout
+// =====================================================
+let walletInstance: ReturnType<typeof useWallet> | null = null
+
+/**
+ * Reset wallet state on logout
+ * Called from auth.ts when user logs out
+ */
+export function resetWalletState() {
+  console.log('[Wallet] Resetting wallet state...')
+  walletInstance = null
+  console.log('[Wallet] Wallet state reset complete')
+}
+
 export function useWallet() {
   const authStore = useAuthStore()
   const balance = ref<WalletBalance>({ balance: 0, total_earned: 0, total_spent: 0 })

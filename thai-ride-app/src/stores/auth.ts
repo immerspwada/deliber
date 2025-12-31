@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp, signInWithEmailOtp, verifyEmailOtp as verifyEmailOtpApi, signInWithGoogle, signInWithFacebook } from '../lib/supabase'
 import { env, isDev } from '../lib/env'
 import { authLogger as logger } from '../utils/logger'
+import { resetWalletState } from '../composables/useWallet'
 import type { User, UserUpdate } from '../types/database'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -484,6 +485,9 @@ export const useAuthStore = defineStore('auth', () => {
       // Clear user state immediately
       user.value = null
       session.value = null
+      
+      // Reset wallet singleton state to prevent data leakage between users
+      resetWalletState()
       
       // Sign out from Supabase (don't wait too long)
       // Use Promise.race with timeout to prevent hanging

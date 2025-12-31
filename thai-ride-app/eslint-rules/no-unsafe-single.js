@@ -21,7 +21,7 @@
  * .single()
  */
 
-module.exports = {
+const noUnsafeSingle = {
   meta: {
     type: 'suggestion',
     docs: {
@@ -141,3 +141,5 @@ function getTableName(node) {
   
   return null
 }
+
+export default noUnsafeSingle

@@ -21,6 +21,7 @@ const PaymentsView = () => import('./views/PaymentsView.vue')
 const WalletsView = () => import('./views/WalletsView.vue')
 const AdminTopupRequestsView = () => import('../views/AdminTopupRequestsView.vue')
 const WithdrawalsView = () => import('./views/WithdrawalsView.vue')
+// const CustomerWithdrawalsView = () => import('./views/CustomerWithdrawalsView.vue')
 const AdminRefundsView = () => import('../views/AdminRefundsView.vue')
 const PaymentSettingsView = () => import('./views/PaymentSettingsView.vue')
 const PromosView = () => import('./views/PromosView.vue')
@@ -203,6 +204,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: WithdrawalsView,
         meta: { module: 'finance' }
       },
+      // {
+      //   path: 'customer-withdrawals',
+      //   name: 'AdminCustomerWithdrawalsV2',
+      //   component: CustomerWithdrawalsView,
+      //   meta: { module: 'finance' }
+      // },
       {
         path: 'refunds',
         name: 'AdminRefundsV2',

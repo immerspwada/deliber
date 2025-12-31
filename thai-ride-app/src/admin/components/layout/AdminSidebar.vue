@@ -153,6 +153,14 @@ const menuItems = computed<MenuItem[]>(() => [
         permission: "finance",
       },
       {
+        id: "customer-withdrawals",
+        label: "Customer Withdrawals",
+        labelTh: "ถอนเงินลูกค้า",
+        icon: "user-minus",
+        path: "/admin/customer-withdrawals",
+        permission: "finance",
+      },
+      {
         id: "refunds",
         label: "Refunds",
         labelTh: "คืนเงิน",

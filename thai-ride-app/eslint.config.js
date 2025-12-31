@@ -1,9 +1,11 @@
 import js from '@eslint/js'
 import vue from 'eslint-plugin-vue'
+import tseslint from 'typescript-eslint'
 import noUnsafeSingle from './eslint-rules/no-unsafe-single.js'
 
 export default [
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   ...vue.configs['flat/recommended'],
   {
     files: ['**/*.{js,ts,vue}'],
@@ -21,14 +23,27 @@ export default [
       // Vue rules
       'vue/multi-word-component-names': 'off',
       'vue/no-v-html': 'off',
+      'vue/max-attributes-per-line': 'off',
+      'vue/singleline-html-element-content-newline': 'off',
+      'vue/html-self-closing': 'off',
+      'vue/html-closing-bracket-spacing': 'off',
+      
+      // TypeScript rules
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-empty-object-type': 'off',
       
       // General rules
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': 'off', // Use TypeScript version
       'no-console': ['warn', { allow: ['warn', 'error'] }]
     },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
+      parserOptions: {
+        parser: tseslint.parser,
+        extraFileExtensions: ['.vue']
+      },
       globals: {
         window: 'readonly',
         document: 'readonly',
@@ -97,6 +112,14 @@ export default [
         exports: 'readonly',
         global: 'readonly',
         Buffer: 'readonly'
+      }
+    }
+  },
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser
       }
     }
   },
