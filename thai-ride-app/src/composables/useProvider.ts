@@ -99,6 +99,10 @@ export interface DeliveryRequest {
   status: string
   created_at: string
   customer_name?: string
+  // Promo fields
+  promo_code?: string | null
+  promo_code_id?: string | null
+  promo_discount_amount?: number
 }
 
 // Shopping Request Interface
@@ -122,6 +126,10 @@ export interface ShoppingRequest {
   status: string
   created_at: string
   customer_name?: string
+  // Promo fields
+  promo_code?: string | null
+  promo_code_id?: string | null
+  promo_discount_amount?: number
 }
 
 // Active Job (can be ride, delivery, or shopping)
@@ -1036,7 +1044,11 @@ export function useProvider() {
           recipient_lat: d.recipient_lat, recipient_lng: d.recipient_lng,
           package_type: d.package_type, package_description: d.package_description,
           estimated_fee: d.estimated_fee || 0, distance_km: d.distance_km,
-          status: 'pending', created_at: d.created_at, customer_name: d.customer_name
+          status: 'pending', created_at: d.created_at, customer_name: d.customer_name,
+          // Promo fields for Provider visibility
+          promo_code: d.promo_code || null,
+          promo_code_id: d.promo_code_id || null,
+          promo_discount_amount: d.promo_discount_amount || 0
         }))
       } else { pendingDeliveries.value = [] }
     } catch (e) { console.warn('Error fetching deliveries:', e) }
@@ -1107,7 +1119,11 @@ export function useProvider() {
           store_name: s.store_name, store_address: s.store_address, store_lat: s.store_lat, store_lng: s.store_lng,
           delivery_address: s.delivery_address, delivery_lat: s.delivery_lat, delivery_lng: s.delivery_lng,
           items: s.items || [], item_list: s.item_list, budget_limit: s.budget_limit, service_fee: s.service_fee || 0,
-          special_instructions: s.special_instructions, status: 'pending', created_at: s.created_at, customer_name: s.customer_name
+          special_instructions: s.special_instructions, status: 'pending', created_at: s.created_at, customer_name: s.customer_name,
+          // Promo fields for Provider visibility
+          promo_code: s.promo_code || null,
+          promo_code_id: s.promo_code_id || null,
+          promo_discount_amount: s.promo_discount_amount || 0
         }))
       } else { pendingShopping.value = [] }
     } catch (e) { console.warn('Error fetching shopping:', e) }

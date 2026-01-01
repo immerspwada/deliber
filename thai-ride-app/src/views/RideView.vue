@@ -11,6 +11,7 @@ import MapView from "../components/MapView.vue";
 import RideTracker from "../components/RideTracker.vue";
 import BottomSheet from "../components/BottomSheet.vue";
 import NearbyPlacesSheet from "../components/NearbyPlacesSheet.vue";
+import PromoCodeInput from "../components/shared/PromoCodeInput.vue";
 import type { NearbyPlace } from "../composables/useNearbyPlaces";
 import { useLocation, type GeoLocation } from "../composables/useLocation";
 import { useRideStore } from "../stores/ride";
@@ -18,6 +19,8 @@ import { useAuthStore } from "../stores/auth";
 import { useSurgePricing } from "../composables/useSurgePricing";
 import { useServices } from "../composables/useServices";
 import { useRecurringRides } from "../composables/useRecurringRides";
+import { usePromoSystem } from "../composables/usePromoSystem";
+import { useWallet } from "../composables/useWallet";
 import type { RideRequest, ServiceProvider } from "../types/database";
 
 const router = useRouter();
@@ -34,8 +37,18 @@ const {
   fetchRecentPlaces,
   loading: placesLoading,
 } = useServices();
+const promoSystem = usePromoSystem();
+const wallet = useWallet();
 
 const surgeMultiplier = currentMultiplier;
+
+// Promo state
+const appliedPromo = ref<{
+  code: string;
+  promoId: string;
+  discountAmount: number;
+} | null>(null);
+const promoDiscount = ref(0);
 
 // Computed: Favorite places (not home/work)
 const favoritePlaces = computed(() =>
@@ -61,8 +74,12 @@ onMounted(async () => {
       activeRide.value = rideStore.currentRide;
       viewMode.value = "tracking";
     }
-    // Fetch saved places and recent places
-    await Promise.all([fetchSavedPlaces(), fetchRecentPlaces(5)]);
+    // Fetch saved places, recent places, and wallet balance
+    await Promise.all([
+      fetchSavedPlaces(),
+      fetchRecentPlaces(5),
+      wallet.fetchBalance(),
+    ]);
   }
 });
 
@@ -372,8 +389,22 @@ const finalFare = computed(() => {
   if (surgeMultiplier.value > 1) {
     fare = fare * surgeMultiplier.value;
   }
-  return Math.round(fare);
+  // Apply promo discount
+  fare = fare - promoDiscount.value;
+  return Math.max(0, Math.round(fare));
 });
+
+// Wallet balance check
+const walletBalance = computed(() => wallet.balance.value?.balance || 0);
+const hasInsufficientBalance = computed(() => {
+  if (paymentMethod.value !== "wallet") return false;
+  return walletBalance.value < finalFare.value;
+});
+
+// Handle promo discount
+const handlePromoDiscount = (amount: number) => {
+  promoDiscount.value = amount;
+};
 
 // Handlers (reserved for future use)
 const _handlePickupSelected = async (location: GeoLocation) => {
@@ -451,6 +482,17 @@ const bookRide = async () => {
     return;
   }
 
+  // Check wallet balance if paying with wallet
+  if (paymentMethod.value === "wallet") {
+    await wallet.fetchBalance(); // Refresh balance before check
+    if (walletBalance.value < finalFare.value) {
+      alert(
+        `ยอดเงินในกระเป๋าไม่เพียงพอ\nคงเหลือ: ฿${walletBalance.value.toLocaleString()}\nค่าโดยสาร: ฿${finalFare.value.toLocaleString()}\n\nกรุณาเติมเงินหรือเปลี่ยนวิธีชำระเงิน`
+      );
+      return;
+    }
+  }
+
   isBooking.value = true;
 
   try {
@@ -473,6 +515,26 @@ const bookRide = async () => {
     );
 
     if (ride) {
+      // Apply promo if selected
+      if (appliedPromo.value && ride.id) {
+        await promoSystem.applyPromoToRequest(
+          "ride",
+          ride.id,
+          appliedPromo.value.code,
+          appliedPromo.value.promoId,
+          appliedPromo.value.discountAmount
+        );
+        // Record usage
+        await promoSystem.applyPromoCode(
+          appliedPromo.value.code,
+          "ride",
+          ride.id,
+          estimatedFare.value *
+            (surgeMultiplier.value > 1 ? surgeMultiplier.value : 1),
+          appliedPromo.value.discountAmount
+        );
+      }
+
       // Get the current ride from store after creation
       activeRide.value = rideStore.currentRide;
       viewMode.value = "tracking";
@@ -2149,7 +2211,16 @@ watch(rideType, () => {
                   <span class="payment-method-value">{{
                     paymentMethods.find((p) => p.value === paymentMethod)?.label
                   }}</span>
-                  <span class="payment-method-hint">แตะเพื่อเปลี่ยน</span>
+                  <span
+                    v-if="paymentMethod === 'wallet'"
+                    class="wallet-balance-hint"
+                    :class="{ insufficient: hasInsufficientBalance }"
+                  >
+                    คงเหลือ ฿{{ walletBalance.toLocaleString() }}
+                  </span>
+                  <span v-else class="payment-method-hint"
+                    >แตะเพื่อเปลี่ยน</span
+                  >
                 </div>
                 <svg
                   viewBox="0 0 24 24"
@@ -2212,6 +2283,30 @@ watch(rideType, () => {
                     >
                   </div>
                 </Transition>
+
+                <!-- Promo Code Input -->
+                <PromoCodeInput
+                  v-model="appliedPromo"
+                  service-type="ride"
+                  :order-amount="
+                    estimatedFare * (surgeMultiplier > 1 ? surgeMultiplier : 1)
+                  "
+                  @discount-applied="handlePromoDiscount"
+                />
+
+                <!-- Promo Discount Row -->
+                <Transition name="slide-fade">
+                  <div
+                    v-if="promoDiscount > 0"
+                    class="fare-row-enhanced discount"
+                  >
+                    <span class="fare-row-label">ส่วนลดโปรโมชั่น</span>
+                    <span class="fare-row-value discount"
+                      >-฿{{ promoDiscount }}</span
+                    >
+                  </div>
+                </Transition>
+
                 <div class="fare-divider"></div>
                 <div class="fare-row-enhanced total">
                   <span class="fare-row-label">รวมทั้งหมด</span>
@@ -2220,17 +2315,64 @@ watch(rideType, () => {
               </div>
             </div>
 
+            <!-- Insufficient Balance Warning -->
+            <Transition name="slide-fade">
+              <div
+                v-if="hasInsufficientBalance"
+                class="insufficient-balance-warning"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                  />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <div class="warning-text">
+                  <span class="warning-title">ยอดเงินไม่เพียงพอ</span>
+                  <span class="warning-detail"
+                    >คงเหลือ ฿{{ walletBalance.toLocaleString() }} / ต้องการ ฿{{
+                      finalFare.toLocaleString()
+                    }}</span
+                  >
+                </div>
+                <button
+                  class="topup-btn"
+                  @click="router.push('/customer/wallet')"
+                >
+                  เติมเงิน
+                </button>
+              </div>
+            </Transition>
+
             <!-- Confirm Book Button Enhanced -->
             <button
               @click="bookRide"
-              :disabled="isBooking"
-              :class="['confirm-book-btn', { 'is-loading': isBooking }]"
+              :disabled="isBooking || hasInsufficientBalance"
+              :class="[
+                'confirm-book-btn',
+                {
+                  'is-loading': isBooking,
+                  'is-disabled': hasInsufficientBalance,
+                },
+              ]"
             >
               <template v-if="isBooking">
                 <div class="booking-spinner"></div>
                 <div class="booking-text">
                   <span class="booking-title">กำลังค้นหาคนขับ...</span>
                   <span class="booking-subtitle">รอสักครู่</span>
+                </div>
+              </template>
+              <template v-else-if="hasInsufficientBalance">
+                <div class="confirm-btn-content">
+                  <span class="confirm-btn-text">ยอดเงินไม่พอ</span>
+                  <span class="confirm-btn-price">฿{{ finalFare }}</span>
                 </div>
               </template>
               <template v-else>
@@ -5962,6 +6104,85 @@ watch(rideType, () => {
   color: #999999;
 }
 
+.wallet-balance-hint {
+  display: block;
+  font-size: 12px;
+  color: #00a86b;
+  font-weight: 500;
+}
+
+.wallet-balance-hint.insufficient {
+  color: #e53935;
+}
+
+/* Insufficient Balance Warning */
+.insufficient-balance-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.insufficient-balance-warning svg {
+  width: 24px;
+  height: 24px;
+  color: #e53935;
+  flex-shrink: 0;
+}
+
+.insufficient-balance-warning .warning-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insufficient-balance-warning .warning-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #c62828;
+}
+
+.insufficient-balance-warning .warning-detail {
+  font-size: 12px;
+  color: #e53935;
+}
+
+.insufficient-balance-warning .topup-btn {
+  padding: 8px 16px;
+  background: #e53935;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.insufficient-balance-warning .topup-btn:active {
+  background: #c62828;
+}
+
+/* Disabled button state */
+.confirm-book-btn.is-disabled {
+  background: #e0e0e0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.confirm-book-btn.is-disabled .confirm-btn-text {
+  color: #999;
+}
+
+.confirm-book-btn.is-disabled .confirm-btn-price {
+  color: #999;
+}
+
 .payment-arrow {
   width: 20px;
   height: 20px;
@@ -6036,6 +6257,22 @@ watch(rideType, () => {
 
 .fare-row-value.surge {
   color: #ea580c;
+}
+
+/* Discount Row */
+.fare-row-enhanced.discount {
+  background: rgba(0, 168, 107, 0.08);
+  margin: 8px -16px;
+  padding: 12px 16px;
+}
+
+.fare-row-enhanced.discount .fare-row-label {
+  color: #00a86b;
+}
+
+.fare-row-value.discount {
+  color: #00a86b;
+  font-weight: 600;
 }
 
 .fare-divider {

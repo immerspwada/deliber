@@ -59,6 +59,36 @@ const scheduledTime = ref<string | null>(null);
 const trackingId = ref<string | null>(null);
 
 // ============================================
+// SEARCHING TIMER
+// ============================================
+const searchingSeconds = ref(0);
+const searchingInterval = ref<ReturnType<typeof setInterval> | null>(null);
+
+const searchingDisplay = computed(() => {
+  const minutes = Math.floor(searchingSeconds.value / 60);
+  const seconds = searchingSeconds.value % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+});
+
+const startSearchingTimer = () => {
+  if (searchingInterval.value) {
+    clearInterval(searchingInterval.value);
+  }
+  searchingSeconds.value = 0;
+  searchingInterval.value = setInterval(() => {
+    searchingSeconds.value++;
+  }, 1000);
+};
+
+const stopSearchingTimer = () => {
+  if (searchingInterval.value) {
+    clearInterval(searchingInterval.value);
+    searchingInterval.value = null;
+  }
+  searchingSeconds.value = 0;
+};
+
+// ============================================
 // RIDE TYPE SELECTION
 // ============================================
 const selectedRideType = ref<"standard" | "premium" | "shared">("standard");
@@ -192,6 +222,7 @@ const requestRide = async () => {
 
   isLoading.value = true;
   viewMode.value = "REQUESTING";
+  startSearchingTimer(); // Start timer when entering REQUESTING mode
 
   try {
     const result = await rideStore.createRideRequest(
@@ -224,14 +255,17 @@ const requestRide = async () => {
 
       // Only go to TRACKING if driver found
       if (driver) {
+        stopSearchingTimer();
         viewMode.value = "TRACKING";
       }
-      // If no driver found, stay in REQUESTING mode
+      // If no driver found, stay in REQUESTING mode (timer keeps running)
     } else {
+      stopSearchingTimer();
       viewMode.value = "CHOOSE_RIDE";
     }
   } catch (err) {
     console.error("Request ride error:", err);
+    stopSearchingTimer();
     viewMode.value = "CHOOSE_RIDE";
   } finally {
     isLoading.value = false;
@@ -240,6 +274,7 @@ const requestRide = async () => {
 
 const cancelRequest = async () => {
   isLoading.value = true;
+  stopSearchingTimer(); // Stop timer when cancelling
   try {
     await rideStore.cancelRide();
     viewMode.value = "HOME";
@@ -252,6 +287,11 @@ const cancelRequest = async () => {
     isLoading.value = false;
   }
 };
+
+// Cleanup timer on unmount
+onUnmounted(() => {
+  stopSearchingTimer();
+});
 
 const goBack = () => {
   if (viewMode.value === "CHOOSE_RIDE") {
@@ -603,7 +643,7 @@ const rideTypes = [
         <!-- Header with status -->
         <div class="requesting-header">
           <div class="status-indicator">
-            <div class="search-icon">
+            <div class="search-icon searching-pulse">
               <svg
                 width="24"
                 height="24"
@@ -612,11 +652,15 @@ const rideTypes = [
                 stroke="currentColor"
                 stroke-width="2"
               >
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
+                <path
+                  d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"
+                />
               </svg>
             </div>
-            <span class="status-text">กำลังค้นหาคนขับ</span>
+            <div class="status-info">
+              <span class="status-text">กำลังหาคนขับ</span>
+              <span class="searching-timer">{{ searchingDisplay }}</span>
+            </div>
             <div class="status-dot"></div>
           </div>
         </div>
@@ -1132,20 +1176,48 @@ const rideTypes = [
 }
 
 .search-icon {
-  width: 44px;
-  height: 44px;
-  background: #1a1a1a;
+  width: 56px;
+  height: 56px;
+  background: #e8f5ef;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: #00a86b;
+}
+
+.search-icon.searching-pulse {
+  animation: pulse-scale 2s ease-in-out infinite;
+}
+
+@keyframes pulse-scale {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.status-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .status-text {
   font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
+}
+
+.searching-timer {
+  font-size: 28px;
+  font-weight: 700;
+  color: #00a86b;
+  font-family: "SF Mono", "Monaco", "Inconsolata", monospace;
+  line-height: 1.2;
 }
 
 .status-dot {

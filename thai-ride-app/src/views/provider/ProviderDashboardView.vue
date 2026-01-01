@@ -10,6 +10,7 @@ import ProviderLayout from "../../components/ProviderLayout.vue";
 import ActiveRideView from "../../components/provider/ActiveRideView.vue";
 import ActiveJobView from "../../components/provider/ActiveJobView.vue";
 import RideRequestCard from "../../components/provider/RideRequestCard.vue";
+import PromoInfoBadge from "../../components/provider/PromoInfoBadge.vue";
 import ChatModal from "../../components/ChatModal.vue";
 import VoiceCallModal from "../../components/VoiceCallModal.vue";
 import PassengerRatingModal from "../../components/provider/PassengerRatingModal.vue";
@@ -777,6 +778,13 @@ onUnmounted(() => {
                 >
                 <span>{{ delivery.package_type }}</span>
               </div>
+              <!-- Promo Badge (if customer used promo code) -->
+              <div v-if="delivery.promo_code" class="promo-badge-wrapper">
+                <PromoInfoBadge
+                  service-type="delivery"
+                  :request-id="delivery.id"
+                />
+              </div>
               <div class="job-actions">
                 <button
                   class="btn-decline"
@@ -831,6 +839,13 @@ onUnmounted(() => {
                 <span v-if="shopping.items?.length"
                   >{{ shopping.items.length }} รายการ</span
                 >
+              </div>
+              <!-- Promo Badge (if customer used promo code) -->
+              <div v-if="shopping.promo_code" class="promo-badge-wrapper">
+                <PromoInfoBadge
+                  service-type="shopping"
+                  :request-id="shopping.id"
+                />
               </div>
               <div class="job-actions">
                 <button
@@ -1433,6 +1448,10 @@ onUnmounted(() => {
   padding: 4px 8px;
   background: #f0f0f0;
   border-radius: 6px;
+}
+
+.promo-badge-wrapper {
+  margin-bottom: 12px;
 }
 
 .job-actions {

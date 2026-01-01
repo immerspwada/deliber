@@ -25,6 +25,7 @@ const WithdrawalsView = () => import('./views/WithdrawalsView.vue')
 const AdminRefundsView = () => import('../views/AdminRefundsView.vue')
 const PaymentSettingsView = () => import('./views/PaymentSettingsView.vue')
 const PromosView = () => import('./views/PromosView.vue')
+const PromoManagementView = () => import('./views/PromoManagementView.vue')
 const AdminReferralsView = () => import('../views/AdminReferralsView.vue')
 const AdminLoyaltyView = () => import('../views/AdminLoyaltyView.vue')
 const AdminIncentivesView = () => import('../views/AdminIncentivesView.vue')
@@ -227,6 +228,12 @@ export const adminRoutes: RouteRecordRaw[] = [
       {
         path: 'promos',
         name: 'AdminPromosV2',
+        component: PromoManagementView,
+        meta: { module: 'marketing' }
+      },
+      {
+        path: 'promos-legacy',
+        name: 'AdminPromosLegacy',
         component: PromosView,
         meta: { module: 'marketing' }
       },

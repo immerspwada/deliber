@@ -578,6 +578,12 @@ export const useRideStore = defineStore('ride', () => {
 
   // Subscribe to ride updates
   const subscribeToRideUpdates = (rideId: string) => {
+    // Validate rideId before subscribing
+    if (!rideId || rideId === 'undefined' || rideId === 'null') {
+      logger.warn('[subscribeToRideUpdates] Invalid rideId:', rideId)
+      return null
+    }
+
     // Unsubscribe from previous
     if (rideSubscription.value) {
       rideSubscription.value.unsubscribe()
@@ -611,6 +617,12 @@ export const useRideStore = defineStore('ride', () => {
 
   // Subscribe to driver location updates
   const subscribeToDriverLocation = (providerId: string) => {
+    // Validate providerId before subscribing
+    if (!providerId || providerId === 'undefined' || providerId === 'null') {
+      logger.warn('[subscribeToDriverLocation] Invalid providerId:', providerId)
+      return null
+    }
+
     if (driverSubscription.value) {
       driverSubscription.value.unsubscribe()
     }

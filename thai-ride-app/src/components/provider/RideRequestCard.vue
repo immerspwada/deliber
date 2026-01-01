@@ -2,67 +2,76 @@
 /**
  * Feature: F154 - Ride Request Card (Provider)
  * Display incoming ride request for provider to accept/decline
+ *
+ * @syncs-with
+ * - Customer: RideView.vue (creates ride with promo)
+ * - Admin: AdminRidesView.vue (sees all rides)
+ * - Promo: PromoInfoBadge.vue (shows discount)
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from "vue";
+import PromoInfoBadge from "./PromoInfoBadge.vue";
 
 interface RideRequest {
-  id: string
-  tracking_id?: string
-  user_id: string
-  pickup_lat: number
-  pickup_lng: number
-  pickup_address: string
-  destination_lat: number
-  destination_lng: number
-  destination_address: string
-  estimated_fare: number
-  estimated_distance?: number
-  estimated_duration?: number
-  status: string
-  payment_method?: string
-  passenger_name?: string
-  passenger_rating?: number
+  id: string;
+  tracking_id?: string;
+  user_id: string;
+  pickup_lat: number;
+  pickup_lng: number;
+  pickup_address: string;
+  destination_lat: number;
+  destination_lng: number;
+  destination_address: string;
+  estimated_fare: number;
+  estimated_distance?: number;
+  estimated_duration?: number;
+  status: string;
+  payment_method?: string;
+  passenger_name?: string;
+  passenger_rating?: number;
+  // Promo fields
+  promo_code?: string;
+  promo_code_id?: string;
+  promo_discount_amount?: number;
 }
 
 interface Props {
-  request: RideRequest
-  autoDeclineSeconds?: number
+  request: RideRequest;
+  autoDeclineSeconds?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  autoDeclineSeconds: 30
-})
+  autoDeclineSeconds: 30,
+});
 
 const emit = defineEmits<{
-  accept: []
-  decline: []
-}>()
+  accept: [];
+  decline: [];
+}>();
 
-const timeLeft = ref(props.autoDeclineSeconds)
-let timer: number | undefined
+const timeLeft = ref(props.autoDeclineSeconds);
+let timer: number | undefined;
 
 onMounted(() => {
   timer = window.setInterval(() => {
-    timeLeft.value--
+    timeLeft.value--;
     if (timeLeft.value <= 0) {
-      emit('decline')
+      emit("decline");
     }
-  }, 1000)
-})
+  }, 1000);
+});
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
-
+  if (timer) clearInterval(timer);
+});
 
 const progressPercent = () => {
-  return (timeLeft.value / props.autoDeclineSeconds) * 100
-}
+  return (timeLeft.value / props.autoDeclineSeconds) * 100;
+};
 
 const formatDistance = (meters?: number) => {
-  if (!meters) return '-'
-  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} กม.` : `${meters} ม.`
-}
+  if (!meters) return "-";
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} กม.` : `${meters} ม.`;
+};
 </script>
 
 <template>
@@ -70,26 +79,34 @@ const formatDistance = (meters?: number) => {
     <div class="timer-bar">
       <div class="timer-fill" :style="{ width: `${progressPercent()}%` }" />
     </div>
-    
+
     <div class="card-header">
       <span class="request-label">คำขอเรียกรถใหม่</span>
       <span class="timer-text">{{ timeLeft }}s</span>
     </div>
-    
+
     <div class="customer-info">
-      <div class="customer-avatar">{{ (request.passenger_name || 'U')[0] }}</div>
+      <div class="customer-avatar">
+        {{ (request.passenger_name || "U")[0] }}
+      </div>
       <div class="customer-details">
-        <span class="customer-name">{{ request.passenger_name || 'ผู้โดยสาร' }}</span>
+        <span class="customer-name">{{
+          request.passenger_name || "ผู้โดยสาร"
+        }}</span>
         <span v-if="request.passenger_rating" class="customer-rating">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+            />
           </svg>
           {{ request.passenger_rating.toFixed(1) }}
         </span>
       </div>
-      <span class="payment-badge">{{ request.payment_method || 'เงินสด' }}</span>
+      <span class="payment-badge">{{
+        request.payment_method || "เงินสด"
+      }}</span>
     </div>
-    
+
     <div class="route-section">
       <div class="route-point pickup">
         <div class="point-dot" />
@@ -107,25 +124,37 @@ const formatDistance = (meters?: number) => {
         </div>
       </div>
     </div>
-    
+
     <div class="trip-info">
       <div class="info-item">
         <span class="info-label">ระยะทาง</span>
-        <span class="info-value">{{ formatDistance(request.estimated_distance) }}</span>
+        <span class="info-value">{{
+          formatDistance(request.estimated_distance)
+        }}</span>
       </div>
       <div class="info-item">
         <span class="info-label">ค่าโดยสาร</span>
-        <span class="info-value fare">฿{{ request.estimated_fare?.toLocaleString() || '-' }}</span>
+        <span class="info-value fare"
+          >฿{{ request.estimated_fare?.toLocaleString() || "-" }}</span
+        >
       </div>
     </div>
-    
+
+    <!-- Promo Badge (if customer used promo code) -->
+    <div v-if="request.promo_code" class="promo-section">
+      <PromoInfoBadge service-type="ride" :request-id="request.id" />
+    </div>
+
     <div class="card-actions">
-      <button type="button" class="decline-btn" @click="emit('decline')">ปฏิเสธ</button>
-      <button type="button" class="accept-btn" @click="emit('accept')">รับงาน</button>
+      <button type="button" class="decline-btn" @click="emit('decline')">
+        ปฏิเสธ
+      </button>
+      <button type="button" class="accept-btn" @click="emit('accept')">
+        รับงาน
+      </button>
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .ride-request-card {
@@ -187,7 +216,9 @@ const formatDistance = (meters?: number) => {
   color: #000;
 }
 
-.customer-details { flex: 1; }
+.customer-details {
+  flex: 1;
+}
 
 .customer-name {
   font-size: 16px;
@@ -204,7 +235,9 @@ const formatDistance = (meters?: number) => {
   color: #6b6b6b;
 }
 
-.customer-rating svg { color: #ffc107; }
+.customer-rating svg {
+  color: #ffc107;
+}
 
 .payment-badge {
   font-size: 12px;
@@ -226,7 +259,9 @@ const formatDistance = (meters?: number) => {
   gap: 12px;
 }
 
-.route-point.pickup { margin-bottom: 12px; }
+.route-point.pickup {
+  margin-bottom: 12px;
+}
 
 .point-dot {
   width: 12px;
@@ -236,8 +271,12 @@ const formatDistance = (meters?: number) => {
   flex-shrink: 0;
 }
 
-.pickup .point-dot { background: #2e7d32; }
-.destination .point-dot { border: 3px solid #000; }
+.pickup .point-dot {
+  background: #2e7d32;
+}
+.destination .point-dot {
+  border: 3px solid #000;
+}
 
 .route-line {
   position: absolute;
@@ -268,7 +307,9 @@ const formatDistance = (meters?: number) => {
   gap: 24px;
 }
 
-.info-item { flex: 1; }
+.info-item {
+  flex: 1;
+}
 
 .info-label {
   font-size: 12px;
@@ -282,7 +323,13 @@ const formatDistance = (meters?: number) => {
   color: #000;
 }
 
-.info-value.fare { color: #2e7d32; }
+.info-value.fare {
+  color: #2e7d32;
+}
+
+.promo-section {
+  padding: 8px 20px 16px;
+}
 
 .card-actions {
   display: flex;
@@ -290,7 +337,8 @@ const formatDistance = (meters?: number) => {
   padding: 16px 20px;
 }
 
-.decline-btn, .accept-btn {
+.decline-btn,
+.accept-btn {
   flex: 1;
   padding: 16px;
   border: none;
@@ -310,5 +358,7 @@ const formatDistance = (meters?: number) => {
   color: #fff;
 }
 
-.accept-btn:hover { background: #1b5e20; }
+.accept-btn:hover {
+  background: #1b5e20;
+}
 </style>

@@ -4,289 +4,383 @@
  * MUNEEF Style UI - Clean and Modern
  * Enhanced UX Flow: 1.จุดรับ → 2.จุดส่ง → 3.รายละเอียด → 4.ยืนยัน
  */
-import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import MapView from '../components/MapView.vue'
-import LocationPicker from '../components/LocationPicker.vue'
-import { useLocation, type GeoLocation } from '../composables/useLocation'
-import { useDelivery, QUALITY_PRESETS, type ImageQuality } from '../composables/useDelivery'
-import { useServices } from '../composables/useServices'
-import { useAuthStore } from '../stores/auth'
-import type { PlaceResult } from '../composables/usePlaceSearch'
+import { ref, computed, watch, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import MapView from "../components/MapView.vue";
+import LocationPicker from "../components/LocationPicker.vue";
+import PromoCodeInput from "../components/shared/PromoCodeInput.vue";
+import { useLocation, type GeoLocation } from "../composables/useLocation";
+import {
+  useDelivery,
+  QUALITY_PRESETS,
+  type ImageQuality,
+} from "../composables/useDelivery";
+import { useServices } from "../composables/useServices";
+import { usePromoSystem } from "../composables/usePromoSystem";
+import { useWallet } from "../composables/useWallet";
+import { useAuthStore } from "../stores/auth";
+import type { PlaceResult } from "../composables/usePlaceSearch";
 
-const router = useRouter()
-const authStore = useAuthStore()
-const { calculateDistance, getCurrentPosition } = useLocation()
-const { createDeliveryRequest, calculateFee, calculateTimeRange, uploadPackagePhoto, compressImage, loading, error: deliveryError, clearError } = useDelivery()
-const { homePlace, workPlace, recentPlaces, savedPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
+const router = useRouter();
+const authStore = useAuthStore();
+const { calculateDistance, getCurrentPosition } = useLocation();
+const {
+  createDeliveryRequest,
+  calculateFee,
+  calculateTimeRange,
+  uploadPackagePhoto,
+  compressImage,
+  loading,
+  error: deliveryError,
+  clearError,
+} = useDelivery();
+const {
+  homePlace,
+  workPlace,
+  recentPlaces,
+  savedPlaces,
+  fetchSavedPlaces,
+  fetchRecentPlaces,
+} = useServices();
+const promoSystem = usePromoSystem();
+const wallet = useWallet();
 
 // Step Flow
-type Step = 'pickup' | 'dropoff' | 'details' | 'confirm'
-const currentStep = ref<Step>('pickup')
+type Step = "pickup" | "dropoff" | "details" | "confirm";
+const currentStep = ref<Step>("pickup");
 
 // UI State
-const isGettingLocation = ref(false)
-const showPickupMapPicker = ref(false)
-const showDropoffMapPicker = ref(false)
-const pressedButton = ref<string | null>(null)
-const showExitConfirm = ref(false)
+const isGettingLocation = ref(false);
+const showPickupMapPicker = ref(false);
+const showDropoffMapPicker = ref(false);
+const pressedButton = ref<string | null>(null);
+const showExitConfirm = ref(false);
 
 // Swipe gesture state
-const touchStartX = ref(0)
-const touchStartY = ref(0)
-const isSwiping = ref(false)
-const swipeThreshold = 80 // minimum swipe distance
-const swipeOffset = ref(0) // For visual feedback during swipe
-const stepDirection = ref<'next' | 'prev' | null>(null) // For animation direction
+const touchStartX = ref(0);
+const touchStartY = ref(0);
+const isSwiping = ref(false);
+const swipeThreshold = 80; // minimum swipe distance
+const swipeOffset = ref(0); // For visual feedback during swipe
+const stepDirection = ref<"next" | "prev" | null>(null); // For animation direction
 
 // Sender info
-const senderName = ref('')
-const senderPhone = ref('')
-const senderAddress = ref('')
-const senderLocation = ref<GeoLocation | null>(null)
+const senderName = ref("");
+const senderPhone = ref("");
+const senderAddress = ref("");
+const senderLocation = ref<GeoLocation | null>(null);
 
 // Recipient info
-const recipientName = ref('')
-const recipientPhone = ref('')
-const recipientAddress = ref('')
-const recipientLocation = ref<GeoLocation | null>(null)
+const recipientName = ref("");
+const recipientPhone = ref("");
+const recipientAddress = ref("");
+const recipientLocation = ref<GeoLocation | null>(null);
 
 // Package info
-const packageDescription = ref('')
-const packageWeight = ref('1')
-const packageType = ref<'document' | 'small' | 'medium' | 'large'>('small')
-const specialInstructions = ref('')
+const packageDescription = ref("");
+const packageWeight = ref("1");
+const packageType = ref<"document" | "small" | "medium" | "large">("small");
+const specialInstructions = ref("");
 
 // Package photo
-const packagePhoto = ref<string | null>(null)
-const packagePhotoFile = ref<File | null>(null)
-const isUploadingPhoto = ref(false)
-const photoInputRef = ref<HTMLInputElement | null>(null)
-const selectedQuality = ref<ImageQuality>('medium')
-const showQualitySelector = ref(false)
+const packagePhoto = ref<string | null>(null);
+const packagePhotoFile = ref<File | null>(null);
+const isUploadingPhoto = ref(false);
+const photoInputRef = ref<HTMLInputElement | null>(null);
+const selectedQuality = ref<ImageQuality>("medium");
+const showQualitySelector = ref(false);
 
 // Results
-const deliveryFee = ref(0)
-const estimatedTime = ref(0)
-const estimatedTimeRange = ref({ min: 15, max: 30 })
-const estimatedDistance = ref(0)
+const deliveryFee = ref(0);
+const estimatedTime = ref(0);
+const estimatedTimeRange = ref({ min: 15, max: 30 });
+const estimatedDistance = ref(0);
+
+// Promo state
+const appliedPromo = ref<{
+  code: string;
+  promoId: string;
+  discountAmount: number;
+} | null>(null);
+const promoDiscount = ref(0);
+
+// Final price after discount
+const finalPrice = computed(() =>
+  Math.max(0, deliveryFee.value - promoDiscount.value)
+);
 
 // Favorite places (not home/work)
-const favoritePlaces = computed(() => 
-  savedPlaces.value.filter(p => p.place_type === 'other').slice(0, 3)
-)
+const favoritePlaces = computed(() =>
+  savedPlaces.value.filter((p) => p.place_type === "other").slice(0, 3)
+);
 
 // Step labels
 const stepLabels = [
-  { key: 'pickup', label: 'จุดรับ', number: 1 },
-  { key: 'dropoff', label: 'จุดส่ง', number: 2 },
-  { key: 'details', label: 'รายละเอียด', number: 3 },
-  { key: 'confirm', label: 'ยืนยัน', number: 4 }
-] as const
+  { key: "pickup", label: "จุดรับ", number: 1 },
+  { key: "dropoff", label: "จุดส่ง", number: 2 },
+  { key: "details", label: "รายละเอียด", number: 3 },
+  { key: "confirm", label: "ยืนยัน", number: 4 },
+] as const;
 
-const currentStepIndex = computed(() => stepLabels.findIndex(s => s.key === currentStep.value))
+const currentStepIndex = computed(() =>
+  stepLabels.findIndex((s) => s.key === currentStep.value)
+);
 
 // Package types with SVG icons
 const packageTypes = [
-  { value: 'document', label: 'เอกสาร', maxWeight: 0.5, desc: 'จดหมาย, สัญญา' },
-  { value: 'small', label: 'เล็ก', maxWeight: 5, desc: 'กล่องเล็ก, ซอง' },
-  { value: 'medium', label: 'กลาง', maxWeight: 15, desc: 'กล่องกลาง' },
-  { value: 'large', label: 'ใหญ่', maxWeight: 30, desc: 'กล่องใหญ่' }
-] as const
+  { value: "document", label: "เอกสาร", maxWeight: 0.5, desc: "จดหมาย, สัญญา" },
+  { value: "small", label: "เล็ก", maxWeight: 5, desc: "กล่องเล็ก, ซอง" },
+  { value: "medium", label: "กลาง", maxWeight: 15, desc: "กล่องกลาง" },
+  { value: "large", label: "ใหญ่", maxWeight: 30, desc: "กล่องใหญ่" },
+] as const;
 
-fetchSavedPlaces()
-fetchRecentPlaces()
+fetchSavedPlaces();
+fetchRecentPlaces();
 
-onMounted(() => {
+onMounted(async () => {
   if (authStore.user) {
-    senderName.value = (authStore.user as any).first_name || authStore.user.name || ''
-    senderPhone.value = (authStore.user as any).phone_number || authStore.user.phone || ''
+    senderName.value =
+      (authStore.user as any).first_name || authStore.user.name || "";
+    senderPhone.value =
+      (authStore.user as any).phone_number || authStore.user.phone || "";
+    // Fetch wallet balance
+    await wallet.fetchBalance();
   }
-})
+});
+
+// Wallet balance check (Delivery uses wallet by default)
+const walletBalance = computed(() => wallet.balance.value?.balance || 0);
+const hasInsufficientBalance = computed(() => {
+  return walletBalance.value < finalPrice.value;
+});
 
 // Auto calculate when both locations set
 const autoCalculate = () => {
   if (senderLocation.value && recipientLocation.value) {
     estimatedDistance.value = calculateDistance(
-      senderLocation.value.lat, senderLocation.value.lng,
-      recipientLocation.value.lat, recipientLocation.value.lng
-    )
-    estimatedTime.value = Math.ceil((estimatedDistance.value / 25) * 60)
-    estimatedTimeRange.value = calculateTimeRange(estimatedDistance.value)
-    deliveryFee.value = calculateFee(estimatedDistance.value, packageType.value)
+      senderLocation.value.lat,
+      senderLocation.value.lng,
+      recipientLocation.value.lat,
+      recipientLocation.value.lng
+    );
+    estimatedTime.value = Math.ceil((estimatedDistance.value / 25) * 60);
+    estimatedTimeRange.value = calculateTimeRange(estimatedDistance.value);
+    deliveryFee.value = calculateFee(
+      estimatedDistance.value,
+      packageType.value
+    );
   }
-}
+};
 
 // Photo upload handlers
 const triggerPhotoUpload = () => {
-  photoInputRef.value?.click()
-}
+  photoInputRef.value?.click();
+};
 
 const handlePhotoSelect = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  
-  triggerHaptic('light')
-  isUploadingPhoto.value = true
-  
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  triggerHaptic("light");
+  isUploadingPhoto.value = true;
+
   try {
     // Compress image using selected quality preset
-    const compressedFile = await compressImage(file, selectedQuality.value)
-    packagePhotoFile.value = compressedFile
-    
+    const compressedFile = await compressImage(file, selectedQuality.value);
+    packagePhotoFile.value = compressedFile;
+
     // Create preview URL
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = (e) => {
-      packagePhoto.value = e.target?.result as string
-    }
-    reader.readAsDataURL(compressedFile)
-    
-    triggerHaptic('medium')
+      packagePhoto.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(compressedFile);
+
+    triggerHaptic("medium");
   } catch (err) {
-    console.error('Error processing photo:', err)
-    alert('ไม่สามารถประมวลผลรูปภาพได้ กรุณาลองใหม่')
+    console.error("Error processing photo:", err);
+    alert("ไม่สามารถประมวลผลรูปภาพได้ กรุณาลองใหม่");
   } finally {
-    isUploadingPhoto.value = false
+    isUploadingPhoto.value = false;
   }
-}
+};
 
 const selectQuality = (quality: ImageQuality) => {
-  triggerHaptic('light')
-  selectedQuality.value = quality
-  showQualitySelector.value = false
-}
+  triggerHaptic("light");
+  selectedQuality.value = quality;
+  showQualitySelector.value = false;
+};
 
 const removePhoto = () => {
-  triggerHaptic('light')
-  packagePhoto.value = null
-  packagePhotoFile.value = null
+  triggerHaptic("light");
+  packagePhoto.value = null;
+  packagePhotoFile.value = null;
   if (photoInputRef.value) {
-    photoInputRef.value.value = ''
+    photoInputRef.value.value = "";
   }
-}
+};
 
-watch([senderLocation, recipientLocation, packageType], autoCalculate)
+watch([senderLocation, recipientLocation, packageType], autoCalculate);
 
-const canSubmit = computed(() => 
-  senderLocation.value && recipientLocation.value && recipientPhone.value
-)
+const canSubmit = computed(
+  () => senderLocation.value && recipientLocation.value && recipientPhone.value
+);
 
-const hasRoute = computed(() => !!(senderLocation.value && recipientLocation.value))
+const hasRoute = computed(
+  () => !!(senderLocation.value && recipientLocation.value)
+);
 
 // Haptic feedback
-const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
-  if ('vibrate' in navigator) {
-    const patterns = { light: 10, medium: 25, heavy: 50 }
-    navigator.vibrate(patterns[type])
+const triggerHaptic = (type: "light" | "medium" | "heavy" = "light") => {
+  if ("vibrate" in navigator) {
+    const patterns = { light: 10, medium: 25, heavy: 50 };
+    navigator.vibrate(patterns[type]);
   }
-}
+};
 
 const handleButtonPress = (id: string) => {
-  pressedButton.value = id
-  triggerHaptic('light')
-}
+  pressedButton.value = id;
+  triggerHaptic("light");
+};
 
 const handleButtonRelease = () => {
-  pressedButton.value = null
-}
+  pressedButton.value = null;
+};
 
 // Use current location
 const useCurrentLocationForPickup = async () => {
-  isGettingLocation.value = true
-  triggerHaptic('medium')
-  
+  isGettingLocation.value = true;
+  triggerHaptic("medium");
+
   try {
-    const loc = await getCurrentPosition()
+    const loc = await getCurrentPosition();
     if (loc) {
-      senderLocation.value = loc
-      senderAddress.value = loc.address || 'ตำแหน่งปัจจุบัน'
-      triggerHaptic('heavy')
-      await new Promise(resolve => setTimeout(resolve, 200))
-      currentStep.value = 'dropoff'
+      senderLocation.value = loc;
+      senderAddress.value = loc.address || "ตำแหน่งปัจจุบัน";
+      triggerHaptic("heavy");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      currentStep.value = "dropoff";
     }
   } catch {
-    alert('ไม่สามารถระบุตำแหน่งได้ กรุณาลองใหม่')
+    alert("ไม่สามารถระบุตำแหน่งได้ กรุณาลองใหม่");
   } finally {
-    isGettingLocation.value = false
+    isGettingLocation.value = false;
   }
-}
+};
 
 // Handle place selections
 void function handlePickupSelect(place: PlaceResult) {
-  triggerHaptic('light')
-  senderAddress.value = place.name
-  senderLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
-  currentStep.value = 'dropoff'
-}
+  triggerHaptic("light");
+  senderAddress.value = place.name;
+  senderLocation.value = {
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address,
+  };
+  currentStep.value = "dropoff";
+};
 
 void function handleDropoffSelect(place: PlaceResult) {
-  triggerHaptic('light')
-  recipientAddress.value = place.name
-  recipientLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
-  currentStep.value = 'details'
-}
+  triggerHaptic("light");
+  recipientAddress.value = place.name;
+  recipientLocation.value = {
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address,
+  };
+  currentStep.value = "details";
+};
 
 const selectSavedPlaceForPickup = (place: any) => {
-  triggerHaptic('medium')
-  senderAddress.value = place.name
-  senderLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
-  currentStep.value = 'dropoff'
-}
+  triggerHaptic("medium");
+  senderAddress.value = place.name;
+  senderLocation.value = {
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address,
+  };
+  currentStep.value = "dropoff";
+};
 
 const selectSavedPlaceForDropoff = (place: any) => {
-  triggerHaptic('medium')
-  recipientAddress.value = place.name
-  recipientLocation.value = { lat: place.lat, lng: place.lng, address: place.address }
-  currentStep.value = 'details'
-}
+  triggerHaptic("medium");
+  recipientAddress.value = place.name;
+  recipientLocation.value = {
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address,
+  };
+  currentStep.value = "details";
+};
 
-const handleMapPickerConfirm = (location: GeoLocation, type: 'pickup' | 'dropoff') => {
-  triggerHaptic('heavy')
-  if (type === 'pickup') {
-    senderLocation.value = location
-    senderAddress.value = location.address
-    showPickupMapPicker.value = false
-    currentStep.value = 'dropoff'
+const handleMapPickerConfirm = (
+  location: GeoLocation,
+  type: "pickup" | "dropoff"
+) => {
+  triggerHaptic("heavy");
+  if (type === "pickup") {
+    senderLocation.value = location;
+    senderAddress.value = location.address;
+    showPickupMapPicker.value = false;
+    currentStep.value = "dropoff";
   } else {
-    recipientLocation.value = location
-    recipientAddress.value = location.address
-    showDropoffMapPicker.value = false
-    currentStep.value = 'details'
+    recipientLocation.value = location;
+    recipientAddress.value = location.address;
+    showDropoffMapPicker.value = false;
+    currentStep.value = "details";
   }
-}
+};
 
-const handleRouteCalculated = (data: { distance: number; duration: number }) => {
-  estimatedDistance.value = data.distance
-  estimatedTime.value = data.duration
-  deliveryFee.value = calculateFee(data.distance, packageType.value)
-}
+const handleRouteCalculated = (data: {
+  distance: number;
+  duration: number;
+}) => {
+  estimatedDistance.value = data.distance;
+  estimatedTime.value = data.duration;
+  deliveryFee.value = calculateFee(data.distance, packageType.value);
+};
 
-const selectPackageType = (type: 'document' | 'small' | 'medium' | 'large') => {
-  triggerHaptic('light')
-  packageType.value = type
-}
+const handlePromoDiscount = (amount: number) => {
+  promoDiscount.value = amount;
+};
+
+const selectPackageType = (type: "document" | "small" | "medium" | "large") => {
+  triggerHaptic("light");
+  packageType.value = type;
+};
 
 const handleSubmit = async () => {
-  clearError()
-  if (!canSubmit.value || !senderLocation.value || !recipientLocation.value) return
-  
-  triggerHaptic('heavy')
-  
-  // Upload photo if exists
-  let uploadedPhotoUrl: string | undefined
-  if (packagePhotoFile.value) {
-    isUploadingPhoto.value = true
-    uploadedPhotoUrl = (await uploadPackagePhoto(packagePhotoFile.value)) || undefined
-    isUploadingPhoto.value = false
+  clearError();
+  if (!canSubmit.value || !senderLocation.value || !recipientLocation.value)
+    return;
+
+  // Check wallet balance before submit
+  await wallet.fetchBalance(); // Refresh balance
+  if (walletBalance.value < finalPrice.value) {
+    alert(
+      `ยอดเงินในกระเป๋าไม่เพียงพอ\nคงเหลือ: ฿${walletBalance.value.toLocaleString()}\nค่าส่ง: ฿${finalPrice.value.toLocaleString()}\n\nกรุณาเติมเงินก่อนสั่งบริการ`
+    );
+    return;
   }
-  
+
+  triggerHaptic("heavy");
+
+  // Upload photo if exists
+  let uploadedPhotoUrl: string | undefined;
+  if (packagePhotoFile.value) {
+    isUploadingPhoto.value = true;
+    uploadedPhotoUrl =
+      (await uploadPackagePhoto(packagePhotoFile.value)) || undefined;
+    isUploadingPhoto.value = false;
+  }
+
   const result = await createDeliveryRequest({
-    senderName: senderName.value || 'ผู้ส่ง',
+    senderName: senderName.value || "ผู้ส่ง",
     senderPhone: senderPhone.value,
     senderAddress: senderAddress.value,
     senderLocation: senderLocation.value,
-    recipientName: recipientName.value || 'ผู้รับ',
+    recipientName: recipientName.value || "ผู้รับ",
     recipientPhone: recipientPhone.value,
     recipientAddress: recipientAddress.value,
     recipientLocation: recipientLocation.value,
@@ -294,142 +388,167 @@ const handleSubmit = async () => {
     packageWeight: parseFloat(packageWeight.value) || 1,
     packageDescription: packageDescription.value || specialInstructions.value,
     packagePhoto: uploadedPhotoUrl,
-    distanceKm: estimatedDistance.value
-  })
-  
+    distanceKm: estimatedDistance.value,
+  });
+
   if (result) {
-    router.push(`/tracking/${result.tracking_id}`)
+    // Apply promo if selected
+    if (appliedPromo.value && result.id) {
+      await promoSystem.applyPromoToRequest(
+        "delivery",
+        result.id,
+        appliedPromo.value.code,
+        appliedPromo.value.promoId,
+        appliedPromo.value.discountAmount
+      );
+      // Record usage
+      await promoSystem.applyPromoCode(
+        appliedPromo.value.code,
+        "delivery",
+        result.id,
+        deliveryFee.value,
+        appliedPromo.value.discountAmount
+      );
+    }
+    router.push(`/tracking/${result.tracking_id}`);
   }
-}
+};
 
 const goBack = () => {
-  triggerHaptic('light')
-  if (currentStep.value === 'dropoff') currentStep.value = 'pickup'
-  else if (currentStep.value === 'details') currentStep.value = 'dropoff'
-  else if (currentStep.value === 'confirm') currentStep.value = 'details'
-  else router.push('/customer')
-}
+  triggerHaptic("light");
+  if (currentStep.value === "dropoff") currentStep.value = "pickup";
+  else if (currentStep.value === "details") currentStep.value = "dropoff";
+  else if (currentStep.value === "confirm") currentStep.value = "details";
+  else router.push("/customer");
+};
 
 // Check if user has entered any data
 const hasEnteredData = computed(() => {
-  return senderAddress.value || recipientAddress.value || 
-         packageDescription.value || specialInstructions.value ||
-         packagePhoto.value !== null
-})
+  return (
+    senderAddress.value ||
+    recipientAddress.value ||
+    packageDescription.value ||
+    specialInstructions.value ||
+    packagePhoto.value !== null
+  );
+});
 
 const goHome = () => {
-  triggerHaptic('medium')
+  triggerHaptic("medium");
   if (hasEnteredData.value) {
-    showExitConfirm.value = true
+    showExitConfirm.value = true;
   } else {
-    router.push('/customer')
+    router.push("/customer");
   }
-}
+};
 
 const confirmExit = () => {
-  triggerHaptic('heavy')
-  showExitConfirm.value = false
-  router.push('/customer')
-}
+  triggerHaptic("heavy");
+  showExitConfirm.value = false;
+  router.push("/customer");
+};
 
 const cancelExit = () => {
-  triggerHaptic('light')
-  showExitConfirm.value = false
-}
+  triggerHaptic("light");
+  showExitConfirm.value = false;
+};
 
 // Swipe gesture handlers
 const handleTouchStart = (e: TouchEvent) => {
-  if (showPickupMapPicker.value || showDropoffMapPicker.value) return
-  const touch = e.touches[0]
+  if (showPickupMapPicker.value || showDropoffMapPicker.value) return;
+  const touch = e.touches[0];
   if (touch) {
-    touchStartX.value = touch.clientX
-    touchStartY.value = touch.clientY
-    isSwiping.value = true
-    swipeOffset.value = 0
+    touchStartX.value = touch.clientX;
+    touchStartY.value = touch.clientY;
+    isSwiping.value = true;
+    swipeOffset.value = 0;
   }
-}
+};
 
 const handleTouchMove = (e: TouchEvent) => {
-  if (!isSwiping.value) return
-  const touch = e.touches[0]
-  if (!touch) return
-  
-  const deltaX = touch.clientX - touchStartX.value
-  const deltaY = touch.clientY - touchStartY.value
-  
+  if (!isSwiping.value) return;
+  const touch = e.touches[0];
+  if (!touch) return;
+
+  const deltaX = touch.clientX - touchStartX.value;
+  const deltaY = touch.clientY - touchStartY.value;
+
   // Only track horizontal swipes
   if (Math.abs(deltaX) > Math.abs(deltaY)) {
     // Limit swipe offset with resistance
-    const maxOffset = 100
-    swipeOffset.value = Math.max(-maxOffset, Math.min(maxOffset, deltaX * 0.5))
+    const maxOffset = 100;
+    swipeOffset.value = Math.max(-maxOffset, Math.min(maxOffset, deltaX * 0.5));
   }
-}
+};
 
 const handleTouchEnd = (e: TouchEvent) => {
-  if (!isSwiping.value) return
-  isSwiping.value = false
-  
-  const touch = e.changedTouches[0]
-  if (!touch) return
-  
-  const deltaX = touch.clientX - touchStartX.value
-  const deltaY = touch.clientY - touchStartY.value
-  
+  if (!isSwiping.value) return;
+  isSwiping.value = false;
+
+  const touch = e.changedTouches[0];
+  if (!touch) return;
+
+  const deltaX = touch.clientX - touchStartX.value;
+  const deltaY = touch.clientY - touchStartY.value;
+
   // Only trigger if horizontal swipe is dominant
-  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
+  if (
+    Math.abs(deltaX) > Math.abs(deltaY) &&
+    Math.abs(deltaX) > swipeThreshold
+  ) {
     if (deltaX > 0) {
       // Swipe right - go back
-      stepDirection.value = 'prev'
-      goBack()
+      stepDirection.value = "prev";
+      goBack();
     } else {
       // Swipe left - go next (if allowed)
-      stepDirection.value = 'next'
-      handleSwipeNext()
+      stepDirection.value = "next";
+      handleSwipeNext();
     }
   }
-  
+
   // Reset swipe offset with animation
-  swipeOffset.value = 0
-  
+  swipeOffset.value = 0;
+
   // Reset direction after animation
   setTimeout(() => {
-    stepDirection.value = null
-  }, 300)
-}
+    stepDirection.value = null;
+  }, 300);
+};
 
 const handleSwipeNext = () => {
-  if (currentStep.value === 'pickup' && senderLocation.value) {
-    triggerHaptic('medium')
-    currentStep.value = 'dropoff'
-  } else if (currentStep.value === 'dropoff' && recipientLocation.value) {
-    triggerHaptic('medium')
-    currentStep.value = 'details'
-  } else if (currentStep.value === 'details' && recipientPhone.value) {
-    triggerHaptic('medium')
-    currentStep.value = 'confirm'
+  if (currentStep.value === "pickup" && senderLocation.value) {
+    triggerHaptic("medium");
+    currentStep.value = "dropoff";
+  } else if (currentStep.value === "dropoff" && recipientLocation.value) {
+    triggerHaptic("medium");
+    currentStep.value = "details";
+  } else if (currentStep.value === "details" && recipientPhone.value) {
+    triggerHaptic("medium");
+    currentStep.value = "confirm";
   }
-}
+};
 
 const goToStep = (targetStep: Step) => {
-  const targetIndex = stepLabels.findIndex(s => s.key === targetStep)
+  const targetIndex = stepLabels.findIndex((s) => s.key === targetStep);
   if (targetIndex <= currentStepIndex.value) {
-    currentStep.value = targetStep
+    currentStep.value = targetStep;
   }
-}
+};
 
 const clearPickup = () => {
-  senderLocation.value = null
-  senderAddress.value = ''
-}
+  senderLocation.value = null;
+  senderAddress.value = "";
+};
 
 const clearDropoff = () => {
-  recipientLocation.value = null
-  recipientAddress.value = ''
-}
+  recipientLocation.value = null;
+  recipientAddress.value = "";
+};
 </script>
 
 <template>
-  <div 
+  <div
     class="delivery-page"
     @touchstart="handleTouchStart"
     @touchmove="handleTouchMove"
@@ -437,19 +556,32 @@ const clearDropoff = () => {
   >
     <!-- Exit Confirmation Dialog -->
     <Transition name="modal">
-      <div v-if="showExitConfirm" class="confirm-overlay" @click.self="cancelExit">
+      <div
+        v-if="showExitConfirm"
+        class="confirm-overlay"
+        @click.self="cancelExit"
+      >
         <div class="confirm-dialog">
           <div class="confirm-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#F5A623"
+              stroke-width="2"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
           <h3 class="confirm-title">ออกจากหน้านี้?</h3>
           <p class="confirm-message">ข้อมูลที่กรอกไว้จะหายไป</p>
           <div class="confirm-actions">
-            <button class="confirm-btn cancel" @click="cancelExit">ยกเลิก</button>
+            <button class="confirm-btn cancel" @click="cancelExit">
+              ยกเลิก
+            </button>
             <button class="confirm-btn exit" @click="confirmExit">ออก</button>
           </div>
         </div>
@@ -460,15 +592,31 @@ const clearDropoff = () => {
     <Transition name="toast">
       <div v-if="deliveryError" class="error-toast" @click="clearError">
         <div class="error-icon">
-          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" stroke-width="2"/>
-            <path stroke-linecap="round" stroke-width="2" d="M12 8v4m0 4h.01"/>
+          <svg
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="12" r="10" stroke-width="2" />
+            <path stroke-linecap="round" stroke-width="2" d="M12 8v4m0 4h.01" />
           </svg>
         </div>
         <span class="error-message">{{ deliveryError }}</span>
         <button class="error-close" @click.stop="clearError">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          <svg
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -477,15 +625,25 @@ const clearDropoff = () => {
     <!-- Top Bar (Fixed at top) -->
     <div class="top-bar">
       <button class="nav-btn" @click="goBack">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 18l-6-6 6-6"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
       <span class="page-title">ส่งพัสดุ</span>
       <button class="nav-btn home-btn" @click="goHome" title="กลับหน้าหลัก">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-          <polyline points="9,22 9,12 15,12 15,22"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          <polyline points="9,22 9,12 15,12 15,22" />
         </svg>
       </button>
     </div>
@@ -502,25 +660,38 @@ const clearDropoff = () => {
     </div>
 
     <!-- Bottom Panel -->
-    <div class="bottom-panel" :class="{ expanded: currentStep === 'details' || currentStep === 'confirm' }">
+    <div
+      class="bottom-panel"
+      :class="{
+        expanded: currentStep === 'details' || currentStep === 'confirm',
+      }"
+    >
       <div class="panel-handle"></div>
-      
+
       <!-- Step Indicator -->
       <div class="step-indicator">
-        <div 
-          v-for="(s, index) in stepLabels" 
+        <div
+          v-for="(s, index) in stepLabels"
           :key="s.key"
-          :class="['step-item', { 
-            active: s.key === currentStep, 
-            completed: index < currentStepIndex,
-            clickable: index < currentStepIndex
-          }]"
+          :class="[
+            'step-item',
+            {
+              active: s.key === currentStep,
+              completed: index < currentStepIndex,
+              clickable: index < currentStepIndex,
+            },
+          ]"
           @click="goToStep(s.key)"
         >
           <div class="step-number">
             <template v-if="index < currentStepIndex">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+              >
+                <path d="M20 6L9 17l-5-5" />
               </svg>
             </template>
             <template v-else>{{ s.number }}</template>
@@ -531,31 +702,63 @@ const clearDropoff = () => {
 
       <!-- Swipe Indicator -->
       <Transition name="fade">
-        <div v-if="isSwiping && Math.abs(swipeOffset) > 20" class="swipe-indicator" :class="{ 'swipe-left': swipeOffset < 0, 'swipe-right': swipeOffset > 0 }">
+        <div
+          v-if="isSwiping && Math.abs(swipeOffset) > 20"
+          class="swipe-indicator"
+          :class="{
+            'swipe-left': swipeOffset < 0,
+            'swipe-right': swipeOffset > 0,
+          }"
+        >
           <div class="swipe-arrow">
-            <svg v-if="swipeOffset > 0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 18l-6-6 6-6"/>
+            <svg
+              v-if="swipeOffset > 0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M15 18l-6-6 6-6" />
             </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
+            <svg
+              v-else
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M9 18l6-6-6-6" />
             </svg>
           </div>
-          <span class="swipe-text">{{ swipeOffset > 0 ? 'ย้อนกลับ' : 'ถัดไป' }}</span>
+          <span class="swipe-text">{{
+            swipeOffset > 0 ? "ย้อนกลับ" : "ถัดไป"
+          }}</span>
         </div>
       </Transition>
 
       <!-- Step 1: จุดรับพัสดุ -->
       <template v-if="currentStep === 'pickup'">
-        <div 
+        <div
           class="step-content animate-step"
-          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
-          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+          :class="{
+            'step-next': stepDirection === 'next',
+            'step-prev': stepDirection === 'prev',
+          }"
+          :style="{
+            transform: `translateX(${swipeOffset}px)`,
+            opacity: 1 - Math.abs(swipeOffset) / 200,
+          }"
         >
           <div class="step-header">
             <div class="step-header-icon pickup-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
               </svg>
             </div>
             <div class="step-header-text">
@@ -566,7 +769,7 @@ const clearDropoff = () => {
 
           <!-- Quick Location Cards -->
           <div class="quick-location-cards">
-            <button 
+            <button
               class="location-card-btn current-location"
               :class="{ 'is-loading': isGettingLocation }"
               @click="useCurrentLocationForPickup"
@@ -577,39 +780,57 @@ const clearDropoff = () => {
                   <div class="mini-spinner green"></div>
                 </template>
                 <template v-else>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="8"/>
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="8" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
                   </svg>
                 </template>
               </div>
               <span class="location-card-label">ตำแหน่งปัจจุบัน</span>
             </button>
 
-            <button 
+            <button
               v-if="homePlace"
               class="location-card-btn home-location"
               @click="selectSavedPlaceForPickup(homePlace)"
             >
               <div class="location-card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                  <polyline points="9,22 9,12 15,12 15,22"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                  <polyline points="9,22 9,12 15,12 15,22" />
                 </svg>
               </div>
               <span class="location-card-label">บ้าน</span>
             </button>
 
-            <button 
+            <button
               v-if="!homePlace"
               class="location-card-btn nearby-location"
-              @click="showPickupMapPicker = true; triggerHaptic('light')"
+              @click="
+                showPickupMapPicker = true;
+                triggerHaptic('light');
+              "
             >
               <div class="location-card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                  <circle cx="12" cy="10" r="3"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                  <circle cx="12" cy="10" r="3" />
                 </svg>
               </div>
               <span class="location-card-label">พื้นที่ใกล้เคียง</span>
@@ -617,35 +838,54 @@ const clearDropoff = () => {
           </div>
 
           <!-- Map Picker Button -->
-          <button 
+          <button
             class="map-picker-btn-full"
-            @click="showPickupMapPicker = true; triggerHaptic('light')"
+            @click="
+              showPickupMapPicker = true;
+              triggerHaptic('light');
+            "
           >
             <div class="map-picker-icon-wrapper">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                <circle cx="12" cy="10" r="3"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
               </svg>
             </div>
             <div class="map-picker-text-content">
               <span class="map-picker-title">เลือกจากแผนที่</span>
               <span class="map-picker-subtitle">ปักหมุดตำแหน่งบนแผนที่</span>
             </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="map-picker-arrow-icon">
-              <path d="M9 18l6-6-6-6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="map-picker-arrow-icon"
+            >
+              <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
 
           <!-- Work Place (if available) -->
           <div v-if="workPlace" class="quick-destinations-row">
-            <button 
+            <button
               class="quick-dest-chip-large"
               @click="selectSavedPlaceForPickup(workPlace)"
             >
               <div class="chip-icon-large work">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="7" width="20" height="14" rx="2"/>
-                  <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="2" y="7" width="20" height="14" rx="2" />
+                  <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
                 </svg>
               </div>
               <span>ที่ทำงาน</span>
@@ -656,17 +896,22 @@ const clearDropoff = () => {
           <div v-if="recentPlaces.length > 0" class="places-section">
             <h4 class="section-title-small">เคยใช้เมื่อเร็วๆ นี้</h4>
             <div class="places-list">
-              <button 
-                v-for="(place, index) in recentPlaces.slice(0, 3)" 
+              <button
+                v-for="(place, index) in recentPlaces.slice(0, 3)"
                 :key="place.id"
                 class="place-item animate-item"
                 :style="{ animationDelay: `${index * 50}ms` }"
                 @click="selectSavedPlaceForPickup(place)"
               >
                 <div class="place-icon recent">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12,6 12,12 16,14"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12,6 12,12 16,14" />
                   </svg>
                 </div>
                 <div class="place-info">
@@ -681,8 +926,13 @@ const clearDropoff = () => {
           <Transition name="scale-fade">
             <div v-if="senderLocation" class="selected-location-card success">
               <div class="success-check">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                  <path d="M20 6L9 17l-5-5"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                >
+                  <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
               <div class="location-marker pickup">
@@ -693,7 +943,13 @@ const clearDropoff = () => {
                 <span class="location-sublabel">จุดรับพัสดุ</span>
                 <span class="location-label">{{ senderAddress }}</span>
               </div>
-              <button class="change-btn" @click="clearPickup; triggerHaptic('light')">
+              <button
+                class="change-btn"
+                @click="
+                  clearPickup;
+                  triggerHaptic('light');
+                "
+              >
                 เปลี่ยน
               </button>
             </div>
@@ -701,14 +957,22 @@ const clearDropoff = () => {
 
           <!-- Continue Button -->
           <Transition name="slide-up">
-            <button 
-              v-if="senderLocation" 
+            <button
+              v-if="senderLocation"
               class="continue-btn primary"
-              @click="currentStep = 'dropoff'; triggerHaptic('medium')"
+              @click="
+                currentStep = 'dropoff';
+                triggerHaptic('medium');
+              "
             >
               <span>ไปเลือกจุดส่ง</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </button>
           </Transition>
@@ -717,16 +981,27 @@ const clearDropoff = () => {
 
       <!-- Step 2: จุดส่งพัสดุ -->
       <template v-else-if="currentStep === 'dropoff'">
-        <div 
+        <div
           class="step-content animate-step"
-          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
-          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+          :class="{
+            'step-next': stepDirection === 'next',
+            'step-prev': stepDirection === 'prev',
+          }"
+          :style="{
+            transform: `translateX(${swipeOffset}px)`,
+            opacity: 1 - Math.abs(swipeOffset) / 200,
+          }"
         >
           <div class="step-header">
             <div class="step-header-icon destination-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                <circle cx="12" cy="10" r="3"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
               </svg>
             </div>
             <div class="step-header-text">
@@ -745,10 +1020,25 @@ const clearDropoff = () => {
                 <span class="route-preview-label">จุดรับ</span>
                 <span class="route-preview-value">{{ senderAddress }}</span>
               </div>
-              <button class="edit-btn" @click="currentStep = 'pickup'; triggerHaptic('light')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              <button
+                class="edit-btn"
+                @click="
+                  currentStep = 'pickup';
+                  triggerHaptic('light');
+                "
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+                  />
+                  <path
+                    d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                  />
                 </svg>
               </button>
             </div>
@@ -759,7 +1049,9 @@ const clearDropoff = () => {
               </div>
               <div class="route-preview-text">
                 <span class="route-preview-label">จุดส่ง</span>
-                <span class="route-preview-placeholder">เลือกจุดส่งด้านล่าง</span>
+                <span class="route-preview-placeholder"
+                  >เลือกจุดส่งด้านล่าง</span
+                >
               </div>
             </div>
           </div>
@@ -768,28 +1060,38 @@ const clearDropoff = () => {
           <div v-if="homePlace || workPlace" class="quick-destinations">
             <h4 class="section-title-small">ส่งไปที่</h4>
             <div class="quick-dest-row">
-              <button 
-                v-if="homePlace" 
+              <button
+                v-if="homePlace"
                 class="quick-dest-chip"
                 @click="selectSavedPlaceForDropoff(homePlace)"
               >
                 <div class="chip-icon home">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                    <polyline points="9,22 9,12 15,12 15,22"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                    <polyline points="9,22 9,12 15,12 15,22" />
                   </svg>
                 </div>
                 <span>บ้าน</span>
               </button>
-              <button 
-                v-if="workPlace" 
+              <button
+                v-if="workPlace"
                 class="quick-dest-chip"
                 @click="selectSavedPlaceForDropoff(workPlace)"
               >
                 <div class="chip-icon work">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="7" width="20" height="14" rx="2"/>
-                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="2" y="7" width="20" height="14" rx="2" />
+                    <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
                   </svg>
                 </div>
                 <span>ที่ทำงาน</span>
@@ -798,22 +1100,36 @@ const clearDropoff = () => {
           </div>
 
           <!-- Map Picker Button -->
-          <button 
+          <button
             class="map-picker-btn"
-            @click="showDropoffMapPicker = true; triggerHaptic('light')"
+            @click="
+              showDropoffMapPicker = true;
+              triggerHaptic('light');
+            "
           >
             <div class="map-picker-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                <circle cx="12" cy="10" r="3"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
               </svg>
             </div>
             <div class="map-picker-text">
               <span class="map-picker-title">เลือกจากแผนที่</span>
               <span class="map-picker-subtitle">ปักหมุดตำแหน่งที่ต้องการ</span>
             </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="map-picker-arrow">
-              <path d="M9 18l6-6-6-6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="map-picker-arrow"
+            >
+              <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
 
@@ -821,8 +1137,8 @@ const clearDropoff = () => {
           <div v-if="favoritePlaces.length > 0" class="places-section">
             <h4 class="section-title-small">สถานที่โปรด</h4>
             <div class="places-list">
-              <button 
-                v-for="(place, index) in favoritePlaces" 
+              <button
+                v-for="(place, index) in favoritePlaces"
                 :key="place.id"
                 class="place-item animate-item"
                 :style="{ animationDelay: `${index * 50}ms` }"
@@ -830,7 +1146,9 @@ const clearDropoff = () => {
               >
                 <div class="place-icon favorite">
                   <svg viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                    <polygon
+                      points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+                    />
                   </svg>
                 </div>
                 <div class="place-info">
@@ -845,17 +1163,24 @@ const clearDropoff = () => {
           <div v-if="recentPlaces.length > 0" class="places-section">
             <h4 class="section-title-small">เคยส่งไป</h4>
             <div class="places-list">
-              <button 
-                v-for="(place, index) in recentPlaces.slice(0, 3)" 
+              <button
+                v-for="(place, index) in recentPlaces.slice(0, 3)"
                 :key="place.id"
                 class="place-item animate-item"
-                :style="{ animationDelay: `${(index + favoritePlaces.length) * 50}ms` }"
+                :style="{
+                  animationDelay: `${(index + favoritePlaces.length) * 50}ms`,
+                }"
                 @click="selectSavedPlaceForDropoff(place)"
               >
                 <div class="place-icon recent">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12,6 12,12 16,14"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12,6 12,12 16,14" />
                   </svg>
                 </div>
                 <div class="place-info">
@@ -868,10 +1193,18 @@ const clearDropoff = () => {
 
           <!-- Selected Location -->
           <Transition name="scale-fade">
-            <div v-if="recipientLocation" class="selected-location-card success destination">
+            <div
+              v-if="recipientLocation"
+              class="selected-location-card success destination"
+            >
               <div class="success-check">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                  <path d="M20 6L9 17l-5-5"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                >
+                  <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
               <div class="location-marker destination">
@@ -882,7 +1215,13 @@ const clearDropoff = () => {
                 <span class="location-sublabel">จุดส่งพัสดุ</span>
                 <span class="location-label">{{ recipientAddress }}</span>
               </div>
-              <button class="change-btn" @click="clearDropoff; triggerHaptic('light')">
+              <button
+                class="change-btn"
+                @click="
+                  clearDropoff;
+                  triggerHaptic('light');
+                "
+              >
                 เปลี่ยน
               </button>
             </div>
@@ -890,14 +1229,22 @@ const clearDropoff = () => {
 
           <!-- Continue Button -->
           <Transition name="slide-up">
-            <button 
-              v-if="recipientLocation" 
+            <button
+              v-if="recipientLocation"
               class="continue-btn primary"
-              @click="currentStep = 'details'; triggerHaptic('medium')"
+              @click="
+                currentStep = 'details';
+                triggerHaptic('medium');
+              "
             >
               <span>ไปกรอกรายละเอียด</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </button>
           </Transition>
@@ -906,16 +1253,27 @@ const clearDropoff = () => {
 
       <!-- Step 3: รายละเอียดพัสดุ -->
       <template v-else-if="currentStep === 'details'">
-        <div 
+        <div
           class="step-content animate-step"
-          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
-          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+          :class="{
+            'step-next': stepDirection === 'next',
+            'step-prev': stepDirection === 'prev',
+          }"
+          :style="{
+            transform: `translateX(${swipeOffset}px)`,
+            opacity: 1 - Math.abs(swipeOffset) / 200,
+          }"
         >
           <div class="step-header">
             <div class="step-header-icon details-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M3 9h18M9 21V9"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 21V9" />
               </svg>
             </div>
             <div class="step-header-text">
@@ -928,8 +1286,15 @@ const clearDropoff = () => {
           <div class="route-summary-card-enhanced">
             <div class="route-summary-header">
               <div class="route-summary-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                  />
                 </svg>
               </div>
               <span class="route-summary-title">เส้นทางจัดส่ง</span>
@@ -953,17 +1318,32 @@ const clearDropoff = () => {
             </div>
             <div class="route-stats-enhanced">
               <div class="stat-chip">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
                 <span>{{ estimatedDistance.toFixed(1) }} กม.</span>
               </div>
               <div class="stat-chip time-range">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 6v6l4 2"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
                 </svg>
-                <span>{{ estimatedTimeRange.min }}-{{ estimatedTimeRange.max }} นาที</span>
+                <span
+                  >{{ estimatedTimeRange.min }}-{{
+                    estimatedTimeRange.max
+                  }}
+                  นาที</span
+                >
               </div>
             </div>
           </div>
@@ -972,27 +1352,42 @@ const clearDropoff = () => {
           <div class="photo-upload-section">
             <div class="photo-header">
               <h4 class="section-title-small">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <path d="M21 15l-5-5L5 21"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
                 </svg>
                 ถ่ายรูปพัสดุ (แนะนำ)
               </h4>
               <!-- Quality Selector Toggle -->
-              <button 
+              <button
                 class="quality-toggle-btn"
-                @click="showQualitySelector = !showQualitySelector; triggerHaptic('light')"
+                @click="
+                  showQualitySelector = !showQualitySelector;
+                  triggerHaptic('light');
+                "
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"
+                  />
                 </svg>
                 <span>{{ QUALITY_PRESETS[selectedQuality].label }}</span>
               </button>
             </div>
             <p class="photo-hint">ช่วยให้ไรเดอร์ระบุพัสดุได้ง่ายขึ้น</p>
-            
+
             <!-- Quality Selector Dropdown -->
             <Transition name="slide-down">
               <div v-if="showQualitySelector" class="quality-selector">
@@ -1004,71 +1399,135 @@ const clearDropoff = () => {
                   <button
                     v-for="(preset, key) in QUALITY_PRESETS"
                     :key="key"
-                    :class="['quality-option', { active: selectedQuality === key }]"
+                    :class="[
+                      'quality-option',
+                      { active: selectedQuality === key },
+                    ]"
                     @click="selectQuality(key as ImageQuality)"
                   >
                     <div class="quality-option-icon">
-                      <svg v-if="key === 'low'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                      <svg
+                        v-if="key === 'low'"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                       </svg>
-                      <svg v-else-if="key === 'medium'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 6v6l4 2"/>
+                      <svg
+                        v-else-if="key === 'medium'"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 6v6l4 2" />
                       </svg>
-                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                      <svg
+                        v-else
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <polygon
+                          points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+                        />
                       </svg>
                     </div>
                     <div class="quality-option-info">
-                      <span class="quality-option-label">{{ preset.label }}</span>
-                      <span class="quality-option-desc">{{ preset.description }} ({{ preset.estimatedSize }})</span>
+                      <span class="quality-option-label">{{
+                        preset.label
+                      }}</span>
+                      <span class="quality-option-desc"
+                        >{{ preset.description }} ({{
+                          preset.estimatedSize
+                        }})</span
+                      >
                     </div>
                     <div v-if="selectedQuality === key" class="quality-check">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                        <path d="M20 6L9 17l-5-5"/>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                      >
+                        <path d="M20 6L9 17l-5-5" />
                       </svg>
                     </div>
                   </button>
                 </div>
               </div>
             </Transition>
-            
-            <input 
+
+            <input
               ref="photoInputRef"
-              type="file" 
-              accept="image/*" 
+              type="file"
+              accept="image/*"
               capture="environment"
               class="hidden-input"
               @change="handlePhotoSelect"
             />
-            
-            <div v-if="!packagePhoto" class="photo-upload-area" @click="triggerPhotoUpload">
-              <div class="upload-icon" :class="{ 'is-loading': isUploadingPhoto }">
+
+            <div
+              v-if="!packagePhoto"
+              class="photo-upload-area"
+              @click="triggerPhotoUpload"
+            >
+              <div
+                class="upload-icon"
+                :class="{ 'is-loading': isUploadingPhoto }"
+              >
                 <template v-if="isUploadingPhoto">
                   <div class="mini-spinner"></div>
                 </template>
                 <template v-else>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"
+                    />
+                    <circle cx="12" cy="13" r="4" />
                   </svg>
                 </template>
               </div>
-              <span class="upload-text">{{ isUploadingPhoto ? 'กำลังประมวลผล...' : 'แตะเพื่อถ่ายรูป' }}</span>
+              <span class="upload-text">{{
+                isUploadingPhoto ? "กำลังประมวลผล..." : "แตะเพื่อถ่ายรูป"
+              }}</span>
               <span class="upload-subtext">หรือเลือกจากคลังรูป</span>
             </div>
-            
+
             <div v-else class="photo-preview">
-              <img :src="packagePhoto" alt="Package photo" class="preview-image" />
+              <img
+                :src="packagePhoto"
+                alt="Package photo"
+                class="preview-image"
+              />
               <button class="remove-photo-btn" @click="removePhoto">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M15 9l-6 6M9 9l6 6"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M15 9l-6 6M9 9l6 6" />
                 </svg>
               </button>
               <div class="photo-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 6L9 17l-5-5"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
             </div>
@@ -1082,29 +1541,55 @@ const clearDropoff = () => {
                 v-for="(type, index) in packageTypes"
                 :key="type.value"
                 @click="selectPackageType(type.value)"
-                :class="['package-type-card', { active: packageType === type.value }]"
+                :class="[
+                  'package-type-card',
+                  { active: packageType === type.value },
+                ]"
                 :style="{ animationDelay: `${index * 50}ms` }"
               >
                 <div class="package-type-icon">
-                  <svg v-if="type.value === 'document'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                    <polyline points="14,2 14,8 20,8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  <svg
+                    v-if="type.value === 'document'"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                    />
+                    <polyline points="14,2 14,8 20,8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
                   </svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                    <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
-                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                  <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"
+                    />
+                    <polyline points="3.27,6.96 12,12.01 20.73,6.96" />
+                    <line x1="12" y1="22.08" x2="12" y2="12" />
                   </svg>
                 </div>
                 <div class="package-type-info">
                   <span class="package-type-name">{{ type.label }}</span>
-                  <span class="package-type-weight">≤{{ type.maxWeight }} กก.</span>
+                  <span class="package-type-weight"
+                    >≤{{ type.maxWeight }} กก.</span
+                  >
                 </div>
                 <div v-if="packageType === type.value" class="package-check">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                    <path d="M20 6L9 17l-5-5"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
                   </svg>
                 </div>
               </button>
@@ -1114,34 +1599,48 @@ const clearDropoff = () => {
           <!-- Recipient Phone -->
           <div class="input-section">
             <label class="input-label-enhanced">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"
+                />
               </svg>
               <span>เบอร์ผู้รับ (จำเป็น)</span>
             </label>
-            <input 
-              v-model="recipientPhone" 
-              type="tel" 
-              placeholder="08X-XXX-XXXX" 
+            <input
+              v-model="recipientPhone"
+              type="tel"
+              placeholder="08X-XXX-XXXX"
               class="input-field-enhanced"
               inputmode="tel"
             />
-            <p v-if="!recipientPhone" class="input-hint">ไรเดอร์จะโทรหาผู้รับเมื่อถึงจุดส่ง</p>
+            <p v-if="!recipientPhone" class="input-hint">
+              ไรเดอร์จะโทรหาผู้รับเมื่อถึงจุดส่ง
+            </p>
           </div>
 
           <!-- Recipient Name (Optional) -->
           <div class="input-section">
             <label class="input-label-enhanced">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
               </svg>
               <span>ชื่อผู้รับ (ไม่บังคับ)</span>
             </label>
-            <input 
-              v-model="recipientName" 
-              type="text" 
-              placeholder="ชื่อผู้รับพัสดุ" 
+            <input
+              v-model="recipientName"
+              type="text"
+              placeholder="ชื่อผู้รับพัสดุ"
               class="input-field-enhanced"
             />
           </div>
@@ -1149,28 +1648,43 @@ const clearDropoff = () => {
           <!-- Special Instructions (Optional) -->
           <div class="input-section">
             <label class="input-label-enhanced">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+                />
               </svg>
               <span>หมายเหตุ (ไม่บังคับ)</span>
             </label>
-            <textarea 
-              v-model="specialInstructions" 
-              placeholder="เช่น วางหน้าประตู, โทรก่อนส่ง..." 
+            <textarea
+              v-model="specialInstructions"
+              placeholder="เช่น วางหน้าประตู, โทรก่อนส่ง..."
               class="textarea-field-enhanced"
               rows="2"
             ></textarea>
           </div>
 
           <!-- Continue Button -->
-          <button 
+          <button
             class="continue-btn primary"
             :disabled="!recipientPhone"
-            @click="currentStep = 'confirm'; triggerHaptic('medium')"
+            @click="
+              currentStep = 'confirm';
+              triggerHaptic('medium');
+            "
           >
             <span>ดูสรุปและยืนยัน</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
         </div>
@@ -1178,16 +1692,27 @@ const clearDropoff = () => {
 
       <!-- Step 4: ยืนยันการส่ง -->
       <template v-else-if="currentStep === 'confirm'">
-        <div 
+        <div
           class="step-content animate-step"
-          :class="{ 'step-next': stepDirection === 'next', 'step-prev': stepDirection === 'prev' }"
-          :style="{ transform: `translateX(${swipeOffset}px)`, opacity: 1 - Math.abs(swipeOffset) / 200 }"
+          :class="{
+            'step-next': stepDirection === 'next',
+            'step-prev': stepDirection === 'prev',
+          }"
+          :style="{
+            transform: `translateX(${swipeOffset}px)`,
+            opacity: 1 - Math.abs(swipeOffset) / 200,
+          }"
         >
           <div class="step-header">
             <div class="step-header-icon confirm-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 12l2 2 4-4"/>
-                <circle cx="12" cy="12" r="10"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M9 12l2 2 4-4" />
+                <circle cx="12" cy="12" r="10" />
               </svg>
             </div>
             <div class="step-header-text">
@@ -1200,10 +1725,25 @@ const clearDropoff = () => {
           <div class="confirm-card">
             <div class="confirm-card-header">
               <span class="confirm-card-title">เส้นทาง</span>
-              <button class="edit-link" @click="currentStep = 'pickup'; triggerHaptic('light')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              <button
+                class="edit-link"
+                @click="
+                  currentStep = 'pickup';
+                  triggerHaptic('light');
+                "
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+                  />
+                  <path
+                    d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                  />
                 </svg>
               </button>
             </div>
@@ -1220,24 +1760,41 @@ const clearDropoff = () => {
                 <div class="confirm-dot destination"></div>
                 <div class="confirm-route-text">
                   <span class="confirm-route-label">ส่งพัสดุที่</span>
-                  <span class="confirm-route-value">{{ recipientAddress }}</span>
+                  <span class="confirm-route-value">{{
+                    recipientAddress
+                  }}</span>
                 </div>
               </div>
             </div>
             <div class="confirm-card-stats">
               <div class="confirm-stat">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
                 <span>{{ estimatedDistance.toFixed(1) }} กม.</span>
               </div>
               <div class="confirm-stat-divider"></div>
               <div class="confirm-stat">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 6v6l4 2"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
                 </svg>
-                <span>{{ estimatedTimeRange.min }}-{{ estimatedTimeRange.max }} นาที</span>
+                <span
+                  >{{ estimatedTimeRange.min }}-{{
+                    estimatedTimeRange.max
+                  }}
+                  นาที</span
+                >
               </div>
             </div>
           </div>
@@ -1246,18 +1803,42 @@ const clearDropoff = () => {
           <div v-if="packagePhoto" class="confirm-card photo-card">
             <div class="confirm-card-header">
               <span class="confirm-card-title">รูปพัสดุ</span>
-              <button class="edit-link" @click="currentStep = 'details'; triggerHaptic('light')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              <button
+                class="edit-link"
+                @click="
+                  currentStep = 'details';
+                  triggerHaptic('light');
+                "
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+                  />
+                  <path
+                    d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                  />
                 </svg>
               </button>
             </div>
             <div class="confirm-photo-preview">
-              <img :src="packagePhoto" alt="Package" class="confirm-photo-img" />
+              <img
+                :src="packagePhoto"
+                alt="Package"
+                class="confirm-photo-img"
+              />
               <div class="photo-verified-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 6L9 17l-5-5"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M20 6L9 17l-5-5" />
                 </svg>
                 <span>รูปพัสดุพร้อมส่ง</span>
               </div>
@@ -1268,21 +1849,40 @@ const clearDropoff = () => {
           <div class="confirm-card">
             <div class="confirm-card-header">
               <span class="confirm-card-title">พัสดุ</span>
-              <button class="edit-link" @click="currentStep = 'details'; triggerHaptic('light')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              <button
+                class="edit-link"
+                @click="
+                  currentStep = 'details';
+                  triggerHaptic('light');
+                "
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+                  />
+                  <path
+                    d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                  />
                 </svg>
               </button>
             </div>
             <div class="confirm-card-body">
               <div class="confirm-info-row">
                 <span class="confirm-info-label">ประเภท</span>
-                <span class="confirm-info-value">{{ packageTypes.find(t => t.value === packageType)?.label }}</span>
+                <span class="confirm-info-value">{{
+                  packageTypes.find((t) => t.value === packageType)?.label
+                }}</span>
               </div>
               <div class="confirm-info-row">
                 <span class="confirm-info-label">ผู้รับ</span>
-                <span class="confirm-info-value">{{ recipientName || '-' }}</span>
+                <span class="confirm-info-value">{{
+                  recipientName || "-"
+                }}</span>
               </div>
               <div class="confirm-info-row">
                 <span class="confirm-info-label">เบอร์ผู้รับ</span>
@@ -1290,7 +1890,9 @@ const clearDropoff = () => {
               </div>
               <div v-if="specialInstructions" class="confirm-info-row">
                 <span class="confirm-info-label">หมายเหตุ</span>
-                <span class="confirm-info-value">{{ specialInstructions }}</span>
+                <span class="confirm-info-value">{{
+                  specialInstructions
+                }}</span>
               </div>
             </div>
           </div>
@@ -1307,21 +1909,101 @@ const clearDropoff = () => {
               </div>
               <div class="fee-row">
                 <span class="fee-label">ระยะทาง</span>
-                <span class="fee-value">{{ estimatedDistance.toFixed(1) }} กม.</span>
+                <span class="fee-value"
+                  >{{ estimatedDistance.toFixed(1) }} กม.</span
+                >
               </div>
+
+              <!-- Promo Code Input -->
+              <PromoCodeInput
+                v-model="appliedPromo"
+                service-type="delivery"
+                :order-amount="deliveryFee"
+                @discount-applied="handlePromoDiscount"
+              />
+
+              <!-- Promo Discount Row -->
+              <div v-if="promoDiscount > 0" class="fee-row discount">
+                <span class="fee-label">ส่วนลดโปรโมชั่น</span>
+                <span class="fee-value discount">-฿{{ promoDiscount }}</span>
+              </div>
+
               <div class="fee-divider"></div>
               <div class="fee-row total">
                 <span class="fee-label">รวมทั้งหมด</span>
-                <span class="fee-value total">฿{{ deliveryFee }}</span>
+                <span class="fee-value total">฿{{ finalPrice }}</span>
               </div>
             </div>
           </div>
 
+          <!-- Wallet Balance Info -->
+          <div class="wallet-balance-info">
+            <div class="wallet-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 12V7H5a2 2 0 010-4h14v4" />
+                <path d="M3 5v14a2 2 0 002 2h16v-5" />
+                <path d="M18 12a2 2 0 100 4 2 2 0 000-4z" />
+              </svg>
+            </div>
+            <div class="wallet-info-text">
+              <span class="wallet-label">ยอดเงินคงเหลือ</span>
+              <span
+                class="wallet-amount"
+                :class="{ insufficient: hasInsufficientBalance }"
+                >฿{{ walletBalance.toLocaleString() }}</span
+              >
+            </div>
+            <button
+              v-if="hasInsufficientBalance"
+              class="topup-link"
+              @click="router.push('/customer/wallet')"
+            >
+              เติมเงิน
+            </button>
+          </div>
+
+          <!-- Insufficient Balance Warning -->
+          <Transition name="slide-fade">
+            <div
+              v-if="hasInsufficientBalance"
+              class="insufficient-balance-warning"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <div class="warning-text">
+                <span class="warning-title">ยอดเงินไม่เพียงพอ</span>
+                <span class="warning-detail"
+                  >ต้องการ ฿{{ finalPrice.toLocaleString() }} แต่คงเหลือ ฿{{
+                    walletBalance.toLocaleString()
+                  }}</span
+                >
+              </div>
+            </div>
+          </Transition>
+
           <!-- Confirm Button -->
-          <button 
-            @click="handleSubmit" 
-            :disabled="!canSubmit || loading" 
-            :class="['confirm-book-btn', { 'is-loading': loading }]"
+          <button
+            @click="handleSubmit"
+            :disabled="!canSubmit || loading || hasInsufficientBalance"
+            :class="[
+              'confirm-book-btn',
+              { 'is-loading': loading, 'is-disabled': hasInsufficientBalance },
+            ]"
           >
             <template v-if="loading">
               <div class="booking-spinner"></div>
@@ -1330,14 +2012,25 @@ const clearDropoff = () => {
                 <span class="booking-subtitle">รอสักครู่</span>
               </div>
             </template>
+            <template v-else-if="hasInsufficientBalance">
+              <div class="confirm-btn-content">
+                <span class="confirm-btn-text">ยอดเงินไม่พอ</span>
+                <span class="confirm-btn-price">฿{{ finalPrice }}</span>
+              </div>
+            </template>
             <template v-else>
               <div class="confirm-btn-content">
                 <span class="confirm-btn-text">ยืนยันส่งพัสดุ</span>
-                <span class="confirm-btn-price">฿{{ deliveryFee }}</span>
+                <span class="confirm-btn-price">฿{{ finalPrice }}</span>
               </div>
               <div class="confirm-btn-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               </div>
             </template>
@@ -1345,8 +2038,13 @@ const clearDropoff = () => {
 
           <!-- Safety Note -->
           <div class="safety-note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <span>พัสดุของคุณได้รับการคุ้มครองโดย GOBEAR</span>
           </div>
@@ -1382,7 +2080,7 @@ const clearDropoff = () => {
 .delivery-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #FFFFFF;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -1407,7 +2105,12 @@ const clearDropoff = () => {
   padding: 16px 20px;
   padding-top: calc(16px + env(safe-area-inset-top));
   z-index: 100;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.8) 70%, transparent 100%);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.8) 70%,
+    transparent 100%
+  );
 }
 
 .nav-btn {
@@ -1416,7 +2119,7 @@ const clearDropoff = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #FFFFFF;
+  background: #ffffff;
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -1426,7 +2129,7 @@ const clearDropoff = () => {
 .nav-btn svg {
   width: 24px;
   height: 24px;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .nav-btn:active {
@@ -1438,7 +2141,7 @@ const clearDropoff = () => {
 }
 
 .nav-btn.home-btn svg {
-  stroke: #00A86B;
+  stroke: #00a86b;
 }
 
 .nav-btn.home-btn:active {
@@ -1448,13 +2151,13 @@ const clearDropoff = () => {
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 /* Bottom Panel */
 .bottom-panel {
   flex: 1;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 28px 28px 0 0;
   margin-top: -24px;
   padding: 12px 20px 24px;
@@ -1475,7 +2178,7 @@ const clearDropoff = () => {
 .panel-handle {
   width: 40px;
   height: 4px;
-  background: #E0E0E0;
+  background: #e0e0e0;
   border-radius: 2px;
   margin: 0 auto 12px;
 }
@@ -1498,17 +2201,17 @@ const clearDropoff = () => {
 }
 
 .step-item:not(:last-child)::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 14px;
   left: calc(50% + 18px);
   width: calc(100% - 36px);
   height: 2px;
-  background: #E8E8E8;
+  background: #e8e8e8;
 }
 
 .step-item.completed:not(:last-child)::after {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .step-number {
@@ -1520,20 +2223,20 @@ const clearDropoff = () => {
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #999999;
   position: relative;
   z-index: 1;
 }
 
 .step-item.active .step-number {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
 }
 
 .step-item.completed .step-number {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
 }
 
 .step-item.completed .step-number svg {
@@ -1553,12 +2256,12 @@ const clearDropoff = () => {
 }
 
 .step-item.active .step-label {
-  color: #00A86B;
+  color: #00a86b;
   font-weight: 600;
 }
 
 .step-item.completed .step-label {
-  color: #00A86B;
+  color: #00a86b;
 }
 
 /* Step Content */
@@ -1628,7 +2331,7 @@ const clearDropoff = () => {
   padding: 12px 16px;
   background: rgba(0, 168, 107, 0.95);
   border-radius: 12px;
-  color: #FFFFFF;
+  color: #ffffff;
   z-index: 10;
   box-shadow: 0 4px 16px rgba(0, 168, 107, 0.3);
   pointer-events: none;
@@ -1696,23 +2399,23 @@ const clearDropoff = () => {
 }
 
 .step-header-icon.pickup-icon {
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
 }
 
 .step-header-icon.destination-icon {
-  background: #FFEBEE;
-  color: #E53935;
+  background: #ffebee;
+  color: #e53935;
 }
 
 .step-header-icon.details-icon {
-  background: #E3F2FD;
-  color: #1976D2;
+  background: #e3f2fd;
+  color: #1976d2;
 }
 
 .step-header-icon.confirm-icon {
-  background: #DCFCE7;
-  color: #16A34A;
+  background: #dcfce7;
+  color: #16a34a;
 }
 
 .step-header-text {
@@ -1722,7 +2425,7 @@ const clearDropoff = () => {
 .step-title {
   font-size: 20px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 2px;
 }
 
@@ -1747,8 +2450,8 @@ const clearDropoff = () => {
   justify-content: center;
   gap: 12px;
   padding: 20px 16px;
-  background: #FFFFFF;
-  border: 2px solid #F0F0F0;
+  background: #ffffff;
+  border: 2px solid #f0f0f0;
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1760,23 +2463,23 @@ const clearDropoff = () => {
 }
 
 .location-card-btn.current-location {
-  border-color: #00A86B;
-  background: #F0FDF4;
+  border-color: #00a86b;
+  background: #f0fdf4;
 }
 
 .location-card-btn.current-location .location-card-icon {
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
 }
 
 .location-card-btn.home-location .location-card-icon {
-  background: #FFF3E0;
-  color: #F5A623;
+  background: #fff3e0;
+  color: #f5a623;
 }
 
 .location-card-btn.nearby-location .location-card-icon {
-  background: #E3F2FD;
-  color: #1976D2;
+  background: #e3f2fd;
+  color: #1976d2;
 }
 
 .location-card-btn.is-loading {
@@ -1801,7 +2504,7 @@ const clearDropoff = () => {
 .location-card-label {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   text-align: center;
 }
 
@@ -1812,8 +2515,8 @@ const clearDropoff = () => {
   gap: 14px;
   width: 100%;
   padding: 16px;
-  background: #FFFFFF;
-  border: 1.5px solid #E8E8E8;
+  background: #ffffff;
+  border: 1.5px solid #e8e8e8;
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
@@ -1823,18 +2526,18 @@ const clearDropoff = () => {
 
 .map-picker-btn-full:active {
   transform: scale(0.98);
-  background: #F5F5F5;
+  background: #f5f5f5;
 }
 
 .map-picker-icon-wrapper {
   width: 44px;
   height: 44px;
-  background: #E3F2FD;
+  background: #e3f2fd;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1976D2;
+  color: #1976d2;
   flex-shrink: 0;
 }
 
@@ -1852,7 +2555,7 @@ const clearDropoff = () => {
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 2px;
 }
 
@@ -1865,7 +2568,7 @@ const clearDropoff = () => {
 .map-picker-arrow-icon {
   width: 20px;
   height: 20px;
-  color: #CCCCCC;
+  color: #cccccc;
   flex-shrink: 0;
 }
 
@@ -1879,8 +2582,8 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 14px 18px;
-  background: #FFFFFF;
-  border: 1.5px solid #E8E8E8;
+  background: #ffffff;
+  border: 1.5px solid #e8e8e8;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1888,7 +2591,7 @@ const clearDropoff = () => {
 
 .quick-dest-chip-large:active {
   transform: scale(0.98);
-  background: #F5F5F5;
+  background: #f5f5f5;
 }
 
 .chip-icon-large {
@@ -1906,28 +2609,30 @@ const clearDropoff = () => {
 }
 
 .chip-icon-large.work {
-  background: #E8EAF6;
-  color: #5C6BC0;
+  background: #e8eaf6;
+  color: #5c6bc0;
 }
 
 .quick-dest-chip-large span {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 /* Mini Spinner */
 .mini-spinner {
   width: 22px;
   height: 22px;
-  border: 2px solid #E8F5EF;
-  border-top-color: #00A86B;
+  border: 2px solid #e8f5ef;
+  border-top-color: #00a86b;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Quick Destinations */
@@ -1955,22 +2660,22 @@ const clearDropoff = () => {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: #FFFFFF;
-  border: 1.5px solid #E8E8E8;
+  background: #ffffff;
+  border: 1.5px solid #e8e8e8;
   border-radius: 24px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .quick-dest-chip:hover {
-  border-color: #00A86B;
-  background: #FAFFFE;
+  border-color: #00a86b;
+  background: #fafffe;
 }
 
 .quick-dest-chip:active,
 .quick-dest-chip.is-pressed {
   transform: scale(0.96);
-  background: #F0FDF4;
+  background: #f0fdf4;
 }
 
 .chip-icon {
@@ -1988,19 +2693,19 @@ const clearDropoff = () => {
 }
 
 .chip-icon.home {
-  background: #E3F2FD;
-  color: #1976D2;
+  background: #e3f2fd;
+  color: #1976d2;
 }
 
 .chip-icon.work {
-  background: #F3E5F5;
-  color: #7B1FA2;
+  background: #f3e5f5;
+  color: #7b1fa2;
 }
 
 .quick-dest-chip span {
   font-size: 13px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 /* Section Divider */
@@ -2013,10 +2718,10 @@ const clearDropoff = () => {
 
 .section-divider::before,
 .section-divider::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
-  background: #E8E8E8;
+  background: #e8e8e8;
 }
 
 .section-divider span {
@@ -2041,7 +2746,7 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 14px;
-  background: #FFFFFF;
+  background: #ffffff;
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -2063,12 +2768,12 @@ const clearDropoff = () => {
 }
 
 .place-item:hover {
-  background: #F5F5F5;
+  background: #f5f5f5;
 }
 
 .place-item:active {
   transform: scale(0.99);
-  background: #F0F0F0;
+  background: #f0f0f0;
 }
 
 .place-icon {
@@ -2087,13 +2792,13 @@ const clearDropoff = () => {
 }
 
 .place-icon.favorite {
-  background: #FEF3C7;
-  color: #F59E0B;
+  background: #fef3c7;
+  color: #f59e0b;
 }
 
 .place-icon.recent {
-  background: #F3F4F6;
-  color: #6B7280;
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 .place-info {
@@ -2105,7 +2810,7 @@ const clearDropoff = () => {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2126,19 +2831,19 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #E8F5EF;
-  border: 2px solid #00A86B;
+  background: #e8f5ef;
+  border: 2px solid #00a86b;
   border-radius: 14px;
   position: relative;
 }
 
 .selected-location-card.success {
-  background: #F0FDF4;
+  background: #f0fdf4;
 }
 
 .selected-location-card.destination {
-  background: #FEF2F2;
-  border-color: #E53935;
+  background: #fef2f2;
+  border-color: #e53935;
 }
 
 .success-check {
@@ -2147,17 +2852,17 @@ const clearDropoff = () => {
   right: -8px;
   width: 24px;
   height: 24px;
-  background: #00A86B;
+  background: #00a86b;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 168, 107, 0.3);
 }
 
 .selected-location-card.destination .success-check {
-  background: #E53935;
+  background: #e53935;
   box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3);
 }
 
@@ -2194,11 +2899,11 @@ const clearDropoff = () => {
 }
 
 .location-marker.pickup .step-number {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .location-marker.destination .step-number {
-  background: #E53935;
+  background: #e53935;
 }
 
 .marker-dot {
@@ -2208,11 +2913,11 @@ const clearDropoff = () => {
 }
 
 .location-marker.pickup .marker-dot {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .location-marker.destination .marker-dot {
-  background: #E53935;
+  background: #e53935;
 }
 
 .marker-dot.pulse {
@@ -2220,7 +2925,8 @@ const clearDropoff = () => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
   }
@@ -2241,19 +2947,19 @@ const clearDropoff = () => {
 .location-sublabel {
   font-size: 11px;
   font-weight: 500;
-  color: #00A86B;
+  color: #00a86b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .selected-location-card.destination .location-sublabel {
-  color: #E53935;
+  color: #e53935;
 }
 
 .location-label {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2261,17 +2967,17 @@ const clearDropoff = () => {
 
 .change-btn {
   padding: 8px 14px;
-  background: #FFFFFF;
-  border: 1px solid #E8E8E8;
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #00A86B;
+  color: #00a86b;
   cursor: pointer;
 }
 
 .change-btn:active {
-  background: #F5F5F5;
+  background: #f5f5f5;
 }
 
 /* Continue Button */
@@ -2291,13 +2997,13 @@ const clearDropoff = () => {
 }
 
 .continue-btn.primary {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .continue-btn.primary:hover {
-  background: #008F5B;
+  background: #008f5b;
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(0, 168, 107, 0.35);
 }
@@ -2307,7 +3013,7 @@ const clearDropoff = () => {
 }
 
 .continue-btn.primary:disabled {
-  background: #CCCCCC;
+  background: #cccccc;
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -2319,7 +3025,7 @@ const clearDropoff = () => {
 
 /* Route Preview Card */
 .route-preview-card {
-  background: #F8F8F8;
+  background: #f8f8f8;
   border-radius: 14px;
   padding: 16px;
 }
@@ -2348,20 +3054,20 @@ const clearDropoff = () => {
 }
 
 .route-dot.pickup {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .route-dot.destination {
-  background: #E53935;
+  background: #e53935;
 }
 
 .route-dot.destination.empty {
   background: transparent;
-  border: 2px dashed #E53935;
+  border: 2px dashed #e53935;
 }
 
 .route-dot.destination.empty .route-step-number {
-  color: #E53935;
+  color: #e53935;
 }
 
 .route-preview-text {
@@ -2382,7 +3088,7 @@ const clearDropoff = () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2398,7 +3104,7 @@ const clearDropoff = () => {
 .edit-btn {
   width: 32px;
   height: 32px;
-  background: #FFFFFF;
+  background: #ffffff;
   border: none;
   border-radius: 8px;
   color: #666666;
@@ -2415,14 +3121,14 @@ const clearDropoff = () => {
 }
 
 .edit-btn:hover {
-  background: #F0F0F0;
-  color: #1A1A1A;
+  background: #f0f0f0;
+  color: #1a1a1a;
 }
 
 .route-connector-line {
   width: 2px;
   height: 20px;
-  background: linear-gradient(to bottom, #00A86B, #E53935);
+  background: linear-gradient(to bottom, #00a86b, #e53935);
   margin: 8px 0 8px 5px;
 }
 
@@ -2437,8 +3143,8 @@ const clearDropoff = () => {
   gap: 14px;
   width: 100%;
   padding: 16px;
-  background: #FFFFFF;
-  border: 1.5px dashed #CCCCCC;
+  background: #ffffff;
+  border: 1.5px dashed #cccccc;
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
@@ -2446,9 +3152,9 @@ const clearDropoff = () => {
 }
 
 .map-picker-btn:hover {
-  border-color: #00A86B;
+  border-color: #00a86b;
   border-style: solid;
-  background: #FAFFFE;
+  background: #fafffe;
 }
 
 .map-picker-btn:active {
@@ -2458,12 +3164,12 @@ const clearDropoff = () => {
 .map-picker-icon {
   width: 44px;
   height: 44px;
-  background: #E3F2FD;
+  background: #e3f2fd;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1976D2;
+  color: #1976d2;
   flex-shrink: 0;
 }
 
@@ -2480,7 +3186,7 @@ const clearDropoff = () => {
   display: block;
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 2px;
 }
 
@@ -2493,13 +3199,13 @@ const clearDropoff = () => {
 .map-picker-arrow {
   width: 20px;
   height: 20px;
-  color: #CCCCCC;
+  color: #cccccc;
   flex-shrink: 0;
 }
 
 /* Route Summary Card Enhanced */
 .route-summary-card-enhanced {
-  background: #F8F8F8;
+  background: #f8f8f8;
   border-radius: 16px;
   overflow: hidden;
 }
@@ -2509,19 +3215,19 @@ const clearDropoff = () => {
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  background: #FFFFFF;
-  border-bottom: 1px solid #F0F0F0;
+  background: #ffffff;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .route-summary-icon {
   width: 32px;
   height: 32px;
-  background: #E8F5EF;
+  background: #e8f5ef;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .route-summary-icon svg {
@@ -2533,7 +3239,7 @@ const clearDropoff = () => {
   flex: 1;
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .route-summary-body {
@@ -2555,11 +3261,11 @@ const clearDropoff = () => {
 }
 
 .route-dot-enhanced.pickup {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .route-dot-enhanced.destination {
-  background: #E53935;
+  background: #e53935;
 }
 
 /* Route Number Badges */
@@ -2578,11 +3284,11 @@ const clearDropoff = () => {
 }
 
 .route-number.pickup {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .route-number.destination {
-  background: #E53935;
+  background: #e53935;
 }
 
 .route-point-text {
@@ -2604,7 +3310,7 @@ const clearDropoff = () => {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2613,7 +3319,7 @@ const clearDropoff = () => {
 .route-connector-enhanced {
   width: 2px;
   height: 24px;
-  background: linear-gradient(to bottom, #00A86B, #E53935);
+  background: linear-gradient(to bottom, #00a86b, #e53935);
   margin: 8px 0 8px 5px;
 }
 
@@ -2621,8 +3327,8 @@ const clearDropoff = () => {
   display: flex;
   gap: 12px;
   padding: 12px 16px;
-  background: #FFFFFF;
-  border-top: 1px solid #F0F0F0;
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
 }
 
 .stat-chip {
@@ -2630,17 +3336,17 @@ const clearDropoff = () => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .stat-chip svg {
   width: 14px;
   height: 14px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 /* Package Type Section */
@@ -2659,8 +3365,8 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 14px;
-  background: #FFFFFF;
-  border: 2px solid #E8E8E8;
+  background: #ffffff;
+  border: 2px solid #e8e8e8;
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
@@ -2670,8 +3376,8 @@ const clearDropoff = () => {
 }
 
 .package-type-card:hover {
-  border-color: #00A86B;
-  background: #FAFFFE;
+  border-color: #00a86b;
+  background: #fafffe;
 }
 
 .package-type-card:active {
@@ -2679,14 +3385,14 @@ const clearDropoff = () => {
 }
 
 .package-type-card.active {
-  border-color: #00A86B;
-  background: #F0FDF4;
+  border-color: #00a86b;
+  background: #f0fdf4;
 }
 
 .package-type-icon {
   width: 40px;
   height: 40px;
-  background: #F5F5F5;
+  background: #f5f5f5;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -2696,8 +3402,8 @@ const clearDropoff = () => {
 }
 
 .package-type-card.active .package-type-icon {
-  background: #E8F5EF;
-  color: #00A86B;
+  background: #e8f5ef;
+  color: #00a86b;
 }
 
 .package-type-icon svg {
@@ -2714,7 +3420,7 @@ const clearDropoff = () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin-bottom: 2px;
 }
 
@@ -2727,12 +3433,12 @@ const clearDropoff = () => {
 .package-check {
   width: 24px;
   height: 24px;
-  background: #00A86B;
+  background: #00a86b;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -2764,16 +3470,16 @@ const clearDropoff = () => {
 .input-field-enhanced {
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 16px;
-  color: #1A1A1A;
+  color: #1a1a1a;
   outline: none;
   transition: all 0.2s ease;
 }
 
 .input-field-enhanced:focus {
-  border-color: #00A86B;
+  border-color: #00a86b;
   box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
 }
 
@@ -2784,10 +3490,10 @@ const clearDropoff = () => {
 .textarea-field-enhanced {
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid #E8E8E8;
+  border: 2px solid #e8e8e8;
   border-radius: 12px;
   font-size: 16px;
-  color: #1A1A1A;
+  color: #1a1a1a;
   outline: none;
   resize: none;
   font-family: inherit;
@@ -2795,7 +3501,7 @@ const clearDropoff = () => {
 }
 
 .textarea-field-enhanced:focus {
-  border-color: #00A86B;
+  border-color: #00a86b;
   box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
 }
 
@@ -2811,8 +3517,8 @@ const clearDropoff = () => {
 
 /* Confirm Card */
 .confirm-card {
-  background: #FFFFFF;
-  border: 1px solid #F0F0F0;
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
   border-radius: 16px;
   overflow: hidden;
 }
@@ -2822,23 +3528,23 @@ const clearDropoff = () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  background: #F8F8F8;
-  border-bottom: 1px solid #F0F0F0;
+  background: #f8f8f8;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .confirm-card-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .edit-link {
   width: 32px;
   height: 32px;
-  background: #FFFFFF;
+  background: #ffffff;
   border: none;
   border-radius: 8px;
-  color: #00A86B;
+  color: #00a86b;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2851,7 +3557,7 @@ const clearDropoff = () => {
 }
 
 .edit-link:hover {
-  background: #F0F0F0;
+  background: #f0f0f0;
 }
 
 .confirm-card-body {
@@ -2873,11 +3579,11 @@ const clearDropoff = () => {
 }
 
 .confirm-dot.pickup {
-  background: #00A86B;
+  background: #00a86b;
 }
 
 .confirm-dot.destination {
-  background: #E53935;
+  background: #e53935;
 }
 
 .confirm-route-text {
@@ -2899,13 +3605,13 @@ const clearDropoff = () => {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .confirm-route-line {
   width: 2px;
   height: 20px;
-  background: linear-gradient(to bottom, #00A86B, #E53935);
+  background: linear-gradient(to bottom, #00a86b, #e53935);
   margin: 8px 0 8px 5px;
 }
 
@@ -2914,8 +3620,8 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #F8F8F8;
-  border-top: 1px solid #F0F0F0;
+  background: #f8f8f8;
+  border-top: 1px solid #f0f0f0;
 }
 
 .confirm-stat {
@@ -2930,13 +3636,13 @@ const clearDropoff = () => {
 .confirm-stat svg {
   width: 14px;
   height: 14px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .confirm-stat-divider {
   width: 1px;
   height: 16px;
-  background: #E0E0E0;
+  background: #e0e0e0;
 }
 
 .confirm-info-row {
@@ -2944,7 +3650,7 @@ const clearDropoff = () => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 0;
-  border-bottom: 1px solid #F5F5F5;
+  border-bottom: 1px solid #f5f5f5;
 }
 
 .confirm-info-row:last-child {
@@ -2959,7 +3665,7 @@ const clearDropoff = () => {
 .confirm-info-value {
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
   text-align: right;
   max-width: 60%;
   word-break: break-word;
@@ -2967,22 +3673,22 @@ const clearDropoff = () => {
 
 /* Fee Summary Card */
 .fee-summary-card {
-  background: #F0FDF4;
-  border: 2px solid #00A86B;
+  background: #f0fdf4;
+  border: 2px solid #00a86b;
   border-radius: 16px;
   overflow: hidden;
 }
 
 .fee-summary-header {
   padding: 14px 16px;
-  background: #E8F5EF;
+  background: #e8f5ef;
   border-bottom: 1px solid rgba(0, 168, 107, 0.2);
 }
 
 .fee-summary-title {
   font-size: 14px;
   font-weight: 600;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .fee-summary-body {
@@ -3004,7 +3710,7 @@ const clearDropoff = () => {
 .fee-value {
   font-size: 14px;
   font-weight: 500;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .fee-divider {
@@ -3020,20 +3726,146 @@ const clearDropoff = () => {
 .fee-row.total .fee-label {
   font-size: 16px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .fee-row.total .fee-value {
   font-size: 20px;
   font-weight: 700;
-  color: #00A86B;
+  color: #00a86b;
+}
+
+/* Discount Row */
+.fee-row.discount {
+  background: rgba(0, 168, 107, 0.05);
+  padding: 8px 12px;
+  margin: 8px -12px;
+  border-radius: 8px;
+}
+
+.fee-row.discount .fee-label {
+  color: #00a86b;
+}
+
+.fee-value.discount {
+  color: #00a86b;
+  font-weight: 600;
+}
+
+/* Wallet Balance Info */
+.wallet-balance-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f8f8;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.wallet-balance-info .wallet-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f5ef;
+  border-radius: 10px;
+}
+
+.wallet-balance-info .wallet-icon svg {
+  width: 20px;
+  height: 20px;
+  color: #00a86b;
+}
+
+.wallet-balance-info .wallet-info-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wallet-balance-info .wallet-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.wallet-balance-info .wallet-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: #00a86b;
+}
+
+.wallet-balance-info .wallet-amount.insufficient {
+  color: #e53935;
+}
+
+.wallet-balance-info .topup-link {
+  padding: 8px 16px;
+  background: #00a86b;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Insufficient Balance Warning */
+.insufficient-balance-warning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.insufficient-balance-warning svg {
+  width: 24px;
+  height: 24px;
+  color: #e53935;
+  flex-shrink: 0;
+}
+
+.insufficient-balance-warning .warning-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insufficient-balance-warning .warning-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #c62828;
+}
+
+.insufficient-balance-warning .warning-detail {
+  font-size: 12px;
+  color: #e53935;
+}
+
+/* Slide fade transition */
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* Confirm Book Button */
 .confirm-book-btn {
   width: 100%;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #00A86B 0%, #00C77B 100%);
+  background: linear-gradient(135deg, #00a86b 0%, #00c77b 100%);
   border: none;
   border-radius: 16px;
   cursor: pointer;
@@ -3053,19 +3885,28 @@ const clearDropoff = () => {
 }
 
 .confirm-book-btn::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
   animation: shimmer 2s infinite;
 }
 
 @keyframes shimmer {
-  0% { left: -100%; }
-  100% { left: 100%; }
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 .confirm-book-btn:hover {
@@ -3078,13 +3919,24 @@ const clearDropoff = () => {
 }
 
 .confirm-book-btn:disabled {
-  background: #CCCCCC;
+  background: #cccccc;
   box-shadow: none;
   cursor: not-allowed;
 }
 
 .confirm-book-btn:disabled::before {
   display: none;
+}
+
+.confirm-book-btn.is-disabled {
+  background: #e0e0e0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.confirm-book-btn.is-disabled .confirm-btn-text,
+.confirm-book-btn.is-disabled .confirm-btn-price {
+  color: #999;
 }
 
 .confirm-book-btn.is-loading {
@@ -3106,13 +3958,13 @@ const clearDropoff = () => {
 .confirm-btn-text {
   font-size: 16px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .confirm-btn-price {
   font-size: 20px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .confirm-btn-icon {
@@ -3123,7 +3975,7 @@ const clearDropoff = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -3137,7 +3989,7 @@ const clearDropoff = () => {
   width: 24px;
   height: 24px;
   border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #FFFFFF;
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-right: 12px;
@@ -3153,7 +4005,7 @@ const clearDropoff = () => {
 .booking-title {
   font-size: 16px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .booking-subtitle {
@@ -3168,7 +4020,7 @@ const clearDropoff = () => {
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  background: #F8F8F8;
+  background: #f8f8f8;
   border-radius: 12px;
   margin-top: 8px;
 }
@@ -3176,7 +4028,7 @@ const clearDropoff = () => {
 .safety-note svg {
   width: 16px;
   height: 16px;
-  color: #00A86B;
+  color: #00a86b;
   flex-shrink: 0;
 }
 
@@ -3196,8 +4048,8 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
   border-radius: 14px;
   z-index: 1000;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
@@ -3206,12 +4058,12 @@ const clearDropoff = () => {
 .error-icon {
   width: 32px;
   height: 32px;
-  background: #FEE2E2;
+  background: #fee2e2;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #E53935;
+  color: #e53935;
   flex-shrink: 0;
 }
 
@@ -3224,7 +4076,7 @@ const clearDropoff = () => {
   flex: 1;
   font-size: 14px;
   font-weight: 500;
-  color: #B91C1C;
+  color: #b91c1c;
 }
 
 .error-close {
@@ -3233,7 +4085,7 @@ const clearDropoff = () => {
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #B91C1C;
+  color: #b91c1c;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3242,7 +4094,7 @@ const clearDropoff = () => {
 }
 
 .error-close:hover {
-  background: #FEE2E2;
+  background: #fee2e2;
 }
 
 /* Transitions */
@@ -3287,11 +4139,11 @@ const clearDropoff = () => {
 
 /* Time Range Chip */
 .stat-chip.time-range {
-  background: #E8F5EF;
+  background: #e8f5ef;
 }
 
 .stat-chip.time-range svg {
-  color: #00A86B;
+  color: #00a86b;
 }
 
 /* Photo Upload Section */
@@ -3315,7 +4167,7 @@ const clearDropoff = () => {
 .photo-upload-section .section-title-small svg {
   width: 16px;
   height: 16px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .quality-toggle-btn {
@@ -3323,8 +4175,8 @@ const clearDropoff = () => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #F5F5F5;
-  border: 1px solid #E8E8E8;
+  background: #f5f5f5;
+  border: 1px solid #e8e8e8;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
@@ -3334,9 +4186,9 @@ const clearDropoff = () => {
 }
 
 .quality-toggle-btn:hover {
-  background: #E8F5EF;
-  border-color: #00A86B;
-  color: #00A86B;
+  background: #e8f5ef;
+  border-color: #00a86b;
+  color: #00a86b;
 }
 
 .quality-toggle-btn svg {
@@ -3346,8 +4198,8 @@ const clearDropoff = () => {
 
 /* Quality Selector Dropdown */
 .quality-selector {
-  background: #FFFFFF;
-  border: 1px solid #E8E8E8;
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 12px;
@@ -3360,13 +4212,13 @@ const clearDropoff = () => {
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .quality-selector-header span:first-child {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .quality-hint {
@@ -3385,7 +4237,7 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #F8F8F8;
+  background: #f8f8f8;
   border: 2px solid transparent;
   border-radius: 12px;
   cursor: pointer;
@@ -3393,18 +4245,18 @@ const clearDropoff = () => {
 }
 
 .quality-option:hover {
-  background: #F0F0F0;
+  background: #f0f0f0;
 }
 
 .quality-option.active {
-  background: #E8F5EF;
-  border-color: #00A86B;
+  background: #e8f5ef;
+  border-color: #00a86b;
 }
 
 .quality-option-icon {
   width: 36px;
   height: 36px;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -3413,8 +4265,8 @@ const clearDropoff = () => {
 }
 
 .quality-option.active .quality-option-icon {
-  background: #00A86B;
-  color: #FFFFFF;
+  background: #00a86b;
+  color: #ffffff;
 }
 
 .quality-option-icon svg {
@@ -3432,7 +4284,7 @@ const clearDropoff = () => {
 .quality-option-label {
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .quality-option-desc {
@@ -3443,12 +4295,12 @@ const clearDropoff = () => {
 .quality-check {
   width: 24px;
   height: 24px;
-  background: #00A86B;
+  background: #00a86b;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .quality-check svg {
@@ -3485,16 +4337,16 @@ const clearDropoff = () => {
   justify-content: center;
   gap: 8px;
   padding: 32px 24px;
-  background: #F8F8F8;
-  border: 2px dashed #CCCCCC;
+  background: #f8f8f8;
+  border: 2px dashed #cccccc;
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .photo-upload-area:hover {
-  border-color: #00A86B;
-  background: #FAFFFE;
+  border-color: #00a86b;
+  background: #fafffe;
 }
 
 .photo-upload-area:active {
@@ -3504,12 +4356,12 @@ const clearDropoff = () => {
 .upload-icon {
   width: 56px;
   height: 56px;
-  background: #E8F5EF;
+  background: #e8f5ef;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .upload-icon svg {
@@ -3518,13 +4370,13 @@ const clearDropoff = () => {
 }
 
 .upload-icon.is-loading {
-  background: #F5F5F5;
+  background: #f5f5f5;
 }
 
 .upload-text {
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .upload-subtext {
@@ -3537,7 +4389,7 @@ const clearDropoff = () => {
   position: relative;
   border-radius: 16px;
   overflow: hidden;
-  background: #F5F5F5;
+  background: #f5f5f5;
 }
 
 .preview-image {
@@ -3556,7 +4408,7 @@ const clearDropoff = () => {
   background: rgba(0, 0, 0, 0.6);
   border: none;
   border-radius: 50%;
-  color: #FFFFFF;
+  color: #ffffff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3581,9 +4433,9 @@ const clearDropoff = () => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: #00A86B;
+  background: #00a86b;
   border-radius: 20px;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .photo-badge svg {
@@ -3617,7 +4469,7 @@ const clearDropoff = () => {
   padding: 6px 12px;
   background: rgba(0, 168, 107, 0.9);
   border-radius: 16px;
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 500;
 }
@@ -3640,7 +4492,7 @@ const clearDropoff = () => {
 }
 
 .confirm-dialog {
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 20px;
   padding: 28px 24px;
   max-width: 320px;
@@ -3664,7 +4516,7 @@ const clearDropoff = () => {
   width: 56px;
   height: 56px;
   margin: 0 auto 16px;
-  background: #FFF8E1;
+  background: #fff8e1;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -3679,7 +4531,7 @@ const clearDropoff = () => {
 .confirm-title {
   font-size: 18px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   margin: 0 0 8px;
 }
 
@@ -3710,13 +4562,13 @@ const clearDropoff = () => {
 }
 
 .confirm-btn.cancel {
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #666666;
 }
 
 .confirm-btn.exit {
-  background: #E53935;
-  color: #FFFFFF;
+  background: #e53935;
+  color: #ffffff;
 }
 
 /* Modal Transition */

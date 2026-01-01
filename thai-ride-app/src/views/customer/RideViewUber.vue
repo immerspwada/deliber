@@ -38,6 +38,19 @@ const isGettingLocation = ref(false);
 const searchingSeconds = ref(0);
 let searchingInterval: ReturnType<typeof setInterval> | null = null;
 
+// Nearby places
+interface NearbyPlace {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  type: string;
+  icon: string;
+}
+const nearbyPlaces = ref<NearbyPlace[]>([]);
+const isLoadingNearby = ref(false);
+
 // Fare & Trip
 const estimatedFare = ref(0);
 const estimatedTime = ref(0);
@@ -53,38 +66,113 @@ let realtimeChannel: any = null;
 const userRating = ref(0);
 const isSubmittingRating = ref(false);
 
-// Vehicle options - simplified
-const vehicles = [
-  {
-    id: "bike",
-    name: "มอเตอร์ไซค์",
-    multiplier: 0.7,
-    eta: "3 นาที",
-    icon: "bike",
-  },
-  { id: "car", name: "รถยนต์", multiplier: 1.0, eta: "5 นาที", icon: "car" },
-  {
-    id: "premium",
-    name: "พรีเมียม",
-    multiplier: 1.5,
-    eta: "7 นาที",
-    icon: "premium",
-  },
-] as const;
+// Vehicle options - loaded from database or fallback defaults
+interface VehicleOption {
+  id: string;
+  name: string;
+  multiplier: number;
+  eta: string;
+  icon: string;
+}
+
+const vehicles = ref<VehicleOption[]>([]);
+const isLoadingVehicles = ref(false);
+
+// Fetch vehicle types from database
+async function fetchVehicleTypes() {
+  isLoadingVehicles.value = true;
+  try {
+    const { data, error } = await supabase
+      .from("vehicle_types")
+      .select("id, name, price_multiplier, estimated_eta_minutes, icon")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      vehicles.value = data.map((v) => ({
+        id: v.id,
+        name: v.name,
+        multiplier: v.price_multiplier || 1.0,
+        eta: `${v.estimated_eta_minutes || 5} นาที`,
+        icon: v.icon || "car",
+      }));
+    } else {
+      // Fallback defaults if no data in DB
+      vehicles.value = [
+        {
+          id: "bike",
+          name: "มอเตอร์ไซค์",
+          multiplier: 0.7,
+          eta: "3 นาที",
+          icon: "bike",
+        },
+        {
+          id: "car",
+          name: "รถยนต์",
+          multiplier: 1.0,
+          eta: "5 นาที",
+          icon: "car",
+        },
+        {
+          id: "premium",
+          name: "พรีเมียม",
+          multiplier: 1.5,
+          eta: "7 นาที",
+          icon: "premium",
+        },
+      ];
+    }
+  } catch (err) {
+    console.error("[fetchVehicleTypes] Error:", err);
+    // Use fallback on error
+    vehicles.value = [
+      {
+        id: "bike",
+        name: "มอเตอร์ไซค์",
+        multiplier: 0.7,
+        eta: "3 นาที",
+        icon: "bike",
+      },
+      {
+        id: "car",
+        name: "รถยนต์",
+        multiplier: 1.0,
+        eta: "5 นาที",
+        icon: "car",
+      },
+      {
+        id: "premium",
+        name: "พรีเมียม",
+        multiplier: 1.5,
+        eta: "7 นาที",
+        icon: "premium",
+      },
+    ];
+  } finally {
+    isLoadingVehicles.value = false;
+  }
+}
 
 // ========== COMPUTED ==========
 const canBook = computed(
-  () => pickup.value && destination.value && !isBooking.value
+  () =>
+    pickup.value &&
+    destination.value &&
+    !isBooking.value &&
+    hasEnoughBalance.value
 );
 const selectedVehicleInfo = computed(() =>
-  vehicles.find((v) => v.id === selectedVehicle.value)
+  vehicles.value.find((v) => v.id === selectedVehicle.value)
 );
 const finalFare = computed(() =>
   Math.round(estimatedFare.value * (selectedVehicleInfo.value?.multiplier || 1))
 );
 const hasEnoughBalance = computed(
-  () => (balance.value ?? 0) >= finalFare.value
+  () => (balance.value?.balance ?? 0) >= finalFare.value
 );
+const currentBalance = computed(() => balance.value?.balance ?? 0);
 
 const statusText = computed(() => {
   if (!activeRide.value) return "";
@@ -101,6 +189,7 @@ const statusText = computed(() => {
 // ========== LIFECYCLE ==========
 onMounted(async () => {
   getCurrentLocation();
+  await fetchVehicleTypes();
   if (authStore.user?.id) {
     await Promise.all([
       fetchSavedPlaces(),
@@ -160,6 +249,8 @@ async function getCurrentLocation() {
               .join(", ");
           }
         }
+        // Fetch nearby places after getting location
+        fetchNearbyPlaces(pos.coords.latitude, pos.coords.longitude);
       } catch {
         /* ignore */
       }
@@ -171,11 +262,136 @@ async function getCurrentLocation() {
   );
 }
 
+// Cache for nearby places (key: lat_lng rounded to 2 decimals)
+const nearbyPlacesCache = new Map<string, NearbyPlace[]>();
+
+// Fetch nearby important places using Nominatim with rate limiting
+async function fetchNearbyPlaces(lat: number, lng: number) {
+  // Check cache first (round to 2 decimals for ~1km precision)
+  const cacheKey = `${lat.toFixed(2)}_${lng.toFixed(2)}`;
+  const cached = nearbyPlacesCache.get(cacheKey);
+  if (cached) {
+    nearbyPlaces.value = cached;
+    return;
+  }
+
+  isLoadingNearby.value = true;
+  nearbyPlaces.value = [];
+
+  // Categories to search for
+  const categories = [
+    { type: "mall", query: "shopping mall", icon: "shopping" },
+    { type: "hospital", query: "hospital", icon: "hospital" },
+    { type: "station", query: "train station", icon: "train" },
+    { type: "airport", query: "airport", icon: "plane" },
+    { type: "university", query: "university", icon: "school" },
+    { type: "temple", query: "temple", icon: "temple" },
+  ];
+
+  // Helper: delay function for rate limiting
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+  try {
+    const allPlaces: NearbyPlace[] = [];
+
+    // Sequential requests with 1.1s delay to respect Nominatim rate limit (1 req/sec)
+    for (let i = 0; i < categories.length; i++) {
+      const cat = categories[i];
+
+      // Add delay between requests (skip first)
+      if (i > 0) {
+        await delay(1100);
+      }
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+            cat.query
+          )}&format=json&limit=2&viewbox=${lng - 0.05},${lat + 0.05},${
+            lng + 0.05
+          },${lat - 0.05}&bounded=1`,
+          {
+            headers: {
+              Accept: "application/json",
+              "User-Agent": "ThaiRideApp/1.0 (contact@thairide.app)",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const places = data.map((place: any) => ({
+            id: place.place_id?.toString() || `${cat.type}-${Math.random()}`,
+            name: place.display_name?.split(",")[0] || cat.query,
+            address:
+              place.display_name?.split(",").slice(1, 3).join(",").trim() || "",
+            lat: parseFloat(place.lat),
+            lng: parseFloat(place.lon),
+            type: cat.type,
+            icon: cat.icon,
+          }));
+          allPlaces.push(...places);
+
+          // Update UI progressively
+          nearbyPlaces.value = allPlaces
+            .map((place) => ({
+              ...place,
+              distance: calculateDistance(lat, lng, place.lat, place.lng),
+            }))
+            .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+            .slice(0, 8);
+        }
+      } catch {
+        // Continue with next category on error
+      }
+    }
+
+    // Final sort and limit
+    const sortedPlaces = allPlaces
+      .map((place) => ({
+        ...place,
+        distance: calculateDistance(lat, lng, place.lat, place.lng),
+      }))
+      .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+      .slice(0, 8);
+
+    nearbyPlaces.value = sortedPlaces;
+
+    // Cache results
+    nearbyPlacesCache.set(cacheKey, sortedPlaces);
+  } catch (err) {
+    console.error("[fetchNearbyPlaces] Error:", err);
+  } finally {
+    isLoadingNearby.value = false;
+  }
+}
+
 async function checkActiveRide() {
   if (!authStore.user?.id) return;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("ride_requests")
-    .select("*, service_providers(*)")
+    .select(
+      `
+      *,
+      provider:provider_id (
+        id,
+        user_id,
+        vehicle_type,
+        vehicle_plate,
+        vehicle_color,
+        rating,
+        total_trips,
+        current_lat,
+        current_lng,
+        users:user_id (
+          name,
+          phone,
+          avatar_url
+        )
+      )
+    `
+    )
     .eq("user_id", authStore.user.id)
     .in("status", [
       "pending",
@@ -186,16 +402,44 @@ async function checkActiveRide() {
     ])
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
+
+  if (error) {
+    console.error("[checkActiveRide] Error:", error.message);
+    return;
+  }
+
   if (data) {
     activeRide.value = data;
-    matchedDriver.value = data.service_providers;
+    // Map provider data to matchedDriver format
+    const provider = (data as any).provider;
+    if (provider) {
+      const user = provider.users;
+      matchedDriver.value = {
+        id: provider.id,
+        name: user?.name || "คนขับ",
+        phone: user?.phone || "",
+        rating: provider.rating || 4.8,
+        vehicle_type: provider.vehicle_type || "รถยนต์",
+        vehicle_color: provider.vehicle_color || "สีดำ",
+        vehicle_plate: provider.vehicle_plate || "",
+        avatar_url: user?.avatar_url,
+        current_lat: provider.current_lat,
+        current_lng: provider.current_lng,
+      };
+    }
     currentStep.value = data.status === "pending" ? "searching" : "tracking";
     setupRealtimeTracking(data.id);
   }
 }
 
 function setupRealtimeTracking(rideId: string) {
+  // Validate rideId before subscribing
+  if (!rideId || rideId === "undefined" || rideId === "null") {
+    console.warn("[setupRealtimeTracking] Invalid rideId:", rideId);
+    return;
+  }
+
   realtimeChannel = supabase
     .channel(`ride-${rideId}`)
     .on(
@@ -278,6 +522,16 @@ function calculateFare() {
 
 async function bookRide() {
   if (!pickup.value || !destination.value || !authStore.user) return;
+
+  // ตรวจสอบยอดเงินก่อนจอง
+  if (!hasEnoughBalance.value) {
+    alert(
+      `ยอดเงินไม่เพียงพอ\n\nค่าโดยสาร: ฿${finalFare.value}\nยอดคงเหลือ: ฿${currentBalance.value}\n\nกรุณาเติมเงินก่อนจอง`
+    );
+    router.push("/customer/wallet");
+    return;
+  }
+
   isBooking.value = true;
   currentStep.value = "searching";
   searchingSeconds.value = 0;
@@ -295,27 +549,65 @@ async function bookRide() {
     );
     if (ride) {
       activeRide.value = rideStore.currentRide;
-      setupRealtimeTracking(ride.id);
-      await rideStore.findAndMatchDriver();
+      setupRealtimeTracking(ride.rideId);
+      // Don't await - let it search in background while timer runs
+      rideStore.findAndMatchDriver().then((driver) => {
+        if (driver) {
+          // Stop timer when driver found
+          if (searchingInterval) {
+            clearInterval(searchingInterval);
+            searchingInterval = null;
+          }
+          matchedDriver.value = driver;
+          currentStep.value = "tracking";
+        }
+        // If no driver found, stay in searching mode with timer running
+      });
+    } else {
+      // Failed to create ride - stop timer and go back
+      if (searchingInterval) {
+        clearInterval(searchingInterval);
+        searchingInterval = null;
+      }
+      currentStep.value = "select";
     }
   } catch (err) {
     console.error("Booking error:", err);
     alert("ไม่สามารถจองได้ กรุณาลองใหม่");
-    currentStep.value = "select";
-  } finally {
-    isBooking.value = false;
     if (searchingInterval) {
       clearInterval(searchingInterval);
       searchingInterval = null;
     }
+    currentStep.value = "select";
+  } finally {
+    isBooking.value = false;
+    // Don't stop timer here - let it run until driver found or cancelled
   }
 }
 
 async function cancelRide() {
-  if (!activeRide.value) return;
-  if (!confirm("ยกเลิกการเดินทาง?")) return;
-  const success = await rideStore.cancelRide(activeRide.value.id);
-  if (success) resetAll();
+  // Stop timer first
+  if (searchingInterval) {
+    clearInterval(searchingInterval);
+    searchingInterval = null;
+  }
+
+  if (activeRide.value) {
+    if (!confirm("ยกเลิกการเดินทาง?")) {
+      // User cancelled the confirm - restart timer if still searching
+      if (currentStep.value === "searching") {
+        searchingInterval = setInterval(() => {
+          searchingSeconds.value++;
+        }, 1000);
+      }
+      return;
+    }
+    const success = await rideStore.cancelRide(activeRide.value.id);
+    if (success) resetAll();
+  } else {
+    // No active ride yet, just go back
+    resetAll();
+  }
 }
 
 function resetAll() {
@@ -337,13 +629,13 @@ async function submitRating() {
   if (!activeRide.value || userRating.value === 0) return;
   isSubmittingRating.value = true;
   try {
-    await supabase.from("ride_ratings").insert({
-      ride_request_id: activeRide.value.id,
-      user_id: authStore.user?.id,
-      provider_id: matchedDriver.value?.id,
-      rating: userRating.value,
-    });
-    resetAll();
+    // Use rideStore's atomic submitRating function
+    const success = await rideStore.submitRating(userRating.value, 0);
+    if (success) {
+      resetAll();
+    } else {
+      console.error("Rating submission failed");
+    }
   } catch (err) {
     console.error("Rating error:", err);
   } finally {
@@ -375,6 +667,18 @@ function handleSearchBlur() {
     <div v-if="currentStep === 'select'" class="select-view">
       <!-- Header with pickup -->
       <div class="header-section">
+        <button class="back-btn" @click="router.push('/customer')">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </button>
         <div class="pickup-display">
           <div class="pickup-dot"></div>
           <div class="pickup-info">
@@ -488,9 +792,9 @@ function handleSearchBlur() {
       <!-- Quick places -->
       <div v-if="!isSearchFocused && !destination" class="quick-places">
         <h3 class="section-title">สถานที่บันทึก</h3>
-        <div class="places-list">
+        <div v-if="savedPlaces && savedPlaces.length > 0" class="places-list">
           <button
-            v-for="place in (savedPlaces || []).slice(0, 4)"
+            v-for="place in savedPlaces.slice(0, 4)"
             :key="place.id"
             class="place-chip"
             @click="selectDestination(place)"
@@ -508,11 +812,24 @@ function handleSearchBlur() {
             <span>{{ place.name }}</span>
           </button>
         </div>
+        <div v-else class="empty-state">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#999"
+            stroke-width="1.5"
+          >
+            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+          </svg>
+          <p>ยังไม่มีสถานที่บันทึก</p>
+        </div>
 
         <h3 class="section-title">ล่าสุด</h3>
-        <div class="recent-list">
+        <div v-if="recentPlaces && recentPlaces.length > 0" class="recent-list">
           <button
-            v-for="place in (recentPlaces || []).slice(0, 3)"
+            v-for="place in recentPlaces.slice(0, 3)"
             :key="place.id"
             class="recent-item"
             @click="selectDestination(place)"
@@ -534,6 +851,156 @@ function handleSearchBlur() {
               <span class="recent-addr">{{ place.address }}</span>
             </div>
           </button>
+        </div>
+        <div v-else class="empty-state">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#999"
+            stroke-width="1.5"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12,6 12,12 16,14" />
+          </svg>
+          <p>ยังไม่มีประวัติการเดินทาง</p>
+        </div>
+
+        <!-- Nearby Places -->
+        <h3 class="section-title">สถานที่ใกล้เคียง</h3>
+        <div v-if="isLoadingNearby" class="nearby-loading">
+          <div class="skeleton-nearby"></div>
+          <div class="skeleton-nearby"></div>
+          <div class="skeleton-nearby"></div>
+        </div>
+        <div v-else-if="nearbyPlaces.length > 0" class="nearby-list">
+          <button
+            v-for="place in nearbyPlaces"
+            :key="place.id"
+            class="nearby-item"
+            @click="selectDestination(place)"
+          >
+            <div class="nearby-icon" :class="place.type">
+              <!-- Shopping -->
+              <svg
+                v-if="place.icon === 'shopping'"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <path d="M16 10a4 4 0 01-8 0" />
+              </svg>
+              <!-- Hospital -->
+              <svg
+                v-else-if="place.icon === 'hospital'"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 3h18v18H3z" />
+                <path d="M12 8v8M8 12h8" />
+              </svg>
+              <!-- Train -->
+              <svg
+                v-else-if="place.icon === 'train'"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="4" y="3" width="16" height="16" rx="2" />
+                <path d="M4 11h16" />
+                <path d="M12 3v8" />
+                <circle cx="8" cy="15" r="1" />
+                <circle cx="16" cy="15" r="1" />
+                <path d="M8 19l-2 3M16 19l2 3" />
+              </svg>
+              <!-- Plane -->
+              <svg
+                v-else-if="place.icon === 'plane'"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
+                />
+              </svg>
+              <!-- School -->
+              <svg
+                v-else-if="place.icon === 'school'"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" />
+              </svg>
+              <!-- Temple -->
+              <svg
+                v-else-if="place.icon === 'temple'"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 2L2 7h20L12 2z" />
+                <path d="M4 7v10h16V7" />
+                <path d="M4 17l8 5 8-5" />
+                <path d="M9 7v10M15 7v10" />
+              </svg>
+              <!-- Default location -->
+              <svg
+                v-else
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+            </div>
+            <div class="nearby-text">
+              <span class="nearby-name">{{ place.name }}</span>
+              <span class="nearby-addr">{{ place.address }}</span>
+            </div>
+          </button>
+        </div>
+        <div v-else class="empty-state">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#999"
+            stroke-width="1.5"
+          >
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          <p>ไม่พบสถานที่ใกล้เคียง</p>
         </div>
       </div>
 
@@ -558,72 +1025,96 @@ function handleSearchBlur() {
         </div>
 
         <div class="vehicle-options">
-          <button
-            v-for="v in vehicles"
-            :key="v.id"
-            class="vehicle-card"
-            :class="{ selected: selectedVehicle === v.id }"
-            @click="selectedVehicle = v.id"
-          >
-            <div class="vehicle-icon">
-              <svg
-                v-if="v.icon === 'bike'"
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <circle cx="5" cy="17" r="3" />
-                <circle cx="19" cy="17" r="3" />
-                <path d="M12 17V5l4 4M8 8h4" />
-              </svg>
-              <svg
-                v-else-if="v.icon === 'car'"
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
-                <circle cx="7" cy="17" r="2" />
-                <circle cx="17" cy="17" r="2" />
-              </svg>
-              <svg
-                v-else
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
-                <circle cx="7" cy="17" r="2" />
-                <circle cx="17" cy="17" r="2" />
-                <path d="M9 7l1-3h4l1 3" />
-              </svg>
-            </div>
-            <span class="vehicle-name">{{ v.name }}</span>
-            <span class="vehicle-price"
-              >฿{{ Math.round(estimatedFare * v.multiplier) }}</span
+          <div v-if="isLoadingVehicles" class="vehicles-loading">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+          <template v-else>
+            <button
+              v-for="v in vehicles"
+              :key="v.id"
+              class="vehicle-card"
+              :class="{ selected: selectedVehicle === v.id }"
+              @click="selectedVehicle = v.id"
             >
-            <span class="vehicle-eta">{{ v.eta }}</span>
-          </button>
+              <div class="vehicle-icon">
+                <svg
+                  v-if="v.icon === 'bike'"
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <circle cx="5" cy="17" r="3" />
+                  <circle cx="19" cy="17" r="3" />
+                  <path d="M12 17V5l4 4M8 8h4" />
+                </svg>
+                <svg
+                  v-else-if="v.icon === 'car'"
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
+                  <circle cx="7" cy="17" r="2" />
+                  <circle cx="17" cy="17" r="2" />
+                </svg>
+                <svg
+                  v-else
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M5 17h14v-5l-2-5H7l-2 5v5z" />
+                  <circle cx="7" cy="17" r="2" />
+                  <circle cx="17" cy="17" r="2" />
+                  <path d="M9 7l1-3h4l1 3" />
+                </svg>
+              </div>
+              <span class="vehicle-name">{{ v.name }}</span>
+              <span class="vehicle-price"
+                >฿{{ Math.round(estimatedFare * v.multiplier) }}</span
+              >
+              <span class="vehicle-eta">{{ v.eta }}</span>
+            </button>
+          </template>
         </div>
 
         <!-- Book button -->
-        <button class="book-btn" :disabled="!canBook" @click="bookRide">
+        <button
+          class="book-btn"
+          :class="{ 'insufficient-balance': !hasEnoughBalance && destination }"
+          :disabled="!canBook"
+          @click="bookRide"
+        >
           <span v-if="isBooking">กำลังจอง...</span>
+          <span v-else-if="!hasEnoughBalance && destination">
+            เงินไม่พอ • ฿{{ finalFare }}
+          </span>
           <span v-else>จองเลย • ฿{{ finalFare }}</span>
         </button>
 
-        <p v-if="!hasEnoughBalance" class="balance-warning">
-          ยอดเงินไม่พอ (คงเหลือ ฿{{ balance?.toLocaleString() || 0 }})
-        </p>
+        <!-- Balance warning with top-up link -->
+        <div
+          v-if="!hasEnoughBalance && destination"
+          class="balance-warning-box"
+        >
+          <p class="balance-warning">
+            ยอดเงินไม่พอ (คงเหลือ ฿{{ currentBalance.toLocaleString() }})
+          </p>
+          <button class="topup-link" @click="router.push('/customer/wallet')">
+            เติมเงินเลย →
+          </button>
+        </div>
       </div>
     </div>
 
@@ -683,7 +1174,14 @@ function handleSearchBlur() {
 
         <div v-if="matchedDriver" class="driver-info">
           <div class="driver-avatar">
+            <img
+              v-if="matchedDriver.avatar_url"
+              :src="matchedDriver.avatar_url"
+              alt="Driver"
+              class="avatar-img"
+            />
             <svg
+              v-else
               width="32"
               height="32"
               viewBox="0 0 24 24"
@@ -696,12 +1194,14 @@ function handleSearchBlur() {
             </svg>
           </div>
           <div class="driver-details">
-            <span class="driver-name">{{
-              matchedDriver.first_name || "คนขับ"
-            }}</span>
-            <span class="driver-vehicle">{{
-              matchedDriver.vehicle_plate || "กข 1234"
-            }}</span>
+            <span class="driver-name">{{ matchedDriver.name || "คนขับ" }}</span>
+            <span class="driver-vehicle"
+              >{{ matchedDriver.vehicle_plate || "กข 1234" }} •
+              {{ matchedDriver.vehicle_color || "" }}</span
+            >
+            <span v-if="matchedDriver.rating" class="driver-rating"
+              >⭐ {{ matchedDriver.rating.toFixed(1) }}</span
+            >
           </div>
           <div class="driver-actions">
             <button class="action-btn" @click="callDriver">
@@ -818,6 +1318,26 @@ function handleSearchBlur() {
   background: #00a86b;
   padding: 16px;
   padding-top: calc(16px + env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.back-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.back-btn:active {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .pickup-display {
@@ -1067,6 +1587,116 @@ function handleSearchBlur() {
   text-overflow: ellipsis;
 }
 
+/* NEARBY PLACES */
+.nearby-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.skeleton-nearby {
+  height: 60px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 12px;
+}
+
+.nearby-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.nearby-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.nearby-item:active {
+  background: #f5f5f5;
+  transform: scale(0.98);
+}
+
+.nearby-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f0f0f0;
+  color: #666;
+}
+
+.nearby-icon.mall,
+.nearby-icon.shopping {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.nearby-icon.hospital {
+  background: #ffebee;
+  color: #e53935;
+}
+
+.nearby-icon.station,
+.nearby-icon.train {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.nearby-icon.airport,
+.nearby-icon.plane {
+  background: #e8f5e9;
+  color: #388e3c;
+}
+
+.nearby-icon.university,
+.nearby-icon.school {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.nearby-icon.temple {
+  background: #fff8e1;
+  color: #ffa000;
+}
+
+.nearby-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+.nearby-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nearby-addr {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* BOOKING SECTION */
 .booking-section {
   padding: 16px;
@@ -1204,11 +1834,41 @@ function handleSearchBlur() {
   transform: scale(0.98);
 }
 
+.balance-warning-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #ffebee;
+  border-radius: 12px;
+}
+
 .balance-warning {
   text-align: center;
   font-size: 13px;
   color: #e53935;
-  margin-top: 12px;
+  margin: 0;
+}
+
+.topup-link {
+  background: none;
+  border: none;
+  color: #00a86b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.topup-link:hover {
+  text-decoration: underline;
+}
+
+.book-btn.insufficient-balance {
+  background: #ccc;
+  box-shadow: none;
 }
 
 /* SEARCHING VIEW */
@@ -1523,6 +2183,55 @@ function handleSearchBlur() {
   background: transparent;
   border: none;
   font-size: 14px;
+  color: #666;
+}
+
+/* EMPTY STATE */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* SKELETON LOADING */
+.vehicles-loading {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.skeleton-card {
+  flex: 1;
+  height: 120px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 14px;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* DRIVER AVATAR */
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.driver-rating {
+  font-size: 12px;
   color: #666;
 }
 </style>

@@ -214,7 +214,7 @@ describe('Multi-Role Ride Booking Integration Tests', () => {
       // Verify: All roles see matched status
       const { data: customerView2 } = await supabase
         .from('ride_requests')
-        .select('*, service_providers(*)')
+        .select('*, provider:provider_id(*)')
         .eq('id', testRideId)
         .single()
       
