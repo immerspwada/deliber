@@ -236,7 +236,7 @@
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
               </svg>
               <span class="upload-text">คลิกเพื่ือเลือกไฟล์หรือลากไฟล์มาวาง</span>
-              <span class="upload-hint">รองรับ JPG, PNG, WEBP (ไม่เกิน 5MB)</span>
+              <span class="upload-hint">รองรับไฟล์รูปภาพทุกขนาด (จะปรับขนาดอัตโนมัติ)</span>
             </label>
           </div>
 
@@ -419,32 +419,105 @@ const closeTopupModal = (): void => {
   slipPreview.value = null
 }
 
-// Handle slip upload
-const handleSlipUpload = (event: Event): void => {
+// Resize image to max dimensions while maintaining aspect ratio
+const resizeImage = (file: File, maxWidth: number = 1200, maxHeight: number = 1600, quality: number = 0.85): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height
+            height = maxHeight
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Cannot get canvas context'))
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob)
+            } else {
+              reject(new Error('Canvas to Blob failed'))
+            }
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.onerror = () => reject(new Error('Image load failed'))
+      img.src = e.target?.result as string
+    }
+    reader.onerror = () => reject(new Error('File read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
+// Handle slip upload with auto-resize
+const handleSlipUpload = async (event: Event): Promise<void> => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
 
   // Validate file type
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    showToast('รองรับเฉพาะไฟล์ JPG, PNG, WEBP', 'error')
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+    showToast('รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP)', 'error')
     return
   }
 
-  // Validate file size (5MB)
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('ไฟล์ต้องมีขนาดไม่เกิน 5MB', 'error')
-    return
-  }
+  try {
+    // Show loading state
+    const originalSize = (file.size / 1024 / 1024).toFixed(2)
+    console.log(`[WalletView] Original file size: ${originalSize}MB`)
 
-  slipFile.value = file
+    // Resize image
+    const resizedBlob = await resizeImage(file, 1200, 1600, 0.85)
+    const resizedSize = (resizedBlob.size / 1024 / 1024).toFixed(2)
+    console.log(`[WalletView] Resized file size: ${resizedSize}MB`)
 
-  // Create preview
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    slipPreview.value = e.target?.result as string
+    // Create File from Blob
+    const resizedFile = new File([resizedBlob], file.name, {
+      type: 'image/jpeg',
+      lastModified: Date.now()
+    })
+
+    slipFile.value = resizedFile
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      slipPreview.value = e.target?.result as string
+    }
+    reader.readAsDataURL(resizedFile)
+
+    if (parseFloat(originalSize) > 2) {
+      showToast(`ปรับขนาดรูปจาก ${originalSize}MB เป็น ${resizedSize}MB`)
+    }
+  } catch (err) {
+    console.error('[WalletView] Image resize error:', err)
+    showToast('ไม่สามารถประมวลผลรูปภาพได้', 'error')
   }
-  reader.readAsDataURL(file)
 }
 
 // Remove slip

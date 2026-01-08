@@ -12,8 +12,8 @@ VALUES (
   'payment-slips',
   'payment-slips',
   true,
-  5242880, -- 5MB limit
-  ARRAY['image/jpeg', 'image/png', 'image/webp']
+  10485760, -- 10MB limit (after resize should be much smaller)
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
 )
 ON CONFLICT (id) DO NOTHING;
 
