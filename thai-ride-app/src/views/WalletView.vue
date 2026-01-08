@@ -174,6 +174,11 @@
                 <span>โอนเงินผ่านธนาคาร</span>
               </div>
 
+              <!-- QR Code Image for Bank Transfer -->
+              <div v-if="currentPaymentAccount.qr_code_url" class="qr-code-container">
+                <img :src="currentPaymentAccount.qr_code_url" :alt="'QR Code ' + currentPaymentAccount.display_name" class="qr-code-image"/>
+              </div>
+
               <div class="bank-info">
                 <div class="bank-logo">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
