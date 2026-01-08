@@ -26,6 +26,21 @@
           </button>
         </div>
       </div>
+
+      <!-- Pending Requests Alert -->
+      <div v-if="pendingTopupCount > 0 || pendingWithdrawCount > 0" class="pending-alert">
+        <div class="pending-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div class="pending-info">
+          <span class="pending-title">รอดำเนินการ</span>
+          <span class="pending-detail">
+            <template v-if="pendingTopupCount > 0">เติมเงิน {{ pendingTopupCount }} รายการ</template>
+            <template v-if="pendingTopupCount > 0 && pendingWithdrawCount > 0"> • </template>
+            <template v-if="pendingWithdrawCount > 0">ถอนเงิน {{ pendingWithdrawCount }} รายการ</template>
+          </span>
+        </div>
+      </div>
     </section>
 
     <section class="stats-section">
@@ -375,6 +390,8 @@ let withdrawalSub: { unsubscribe: () => void } | null = null
 const currentBalance = computed(() => balance.value?.balance ?? 0)
 const totalEarned = computed(() => balance.value?.total_earned ?? 0)
 const totalSpent = computed(() => balance.value?.total_spent ?? 0)
+const pendingTopupCount = computed(() => topupRequests.value.filter(r => r.status === 'pending').length)
+const pendingWithdrawCount = computed(() => withdrawals.value.filter(w => w.status === 'pending').length)
 
 const goBack = () => router.back()
 const formatNumber = (num: number) => num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -645,6 +662,12 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 .balance-amount { font-size: 36px; font-weight: 700; margin-bottom: 24px; }
 .loading-text { font-size: 20px; opacity: 0.7; }
 .balance-actions { display: flex; gap: 12px; }
+.pending-alert { display: flex; align-items: center; gap: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px; padding: 14px 16px; margin-top: 12px; }
+.pending-icon { width: 40px; height: 40px; background: #ffedd5; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.pending-icon svg { width: 22px; height: 22px; color: #ea580c; }
+.pending-info { display: flex; flex-direction: column; gap: 2px; }
+.pending-title { font-size: 14px; font-weight: 600; color: #c2410c; }
+.pending-detail { font-size: 12px; color: #ea580c; }
 .action-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
 .action-btn svg { width: 20px; height: 20px; }
 .topup-btn { background: rgba(255,255,255,0.2); color: #fff; }
