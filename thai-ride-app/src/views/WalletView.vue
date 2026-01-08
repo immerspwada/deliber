@@ -213,11 +213,39 @@
             <span>กรุณาติดต่อผู้ดูแลระบบ</span>
           </div>
 
+          <!-- Upload Slip Section -->
+          <div class="upload-slip-section">
+            <h4>แนบสลิปการโอนเงิน</h4>
+            <div v-if="slipPreview" class="slip-preview">
+              <img :src="slipPreview" alt="Payment Slip" />
+              <button class="remove-slip-btn" @click="removeSlip" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <label v-else class="slip-upload-area" :class="{ 'drag-over': isDragging }">
+              <input 
+                type="file" 
+                accept="image/jpeg,image/png,image/webp" 
+                @change="handleSlipUpload"
+                ref="slipInput"
+              />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+              <span class="upload-text">คลิกเพื่ือเลือกไฟล์หรือลากไฟล์มาวาง</span>
+              <span class="upload-hint">รองรับ JPG, PNG, WEBP (ไม่เกิน 5MB)</span>
+            </label>
+          </div>
+
           <!-- Instructions -->
           <div class="payment-instructions">
             <h4>ขั้นตอนการเติมเงิน</h4>
             <ol>
               <li>โอนเงินตามจำนวนที่ระบุไปยังบัญชีด้านบน</li>
+              <li>แนบสลิปการโอนเงิน</li>
               <li>กดปุ่ม "ยืนยันการโอนเงิน" ด้านล่าง</li>
               <li>รอการตรวจสอบจากทีมงาน (ภายใน 5-15 นาที)</li>
               <li>เงินจะเข้ากระเป๋าอัตโนมัติเมื่อตรวจสอบเรียบร้อย</li>
@@ -226,7 +254,7 @@
 
           <div class="modal-actions">
             <button class="btn-secondary" @click="closeTopupModal">ยกเลิก</button>
-            <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || !currentPaymentAccount">
+            <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || !currentPaymentAccount || !slipFile">
               {{ topupLoading ? 'กำลังดำเนินการ...' : 'ยืนยันการโอนเงิน' }}
             </button>
           </div>
@@ -293,6 +321,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWallet } from '@/composables/useWallet'
+import { supabase } from '@/lib/supabase'
 
 const router = useRouter()
 const {
@@ -316,6 +345,10 @@ const topupAmount = ref(100)
 const topupMethod = ref<'promptpay' | 'bank_transfer'>('promptpay')
 const topupLoading = ref(false)
 const topupStep = ref<'amount' | 'payment'>('amount') // Step: เลือกจำนวน -> แสดงข้อมูลชำระเงิน
+const slipFile = ref<File | null>(null)
+const slipPreview = ref<string | null>(null)
+const isDragging = ref(false)
+const slipInput = ref<HTMLInputElement | null>(null)
 
 // Current payment account based on selected method
 const currentPaymentAccount = computed((): PaymentReceivingAccount | null => {
@@ -382,23 +415,104 @@ const closeTopupModal = (): void => {
   showTopupModal.value = false
   topupStep.value = 'amount'
   topupAmount.value = 100
+  slipFile.value = null
+  slipPreview.value = null
+}
+
+// Handle slip upload
+const handleSlipUpload = (event: Event): void => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  // Validate file type
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    showToast('รองรับเฉพาะไฟล์ JPG, PNG, WEBP', 'error')
+    return
+  }
+
+  // Validate file size (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('ไฟล์ต้องมีขนาดไม่เกิน 5MB', 'error')
+    return
+  }
+
+  slipFile.value = file
+
+  // Create preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    slipPreview.value = e.target?.result as string
+  }
+  reader.readAsDataURL(file)
+}
+
+// Remove slip
+const removeSlip = (): void => {
+  slipFile.value = null
+  slipPreview.value = null
+  if (slipInput.value) {
+    slipInput.value.value = ''
+  }
 }
 
 const handleTopup = async (): Promise<void> => {
-  if (topupAmount.value < 20) { showToast('จำนวนเงินขั้นต่ำ 20 บาท', 'error'); return }
+  if (topupAmount.value < 20) { 
+    showToast('จำนวนเงินขั้นต่ำ 20 บาท', 'error')
+    return 
+  }
+  
+  if (!slipFile.value) {
+    showToast('กรุณาแนบสลิปการโอนเงิน', 'error')
+    return
+  }
+
   topupLoading.value = true
+  
   try {
-    const result = await createTopupRequest(topupAmount.value, topupMethod.value)
+    // Upload slip to storage first
+    const fileExt = slipFile.value.name.split('.').pop() || 'jpg'
+    const fileName = `slip_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+    
+    const { error: uploadError } = await supabase.storage
+      .from('payment-slips')
+      .upload(fileName, slipFile.value, { 
+        upsert: false,
+        contentType: slipFile.value.type 
+      })
+
+    if (uploadError) {
+      console.error('[WalletView] Upload error:', uploadError)
+      showToast('ไม่สามารถอัปโหลดสลิปได้', 'error')
+      return
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('payment-slips')
+      .getPublicUrl(fileName)
+
+    // Create topup request with slip URL
+    const result = await createTopupRequest(
+      topupAmount.value, 
+      topupMethod.value,
+      undefined,
+      urlData.publicUrl
+    )
+    
     if (result.success) { 
       showToast(result.message || 'สร้างคำขอเติมเงินสำเร็จ รอการตรวจสอบ')
       closeTopupModal()
+    } else { 
+      showToast(result.message || 'เกิดข้อผิดพลาด', 'error') 
     }
-    else { showToast(result.message || 'เกิดข้อผิดพลาด', 'error') }
   } catch (err: unknown) { 
     const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+    console.error('[WalletView] Topup error:', err)
     showToast(errorMessage, 'error') 
+  } finally { 
+    topupLoading.value = false 
   }
-  finally { topupLoading.value = false }
 }
 
 const handleWithdraw = async (): Promise<void> => {
@@ -561,4 +675,21 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 .payment-instructions h4 { font-size: 13px; font-weight: 600; color: #92400e; margin: 0 0 10px; }
 .payment-instructions ol { margin: 0; padding-left: 18px; font-size: 12px; color: #78350f; line-height: 1.6; }
 .payment-instructions li { margin-bottom: 4px; }
+
+/* Upload Slip Section */
+.upload-slip-section { background: #f9f9f9; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.upload-slip-section h4 { font-size: 14px; font-weight: 600; color: #1a1a1a; margin: 0 0 12px; }
+
+.slip-upload-area { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 160px; background: #fff; border: 2px dashed #d1d5db; border-radius: 12px; cursor: pointer; transition: all 0.2s; padding: 20px; text-align: center; }
+.slip-upload-area:hover, .slip-upload-area.drag-over { border-color: #00A86B; background: #f0fdf4; }
+.slip-upload-area input { display: none; }
+.slip-upload-area svg { width: 40px; height: 40px; color: #9ca3af; margin-bottom: 12px; }
+.upload-text { font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+.upload-hint { font-size: 12px; color: #9ca3af; }
+
+.slip-preview { position: relative; display: flex; justify-content: center; }
+.slip-preview img { max-width: 100%; max-height: 300px; border-radius: 12px; border: 2px solid #e8e8e8; object-fit: contain; }
+.remove-slip-btn { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; background: #ef4444; color: #fff; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.remove-slip-btn:hover { background: #dc2626; }
+.remove-slip-btn svg { width: 16px; height: 16px; }
 </style>
