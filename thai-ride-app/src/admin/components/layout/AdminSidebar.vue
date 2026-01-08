@@ -176,6 +176,14 @@ const menuItems = computed<MenuItem[]>(() => [
         path: "/admin/payment-settings",
         permission: "finance",
       },
+      {
+        id: "payment-accounts",
+        label: "Payment Accounts",
+        labelTh: "บัญชีรับเงิน/QR",
+        icon: "qr",
+        path: "/admin/payment-accounts",
+        permission: "finance",
+      },
     ],
   },
   {

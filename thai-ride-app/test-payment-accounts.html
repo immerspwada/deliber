@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Payment Accounts</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>Test Payment Accounts QR Code</h1>
+  <button onclick="testFetch()">Fetch Payment Accounts</button>
+  <div id="result"></div>
+
+  <script>
+    // Get Supabase credentials from .env
+    const SUPABASE_URL = prompt('Enter SUPABASE_URL:');
+    const SUPABASE_ANON_KEY = prompt('Enter SUPABASE_ANON_KEY:');
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function testFetch() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p>Loading...</p>';
+      
+      try {
+        // Test RPC call
+        const { data, error } = await supabase.rpc('get_payment_receiving_accounts', {
+          p_account_type: null
+        });
+
+        if (error) {
+          resultDiv.innerHTML = `<pre style="color: red;">Error: ${JSON.stringify(error, null, 2)}</pre>`;
+          return;
+        }
+
+        resultDiv.innerHTML = `
+          <h2>Payment Accounts (${data.length})</h2>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+          
+          <h3>QR Code URLs:</h3>
+          ${data.map(acc => `
+            <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+              <p><strong>${acc.display_name || acc.account_name}</strong> (${acc.account_type})</p>
+              <p>QR URL: ${acc.qr_code_url || 'NULL'}</p>
+              ${acc.qr_code_url ? `<img src="${acc.qr_code_url}" style="max-width: 200px;" />` : '<p style="color: red;">No QR Code</p>'}
+            </div>
+          `).join('')}
+        `;
+      } catch (err) {
+        resultDiv.innerHTML = `<pre style="color: red;">Exception: ${err.message}</pre>`;
+      }
+    }
+  </script>
+</body>
+</html>

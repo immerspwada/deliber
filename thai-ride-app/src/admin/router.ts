@@ -24,6 +24,7 @@ const WithdrawalsView = () => import('./views/WithdrawalsView.vue')
 // const CustomerWithdrawalsView = () => import('./views/CustomerWithdrawalsView.vue')
 const AdminRefundsView = () => import('../views/AdminRefundsView.vue')
 const PaymentSettingsView = () => import('./views/PaymentSettingsView.vue')
+const PaymentAccountsView = () => import('./views/PaymentAccountsView.vue')
 const PromosView = () => import('./views/PromosView.vue')
 const PromoManagementView = () => import('./views/PromoManagementView.vue')
 const AdminReferralsView = () => import('../views/AdminReferralsView.vue')
@@ -220,7 +221,13 @@ export const adminRoutes: RouteRecordRaw[] = [
       {
         path: 'payment-settings',
         name: 'AdminPaymentSettingsV2',
-        component: PaymentSettingsView,
+        component: PaymentAccountsView,
+        meta: { module: 'finance' }
+      },
+      {
+        path: 'payment-accounts',
+        name: 'AdminPaymentAccountsV2',
+        component: PaymentAccountsView,
         meta: { module: 'finance' }
       },
       

@@ -314,7 +314,10 @@ const topupStep = ref<'amount' | 'payment'>('amount') // Step: เลือก�
 
 // Current payment account based on selected method
 const currentPaymentAccount = computed((): PaymentReceivingAccount | null => {
-  return paymentAccounts.value.find(acc => acc.account_type === topupMethod.value) || null
+  const account = paymentAccounts.value.find(acc => acc.account_type === topupMethod.value) || null
+  console.log('[WalletView] Current payment account:', account)
+  console.log('[WalletView] QR Code URL:', account?.qr_code_url)
+  return account
 })
 
 const withdrawAmount = ref(100)
@@ -362,7 +365,9 @@ const goToPaymentStep = async (): Promise<void> => {
   }
   // Fetch payment accounts if not loaded
   if (paymentAccounts.value.length === 0) {
+    console.log('[WalletView] Fetching payment accounts...')
     await fetchPaymentAccounts()
+    console.log('[WalletView] Payment accounts loaded:', paymentAccounts.value)
   }
   topupStep.value = 'payment'
 }
