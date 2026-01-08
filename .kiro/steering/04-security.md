@@ -532,5 +532,201 @@ Rules:
 
 ---
 
-**Version**: 2.0.0
-**Last Updated**: December 29, 2024
+## 🏭 Production-First Development (MANDATORY)
+
+### Core Principle
+
+```
+⚠️ ทุกการพัฒนาต้องคำนึงถึง Production เป็นหลัก ไม่ใช่ Local
+
+Development Mindset:
+├── ❌ "ทำให้ทำงานได้ก่อน แล้วค่อยแก้ทีหลัง"
+├── ✅ "ทำให้ Production-Ready ตั้งแต่แรก"
+└── ✅ "ถ้าไม่พร้อม Production ก็ไม่ควร commit"
+```
+
+### Production-First Checklist
+
+```
+□ Database Changes
+  □ Migration ต้อง execute ผ่าน MCP Supabase (Production)
+  □ ห้ามใช้ supabase db push --local
+  □ RLS policies ต้องทดสอบกับ Production data
+  □ Indexes ต้องคำนึงถึง Production scale
+
+□ Code Quality
+  □ ไม่มี console.log ที่ไม่จำเป็น
+  □ ไม่มี TODO/FIXME ที่ค้างไว้
+  □ Error handling ครบถ้วน
+  □ Loading states ครบทุก async operation
+
+□ Performance
+  □ Query optimization (select เฉพาะ columns ที่ต้องการ)
+  □ Pagination สำหรับ list ที่มีข้อมูลมาก
+  □ Lazy loading สำหรับ components ที่ไม่จำเป็นต้องโหลดทันที
+  □ Image optimization
+
+□ Security
+  □ Input validation ทุก field
+  □ RLS policies ครบทุก table
+  □ ไม่มี hardcoded credentials
+  □ HTTPS only
+
+□ User Experience
+  □ Empty states สำหรับทุก list
+  □ Error messages ที่เข้าใจง่าย (ภาษาไทย)
+  □ Loading indicators
+  □ Offline handling (ถ้าจำเป็น)
+```
+
+### Database Migration Rules (Production)
+
+```sql
+-- ✅ CORRECT: Execute via MCP Supabase (Production)
+kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: { sql: "..." }
+})
+
+-- ❌ WRONG: Local only
+npx supabase db push --local
+npx supabase migration up --local
+```
+
+### Code Standards for Production
+
+```typescript
+// ❌ WRONG: Development shortcuts
+console.log("Debug:", data);
+const result = data as any;
+// TODO: fix this later
+
+// ✅ CORRECT: Production-ready code
+if (import.meta.env.DEV) {
+  console.log("[Debug]", data);
+}
+const result: TypedResult = validateData(data);
+// Proper error handling
+```
+
+### Query Optimization for Production
+
+```typescript
+// ❌ WRONG: Fetch all columns
+const { data } = await supabase.from("users").select("*");
+
+// ✅ CORRECT: Select only needed columns
+const { data } = await supabase
+  .from("users")
+  .select("id, first_name, last_name, member_uid")
+  .limit(50); // Always limit for production
+
+// ❌ WRONG: No pagination
+const { data } = await supabase.from("ride_requests").select("*");
+
+// ✅ CORRECT: With pagination
+const { data, count } = await supabase
+  .from("ride_requests")
+  .select("*", { count: "exact" })
+  .range(offset, offset + limit - 1)
+  .order("created_at", { ascending: false });
+```
+
+### Error Handling for Production
+
+```typescript
+// ❌ WRONG: Generic error
+catch (err) {
+  console.error(err)
+  error.value = 'Error occurred'
+}
+
+// ✅ CORRECT: Production-grade error handling
+catch (err) {
+  const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+
+  // Log for monitoring (Sentry in production)
+  if (import.meta.env.PROD) {
+    captureException(err, { context: 'fetchProviderJobs' })
+  }
+
+  // User-friendly message
+  error.value = getThaiErrorMessage(errorMessage)
+}
+
+function getThaiErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    'PGRST116': 'ไม่พบข้อมูลที่ต้องการ',
+    'PGRST301': 'ไม่มีสิทธิ์เข้าถึงข้อมูลนี้',
+    '23505': 'ข้อมูลนี้มีอยู่แล้วในระบบ',
+    'network_error': 'ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบอินเทอร์เน็ต',
+    'default': 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'
+  }
+  return messages[code] ?? messages.default
+}
+```
+
+### Realtime Subscriptions for Production
+
+```typescript
+// ❌ WRONG: No cleanup, no error handling
+const channel = supabase.channel('jobs')
+  .on('postgres_changes', { ... }, callback)
+  .subscribe()
+
+// ✅ CORRECT: Production-ready subscription
+const channel = supabase.channel('provider-jobs')
+  .on('postgres_changes',
+    {
+      event: '*',
+      schema: 'public',
+      table: 'ride_requests',
+      filter: `provider_id=eq.${providerId}`
+    },
+    (payload) => {
+      try {
+        handleRealtimeChange(payload)
+      } catch (err) {
+        captureException(err, { context: 'realtime_handler' })
+      }
+    }
+  )
+  .subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      connectionStatus.value = 'connected'
+    } else if (status === 'CHANNEL_ERROR') {
+      connectionStatus.value = 'error'
+      // Retry logic
+      setTimeout(() => channel.subscribe(), 5000)
+    }
+  })
+
+// Cleanup on unmount
+onUnmounted(() => {
+  channel.unsubscribe()
+})
+```
+
+### Production Deployment Checklist
+
+```
+Before Every Deploy:
+□ All migrations executed on Production Supabase
+□ RLS policies verified with production data
+□ No console.log statements (except DEV mode)
+□ Error handling complete
+□ Loading states implemented
+□ Empty states implemented
+□ Thai language messages
+□ Mobile responsive
+□ Cross-role testing complete (Customer, Provider, Admin)
+□ Performance tested with realistic data volume
+```
+
+---
+
+**Version**: 2.1.0
+**Last Updated**: January 1, 2026

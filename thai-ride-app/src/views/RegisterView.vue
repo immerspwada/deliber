@@ -5,553 +5,327 @@ import {
   validateThaiPhoneNumber, 
   validateEmail,
   validatePassword,
-  formatThaiPhoneNumber,
-  validateThaiNationalId,
-  formatThaiNationalId
+  formatThaiPhoneNumber
 } from '../utils/validation'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-// Registration steps
+// State
 const currentStep = ref(1)
-const totalSteps = 3
+const totalSteps = 2
 const isLoading = ref(false)
 const error = ref('')
 const successMessage = ref('')
 const registrationComplete = ref(false)
 const memberUid = ref('')
 
-// Step 1: Basic Info
+// Form fields
 const firstName = ref('')
 const lastName = ref('')
 const phone = ref('')
-
-// Step 2: Account Setup
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-
-// Step 3: Verification & Terms
-const nationalId = ref('')
 const acceptTerms = ref(false)
 const acceptPrivacy = ref(false)
-
-// Social login loading state
 const socialLoading = ref<'google' | 'facebook' | null>(null)
 
-// Validations - Step 1
+// Validations
 const isFirstNameValid = computed(() => firstName.value.trim().length >= 2)
 const isLastNameValid = computed(() => lastName.value.trim().length >= 2)
-const isPhoneValid = computed(() => phone.value.length === 0 || validateThaiPhoneNumber(phone.value))
+const isPhoneValid = computed(() => !phone.value || validateThaiPhoneNumber(phone.value))
 const formattedPhone = computed(() => formatThaiPhoneNumber(phone.value))
-
-// Validations - Step 2
-const isEmailValid = computed(() => email.value.length === 0 || validateEmail(email.value))
+const isEmailValid = computed(() => !email.value || validateEmail(email.value))
 const passwordValidation = computed(() => validatePassword(password.value))
 const isPasswordMatch = computed(() => password.value === confirmPassword.value)
 
-// Validations - Step 3
-const isNationalIdValid = computed(() => nationalId.value.length === 0 || validateThaiNationalId(nationalId.value))
-const formattedNationalId = computed(() => formatThaiNationalId(nationalId.value))
-
-// Step validation
 const canProceedStep1 = computed(() => 
   isFirstNameValid.value && 
   isLastNameValid.value && 
-  validateThaiPhoneNumber(phone.value)
-)
-
-const canProceedStep2 = computed(() => 
+  validateThaiPhoneNumber(phone.value) &&
   validateEmail(email.value) && 
   passwordValidation.value.valid && 
   isPasswordMatch.value
 )
 
-const canSubmit = computed(() => 
-  canProceedStep1.value && 
-  canProceedStep2.value && 
-  acceptTerms.value && 
-  acceptPrivacy.value
-)
+const canSubmit = computed(() => canProceedStep1.value && acceptTerms.value && acceptPrivacy.value)
 
-// Step navigation
-const nextStep = () => {
+// Navigation
+const nextStep = (): void => {
   error.value = ''
-  if (currentStep.value === 1 && canProceedStep1.value) {
-    currentStep.value = 2
-  } else if (currentStep.value === 2 && canProceedStep2.value) {
-    currentStep.value = 3
-  }
+  if (currentStep.value === 1 && canProceedStep1.value) currentStep.value = 2
 }
+const prevStep = (): void => { error.value = ''; if (currentStep.value > 1) currentStep.value-- }
+const goToLogin = (): void => { router.push('/login') }
+const goToHome = (): void => { router.push('/customer') }
 
-const prevStep = () => {
-  error.value = ''
-  if (currentStep.value > 1) {
-    currentStep.value--
-  }
-}
-
-// Social Login handlers
-const loginWithGoogle = async () => {
+// Social Login
+const loginWithGoogle = async (): Promise<void> => {
   socialLoading.value = 'google'
   error.value = ''
-  try {
-    await authStore.loginWithGoogle()
-  } catch (err: any) {
-    error.value = err.message || 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้'
-  } finally {
-    socialLoading.value = null
-  }
+  try { await authStore.loginWithGoogle() }
+  catch (err: unknown) { error.value = (err as Error).message || 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้' }
+  finally { socialLoading.value = null }
 }
 
-const loginWithFacebook = async () => {
+const loginWithFacebook = async (): Promise<void> => {
   socialLoading.value = 'facebook'
   error.value = ''
-  try {
-    await authStore.loginWithFacebook()
-  } catch (err: any) {
-    error.value = err.message || 'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้'
-  } finally {
-    socialLoading.value = null
-  }
+  try { await authStore.loginWithFacebook() }
+  catch (err: unknown) { error.value = (err as Error).message || 'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้' }
+  finally { socialLoading.value = null }
 }
 
-// Loading progress state
-const loadingProgress = ref(0)
-const loadingMessage = ref('')
-
-// Submit Registration with progress tracking
-const submitRegistration = async () => {
+// Submit
+const submitRegistration = async (): Promise<void> => {
   if (!canSubmit.value) return
-  
   isLoading.value = true
-  loadingProgress.value = 0
-  loadingMessage.value = 'กำลังสร้างบัญชี...'
   error.value = ''
-  successMessage.value = ''
   
   try {
     const fullName = `${firstName.value} ${lastName.value}`.trim()
     const cleanPhone = phone.value.replace(/[-\s]/g, '')
-    const cleanNationalId = nationalId.value.replace(/[-\s]/g, '') || null
-    
     localStorage.removeItem('demo_mode')
     localStorage.removeItem('demo_user')
     
-    // Step 1: Create account (0-40%)
-    loadingProgress.value = 10
-    loadingMessage.value = 'กำลังสร้างบัญชี...'
-    
     const success = await authStore.register(email.value, password.value, {
-      name: fullName,
-      phone: cleanPhone,
-      role: 'customer',
-      nationalId: cleanNationalId || undefined
+      name: fullName, phone: cleanPhone, role: 'customer'
     })
     
-    loadingProgress.value = 40
-    
-    if (!success) {
-      error.value = authStore.error || 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่'
-      return
-    }
-    
-    // Step 2: Auto login (40-70%)
-    loadingProgress.value = 50
-    loadingMessage.value = 'กำลังเข้าสู่ระบบ...'
+    if (!success) { error.value = authStore.error || 'ไม่สามารถสมัครสมาชิกได้'; return }
     
     const loginSuccess = await authStore.login(email.value, password.value)
-    loadingProgress.value = 70
-    
-    // Step 3: Fetch profile & member UID (70-100%)
-    loadingMessage.value = 'กำลังโหลดข้อมูลสมาชิก...'
-    loadingProgress.value = 85
-    
-    // Small delay to ensure profile is fetched
     await new Promise(resolve => setTimeout(resolve, 500))
-    loadingProgress.value = 100
     
     if (loginSuccess && authStore.user) {
-      memberUid.value = (authStore.user as any).member_uid || ''
+      memberUid.value = (authStore.user as Record<string, unknown>).member_uid as string || ''
       registrationComplete.value = true
-      successMessage.value = 'สมัครสมาชิกสำเร็จ!'
     } else {
-      error.value = 'สมัครสำเร็จ! กรุณาเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่สมัคร'
+      error.value = 'สมัครสำเร็จ! กรุณาเข้าสู่ระบบ'
       setTimeout(() => router.push('/login'), 2000)
     }
-  } catch (err: any) {
-    error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-  } finally {
-    isLoading.value = false
-    loadingProgress.value = 0
-    loadingMessage.value = ''
-  }
+  } catch (err: unknown) { error.value = (err as Error).message || 'เกิดข้อผิดพลาด' }
+  finally { isLoading.value = false }
 }
 
-const goToHome = () => router.push('/customer')
-const goToLogin = () => router.push('/login')
-const copyMemberUid = () => {
+const copyMemberUid = (): void => {
   if (memberUid.value) {
     navigator.clipboard.writeText(memberUid.value)
-    successMessage.value = 'คัดลอก Member ID แล้ว'
+    successMessage.value = 'คัดลอกแล้ว!'
     setTimeout(() => successMessage.value = '', 2000)
   }
 }
 
-// Auto-format phone
 watch(phone, (val) => {
   const clean = val.replace(/[^\d+]/g, '').slice(0, 12)
-  if (clean !== val.replace(/[^\d+]/g, '')) {
-    phone.value = clean
-  }
-})
-
-// Auto-format national ID
-watch(nationalId, (val) => {
-  const clean = val.replace(/[^\d]/g, '').slice(0, 13)
-  if (clean !== val.replace(/[^\d]/g, '')) {
-    nationalId.value = clean
-  }
+  if (clean !== val.replace(/[^\d+]/g, '')) phone.value = clean
 })
 </script>
 
 <template>
   <div class="register-page">
-    <!-- Loading Skeleton Overlay -->
-    <Transition name="fade">
-      <div v-if="isLoading" class="loading-overlay">
-        <div class="loading-content">
-          <div class="loading-spinner-container">
-            <div class="loading-spinner"></div>
-            <div class="loading-checkmark" :class="{ show: loadingProgress >= 100 }">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </div>
-          </div>
-          
-          <div class="loading-progress-container">
-            <div class="loading-progress-bar">
-              <div class="loading-progress-fill" :style="{ width: loadingProgress + '%' }"></div>
-            </div>
-            <span class="loading-percentage">{{ loadingProgress }}%</span>
-          </div>
-          
-          <p class="loading-message">{{ loadingMessage }}</p>
-          
-          <!-- Skeleton Preview -->
-          <div class="skeleton-preview">
-            <div class="skeleton-avatar"></div>
-            <div class="skeleton-lines">
-              <div class="skeleton-line long"></div>
-              <div class="skeleton-line medium"></div>
-              <div class="skeleton-line short"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
     <!-- Success Screen -->
     <div v-if="registrationComplete" class="success-screen">
-      <div class="success-content">
+      <div class="success-card">
         <div class="success-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-            <path d="M22 4L12 14.01l-3-3"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
           </svg>
         </div>
-        <h1 class="success-title">สมัครสมาชิกสำเร็จ!</h1>
-        <p class="success-subtitle">ยินดีต้อนรับสู่ GOBEAR</p>
+        <h1>สมัครสมาชิกสำเร็จ!</h1>
+        <p>ยินดีต้อนรับสู่ GOBEAR</p>
         
-        <!-- Member UID Card -->
         <div v-if="memberUid" class="member-card">
-          <div class="member-label">Member ID ของคุณ</div>
-          <div class="member-uid">{{ memberUid }}</div>
+          <span class="member-label">Member ID</span>
+          <span class="member-id">{{ memberUid }}</span>
           <button @click="copyMemberUid" class="copy-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
             </svg>
-            คัดลอก
+            {{ successMessage || 'คัดลอก' }}
           </button>
-          <p class="member-hint">ใช้ Member ID นี้ในการติดตามประวัติการใช้งาน</p>
         </div>
         
-        <button @click="goToHome" class="btn-primary">
-          เริ่มใช้งาน
-        </button>
+        <button @click="goToHome" class="btn-primary">เริ่มใช้งาน</button>
       </div>
     </div>
 
     <!-- Registration Form -->
     <template v-else>
-      <!-- Header -->
-      <div class="register-header">
-        <button @click="currentStep > 1 ? prevStep() : goToLogin()" class="back-btn">
+      <header class="header">
+        <button @click="currentStep > 1 ? prevStep() : goToLogin()" class="back-btn" aria-label="ย้อนกลับ">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
           </svg>
         </button>
-        <h1 class="header-title">สมัครสมาชิก</h1>
-        <div class="header-spacer"></div>
-      </div>
+        <h1>สมัครสมาชิก</h1>
+        <div class="spacer"></div>
+      </header>
 
-      <!-- Progress Steps -->
-      <div class="progress-container">
+      <div class="progress-section">
         <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: `${(currentStep / totalSteps) * 100}%` }"></div>
+          <div class="progress-fill" :style="{ width: (currentStep / totalSteps * 100) + '%' }"></div>
         </div>
-        <div class="step-indicators">
-          <div v-for="step in totalSteps" :key="step" 
-               :class="['step-dot', { active: step <= currentStep, current: step === currentStep }]">
-            <span v-if="step < currentStep" class="step-check">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </span>
-            <span v-else>{{ step }}</span>
-          </div>
-        </div>
-        <div class="step-labels">
-          <span :class="{ active: currentStep >= 1 }">ข้อมูลส่วนตัว</span>
-          <span :class="{ active: currentStep >= 2 }">บัญชีผู้ใช้</span>
-          <span :class="{ active: currentStep >= 3 }">ยืนยันตัวตน</span>
-        </div>
+        <span class="progress-text">{{ currentStep }}/{{ totalSteps }}</span>
       </div>
 
-      <div class="register-content">
-        <!-- Messages -->
-        <Transition name="fade">
-          <div v-if="error" class="message error-message">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
-            </svg>
-            {{ error }}
-          </div>
-        </Transition>
-        <Transition name="fade">
-          <div v-if="successMessage && !registrationComplete" class="message success-message">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>
-            </svg>
-            {{ successMessage }}
-          </div>
-        </Transition>
+      <main class="main-content">
+        <div v-if="error" class="error-alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
+          </svg>
+          <span>{{ error }}</span>
+        </div>
 
-        <!-- Step 1: Basic Info -->
+        <!-- Step 1 -->
         <Transition name="slide" mode="out-in">
-          <div v-if="currentStep === 1" key="step1" class="form-step">
-            <h2 class="step-title">ข้อมูลส่วนตัว</h2>
-            <p class="step-desc">กรอกชื่อและเบอร์โทรศัพท์ของคุณ</p>
+          <div v-if="currentStep === 1" key="step1" class="form-section">
+            <div class="section-header">
+              <h2>สร้างบัญชีใหม่</h2>
+              <p>กรอกข้อมูลเพื่อเริ่มใช้งาน</p>
+            </div>
 
-            <div class="form-row">
+            <div class="form-grid">
               <div class="form-group">
-                <label class="label">ชื่อ <span class="required">*</span></label>
-                <div class="input-wrapper">
-                  <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  <input v-model="firstName" type="text" placeholder="ชื่อจริง" class="input-field"
-                    :class="{ 'input-success': firstName && isFirstNameValid }" />
-                </div>
-                <p v-if="firstName && !isFirstNameValid" class="error-text">กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร</p>
+                <label>ชื่อ <span class="required">*</span></label>
+                <input v-model="firstName" type="text" placeholder="ชื่อจริง" 
+                  :class="{ error: firstName && !isFirstNameValid, success: firstName && isFirstNameValid }" />
               </div>
               <div class="form-group">
-                <label class="label">นามสกุล <span class="required">*</span></label>
-                <div class="input-wrapper">
-                  <input v-model="lastName" type="text" placeholder="นามสกุล" class="input-field no-icon"
-                    :class="{ 'input-success': lastName && isLastNameValid }" />
-                </div>
-                <p v-if="lastName && !isLastNameValid" class="error-text">กรุณากรอกนามสกุลอย่างน้อย 2 ตัวอักษร</p>
+                <label>นามสกุล <span class="required">*</span></label>
+                <input v-model="lastName" type="text" placeholder="นามสกุล"
+                  :class="{ error: lastName && !isLastNameValid, success: lastName && isLastNameValid }" />
               </div>
             </div>
 
             <div class="form-group">
-              <label class="label">เบอร์โทรศัพท์ <span class="required">*</span></label>
-              <div class="input-wrapper">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-                <input v-model="phone" type="tel" inputmode="tel" placeholder="0812345678" class="input-field"
-                  :class="{ 'input-error': phone && !isPhoneValid, 'input-success': phone && isPhoneValid }" />
+              <label>เบอร์โทรศัพท์ <span class="required">*</span></label>
+              <div class="input-with-icon">
+                <span class="icon-left">🇹🇭</span>
+                <input v-model="phone" type="tel" inputmode="tel" placeholder="0812345678"
+                  :class="{ error: phone && !isPhoneValid, success: phone && isPhoneValid }" />
               </div>
-              <p v-if="phone && isPhoneValid" class="success-text">{{ formattedPhone }}</p>
-              <p v-if="phone && !isPhoneValid" class="error-text">เบอร์โทรศัพท์ไม่ถูกต้อง</p>
-            </div>
-
-            <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
-              ถัดไป
-            </button>
-          </div>
-
-          <!-- Step 2: Account Setup -->
-          <div v-else-if="currentStep === 2" key="step2" class="form-step">
-            <h2 class="step-title">สร้างบัญชีผู้ใช้</h2>
-            <p class="step-desc">ตั้งอีเมลและรหัสผ่านสำหรับเข้าสู่ระบบ</p>
-
-            <div class="form-group">
-              <label class="label">อีเมล <span class="required">*</span></label>
-              <div class="input-wrapper">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/>
-                </svg>
-                <input v-model="email" type="email" inputmode="email" placeholder="email@example.com" class="input-field"
-                  :class="{ 'input-error': email && !isEmailValid, 'input-success': email && isEmailValid }" />
-              </div>
-              <p v-if="email && !isEmailValid" class="error-text">อีเมลไม่ถูกต้อง</p>
+              <span v-if="phone && isPhoneValid" class="hint success">{{ formattedPhone }}</span>
+              <span v-if="phone && !isPhoneValid" class="hint error">เบอร์โทรศัพท์ไม่ถูกต้อง</span>
             </div>
 
             <div class="form-group">
-              <label class="label">รหัสผ่าน <span class="required">*</span></label>
-              <div class="input-wrapper">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                <input v-model="password" :type="showPassword ? 'text' : 'password'" placeholder="รหัสผ่าน (อย่างน้อย 8 ตัว)" class="input-field"
-                  :class="{ 'input-error': password && !passwordValidation.valid }" />
-                <button @click="showPassword = !showPassword" type="button" class="toggle-password">
-                  <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
+              <label>อีเมล <span class="required">*</span></label>
+              <input v-model="email" type="email" inputmode="email" placeholder="email@example.com"
+                :class="{ error: email && !isEmailValid, success: email && isEmailValid }" />
+              <span v-if="email && !isEmailValid" class="hint error">อีเมลไม่ถูกต้อง</span>
+            </div>
+
+            <div class="form-group">
+              <label>รหัสผ่าน <span class="required">*</span></label>
+              <div class="input-with-icon">
+                <input v-model="password" :type="showPassword ? 'text' : 'password'" placeholder="อย่างน้อย 8 ตัวอักษร"
+                  :class="{ error: password && !passwordValidation.valid }" />
+                <button type="button" @click="showPassword = !showPassword" class="icon-btn" aria-label="แสดงรหัสผ่าน">
+                  <svg v-if="!showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                   </svg>
                   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
                   </svg>
                 </button>
               </div>
-              <p v-if="password && !passwordValidation.valid" class="error-text">{{ passwordValidation.message }}</p>
+              <div class="password-rules">
+                <span :class="{ met: password.length >= 8 }">✓ 8 ตัวอักษร</span>
+                <span :class="{ met: /[a-zA-Z]/.test(password) }">✓ ตัวอักษร</span>
+                <span :class="{ met: /\d/.test(password) }">✓ ตัวเลข</span>
+              </div>
             </div>
 
             <div class="form-group">
-              <label class="label">ยืนยันรหัสผ่าน <span class="required">*</span></label>
-              <div class="input-wrapper">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'" placeholder="ยืนยันรหัสผ่าน" class="input-field"
-                  :class="{ 'input-error': confirmPassword && !isPasswordMatch, 'input-success': confirmPassword && isPasswordMatch && passwordValidation.valid }" />
-                <button @click="showConfirmPassword = !showConfirmPassword" type="button" class="toggle-password">
-                  <svg v-if="showConfirmPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
+              <label>ยืนยันรหัสผ่าน <span class="required">*</span></label>
+              <div class="input-with-icon">
+                <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'" placeholder="ยืนยันรหัสผ่าน"
+                  :class="{ error: confirmPassword && !isPasswordMatch, success: confirmPassword && isPasswordMatch && passwordValidation.valid }" />
+                <button type="button" @click="showConfirmPassword = !showConfirmPassword" class="icon-btn" aria-label="แสดงรหัสผ่าน">
+                  <svg v-if="!showConfirmPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                   </svg>
                   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
                   </svg>
                 </button>
               </div>
-              <p v-if="confirmPassword && !isPasswordMatch" class="error-text">รหัสผ่านไม่ตรงกัน</p>
-              <p v-if="confirmPassword && isPasswordMatch && passwordValidation.valid" class="success-text">รหัสผ่านตรงกัน</p>
+              <span v-if="confirmPassword && !isPasswordMatch" class="hint error">รหัสผ่านไม่ตรงกัน</span>
+              <span v-if="confirmPassword && isPasswordMatch && passwordValidation.valid" class="hint success">รหัสผ่านตรงกัน ✓</span>
             </div>
 
-            <!-- Password Requirements -->
-            <div class="password-requirements">
-              <div :class="['req-item', { 'req-met': password.length >= 8 }]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-                อย่างน้อย 8 ตัวอักษร
-              </div>
-              <div :class="['req-item', { 'req-met': /[a-zA-Z]/.test(password) }]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-                มีตัวอักษร (a-z, A-Z)
-              </div>
-              <div :class="['req-item', { 'req-met': /\d/.test(password) }]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-                มีตัวเลข (0-9)
-              </div>
-            </div>
+            <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">ถัดไป</button>
 
-            <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">
-              ถัดไป
-            </button>
+            <div class="divider"><span>หรือสมัครด้วย</span></div>
 
-            <!-- Social Login Divider -->
-            <div class="social-divider">
-              <span>หรือสมัครด้วย</span>
-            </div>
             <div class="social-buttons">
-              <button @click="loginWithGoogle" :disabled="!!socialLoading" class="social-btn google">
-                <svg v-if="socialLoading !== 'google'" viewBox="0 0 24 24">
+              <button @click="loginWithGoogle" :disabled="!!socialLoading" class="social-btn">
+                <svg v-if="socialLoading !== 'google'" viewBox="0 0 24 24" class="google-icon">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                <span v-else class="spinner small"></span>
-                <span>Google</span>
+                <span v-else class="spinner"></span>
+                Google
               </button>
-              <button @click="loginWithFacebook" :disabled="!!socialLoading" class="social-btn facebook">
+              <button @click="loginWithFacebook" :disabled="!!socialLoading" class="social-btn">
                 <svg v-if="socialLoading !== 'facebook'" viewBox="0 0 24 24" fill="#1877F2">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
-                <span v-else class="spinner small"></span>
-                <span>Facebook</span>
+                <span v-else class="spinner"></span>
+                Facebook
               </button>
             </div>
           </div>
 
-          <!-- Step 3: Verification & Terms -->
-          <div v-else-if="currentStep === 3" key="step3" class="form-step">
-            <h2 class="step-title">ยืนยันตัวตน</h2>
-            <p class="step-desc">กรอกข้อมูลเพิ่มเติมและยอมรับเงื่อนไข</p>
-
-            <div class="form-group">
-              <label class="label">เลขบัตรประชาชน <span class="optional">(ไม่บังคับ)</span></label>
-              <div class="input-wrapper">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="5" width="20" height="14" rx="2"/>
-                  <path d="M2 10h20"/>
-                </svg>
-                <input v-model="nationalId" type="text" inputmode="numeric" placeholder="X-XXXX-XXXXX-XX-X" class="input-field"
-                  :class="{ 'input-error': nationalId && !isNationalIdValid, 'input-success': nationalId && isNationalIdValid }" />
-              </div>
-              <p v-if="nationalId && isNationalIdValid" class="success-text">{{ formattedNationalId }}</p>
-              <p v-if="nationalId && !isNationalIdValid" class="error-text">เลขบัตรประชาชนไม่ถูกต้อง</p>
-              <p class="hint-text">ใช้สำหรับยืนยันตัวตนเพื่อรับสิทธิพิเศษ</p>
+          <!-- Step 2 -->
+          <div v-else-if="currentStep === 2" key="step2" class="form-section">
+            <div class="section-header">
+              <h2>ยืนยันการสมัคร</h2>
+              <p>ตรวจสอบข้อมูลและยอมรับเงื่อนไข</p>
             </div>
 
-            <!-- Summary Card -->
             <div class="summary-card">
-              <h3 class="summary-title">ข้อมูลการสมัคร</h3>
+              <h3>ข้อมูลการสมัคร</h3>
               <div class="summary-row">
-                <span class="summary-label">ชื่อ-นามสกุล</span>
-                <span class="summary-value">{{ firstName }} {{ lastName }}</span>
+                <span>ชื่อ-นามสกุล</span>
+                <span>{{ firstName }} {{ lastName }}</span>
               </div>
               <div class="summary-row">
-                <span class="summary-label">เบอร์โทรศัพท์</span>
-                <span class="summary-value">{{ formattedPhone }}</span>
+                <span>เบอร์โทรศัพท์</span>
+                <span>{{ formattedPhone }}</span>
               </div>
               <div class="summary-row">
-                <span class="summary-label">อีเมล</span>
-                <span class="summary-value">{{ email }}</span>
+                <span>อีเมล</span>
+                <span>{{ email }}</span>
               </div>
             </div>
 
-            <!-- Terms Checkboxes -->
-            <label class="terms-checkbox">
-              <input v-model="acceptTerms" type="checkbox" />
-              <span class="checkmark"></span>
-              <span class="terms-text">
-                ฉันยอมรับ <a href="#" @click.prevent>ข้อกำหนดและเงื่อนไข</a> การใช้งาน
-              </span>
-            </label>
-
-            <label class="terms-checkbox">
-              <input v-model="acceptPrivacy" type="checkbox" />
-              <span class="checkmark"></span>
-              <span class="terms-text">
-                ฉันยอมรับ <a href="#" @click.prevent>นโยบายความเป็นส่วนตัว</a>
-              </span>
-            </label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input v-model="acceptTerms" type="checkbox" />
+                <span class="checkmark"></span>
+                <span>ฉันยอมรับ <a href="#" @click.prevent>ข้อกำหนดและเงื่อนไข</a></span>
+              </label>
+              <label class="checkbox-label">
+                <input v-model="acceptPrivacy" type="checkbox" />
+                <span class="checkmark"></span>
+                <span>ฉันยอมรับ <a href="#" @click.prevent>นโยบายความเป็นส่วนตัว</a></span>
+              </label>
+            </div>
 
             <button @click="submitRegistration" :disabled="!canSubmit || isLoading" class="btn-primary">
               <span v-if="isLoading" class="btn-loading">
-                <span class="spinner"></span>
+                <span class="spinner white"></span>
                 กำลังสมัคร...
               </span>
               <span v-else>สมัครสมาชิก</span>
@@ -559,99 +333,99 @@ watch(nationalId, (val) => {
           </div>
         </Transition>
 
-        <!-- Login Link -->
         <div class="login-link">
           <span>มีบัญชีอยู่แล้ว?</span>
-          <button @click="goToLogin" class="link-btn">เข้าสู่ระบบ</button>
+          <button @click="goToLogin">เข้าสู่ระบบ</button>
         </div>
-      </div>
+      </main>
     </template>
   </div>
 </template>
 
 <style scoped>
+/* Base */
 .register-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #FFFFFF;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 50%, #ecfdf5 100%);
 }
 
 /* Success Screen */
 .success-screen {
   min-height: 100vh;
-  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #E8F5EF 0%, #FFFFFF 50%, #F0FDF4 100%);
   padding: 24px;
 }
 
-.success-content {
+.success-card {
   text-align: center;
-  max-width: 360px;
+  max-width: 340px;
   width: 100%;
 }
 
 .success-icon {
   width: 80px;
   height: 80px;
-  margin: 0 auto 20px;
-  background: #00A86B;
+  margin: 0 auto 24px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: scaleIn 0.5s ease;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
+  animation: pop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 .success-icon svg {
   width: 40px;
   height: 40px;
-  color: #FFFFFF;
+  color: white;
 }
 
-@keyframes scaleIn {
+@keyframes pop {
   0% { transform: scale(0); }
-  50% { transform: scale(1.1); }
   100% { transform: scale(1); }
 }
 
-.success-title {
+.success-card h1 {
   font-size: 24px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #111827;
   margin: 0 0 8px;
 }
 
-.success-subtitle {
+.success-card > p {
   font-size: 14px;
-  color: #666666;
+  color: #6b7280;
   margin: 0 0 24px;
 }
 
 .member-card {
-  background: #FFFFFF;
+  background: white;
   border-radius: 16px;
   padding: 20px;
   margin-bottom: 24px;
-  box-shadow: 0 4px 16px rgba(0, 168, 107, 0.12);
-  border: 2px solid #E8F5EF;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
 }
 
 .member-label {
+  display: block;
   font-size: 12px;
-  color: #666666;
+  color: #9ca3af;
   margin-bottom: 8px;
 }
 
-.member-uid {
-  font-size: 24px;
+.member-id {
+  display: block;
+  font-size: 20px;
   font-weight: 700;
-  color: #00A86B;
-  font-family: 'SF Mono', 'Consolas', monospace;
-  letter-spacing: 2px;
-  margin-bottom: 12px;
+  color: #10b981;
+  font-family: 'SF Mono', monospace;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
 }
 
 .copy-btn {
@@ -659,468 +433,274 @@ watch(nationalId, (val) => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: #E8F5EF;
+  background: #f0fdf4;
   border: none;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: #00A86B;
+  color: #10b981;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.copy-btn:hover {
-  background: #00A86B;
-  color: #FFFFFF;
-}
-
-.copy-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.member-hint {
-  font-size: 11px;
-  color: #999999;
-  margin: 12px 0 0;
-}
+.copy-btn:hover { background: #dcfce7; }
+.copy-btn svg { width: 16px; height: 16px; }
 
 /* Header */
-.register-header {
+.header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #00A86B;
-  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #f3f4f6;
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
-.back-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.15);
-  border: none;
-  border-radius: 12px;
-  color: #FFFFFF;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-btn:hover {
-  background: rgba(255,255,255,0.25);
-}
-
-.back-btn svg {
-  width: 22px;
-  height: 22px;
-}
-
-.header-title {
+.header h1 {
   font-size: 17px;
   font-weight: 600;
+  color: #111827;
+  margin: 0;
 }
 
-.header-spacer {
+.back-btn, .spacer {
   width: 40px;
+  height: 40px;
 }
 
-/* Progress */
-.progress-container {
-  padding: 20px 24px;
-  background: #FFFFFF;
-  border-bottom: 1px solid #F0F0F0;
-}
-
-.progress-bar {
-  height: 4px;
-  background: #E8E8E8;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: #00A86B;
-  border-radius: 2px;
-  transition: width 0.4s ease;
-}
-
-.step-indicators {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.step-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+.back-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  background: #E8E8E8;
-  color: #999999;
-  transition: all 0.3s;
+  background: none;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-.step-dot.active {
-  background: #00A86B;
-  color: #FFFFFF;
-}
+.back-btn:hover { background: #f3f4f6; }
+.back-btn svg { width: 20px; height: 20px; color: #374151; }
 
-.step-dot.current {
-  box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.2);
-}
-
-.step-check svg {
-  width: 14px;
-  height: 14px;
-}
-
-.step-labels {
+/* Progress */
+.progress-section {
   display: flex;
-  justify-content: space-between;
-}
-
-.step-labels span {
-  font-size: 11px;
-  color: #999999;
-  transition: color 0.3s;
-}
-
-.step-labels span.active {
-  color: #00A86B;
-  font-weight: 500;
-}
-
-/* Content */
-.register-content {
-  padding: 24px 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
   max-width: 480px;
   margin: 0 auto;
 }
 
-/* Messages */
-.message {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 12px;
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.progress-text {
   font-size: 13px;
-  margin-bottom: 16px;
+  font-weight: 600;
+  color: #10b981;
+  min-width: 32px;
 }
 
-.message svg {
-  width: 18px;
-  height: 18px;
+/* Main Content */
+.main-content {
+  padding: 0 20px 32px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* Error Alert */
+.error-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.error-alert svg {
+  width: 20px;
+  height: 20px;
+  color: #ef4444;
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
-.error-message {
-  background: #FFEBEE;
-  color: #E53935;
+.error-alert span {
+  font-size: 14px;
+  color: #dc2626;
+  line-height: 1.5;
 }
 
-.success-message {
-  background: #E8F5EF;
-  color: #00A86B;
-}
-
-/* Form Step */
-.form-step {
+/* Form Section */
+.form-section {
   animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.step-title {
+.section-header {
+  margin-bottom: 24px;
+}
+
+.section-header h2 {
   font-size: 22px;
   font-weight: 700;
-  color: #1A1A1A;
-  margin: 0 0 6px;
+  color: #111827;
+  margin: 0 0 4px;
 }
 
-.step-desc {
+.section-header p {
   font-size: 14px;
-  color: #666666;
-  margin: 0 0 24px;
+  color: #6b7280;
+  margin: 0;
 }
 
-/* Form */
-.form-row {
+/* Form Elements */
+.form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .form-group {
   margin-bottom: 16px;
 }
 
-.label {
+.form-group label {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #374151;
   margin-bottom: 8px;
 }
 
-.required {
-  color: #E53935;
+.required { color: #ef4444; }
+
+.form-group input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #111827;
+  background: white;
+  transition: all 0.2s;
+  outline: none;
 }
 
-.optional {
-  color: #999999;
-  font-weight: 400;
-  font-size: 11px;
-}
+.form-group input::placeholder { color: #9ca3af; }
+.form-group input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
+.form-group input.error { border-color: #ef4444; }
+.form-group input.error:focus { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+.form-group input.success { border-color: #10b981; }
 
-.hint-text {
-  font-size: 11px;
-  color: #999999;
-  margin-top: 6px;
-}
-
-.input-wrapper {
+.input-with-icon {
   position: relative;
 }
 
-.input-icon {
+.input-with-icon input { padding-left: 48px; padding-right: 48px; }
+.icon-left {
   position: absolute;
-  left: 14px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  width: 18px;
-  height: 18px;
-  color: #999999;
-  pointer-events: none;
+  font-size: 18px;
 }
 
-.input-field {
-  width: 100%;
-  padding: 14px 14px 14px 44px;
-  border: 2px solid #E8E8E8;
-  border-radius: 12px;
-  font-size: 15px;
-  transition: all 0.2s;
-  background: #FFFFFF;
-}
-
-.input-field.no-icon {
-  padding-left: 14px;
-}
-
-.input-field:focus {
-  outline: none;
-  border-color: #00A86B;
-  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
-}
-
-.input-field::placeholder {
-  color: #CCCCCC;
-}
-
-.input-error {
-  border-color: #E53935 !important;
-}
-
-.input-success {
-  border-color: #00A86B !important;
-  background: rgba(0, 168, 107, 0.03);
-}
-
-.error-text {
-  font-size: 11px;
-  color: #E53935;
-  margin-top: 6px;
-}
-
-.success-text {
-  font-size: 11px;
-  color: #00A86B;
-  margin-top: 6px;
-}
-
-/* Password Toggle */
-.toggle-password {
+.icon-btn {
   position: absolute;
   right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: #999999;
-}
-
-.toggle-password svg {
-  width: 20px;
-  height: 20px;
-}
-
-/* Password Requirements */
-.password-requirements {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 20px;
-  padding: 12px;
-  background: #F8F8F8;
-  border-radius: 10px;
-}
-
-.req-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #999999;
-}
-
-.req-item svg {
-  width: 14px;
-  height: 14px;
-  opacity: 0.3;
-}
-
-.req-met {
-  color: #00A86B;
-}
-
-.req-met svg {
-  opacity: 1;
-  color: #00A86B;
-}
-
-/* Summary Card */
-.summary-card {
-  background: #F8F8F8;
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-
-.summary-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1A1A1A;
-  margin: 0 0 12px;
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #E8E8E8;
-}
-
-.summary-row:last-child {
-  border-bottom: none;
-}
-
-.summary-label {
-  font-size: 13px;
-  color: #666666;
-}
-
-.summary-value {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1A1A1A;
-}
-
-/* Terms Checkbox */
-.terms-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 14px;
-  cursor: pointer;
-}
-
-.terms-checkbox input {
-  display: none;
-}
-
-.checkmark {
-  width: 22px;
-  height: 22px;
-  border: 2px solid #E8E8E8;
-  border-radius: 6px;
-  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #9ca3af;
   transition: all 0.2s;
 }
 
-.terms-checkbox input:checked + .checkmark {
-  background: #00A86B;
-  border-color: #00A86B;
+.icon-btn:hover { background: #f3f4f6; color: #6b7280; }
+.icon-btn svg { width: 20px; height: 20px; }
+
+.hint {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
 }
 
-.terms-checkbox input:checked + .checkmark::after {
-  content: '';
-  width: 6px;
-  height: 10px;
-  border: solid #FFFFFF;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  margin-bottom: 2px;
+.hint.success { color: #10b981; }
+.hint.error { color: #ef4444; }
+
+/* Password Rules */
+.password-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
 }
 
-.terms-text {
-  font-size: 13px;
-  color: #666666;
-  line-height: 1.5;
+.password-rules span {
+  font-size: 12px;
+  color: #9ca3af;
+  transition: color 0.2s;
 }
 
-.terms-text a {
-  color: #00A86B;
-  text-decoration: underline;
-}
+.password-rules span.met { color: #10b981; }
 
 /* Buttons */
 .btn-primary {
   width: 100%;
-  padding: 16px 24px;
-  background: #00A86B;
-  color: #FFFFFF;
+  padding: 16px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   border: none;
   border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
+  color: white;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
-  margin-top: 8px;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #008F5B;
   transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
 }
 
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
 .btn-primary:disabled {
-  background: #CCCCCC;
+  background: #e5e7eb;
+  color: #9ca3af;
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -1132,344 +712,181 @@ watch(nationalId, (val) => {
   gap: 8px;
 }
 
-.spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #FFFFFF;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.spinner.small {
-  width: 14px;
-  height: 14px;
-  border-width: 2px;
-  border-color: #E8E8E8;
-  border-top-color: #00A86B;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Social Login */
-.social-divider {
+/* Divider */
+.divider {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 20px 0;
+  margin: 24px 0;
 }
 
-.social-divider::before,
-.social-divider::after {
+.divider::before,
+.divider::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: #E8E8E8;
+  background: #e5e7eb;
 }
 
-.social-divider span {
-  font-size: 12px;
-  color: #999999;
-  white-space: nowrap;
+.divider span {
+  padding: 0 16px;
+  font-size: 13px;
+  color: #9ca3af;
 }
 
+/* Social Buttons */
 .social-buttons {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .social-btn {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px;
-  border: 2px solid #E8E8E8;
+  padding: 14px;
+  background: white;
+  border: 2px solid #e5e7eb;
   border-radius: 12px;
-  background: #FFFFFF;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1A1A1A;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.social-btn:hover:not(:disabled) {
-  border-color: #CCCCCC;
-  background: #FAFAFA;
+.social-btn:hover:not(:disabled) { border-color: #d1d5db; background: #f9fafb; }
+.social-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.social-btn svg { width: 20px; height: 20px; }
+
+/* Summary Card */
+.summary-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e5e7eb;
 }
 
-.social-btn:active:not(:disabled) {
-  transform: scale(0.98);
+.summary-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 16px;
 }
 
-.social-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.social-btn svg {
-  width: 18px;
-  height: 18px;
+.summary-row:last-child { border-bottom: none; }
+.summary-row span:first-child { font-size: 14px; color: #6b7280; }
+.summary-row span:last-child { font-size: 14px; font-weight: 500; color: #111827; }
+
+/* Checkbox */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
 }
 
-.social-btn.google:hover:not(:disabled) {
-  border-color: #4285F4;
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.5;
 }
 
-.social-btn.facebook:hover:not(:disabled) {
-  border-color: #1877F2;
+.checkbox-label input { display: none; }
+
+.checkmark {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.2s;
+  margin-top: 1px;
 }
+
+.checkbox-label input:checked + .checkmark {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.checkbox-label input:checked + .checkmark::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkbox-label a {
+  color: #10b981;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.checkbox-label a:hover { text-decoration: underline; }
 
 /* Login Link */
 .login-link {
-  margin-top: 24px;
   text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  margin-top: 24px;
+  font-size: 14px;
+  color: #6b7280;
 }
 
-.login-link span {
-  font-size: 13px;
-  color: #666666;
-}
-
-.link-btn {
+.login-link button {
   background: none;
   border: none;
-  color: #00A86B;
-  font-size: 13px;
+  color: #10b981;
   font-weight: 600;
   cursor: pointer;
-  text-decoration: underline;
+  margin-left: 4px;
 }
 
-/* Transitions */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
+.login-link button:hover { text-decoration: underline; }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.slide-leave-to {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-/* Mobile Optimization */
-@media (max-width: 400px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-  
-  .register-content {
-    padding: 20px 16px;
-  }
-  
-  .step-labels span {
-    font-size: 10px;
-  }
-  
-  .progress-container {
-    padding: 16px 20px;
-  }
-}
-
-@media (max-height: 700px) {
-  .register-content {
-    padding: 16px;
-  }
-  
-  .step-title {
-    font-size: 20px;
-    margin-bottom: 4px;
-  }
-  
-  .step-desc {
-    margin-bottom: 16px;
-  }
-  
-  .form-group {
-    margin-bottom: 12px;
-  }
-  
-  .input-field {
-    padding: 12px 12px 12px 40px;
-  }
-  
-  .btn-primary {
-    padding: 14px 20px;
-  }
-  
-  .password-requirements {
-    padding: 10px;
-    margin-bottom: 16px;
-  }
-}
-
-/* Loading Overlay Styles */
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.98);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(8px);
-}
-
-.loading-content {
-  text-align: center;
-  padding: 32px;
-  max-width: 320px;
-}
-
-.loading-spinner-container {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 24px;
-}
-
-.loading-spinner {
-  width: 80px;
-  height: 80px;
-  border: 4px solid #E8F5EF;
-  border-top-color: #00A86B;
+/* Spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #10b981;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
-.loading-checkmark {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0);
-  width: 40px;
-  height: 40px;
-  background: #00A86B;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: all 0.3s ease;
-}
-
-.loading-checkmark.show {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-}
-
-.loading-checkmark svg {
-  width: 24px;
-  height: 24px;
-  color: #FFFFFF;
+.spinner.white {
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: white;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.loading-progress-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+/* Transitions */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.25s ease;
 }
 
-.loading-progress-bar {
-  flex: 1;
-  height: 6px;
-  background: #E8E8E8;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.loading-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #00A86B, #00C77B);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.loading-percentage {
-  font-size: 13px;
-  font-weight: 600;
-  color: #00A86B;
-  min-width: 40px;
-}
-
-.loading-message {
-  font-size: 15px;
-  color: #1A1A1A;
-  font-weight: 500;
-  margin: 0 0 24px;
-}
-
-/* Skeleton Preview */
-.skeleton-preview {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: #F8F8F8;
-  border-radius: 12px;
-}
-
-.skeleton-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-.skeleton-lines {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skeleton-line {
-  height: 10px;
-  border-radius: 5px;
-  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-.skeleton-line.long { width: 100%; }
-.skeleton-line.medium { width: 75%; }
-.skeleton-line.short { width: 50%; }
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+.slide-enter-from { opacity: 0; transform: translateX(16px); }
+.slide-leave-to { opacity: 0; transform: translateX(-16px); }
 </style>

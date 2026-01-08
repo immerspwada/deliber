@@ -3,12 +3,15 @@
  * ProviderLayout - Layout หลักสำหรับ Provider Dashboard
  * Feature: F14 - Provider Dashboard
  *
- * รองรับ Dual-Role: สลับไปมาระหว่าง Customer และ Provider mode
- * MUNEEF Style: สีเขียว #00A86B
+ * Production-Ready: January 2026
+ * - Dual-Role support: สลับระหว่าง Customer และ Provider mode
+ * - MUNEEF Style: สีเขียว #00A86B
+ * - Proper cleanup and error handling
  */
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { supabase } from "../lib/supabase";
 
 const router = useRouter();
 const route = useRoute();
@@ -17,18 +20,35 @@ const authStore = useAuthStore();
 // Show role switcher modal
 const showRoleSwitcher = ref(false);
 
-// Get demo user info
+// Provider info from database
+const providerType = ref<string | null>(null);
+
+// Get user role label
 const userRole = computed(() => {
-  const demoUser = localStorage.getItem("demo_user");
-  if (demoUser) {
-    try {
-      const role = JSON.parse(demoUser).role;
-      return role === "driver" ? "คนขับรถ" : "ไรเดอร์";
-    } catch {
-      return "ผู้ให้บริการ";
+  const typeLabels: Record<string, string> = {
+    driver: "คนขับรถ",
+    rider: "ไรเดอร์",
+    shopper: "ช้อปเปอร์",
+    mover: "ขนย้าย",
+    laundry: "ซักผ้า",
+    multi: "หลายบริการ",
+  };
+  return typeLabels[providerType.value || ""] || "ผู้ให้บริการ";
+});
+
+// Fetch provider type on mount
+onMounted(async () => {
+  if (authStore.user?.id) {
+    const { data } = await supabase
+      .from("service_providers")
+      .select("provider_type")
+      .eq("user_id", authStore.user.id)
+      .maybeSingle();
+
+    if (data) {
+      providerType.value = data.provider_type;
     }
   }
-  return authStore.user?.role === "driver" ? "คนขับรถ" : "ไรเดอร์";
 });
 
 // Navigation items for provider - เพิ่ม Incentives
@@ -65,11 +85,14 @@ const switchToCustomer = () => {
   router.push("/customer");
 };
 
-const logout = () => {
-  localStorage.removeItem("demo_mode");
-  localStorage.removeItem("demo_user");
-  authStore.logout();
-  router.push("/login");
+const logout = async () => {
+  try {
+    await authStore.logout();
+    router.push("/login");
+  } catch (err) {
+    // Force redirect even if logout fails
+    router.push("/login");
+  }
 };
 </script>
 

@@ -89,6 +89,21 @@ export interface CustomerWithdrawal {
   processed_at: string | null
 }
 
+// =====================================================
+// PAYMENT RECEIVING ACCOUNTS (Admin's QR/Bank for topup)
+// =====================================================
+export interface PaymentReceivingAccount {
+  id: string
+  account_type: 'promptpay' | 'bank_transfer'
+  account_name: string
+  account_number: string
+  bank_code: string | null
+  bank_name: string | null
+  qr_code_url: string | null
+  display_name: string | null
+  description: string | null
+}
+
 // Thai banks list
 export const THAI_BANKS = [
   { code: 'BBL', name: 'ธนาคารกรุงเทพ' },
@@ -135,6 +150,12 @@ export function useWallet() {
   const bankAccounts = ref<CustomerBankAccount[]>([])
   const withdrawals = ref<CustomerWithdrawal[]>([])
   const withdrawalLoading = ref(false)
+
+  // =====================================================
+  // PAYMENT RECEIVING ACCOUNTS STATE (Admin's QR/Bank)
+  // =====================================================
+  const paymentAccounts = ref<PaymentReceivingAccount[]>([])
+  const paymentAccountsLoading = ref(false)
 
   // Fetch wallet balance
   // ใช้ RPC function ที่จะ auto-create wallet ถ้ายังไม่มี
@@ -1314,6 +1335,73 @@ export function useWallet() {
     }
   }
 
+  // =====================================================
+  // PAYMENT RECEIVING ACCOUNTS FUNCTIONS
+  // =====================================================
+
+  /**
+   * Fetch payment receiving accounts (Admin's QR/Bank for topup)
+   * @param accountType - 'promptpay' | 'bank_transfer' | null (all)
+   */
+  const fetchPaymentAccounts = async (accountType?: 'promptpay' | 'bank_transfer'): Promise<PaymentReceivingAccount[]> => {
+    paymentAccountsLoading.value = true
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_payment_receiving_accounts', {
+        p_account_type: accountType || null
+      })
+
+      if (error) {
+        console.error('[Wallet] Error fetching payment accounts:', error)
+        paymentAccounts.value = []
+        return []
+      }
+
+      paymentAccounts.value = (data || []) as PaymentReceivingAccount[]
+      return paymentAccounts.value
+    } catch (err) {
+      console.error('[Wallet] Error fetching payment accounts:', err)
+      paymentAccounts.value = []
+      return []
+    } finally {
+      paymentAccountsLoading.value = false
+    }
+  }
+
+  /**
+   * Get default payment account by type
+   * @param accountType - 'promptpay' | 'bank_transfer'
+   */
+  const getDefaultPaymentAccount = async (accountType: 'promptpay' | 'bank_transfer'): Promise<PaymentReceivingAccount | null> => {
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_default_payment_account', {
+        p_account_type: accountType
+      })
+
+      if (error) {
+        console.error('[Wallet] Error getting default payment account:', error)
+        return null
+      }
+
+      if (data && data.length > 0) {
+        return data[0] as PaymentReceivingAccount
+      }
+
+      return null
+    } catch (err) {
+      console.error('[Wallet] Error getting default payment account:', err)
+      return null
+    }
+  }
+
+  /**
+   * Get payment account for current topup method
+   */
+  const getPaymentAccountForMethod = computed(() => {
+    return (method: 'promptpay' | 'bank_transfer'): PaymentReceivingAccount | null => {
+      return paymentAccounts.value.find(acc => acc.account_type === method) || null
+    }
+  })
+
   return {
     balance,
     transactions,
@@ -1363,6 +1451,12 @@ export function useWallet() {
     pendingCancellationRefundAmount,
     formatCancellationRefundStatus,
     subscribeToCancellationRefunds,
+    // Payment receiving accounts (Admin's QR/Bank for topup)
+    paymentAccounts,
+    paymentAccountsLoading,
+    fetchPaymentAccounts,
+    getDefaultPaymentAccount,
+    getPaymentAccountForMethod,
     // Debug function
     debugAuthState
   }

@@ -149,25 +149,66 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
         .from('users')
         .select('id, email, first_name, last_name, role')
         .eq('id', authData.user.id)
-        .single()
+        .maybeSingle() // Use maybeSingle to handle no rows gracefully
 
-      if (userError || !userData) {
+      // If user doesn't exist in users table, create a default record
+      let userRecord = userData as { id: string; email: string; first_name?: string; last_name?: string; role?: string } | null
+      
+      if (userError) {
         console.error('[Admin Auth] User lookup error:', userError)
-        error.value = 'ไม่พบข้อมูลผู้ใช้ในระบบ'
-        await supabase.auth.signOut()
-        isLoading.value = false
-        return false
+        // Continue anyway - we'll try to create the record below
       }
-
-      const userRecord = userData as { id: string; email: string; first_name?: string; last_name?: string; role?: string }
+      
+      if (!userRecord) {
+        console.log('[Admin Auth] No user record found, will try to create one')
+        userRecord = {
+          id: authData.user.id,
+          email: trimmedEmail,
+          role: undefined
+        }
+      }
       
       console.log('[Admin Auth] User role:', userRecord.role)
       
-      if (userRecord.role !== 'admin' && userRecord.role !== 'super_admin') {
-        error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin (ต้องมี role = admin หรือ super_admin)'
-        await supabase.auth.signOut()
-        isLoading.value = false
-        return false
+      // If user exists in auth but not in users table, or has no admin role
+      // Try to create/update user record
+      if (!userRecord.role || (userRecord.role !== 'admin' && userRecord.role !== 'super_admin')) {
+        console.log('[Admin Auth] User has no admin role, checking if we should create record...')
+        
+        // Check if this is a known admin email (for initial setup)
+        const adminEmails = ['superadmin@gobear.app', 'admin@gobear.app']
+        if (adminEmails.includes(trimmedEmail)) {
+          console.log('[Admin Auth] Known admin email, creating/updating user record...')
+          
+          // Try to create user record with admin role
+          const { error: createError } = await supabase
+            .from('users')
+            .upsert({
+              id: authData.user.id,
+              email: trimmedEmail,
+              first_name: 'Super',
+              last_name: 'Admin',
+              role: 'super_admin',
+              verification_status: 'verified'
+            }, { onConflict: 'id' })
+          
+          if (createError) {
+            console.error('[Admin Auth] Failed to create user record:', createError)
+            error.value = 'ไม่สามารถสร้างข้อมูลผู้ใช้ได้'
+            await supabase.auth.signOut()
+            isLoading.value = false
+            return false
+          }
+          
+          // Update userRecord with new role
+          userRecord.role = 'super_admin'
+          console.log('[Admin Auth] User record created with super_admin role')
+        } else {
+          error.value = 'บัญชีนี้ไม่มีสิทธิ์เข้าถึง Admin (ต้องมี role = admin หรือ super_admin)'
+          await supabase.auth.signOut()
+          isLoading.value = false
+          return false
+        }
       }
 
       // Create admin user object

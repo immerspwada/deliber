@@ -196,12 +196,11 @@ export const useAuthStore = defineStore('auth', () => {
     return loginWithEmail(email, password)
   }
 
-  // Register with email and password
+  // Register with email and password (simplified - no nationalId required)
   const register = async (email: string, password: string, userData: {
     name: string
     phone: string
     role?: string
-    nationalId?: string
   }) => {
     loading.value = true
     error.value = null
@@ -234,15 +233,14 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Complete registration with additional data
       if (data.user) {
-        // Use RPC function to complete registration
+        // Use RPC function to complete registration (simplified - no nationalId)
         const { data: rpcResult, error: rpcError } = await supabase.rpc('complete_user_registration', {
           p_user_id: data.user.id,
           p_first_name: firstName,
           p_last_name: lastName,
-          p_national_id: userData.nationalId || null,
           p_phone_number: userData.phone,
           p_role: role
-        } as any)
+        } as Record<string, unknown>)
         
         if (rpcError) {
           logger.error('Registration completion error:', rpcError)
@@ -256,16 +254,16 @@ export const useAuthStore = defineStore('auth', () => {
               phone: userData.phone,
               role: role,
               is_active: true
-            } as any, { onConflict: 'id' })
-        } else if (rpcResult && !(rpcResult as any).success) {
-          error.value = (rpcResult as any).error || 'ไม่สามารถสมัครสมาชิกได้'
+            } as Record<string, unknown>, { onConflict: 'id' })
+        } else if (rpcResult && !(rpcResult as Record<string, unknown>).success) {
+          error.value = (rpcResult as Record<string, unknown>).error as string || 'ไม่สามารถสมัครสมาชิกได้'
           return false
         }
         
         // If role is driver/rider, create service_provider entry
         if (role === 'driver' || role === 'rider') {
           const providerType = role === 'driver' ? 'driver' : 'delivery'
-          const { error: providerError } = await (supabase.from('service_providers') as any).insert({
+          const { error: providerError } = await (supabase.from('service_providers') as ReturnType<typeof supabase.from>).insert({
             user_id: data.user.id,
             provider_type: providerType,
             is_available: false,
@@ -281,8 +279,8 @@ export const useAuthStore = defineStore('auth', () => {
       }
       
       return true
-    } catch (err: any) {
-      error.value = err.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก'
       return false
     } finally {
       loading.value = false

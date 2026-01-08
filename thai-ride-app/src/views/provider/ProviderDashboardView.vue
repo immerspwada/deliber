@@ -62,10 +62,6 @@ const completedRideInfo = ref<{
   rideId: string;
 } | null>(null);
 const isInitialized = ref(false);
-let demoRequestInterval: number | null = null;
-
-// Check if demo mode
-const isDemoMode = computed(() => localStorage.getItem("demo_mode") === "true");
 
 // GPS Tracking for provider - initialized after profile loads
 let trackingInstance: ReturnType<typeof useProviderTracking> | null = null;
@@ -117,145 +113,15 @@ watch(activeRide, (ride) => {
   trackingInstance.setActiveRide(!!ride);
 });
 
-// Demo locations in Bangkok
-const demoLocations = [
-  { name: "สยามพารากอน", lat: 13.7466, lng: 100.5347 },
-  { name: "เซ็นทรัลเวิลด์", lat: 13.7468, lng: 100.5392 },
-  { name: "MBK Center", lat: 13.7444, lng: 100.53 },
-  { name: "Terminal 21", lat: 13.7377, lng: 100.5603 },
-  { name: "เอ็มควอเทียร์", lat: 13.7314, lng: 100.5697 },
-  { name: "อโศก BTS", lat: 13.7367, lng: 100.56 },
-  { name: "สีลม", lat: 13.728, lng: 100.534 },
-  { name: "สาทร", lat: 13.721, lng: 100.529 },
-  { name: "ลาดพร้าว", lat: 13.806, lng: 100.561 },
-  { name: "รัชดา", lat: 13.758, lng: 100.574 },
-];
-
-const demoPassengers = [
-  "คุณสมชาย",
-  "คุณสมหญิง",
-  "คุณวิชัย",
-  "คุณนภา",
-  "คุณธนา",
-  "คุณปิยะ",
-  "คุณมานี",
-  "คุณสุดา",
-  "คุณอนันต์",
-  "คุณพิมพ์",
-];
-
-// Generate demo ride request
-const generateDemoRequest = () => {
-  const pickupIdx = Math.floor(Math.random() * demoLocations.length);
-  const pickup = demoLocations[pickupIdx]!;
-  let destIdx = Math.floor(Math.random() * demoLocations.length);
-  while (destIdx === pickupIdx) {
-    destIdx = Math.floor(Math.random() * demoLocations.length);
-  }
-  const destination = demoLocations[destIdx]!;
-
-  const distance = Math.round((Math.random() * 8 + 2) * 10) / 10;
-  const baseFare = 35;
-  const perKm = 6.5;
-  const fare = Math.round(baseFare + distance * perKm);
-  const rideType: "standard" | "premium" | "shared" =
-    Math.random() > 0.8 ? "premium" : "standard";
-
-  return {
-    id: `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    user_id: `demo-user-${Math.random().toString(36).substr(2, 9)}`,
-    pickup_lat: pickup.lat + (Math.random() - 0.5) * 0.01,
-    pickup_lng: pickup.lng + (Math.random() - 0.5) * 0.01,
-    pickup_address: pickup.name,
-    destination_lat: destination.lat + (Math.random() - 0.5) * 0.01,
-    destination_lng: destination.lng + (Math.random() - 0.5) * 0.01,
-    destination_address: destination.name,
-    ride_type: rideType,
-    estimated_fare: fare,
-    status: "pending",
-    created_at: new Date().toISOString(),
-    distance,
-    duration: Math.ceil(distance * 3),
-    passenger_name:
-      demoPassengers[Math.floor(Math.random() * demoPassengers.length)] ||
-      "ผู้โดยสาร",
-    passenger_phone: `08${Math.floor(Math.random() * 10)}${Math.floor(
-      Math.random() * 10000000
-    )
-      .toString()
-      .padStart(7, "0")}`,
-    passenger_rating: Math.round((4 + Math.random()) * 10) / 10,
-  };
-};
-
-// Start demo request simulation
-const startDemoSimulation = () => {
-  if (!isDemoMode.value) return;
-
-  // Add initial request after 2 seconds
-  setTimeout(() => {
-    if (isOnline.value && pendingRequests.value.length < 3) {
-      const request = generateDemoRequest();
-      pendingRequests.value.unshift(request);
-      notifyNewRequest();
-    }
-  }, 2000);
-
-  // Add new requests periodically
-  demoRequestInterval = window.setInterval(() => {
-    if (
-      isOnline.value &&
-      !hasActiveRide() &&
-      pendingRequests.value.length < 3
-    ) {
-      const request = generateDemoRequest();
-      pendingRequests.value.unshift(request);
-      notifyNewRequest();
-    }
-  }, 15000 + Math.random() * 15000); // 15-30 seconds
-};
-
-// Stop demo simulation
-const stopDemoSimulation = () => {
-  if (demoRequestInterval) {
-    clearInterval(demoRequestInterval);
-    demoRequestInterval = null;
-  }
-};
-
-// Notify new request with sound and vibration
-const notifyNewRequest = () => {
-  // Vibrate if supported
-  if ("vibrate" in navigator) {
-    navigator.vibrate([200, 100, 200]);
-  }
-
-  // Play sound (optional - would need audio file)
-  try {
-    const audio = new Audio(
-      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQAA"
-    );
-    audio.volume = 0.3;
-    audio.play().catch(() => {});
-  } catch {}
-};
-
-// Watch online status for demo mode
+// Watch online status to update badge
 watch(isOnline, (online) => {
-  if (isDemoMode.value) {
-    if (online) {
-      startDemoSimulation();
-    } else {
-      stopDemoSimulation();
-    }
-  }
-  // ✅ Clear badge when going offline
+  // Clear badge when going offline
   if (!online) {
     updateAppBadge(0);
   }
 });
 
-// ✅ Watch totalPendingJobs to update PWA badge
+// Watch totalPendingJobs to update PWA badge
 watch(totalPendingJobs, (count) => {
   if (isOnline.value) {
     updateAppBadge(count);
@@ -285,12 +151,7 @@ const executeGoOnline = async () => {
     await toggleOnline(true, pos ? { lat: pos.lat, lng: pos.lng } : undefined);
   } catch (e) {
     console.warn("GPS error:", e);
-    // For demo, allow without GPS
-    if (isDemoMode.value) {
-      await toggleOnline(true, { lat: 13.7563, lng: 100.5018 });
-    } else {
-      globalThis.alert("กรุณาเปิด GPS เพื่อรับงาน");
-    }
+    globalThis.alert("กรุณาเปิด GPS เพื่อรับงาน");
   } finally {
     isLoadingLocation.value = false;
   }
@@ -442,14 +303,14 @@ onMounted(async () => {
   const providerProfile = await fetchProfile();
 
   // Check if user is a registered provider
-  if (!providerProfile && !isDemoMode.value) {
+  if (!providerProfile) {
     // Not a provider, redirect to onboarding
     router.replace("/provider/onboarding");
     return;
   }
 
   // Check provider status
-  if (providerProfile && !isDemoMode.value) {
+  if (providerProfile) {
     const status = (providerProfile as any).status;
     if (status === "pending") {
       // Application pending, redirect to onboarding to show status
@@ -476,22 +337,14 @@ onMounted(async () => {
   }
 
   isInitialized.value = true;
-
-  // Start demo simulation if already online (restored from localStorage)
-  if (isDemoMode.value && isOnline.value) {
-    startDemoSimulation();
-  }
 });
 
 // Cleanup
 onUnmounted(() => {
-  stopDemoSimulation();
   // Stop GPS tracking
   if (trackingInstance) {
     trackingInstance.stopTracking();
   }
-  // Cleanup provider dashboard subscriptions and intervals
-  cleanup();
 });
 </script>
 

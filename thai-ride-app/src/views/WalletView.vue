@@ -94,27 +94,138 @@
       </div>
     </section>
 
-    <div v-if="showTopupModal" class="modal-overlay" @click.self="showTopupModal = false">
-      <div class="modal">
-        <h2>เติมเงิน</h2>
-        <div class="form-group">
-          <label>จำนวนเงิน (บาท)</label>
-          <input v-model.number="topupAmount" type="number" min="20" placeholder="ระบุจำนวนเงิน"/>
-          <div class="quick-amounts">
-            <button v-for="amt in [100, 200, 500, 1000]" :key="amt" @click="topupAmount = amt">฿{{ amt }}</button>
+    <div v-if="showTopupModal" class="modal-overlay" @click.self="closeTopupModal">
+      <div class="modal topup-modal">
+        <!-- Step 1: เลือกจำนวนเงินและวิธีชำระ -->
+        <template v-if="topupStep === 'amount'">
+          <h2>เติมเงิน</h2>
+          <div class="form-group">
+            <label>จำนวนเงิน (บาท)</label>
+            <input v-model.number="topupAmount" type="number" min="20" placeholder="ระบุจำนวนเงิน"/>
+            <div class="quick-amounts">
+              <button v-for="amt in [100, 200, 500, 1000]" :key="amt" @click="topupAmount = amt">฿{{ amt }}</button>
+            </div>
           </div>
-        </div>
-        <div class="form-group">
-          <label>วิธีชำระเงิน</label>
-          <select v-model="topupMethod">
-            <option value="promptpay">พร้อมเพย์</option>
-            <option value="bank_transfer">โอนเงินผ่านธนาคาร</option>
-          </select>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="showTopupModal = false">ยกเลิก</button>
-          <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || topupAmount < 20">{{ topupLoading ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}</button>
-        </div>
+          <div class="form-group">
+            <label>วิธีชำระเงิน</label>
+            <select v-model="topupMethod">
+              <option value="promptpay">พร้อมเพย์</option>
+              <option value="bank_transfer">โอนเงินผ่านธนาคาร</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-secondary" @click="closeTopupModal">ยกเลิก</button>
+            <button class="btn-primary" @click="goToPaymentStep" :disabled="topupAmount < 20">ถัดไป</button>
+          </div>
+        </template>
+
+        <!-- Step 2: แสดงข้อมูลการชำระเงิน (QR/บัญชีธนาคาร) -->
+        <template v-else-if="topupStep === 'payment'">
+          <div class="payment-header">
+            <button class="back-step-btn" @click="topupStep = 'amount'" aria-label="กลับ">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <h2>ข้อมูลการชำระเงิน</h2>
+          </div>
+
+          <div class="payment-amount-display">
+            <span class="label">จำนวนเงินที่ต้องโอน</span>
+            <span class="amount">฿{{ formatNumber(topupAmount) }}</span>
+          </div>
+
+          <!-- Payment Account Info -->
+          <div v-if="currentPaymentAccount" class="payment-account-info">
+            <!-- PromptPay QR -->
+            <template v-if="topupMethod === 'promptpay'">
+              <div class="payment-type-badge promptpay">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+                <span>พร้อมเพย์</span>
+              </div>
+              
+              <!-- QR Code Image -->
+              <div v-if="currentPaymentAccount.qr_code_url" class="qr-code-container">
+                <img :src="currentPaymentAccount.qr_code_url" :alt="'QR Code ' + currentPaymentAccount.display_name" class="qr-code-image"/>
+              </div>
+              <div v-else class="qr-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+                <p>สแกน QR Code เพื่อชำระเงิน</p>
+              </div>
+
+              <!-- PromptPay Number -->
+              <div class="account-details">
+                <div class="detail-row">
+                  <span class="detail-label">เบอร์พร้อมเพย์</span>
+                  <span class="detail-value copyable" @click="copyToClipboard(currentPaymentAccount.account_number)">
+                    {{ currentPaymentAccount.account_number }}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  </span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">ชื่อบัญชี</span>
+                  <span class="detail-value">{{ currentPaymentAccount.account_name }}</span>
+                </div>
+              </div>
+            </template>
+
+            <!-- Bank Transfer -->
+            <template v-else-if="topupMethod === 'bank_transfer'">
+              <div class="payment-type-badge bank">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
+                <span>โอนเงินผ่านธนาคาร</span>
+              </div>
+
+              <div class="bank-info">
+                <div class="bank-logo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
+                </div>
+                <span class="bank-name">{{ currentPaymentAccount.bank_name || currentPaymentAccount.display_name }}</span>
+              </div>
+
+              <div class="account-details">
+                <div class="detail-row">
+                  <span class="detail-label">เลขบัญชี</span>
+                  <span class="detail-value copyable" @click="copyToClipboard(currentPaymentAccount.account_number)">
+                    {{ currentPaymentAccount.account_number }}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  </span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">ชื่อบัญชี</span>
+                  <span class="detail-value">{{ currentPaymentAccount.account_name }}</span>
+                </div>
+                <div v-if="currentPaymentAccount.bank_name" class="detail-row">
+                  <span class="detail-label">ธนาคาร</span>
+                  <span class="detail-value">{{ currentPaymentAccount.bank_name }}</span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- No Payment Account -->
+          <div v-else class="no-payment-account">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            <p>ไม่พบข้อมูลบัญชีรับเงิน</p>
+            <span>กรุณาติดต่อผู้ดูแลระบบ</span>
+          </div>
+
+          <!-- Instructions -->
+          <div class="payment-instructions">
+            <h4>ขั้นตอนการเติมเงิน</h4>
+            <ol>
+              <li>โอนเงินตามจำนวนที่ระบุไปยังบัญชีด้านบน</li>
+              <li>กดปุ่ม "ยืนยันการโอนเงิน" ด้านล่าง</li>
+              <li>รอการตรวจสอบจากทีมงาน (ภายใน 5-15 นาที)</li>
+              <li>เงินจะเข้ากระเป๋าอัตโนมัติเมื่อตรวจสอบเรียบร้อย</li>
+            </ol>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-secondary" @click="closeTopupModal">ยกเลิก</button>
+            <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || !currentPaymentAccount">
+              {{ topupLoading ? 'กำลังดำเนินการ...' : 'ยืนยันการโอนเงิน' }}
+            </button>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -185,8 +296,11 @@ const {
   formatTransactionType, formatTopupStatus, isPositiveTransaction,
   bankAccounts, withdrawals, availableForWithdrawal,
   fetchBankAccounts, fetchWithdrawals, addBankAccount, requestWithdrawal,
-  formatWithdrawalStatus, subscribeToWallet, subscribeToWithdrawals, THAI_BANKS
+  formatWithdrawalStatus, subscribeToWallet, subscribeToWithdrawals, THAI_BANKS,
+  paymentAccounts, fetchPaymentAccounts
 } = useWallet()
+
+import type { PaymentReceivingAccount } from '@/composables/useWallet'
 
 const activeTab = ref<'transactions' | 'topup' | 'withdraw'>('transactions')
 const showTopupModal = ref(false)
@@ -196,6 +310,12 @@ const showAddBankModal = ref(false)
 const topupAmount = ref(100)
 const topupMethod = ref<'promptpay' | 'bank_transfer'>('promptpay')
 const topupLoading = ref(false)
+const topupStep = ref<'amount' | 'payment'>('amount') // Step: เลือกจำนวน -> แสดงข้อมูลชำระเงิน
+
+// Current payment account based on selected method
+const currentPaymentAccount = computed((): PaymentReceivingAccount | null => {
+  return paymentAccounts.value.find(acc => acc.account_type === topupMethod.value) || null
+})
 
 const withdrawAmount = ref(100)
 const selectedBankAccountId = ref('')
@@ -224,18 +344,54 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
   setTimeout(() => { toast.value.show = false }, 3000)
 }
 
-const handleTopup = async () => {
+// Copy to clipboard
+const copyToClipboard = async (text: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast('คัดลอกแล้ว')
+  } catch {
+    showToast('ไม่สามารถคัดลอกได้', 'error')
+  }
+}
+
+// Go to payment step (fetch payment accounts first)
+const goToPaymentStep = async (): Promise<void> => {
+  if (topupAmount.value < 20) {
+    showToast('จำนวนเงินขั้นต่ำ 20 บาท', 'error')
+    return
+  }
+  // Fetch payment accounts if not loaded
+  if (paymentAccounts.value.length === 0) {
+    await fetchPaymentAccounts()
+  }
+  topupStep.value = 'payment'
+}
+
+// Close topup modal and reset
+const closeTopupModal = (): void => {
+  showTopupModal.value = false
+  topupStep.value = 'amount'
+  topupAmount.value = 100
+}
+
+const handleTopup = async (): Promise<void> => {
   if (topupAmount.value < 20) { showToast('จำนวนเงินขั้นต่ำ 20 บาท', 'error'); return }
   topupLoading.value = true
   try {
     const result = await createTopupRequest(topupAmount.value, topupMethod.value)
-    if (result.success) { showToast(result.message || 'สร้างคำขอเติมเงินสำเร็จ'); showTopupModal.value = false; topupAmount.value = 100 }
+    if (result.success) { 
+      showToast(result.message || 'สร้างคำขอเติมเงินสำเร็จ รอการตรวจสอบ')
+      closeTopupModal()
+    }
     else { showToast(result.message || 'เกิดข้อผิดพลาด', 'error') }
-  } catch (err: any) { showToast(err.message || 'เกิดข้อผิดพลาด', 'error') }
+  } catch (err: unknown) { 
+    const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+    showToast(errorMessage, 'error') 
+  }
   finally { topupLoading.value = false }
 }
 
-const handleWithdraw = async () => {
+const handleWithdraw = async (): Promise<void> => {
   if (withdrawAmount.value < 100) { showToast('จำนวนเงินขั้นต่ำ 100 บาท', 'error'); return }
   if (!selectedBankAccountId.value) { showToast('กรุณาเลือกบัญชีธนาคาร', 'error'); return }
   withdrawLoading.value = true
@@ -243,23 +399,36 @@ const handleWithdraw = async () => {
     const result = await requestWithdrawal(selectedBankAccountId.value, withdrawAmount.value)
     if (result.success) { showToast(result.message || 'สร้างคำขอถอนเงินสำเร็จ'); showWithdrawModal.value = false; withdrawAmount.value = 100; selectedBankAccountId.value = '' }
     else { showToast(result.message || 'เกิดข้อผิดพลาด', 'error') }
-  } catch (err: any) { showToast(err.message || 'เกิดข้อผิดพลาด', 'error') }
+  } catch (err: unknown) { 
+    const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+    showToast(errorMessage, 'error') 
+  }
   finally { withdrawLoading.value = false }
 }
 
-const handleAddBank = async () => {
+const handleAddBank = async (): Promise<void> => {
   if (!newBankCode.value || !newAccountNumber.value || !newAccountName.value) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return }
   addBankLoading.value = true
   try {
     const result = await addBankAccount(newBankCode.value, newAccountNumber.value, newAccountName.value, bankAccounts.value.length === 0)
     if (result.success) { showToast(result.message || 'เพิ่มบัญชีสำเร็จ'); showAddBankModal.value = false; newBankCode.value = ''; newAccountNumber.value = ''; newAccountName.value = '' }
     else { showToast(result.message || 'เกิดข้อผิดพลาด', 'error') }
-  } catch (err: any) { showToast(err.message || 'เกิดข้อผิดพลาด', 'error') }
+  } catch (err: unknown) { 
+    const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+    showToast(errorMessage, 'error') 
+  }
   finally { addBankLoading.value = false }
 }
 
 onMounted(async () => {
-  await Promise.all([fetchBalance(), fetchTransactions(), fetchTopupRequests(), fetchBankAccounts(), fetchWithdrawals()])
+  await Promise.all([
+    fetchBalance(), 
+    fetchTransactions(), 
+    fetchTopupRequests(), 
+    fetchBankAccounts(), 
+    fetchWithdrawals(),
+    fetchPaymentAccounts() // Fetch admin payment accounts for topup
+  ])
   walletSub = subscribeToWallet()
   withdrawalSub = subscribeToWithdrawals()
 })
@@ -334,4 +503,52 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 200; }
 .toast.success { background: #00A86B; color: #fff; }
 .toast.error { background: #e53935; color: #fff; }
+
+/* Topup Modal - Payment Info Styles */
+.topup-modal { max-height: 85vh; }
+.payment-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.payment-header h2 { margin: 0; flex: 1; }
+.back-step-btn { width: 36px; height: 36px; border: none; background: #f5f5f5; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.back-step-btn svg { width: 20px; height: 20px; color: #666; }
+.back-step-btn:hover { background: #e8e8e8; }
+
+.payment-amount-display { background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%); border-radius: 14px; padding: 16px; text-align: center; color: #fff; margin-bottom: 16px; }
+.payment-amount-display .label { font-size: 13px; opacity: 0.9; display: block; margin-bottom: 4px; }
+.payment-amount-display .amount { font-size: 28px; font-weight: 700; }
+
+.payment-account-info { background: #f9f9f9; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.payment-type-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+.payment-type-badge svg { width: 16px; height: 16px; }
+.payment-type-badge.promptpay { background: #e3f2fd; color: #1565c0; }
+.payment-type-badge.bank { background: #fff3e0; color: #e65100; }
+
+.qr-code-container { display: flex; justify-content: center; margin: 16px 0; }
+.qr-code-image { width: 180px; height: 180px; border-radius: 12px; border: 2px solid #e8e8e8; object-fit: contain; background: #fff; }
+.qr-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 180px; height: 180px; margin: 16px auto; background: #fff; border: 2px dashed #ccc; border-radius: 12px; color: #999; }
+.qr-placeholder svg { width: 48px; height: 48px; margin-bottom: 8px; }
+.qr-placeholder p { font-size: 12px; margin: 0; }
+
+.bank-info { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bank-logo { width: 44px; height: 44px; background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid #e8e8e8; }
+.bank-logo svg { width: 24px; height: 24px; color: #666; }
+.bank-name { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+
+.account-details { background: #fff; border-radius: 10px; padding: 12px; }
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { font-size: 13px; color: #666; }
+.detail-value { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+.detail-value.copyable { display: flex; align-items: center; gap: 6px; cursor: pointer; color: #00A86B; }
+.detail-value.copyable:hover { text-decoration: underline; }
+.detail-value.copyable svg { width: 14px; height: 14px; }
+
+.no-payment-account { text-align: center; padding: 32px 16px; color: #999; }
+.no-payment-account svg { width: 48px; height: 48px; margin-bottom: 12px; color: #ccc; }
+.no-payment-account p { font-size: 16px; font-weight: 500; margin: 0 0 4px; color: #666; }
+.no-payment-account span { font-size: 13px; }
+
+.payment-instructions { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+.payment-instructions h4 { font-size: 13px; font-weight: 600; color: #92400e; margin: 0 0 10px; }
+.payment-instructions ol { margin: 0; padding-left: 18px; font-size: 12px; color: #78350f; line-height: 1.6; }
+.payment-instructions li { margin-bottom: 4px; }
 </style>
