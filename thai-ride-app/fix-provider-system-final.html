@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 แก้ไขระบบ Provider ขั้นสุดท้าย</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .critical-fix {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .step {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #00C851;
+        }
+        .result {
+            background: #e8f5e8;
+            border: 1px solid #00C851;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #ffe6e6;
+            border: 1px solid #ff4444;
+            color: #cc0000;
+        }
+        .btn {
+            background: linear-gradient(135deg, #00C851, #007E33);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,200,81,0.3);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4285f4, #1976d2);
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #00C851, #007E33);
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 แก้ไขระบบ Provider ขั้นสุดท้าย</h1>
+            <div class="critical-fix">
+                <h2>🚨 แก้ไขปัญหา "Job no longer available" และ RLS Permission</h2>
+                <p>เครื่องมือแก้ไขปัญหาครบวงจร - รัน Migration + ทดสอบระบบ</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>📊 สถานะระบบปัจจุบัน</h3>
+            <div class="progress">
+                <div id="systemProgress" class="progress-bar" style="width: 0%"></div>
+            </div>
+            <div id="systemStatus">กำลังตรวจสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>🔧 ขั้นตอนที่ 1: รัน Migration</h3>
+            <p>สร้างตาราง jobs_v2, earnings_v2 และแก้ไข RLS policies</p>
+            <button class="btn btn-primary" onclick="runMigrations()">รัน Migration ทั้งหมด</button>
+            <div id="migrationResult" class="result">พร้อมรัน migration...</div>
+        </div>
+
+        <div class="step">
+            <h3>👤 ขั้นตอนที่ 2: ตรวจสอบ Provider</h3>
+            <p>ตรวจสอบและสร้าง Provider record</p>
+            <button class="btn" onclick="checkProvider()">ตรวจสอบ Provider</button>
+            <div id="providerResult" class="result">พร้อมตรวจสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>💼 ขั้นตอนที่ 3: ทดสอบการรับงาน</h3>
+            <p>ทดสอบการรับงานแบบ atomic เพื่อป้องกัน race condition</p>
+            <button class="btn" onclick="testJobAcceptance()">ทดสอบรับงาน</button>
+            <button class="btn btn-danger" onclick="resetJobs()">รีเซ็ตงาน</button>
+            <div id="jobTestResult" class="result">พร้อมทดสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>🎯 ขั้นตอนที่ 4: ทดสอบ Complete Flow</h3>
+            <p>ทดสอบ flow สมบูรณ์: รับงาน → เสร็จงาน → ได้เงิน</p>
+            <button class="btn" onclick="testCompleteFlow()">ทดสอบ Complete Flow</button>
+            <div id="flowResult" class="result">พร้อมทดสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>🔗 ลิงก์ทดสอบ</h3>
+            <p><strong>Provider Dashboard:</strong> <a href="http://localhost:5173/provider" target="_blank">http://localhost:5173/provider</a></p>
+            <p><strong>Provider Onboarding:</strong> <a href="http://localhost:5173/provider/onboarding" target="_blank">http://localhost:5173/provider/onboarding</a></p>
+            <p><em>รีเฟรชหน้าเว็บหลังจากรันเครื่องมือนี้</em></p>
+        </div>
+    </div>
+
+    <script>
+        // Supabase configuration
+        const supabaseUrl = 'https://onsflqhkgqhydeupiqyt.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentProvider = null;
+        let systemProgress = 0;
+
+        function updateProgress(percent, status) {
+            document.getElementById('systemProgress').style.width = percent + '%';
+            document.getElementById('systemStatus').innerHTML = status;
+        }
+
+        // Check system status on load
+        async function checkSystemStatus() {
+            updateProgress(10, 'กำลังตรวจสอบการเชื่อมต่อ...');
+            
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    updateProgress(0, '❌ ไม่มีผู้ใช้ล็อกอิน');
+                    return;
+                }
+
+                updateProgress(30, 'กำลังตรวจสอบตาราง providers_v2...');
+                
+                const { data: provider, error: providerError } = await supabase
+                    .from('providers_v2')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+
+                if (providerError) {
+                    updateProgress(20, `❌ ปัญหา providers_v2: ${providerError.message}`);
+                    return;
+                }
+
+                updateProgress(60, 'กำลังตรวจสอบตาราง jobs_v2...');
+                
+                const { data: jobs, error: jobsError } = await supabase
+                    .from('jobs_v2')
+                    .select('count')
+                    .limit(1);
+
+                if (jobsError) {
+                    updateProgress(40, `⚠️ ตาราง jobs_v2 ยังไม่พร้อม: ${jobsError.message}`);
+                    return;
+                }
+
+                updateProgress(90, 'กำลังตรวจสอบตาราง earnings_v2...');
+                
+                const { data: earnings, error: earningsError } = await supabase
+                    .from('earnings_v2')
+                    .select('count')
+                    .limit(1);
+
+                if (earningsError) {
+                    updateProgress(60, `⚠️ ตาราง earnings_v2 ยังไม่พร้อม: ${earningsError.message}`);
+                    return;
+                }
+
+                if (provider) {
+                    updateProgress(100, `✅ ระบบพร้อม - Provider: ${provider.first_name} ${provider.last_name} (${provider.status})`);
+                } else {
+                    updateProgress(80, '⚠️ ระบบพร้อม แต่ยังไม่มี Provider record');
+                }
+
+            } catch (error) {
+                updateProgress(0, `❌ เกิดข้อผิดพลาด: ${error.message}`);
+            }
+        }
+
+        // Run migrations
+        async function runMigrations() {
+            const results = [];
+            results.push('🚀 เริ่มรัน Migration...\n');
+
+            try {
+                // Migration 1: Create jobs_v2 and earnings_v2 tables
+                results.push('📋 สร้างตาราง jobs_v2 และ earnings_v2...');
+                
+                const migration1 = `
+-- Create jobs_v2 table
+CREATE TABLE IF NOT EXISTS public.jobs_v2 (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    provider_id UUID REFERENCES public.providers_v2(id) ON DELETE SET NULL,
+    service_type TEXT NOT NULL DEFAULT 'ride',
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled')),
+    pickup_address TEXT NOT NULL,
+    pickup_lat DECIMAL(10, 8),
+    pickup_lng DECIMAL(11, 8),
+    dropoff_address TEXT,
+    dropoff_lat DECIMAL(10, 8),
+    dropoff_lng DECIMAL(11, 8),
+    distance_km DECIMAL(8, 2),
+    duration_minutes INTEGER,
+    estimated_earnings DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    final_earnings DECIMAL(10, 2),
+    special_instructions TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    accepted_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Create earnings_v2 table
+CREATE TABLE IF NOT EXISTS public.earnings_v2 (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider_id UUID NOT NULL REFERENCES public.providers_v2(id) ON DELETE CASCADE,
+    job_id UUID REFERENCES public.jobs_v2(id) ON DELETE SET NULL,
+    gross_earnings DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    platform_fee DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    net_earnings DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    earning_type TEXT NOT NULL DEFAULT 'job_completion' CHECK (earning_type IN ('job_completion', 'bonus', 'incentive', 'tip')),
+    service_type TEXT NOT NULL DEFAULT 'ride',
+    earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.jobs_v2 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.earnings_v2 ENABLE ROW LEVEL SECURITY;
+                `;
+
+                const { error: createError } = await supabase.rpc('exec_sql', { sql: migration1 });
+                if (createError) {
+                    results.push(`❌ สร้างตารางไม่สำเร็จ: ${createError.message}`);
+                } else {
+                    results.push('✅ สร้างตารางสำเร็จ');
+                }
+
+                // Migration 2: Create RLS policies
+                results.push('🔒 สร้าง RLS Policies...');
+                
+                const rlsPolicies = `
+-- Jobs RLS Policies
+CREATE POLICY IF NOT EXISTS "providers_can_view_available_jobs" ON public.jobs_v2
+    FOR SELECT USING (
+        status = 'pending' AND provider_id IS NULL
+        OR provider_id IN (
+            SELECT id FROM public.providers_v2 WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY IF NOT EXISTS "providers_can_accept_jobs" ON public.jobs_v2
+    FOR UPDATE USING (
+        status = 'pending' 
+        AND provider_id IS NULL
+        AND EXISTS (
+            SELECT 1 FROM public.providers_v2 
+            WHERE user_id = auth.uid() 
+            AND status IN ('approved', 'active')
+        )
+    );
+
+-- Earnings RLS Policies
+CREATE POLICY IF NOT EXISTS "providers_can_view_own_earnings" ON public.earnings_v2
+    FOR SELECT USING (
+        provider_id IN (
+            SELECT id FROM public.providers_v2 WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY IF NOT EXISTS "system_can_create_earnings" ON public.earnings_v2
+    FOR INSERT WITH CHECK (true);
+                `;
+
+                const { error: rlsError } = await supabase.rpc('exec_sql', { sql: rlsPolicies });
+                if (rlsError) {
+                    results.push(`⚠️ RLS Policies: ${rlsError.message}`);
+                } else {
+                    results.push('✅ RLS Policies สำเร็จ');
+                }
+
+                // Migration 3: Insert test data
+                results.push('📝 เพิ่มข้อมูลทดสอบ...');
+                
+                const testJobs = [
+                    {
+                        customer_id: '11111111-1111-1111-1111-111111111111',
+                        service_type: 'ride',
+                        pickup_address: 'เซ็นทรัลเวิลด์',
+                        pickup_lat: 13.7460,
+                        pickup_lng: 100.5340,
+                        dropoff_address: 'สุขุมวิท 24',
+                        dropoff_lat: 13.7372,
+                        dropoff_lng: 100.5597,
+                        distance_km: 3.2,
+                        duration_minutes: 15,
+                        estimated_earnings: 95.00,
+                        special_instructions: 'งานทดสอบระบบ Provider'
+                    },
+                    {
+                        customer_id: '22222222-2222-2222-2222-222222222222',
+                        service_type: 'delivery',
+                        pickup_address: 'ตลาดจตุจักร',
+                        pickup_lat: 13.7997,
+                        pickup_lng: 100.5500,
+                        dropoff_address: 'มหาวิทยาลัยธรรมศาสตร์',
+                        dropoff_lat: 13.7967,
+                        dropoff_lng: 100.5514,
+                        distance_km: 1.5,
+                        duration_minutes: 10,
+                        estimated_earnings: 60.00,
+                        special_instructions: 'ส่งเอกสารสำคัญ'
+                    },
+                    {
+                        customer_id: '33333333-3333-3333-3333-333333333333',
+                        service_type: 'ride',
+                        pickup_address: 'สถานีรถไฟฟ้าสยาม',
+                        pickup_lat: 13.7460,
+                        pickup_lng: 100.5340,
+                        dropoff_address: 'สถานีรถไฟฟ้าอโศก',
+                        dropoff_lat: 13.7372,
+                        dropoff_lng: 100.5597,
+                        distance_km: 2.8,
+                        duration_minutes: 12,
+                        estimated_earnings: 85.00,
+                        special_instructions: 'รีบด่วน'
+                    }
+                ];
+
+                for (const job of testJobs) {
+                    const { error: insertError } = await supabase
+                        .from('jobs_v2')
+                        .insert(job);
+                    
+                    if (insertError && !insertError.message.includes('duplicate')) {
+                        results.push(`⚠️ เพิ่มงาน ${job.pickup_address}: ${insertError.message}`);
+                    }
+                }
+
+                results.push('✅ เพิ่มข้อมูลทดสอบสำเร็จ');
+                results.push('\n🎉 Migration เสร็จสมบูรณ์!');
+
+            } catch (error) {
+                results.push(`❌ Migration Error: ${error.message}`);
+            }
+
+            document.getElementById('migrationResult').textContent = results.join('\n');
+            checkSystemStatus(); // Update system status
+        }
+
+        // Check provider
+        async function checkProvider() {
+            const results = [];
+            
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    results.push('❌ ไม่มีผู้ใช้ล็อกอิน');
+                    document.getElementById('providerResult').textContent = results.join('\n');
+                    return;
+                }
+
+                results.push(`👤 ตรวจสอบ Provider สำหรับ: ${user.email}`);
+
+                const { data: provider, error } = await supabase
+                    .from('providers_v2')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+
+                if (error) {
+                    results.push(`❌ Error: ${error.message}`);
+                } else if (provider) {
+                    currentProvider = provider;
+                    results.push(`✅ พบ Provider: ${provider.first_name} ${provider.last_name}`);
+                    results.push(`📧 Email: ${provider.email}`);
+                    results.push(`🏷️ Status: ${provider.status}`);
+                    results.push(`🟢 Online: ${provider.is_online ? 'Yes' : 'No'}`);
+                    results.push(`🚗 Services: ${provider.service_types?.join(', ') || 'ไม่ระบุ'}`);
+                    results.push(`💰 Total Earnings: ฿${provider.total_earnings || 0}`);
+                    results.push(`🎯 Total Trips: ${provider.total_trips || 0}`);
+                } else {
+                    results.push('⚠️ ไม่พบ Provider record - กำลังสร้าง...');
+                    
+                    // Create provider record
+                    const { data: newProvider, error: createError } = await supabase
+                        .from('providers_v2')
+                        .insert({
+                            user_id: user.id,
+                            first_name: user.email.split('@')[0],
+                            last_name: '',
+                            email: user.email,
+                            phone_number: '0800000000',
+                            service_types: ['ride', 'delivery'],
+                            status: 'approved',
+                            is_online: false,
+                            rating: 5.0,
+                            total_trips: 0,
+                            total_earnings: 0.0
+                        })
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        results.push(`❌ สร้าง Provider ไม่สำเร็จ: ${createError.message}`);
+                    } else {
+                        currentProvider = newProvider;
+                        results.push(`✅ สร้าง Provider สำเร็จ: ${newProvider.first_name}`);
+                    }
+                }
+
+            } catch (error) {
+                results.push(`❌ Exception: ${error.message}`);
+            }
+
+            document.getElementById('providerResult').textContent = results.join('\n');
+        }
+
+        // Test job acceptance
+        async function testJobAcceptance() {
+            const results = [];
+            
+            try {
+                if (!currentProvider) {
+                    results.push('❌ กรุณาตรวจสอบ Provider ก่อน');
+                    document.getElementById('jobTestResult').textContent = results.join('\n');
+                    return;
+                }
+
+                results.push('🧪 เริ่มทดสอบการรับงาน...\n');
+
+                // Get available jobs
+                const { data: jobs, error: jobError } = await supabase
+                    .from('jobs_v2')
+                    .select('*')
+                    .eq('status', 'pending')
+                    .is('provider_id', null)
+                    .limit(3);
+
+                if (jobError) throw jobError;
+
+                if (!jobs || jobs.length === 0) {
+                    results.push('ℹ️ ไม่มีงานที่รอรับ - รัน Migration ก่อน');
+                    document.getElementById('jobTestResult').textContent = results.join('\n');
+                    return;
+                }
+
+                results.push(`📋 พบงานที่รอรับ: ${jobs.length} งาน`);
+                
+                for (const job of jobs) {
+                    results.push(`\n🎯 ทดสอบรับงาน: ${job.pickup_address} → ${job.dropoff_address}`);
+                    results.push(`💰 รายได้: ฿${job.estimated_earnings}`);
+
+                    // Try to accept the job using atomic update
+                    const { data: acceptedJob, error: acceptError } = await supabase
+                        .from('jobs_v2')
+                        .update({
+                            provider_id: currentProvider.id,
+                            status: 'accepted',
+                            accepted_at: new Date().toISOString()
+                        })
+                        .eq('id', job.id)
+                        .eq('status', 'pending')
+                        .is('provider_id', null)
+                        .select()
+                        .single();
+
+                    if (acceptError) {
+                        if (acceptError.code === 'PGRST116') {
+                            results.push('⚠️ งานนี้ถูกรับไปแล้ว (Race condition test passed)');
+                        } else {
+                            results.push(`❌ รับงานไม่สำเร็จ: ${acceptError.message}`);
+                        }
+                    } else if (acceptedJob) {
+                        results.push('✅ รับงานสำเร็จ!');
+                        results.push(`🆔 Job ID: ${acceptedJob.id}`);
+                        results.push(`👤 Provider ID: ${acceptedJob.provider_id}`);
+                        break; // Stop after first successful acceptance
+                    }
+                }
+
+            } catch (error) {
+                results.push(`❌ Exception: ${error.message}`);
+            }
+
+            document.getElementById('jobTestResult').textContent = results.join('\n');
+        }
+
+        // Reset jobs
+        async function resetJobs() {
+            if (!confirm('คุณแน่ใจหรือไม่ที่จะรีเซ็ตงานทั้งหมด?')) return;
+
+            try {
+                const { error } = await supabase
+                    .from('jobs_v2')
+                    .update({
+                        status: 'pending',
+                        provider_id: null,
+                        accepted_at: null,
+                        completed_at: null
+                    })
+                    .neq('status', 'completed');
+
+                if (error) throw error;
+
+                document.getElementById('jobTestResult').textContent = '✅ รีเซ็ตงานทั้งหมดแล้ว';
+
+            } catch (error) {
+                document.getElementById('jobTestResult').textContent = `❌ Error: ${error.message}`;
+            }
+        }
+
+        // Test complete flow
+        async function testCompleteFlow() {
+            const results = [];
+            
+            try {
+                if (!currentProvider) {
+                    results.push('❌ กรุณาตรวจสอบ Provider ก่อน');
+                    document.getElementById('flowResult').textContent = results.join('\n');
+                    return;
+                }
+
+                results.push('🎬 เริ่มทดสอบ Complete Flow...\n');
+
+                // Step 1: Create a new job
+                results.push('1️⃣ สร้างงานใหม่...');
+                const { data: newJob, error: createError } = await supabase
+                    .from('jobs_v2')
+                    .insert({
+                        customer_id: '11111111-1111-1111-1111-111111111111',
+                        service_type: 'ride',
+                        pickup_address: 'จุดเริ่มต้นทดสอบ Complete Flow',
+                        pickup_lat: 13.7460,
+                        pickup_lng: 100.5340,
+                        dropoff_address: 'จุดหมายทดสอบ Complete Flow',
+                        dropoff_lat: 13.7372,
+                        dropoff_lng: 100.5597,
+                        distance_km: 5.0,
+                        duration_minutes: 20,
+                        estimated_earnings: 125.00,
+                        special_instructions: 'งานทดสอบ Complete Flow'
+                    })
+                    .select()
+                    .single();
+
+                if (createError) throw createError;
+                results.push(`✅ สร้างงานสำเร็จ: ${newJob.id}`);
+
+                // Step 2: Accept the job
+                results.push('2️⃣ รับงาน...');
+                const { data: acceptedJob, error: acceptError } = await supabase
+                    .from('jobs_v2')
+                    .update({
+                        provider_id: currentProvider.id,
+                        status: 'accepted',
+                        accepted_at: new Date().toISOString()
+                    })
+                    .eq('id', newJob.id)
+                    .select()
+                    .single();
+
+                if (acceptError) throw acceptError;
+                results.push('✅ รับงานสำเร็จ');
+
+                // Step 3: Complete the job
+                results.push('3️⃣ เสร็จงาน...');
+                const { data: completedJob, error: completeError } = await supabase
+                    .from('jobs_v2')
+                    .update({
+                        status: 'completed',
+                        completed_at: new Date().toISOString(),
+                        final_earnings: newJob.estimated_earnings
+                    })
+                    .eq('id', newJob.id)
+                    .select()
+                    .single();
+
+                if (completeError) throw completeError;
+                results.push('✅ เสร็จงานสำเร็จ');
+
+                // Step 4: Create earnings
+                results.push('4️⃣ สร้างรายได้...');
+                const grossEarnings = parseFloat(newJob.estimated_earnings);
+                const platformFee = grossEarnings * 0.2;
+                const netEarnings = grossEarnings - platformFee;
+
+                const { error: earningsError } = await supabase
+                    .from('earnings_v2')
+                    .insert({
+                        provider_id: currentProvider.id,
+                        job_id: newJob.id,
+                        gross_earnings: grossEarnings,
+                        platform_fee: platformFee,
+                        net_earnings: netEarnings,
+                        earning_type: 'job_completion',
+                        service_type: 'ride'
+                    });
+
+                if (earningsError) throw earningsError;
+                results.push(`✅ สร้างรายได้สำเร็จ: ฿${netEarnings.toFixed(2)}`);
+
+                // Step 5: Update provider stats
+                results.push('5️⃣ อัพเดทสถิติ Provider...');
+                const { error: updateError } = await supabase
+                    .from('providers_v2')
+                    .update({
+                        total_trips: currentProvider.total_trips + 1,
+                        total_earnings: parseFloat(currentProvider.total_earnings) + netEarnings
+                    })
+                    .eq('id', currentProvider.id);
+
+                if (updateError) throw updateError;
+                results.push('✅ อัพเดทสถิติสำเร็จ');
+
+                results.push('\n🎉 Complete Flow สำเร็จ!');
+                results.push(`💰 รายได้รวม: ฿${grossEarnings.toFixed(2)}`);
+                results.push(`🏢 Platform Fee: ฿${platformFee.toFixed(2)}`);
+                results.push(`💸 รายได้สุทธิ: ฿${netEarnings.toFixed(2)}`);
+
+            } catch (error) {
+                results.push(`❌ Error: ${error.message}`);
+            }
+
+            document.getElementById('flowResult').textContent = results.join('\n');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSystemStatus();
+        });
+    </script>
+</body>
+</html>

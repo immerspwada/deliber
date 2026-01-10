@@ -1,11 +1,13 @@
 /**
  * Wallet Store - Centralized State Management
  * High-Performance Implementation with Caching & Optimization
+ * SECURITY & PERFORMANCE FIXES APPLIED
  */
 import { defineStore } from 'pinia'
 import { ref, computed, shallowRef } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { withErrorHandling, ErrorCode, createAppError } from '@/utils/errorHandler'
 
 // =====================================================
 // TYPES
@@ -152,15 +154,26 @@ export const useWalletStore = defineStore('wallet', () => {
   const hasPendingTopup = computed(() => pendingTopupCount.value > 0)
 
   // =====================================================
-  // ACTIONS - Balance
+  // ACTIONS - Balance (PERFORMANCE & SECURITY FIXES)
   // =====================================================
   const fetchBalance = async (): Promise<WalletBalance> => {
-    // Request deduplication
-    if (fetchBalancePromise) return fetchBalancePromise
+    // PERFORMANCE FIX: Request deduplication with proper error handling
+    if (fetchBalancePromise) {
+      try {
+        return await fetchBalancePromise
+      } catch (error) {
+        // If shared promise fails, clear it and retry
+        fetchBalancePromise = null
+        return await fetchBalance()
+      }
+    }
 
     fetchBalancePromise = _fetchBalance()
     try {
       return await fetchBalancePromise
+    } catch (error) {
+      console.error('[WalletStore] fetchBalance failed:', error)
+      throw error
     } finally {
       fetchBalancePromise = null
     }
@@ -173,17 +186,29 @@ export const useWalletStore = defineStore('wallet', () => {
       
       if (authError) {
         console.error('[WalletStore] fetchBalance: Auth error:', authError)
-        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
-        return balance.value
+        const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
+        balance.value = emptyBalance
+        return emptyBalance
       }
       
       if (!user) {
         console.warn('[WalletStore] fetchBalance: No user authenticated')
-        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
-        return balance.value
+        const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
+        balance.value = emptyBalance
+        return emptyBalance
       }
 
       console.log('[WalletStore] fetchBalance: User ID:', user.id)
+      
+      // SECURITY FIX: Ensure wallet exists before fetching balance
+      const { error: ensureError } = await supabase.rpc('ensure_user_wallet', {
+        p_user_id: user.id
+      })
+      
+      if (ensureError) {
+        console.error('[WalletStore] fetchBalance: Failed to ensure wallet:', ensureError)
+      }
+      
       console.log('[WalletStore] fetchBalance: Calling get_customer_wallet RPC...')
       
       const { data, error } = await supabase.rpc('get_customer_wallet', {
@@ -194,37 +219,27 @@ export const useWalletStore = defineStore('wallet', () => {
 
       if (error) {
         console.error('[WalletStore] fetchBalance: RPC error:', error)
-        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
-        return balance.value
+        const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
+        balance.value = emptyBalance
+        return emptyBalance
       }
 
-      if (!data || data.length === 0) {
-        console.warn('[WalletStore] fetchBalance: No data returned from RPC')
-        balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
-        return balance.value
+      // PERFORMANCE FIX: Validate and normalize data
+      const walletBalance: WalletBalance = {
+        balance: Number(data?.balance || 0),
+        total_earned: Number(data?.total_earned || 0),
+        total_spent: Number(data?.total_spent || 0)
       }
 
-      const walletData = data[0]
-      console.log('[WalletStore] fetchBalance: Wallet data:', walletData)
-      
-      balance.value = {
-        balance: Number(walletData.balance) || 0,
-        total_earned: Number(walletData.total_earned) || 0,
-        total_spent: Number(walletData.total_spent) || 0
-      }
-      
-      console.log('[WalletStore] fetchBalance: Updated balance state:', balance.value)
+      balance.value = walletBalance
       isInitialized.value = true
+      return walletBalance
 
-      return balance.value
-    } catch (err) {
-      console.error('[WalletStore] fetchBalance: Exception:', err)
-      console.error('[WalletStore] fetchBalance: Exception details:', {
-        message: err instanceof Error ? err.message : 'Unknown',
-        stack: err instanceof Error ? err.stack : undefined
-      })
-      balance.value = { balance: 0, total_earned: 0, total_spent: 0 }
-      return balance.value
+    } catch (error) {
+      console.error('[WalletStore] fetchBalance: Unexpected error:', error)
+      const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
+      balance.value = emptyBalance
+      return emptyBalance
     }
   }
 

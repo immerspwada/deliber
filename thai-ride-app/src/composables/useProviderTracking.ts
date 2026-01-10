@@ -47,7 +47,8 @@ export function useProviderTracking(providerId: string | null) {
   const batteryLevel = ref<number | null>(null)
   
   // Geofencing for service area check
-  const { checkLocation, isInsideServiceArea, distanceFromCenter, SERVICE_AREA } = useGeoFencing()
+  const geofencing = useGeoFencing()
+  const { checkLocation, isInsideServiceArea, distanceFromCenter, SERVICE_AREA } = geofencing
   
   let watchId: number | null = null
   let updateInterval: ReturnType<typeof setInterval> | null = null

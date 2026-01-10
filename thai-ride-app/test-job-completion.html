@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏁 ทดสอบการเสร็จงาน</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+        .container { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 25px; }
+        .success-box { background: #28a745; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .step { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #007bff; }
+        .result { background: #e8f5e8; border: 1px solid #28a745; padding: 12px; margin: 8px 0; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; font-size: 12px; }
+        .error { background: #ffe6e6; border-color: #dc3545; color: #721c24; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 3px; }
+        .btn:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏁 ทดสอบการเสร็จงาน</h1>
+            <div class="success-box">
+                <h2>✅ ทดสอบ Complete Job Flow</h2>
+                <p>สร้างงาน → รับงาน → เสร็จงาน → ได้เงิน</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>1️⃣ สร้างงานและรับงาน</h3>
+            <button class="btn btn-success" onclick="createAndAcceptJob()">สร้างและรับงานทันที</button>
+            <div id="createResult" class="result">พร้อมสร้างงาน...</div>
+        </div>
+
+        <div class="step">
+            <h3>2️⃣ เสร็จงานและสร้างรายได้</h3>
+            <button class="btn" onclick="completeJobWithEarnings()">เสร็จงานและสร้างรายได้</button>
+            <div id="completeResult" class="result">พร้อมเสร็จงาน...</div>
+        </div>
+
+        <div class="step">
+            <h3>3️⃣ ตรวจสอบผลลัพธ์</h3>
+            <button class="btn" onclick="checkResults()">ตรวจสอบผลลัพธ์</button>
+            <div id="checkResult" class="result">พร้อมตรวจสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>🔗 ลิงก์ทดสอบ</h3>
+            <div id="jobLinks">สร้างงานก่อน...</div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://onsflqhkgqhydeupiqyt.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let testJob = null;
+        let testProvider = null;
+
+        async function createAndAcceptJob() {
+            const results = [];
+            try {
+                results.push('🚀 กำลังสร้างและรับงาน...\n');
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    results.push('❌ ไม่มีผู้ใช้ล็อกอิน');
+                    document.getElementById('createResult').textContent = results.join('\n');
+                    return;
+                }
+
+                // Get provider
+                const { data: provider } = await supabase
+                    .from('providers_v2')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (!provider) {
+                    results.push('❌ ไม่พบ Provider');
+                    document.getElementById('createResult').textContent = results.join('\n');
+                    return;
+                }
+
+                testProvider = provider;
+                results.push(`👤 Provider: ${provider.first_name} ${provider.last_name}`);
+
+                // Create job
+                const jobData = {
+                    customer_id: user.id,
+                    service_type: 'ride',
+                    status: 'pending',
+                    pickup_address: 'สถานีรถไฟฟ้าสยาม (ทดสอบเสร็จงาน)',
+                    pickup_lat: 13.7460,
+                    pickup_lng: 100.5340,
+                    dropoff_address: 'สถานีรถไฟฟ้าอโศก (ทดสอบเสร็จงาน)',
+                    dropoff_lat: 13.7372,
+                    dropoff_lng: 100.5597,
+                    distance_km: 2.8,
+                    duration_minutes: 12,
+                    estimated_earnings: 85.00,
+                    special_instructions: 'งานทดสอบการเสร็จงาน - ' + new Date().toLocaleString('th-TH')
+                };
+
+                const { data: createdJob, error: createError } = await supabase
+                    .from('jobs_v2')
+                    .insert(jobData)
+                    .select()
+                    .single();
+
+                if (createError) throw createError;
+
+                results.push('✅ สร้างงานสำเร็จ');
+                results.push(`🆔 Job ID: ${createdJob.id}`);
+
+                // Accept job
+                const { data: acceptedJob, error: acceptError } = await supabase
+                    .from('jobs_v2')
+                    .update({
+                        provider_id: provider.id,
+                        status: 'accepted',
+                        accepted_at: new Date().toISOString()
+                    })
+                    .eq('id', createdJob.id)
+                    .select()
+                    .single();
+
+                if (acceptError) throw acceptError;
+
+                testJob = acceptedJob;
+                results.push('✅ รับงานสำเร็จ');
+                results.push(`📍 จาก: ${acceptedJob.pickup_address}`);
+                results.push(`📍 ไป: ${acceptedJob.dropoff_address}`);
+                results.push(`💰 รายได้: ฿${acceptedJob.estimated_earnings}`);
+
+                // Update links
+                document.getElementById('jobLinks').innerHTML = 
+                    `<a href="http://localhost:5173/provider/job/${acceptedJob.id}" target="_blank" class="btn">เปิด Job Detail</a>
+                     <a href="http://localhost:5173/provider" target="_blank" class="btn">Provider Dashboard</a>`;
+
+            } catch (error) {
+                results.push(`❌ Error: ${error.message}`);
+            }
+
+            document.getElementById('createResult').textContent = results.join('\n');
+        }
+
+        async function completeJobWithEarnings() {
+            const results = [];
+            try {
+                results.push('🏁 กำลังเสร็จงานและสร้างรายได้...\n');
+
+                if (!testJob || !testProvider) {
+                    results.push('❌ กรุณาสร้างและรับงานก่อน');
+                    document.getElementById('completeResult').textContent = results.join('\n');
+                    return;
+                }
+
+                results.push(`📋 งาน: ${testJob.pickup_address} → ${testJob.dropoff_address}`);
+
+                // Complete job
+                const { data: completedJob, error: completeError } = await supabase
+                    .from('jobs_v2')
+                    .update({
+                        status: 'completed',
+                        completed_at: new Date().toISOString(),
+                        final_earnings: testJob.estimated_earnings
+                    })
+                    .eq('id', testJob.id)
+                    .select()
+                    .single();
+
+                if (completeError) throw completeError;
+
+                results.push('✅ เสร็จงานสำเร็จ');
+
+                // Calculate earnings
+                const grossEarnings = parseFloat(testJob.estimated_earnings);
+                const platformFee = grossEarnings * 0.2;
+                const netEarnings = grossEarnings - platformFee;
+
+                results.push(`💰 รายได้รวม: ฿${grossEarnings.toFixed(2)}`);
+                results.push(`🏢 Platform Fee (20%): ฿${platformFee.toFixed(2)}`);
+                results.push(`💸 รายได้สุทธิ: ฿${netEarnings.toFixed(2)}`);
+
+                // Create earnings record
+                const { data: earnings, error: earningsError } = await supabase
+                    .from('earnings_v2')
+                    .insert({
+                        provider_id: testProvider.id,
+                        job_id: testJob.id,
+                        gross_earnings: grossEarnings,
+                        platform_fee: platformFee,
+                        net_earnings: netEarnings,
+                        earning_type: 'job_completion',
+                        service_type: testJob.service_type || 'ride'
+                    })
+                    .select()
+                    .single();
+
+                if (earningsError) throw earningsError;
+
+                results.push('✅ สร้างรายได้สำเร็จ');
+                results.push(`🆔 Earnings ID: ${earnings.id}`);
+
+                // Update provider stats
+                const { error: updateError } = await supabase
+                    .from('providers_v2')
+                    .update({
+                        total_trips: (testProvider.total_trips || 0) + 1,
+                        total_earnings: parseFloat(testProvider.total_earnings || '0') + netEarnings
+                    })
+                    .eq('id', testProvider.id);
+
+                if (updateError) throw updateError;
+
+                results.push('✅ อัพเดทสถิติ Provider สำเร็จ');
+                results.push(`🎯 งานทั้งหมด: ${(testProvider.total_trips || 0) + 1}`);
+                results.push(`💰 รายได้สะสม: ฿${(parseFloat(testProvider.total_earnings || '0') + netEarnings).toFixed(2)}`);
+
+                results.push('\n🎉 Complete Job Flow สำเร็จสมบูรณ์!');
+
+            } catch (error) {
+                results.push(`❌ Error: ${error.message}`);
+            }
+
+            document.getElementById('completeResult').textContent = results.join('\n');
+        }
+
+        async function checkResults() {
+            const results = [];
+            try {
+                results.push('🔍 กำลังตรวจสอบผลลัพธ์...\n');
+
+                if (!testJob) {
+                    results.push('❌ ไม่มีงานให้ตรวจสอบ');
+                    document.getElementById('checkResult').textContent = results.join('\n');
+                    return;
+                }
+
+                // Check job status
+                const { data: job } = await supabase
+                    .from('jobs_v2')
+                    .select('*')
+                    .eq('id', testJob.id)
+                    .single();
+
+                if (job) {
+                    results.push('📋 สถานะงาน:');
+                    results.push(`   Status: ${job.status}`);
+                    results.push(`   Final Earnings: ฿${job.final_earnings || 0}`);
+                    results.push(`   Completed At: ${job.completed_at ? new Date(job.completed_at).toLocaleString('th-TH') : 'ไม่มี'}`);
+                }
+
+                // Check earnings
+                const { data: earnings } = await supabase
+                    .from('earnings_v2')
+                    .select('*')
+                    .eq('job_id', testJob.id);
+
+                if (earnings && earnings.length > 0) {
+                    results.push('\n💰 รายได้:');
+                    earnings.forEach((earning, index) => {
+                        results.push(`   ${index + 1}. Net: ฿${earning.net_earnings}`);
+                        results.push(`      Type: ${earning.earning_type}`);
+                        results.push(`      Date: ${new Date(earning.earned_at).toLocaleString('th-TH')}`);
+                    });
+                } else {
+                    results.push('\n⚠️ ไม่พบรายได้');
+                }
+
+                // Check provider stats
+                if (testProvider) {
+                    const { data: updatedProvider } = await supabase
+                        .from('providers_v2')
+                        .select('total_trips, total_earnings')
+                        .eq('id', testProvider.id)
+                        .single();
+
+                    if (updatedProvider) {
+                        results.push('\n👤 สถิติ Provider:');
+                        results.push(`   Total Trips: ${updatedProvider.total_trips || 0}`);
+                        results.push(`   Total Earnings: ฿${updatedProvider.total_earnings || 0}`);
+                    }
+                }
+
+                results.push('\n✅ ตรวจสอบเสร็จสิ้น');
+
+            } catch (error) {
+                results.push(`❌ Error: ${error.message}`);
+            }
+
+            document.getElementById('checkResult').textContent = results.join('\n');
+        }
+    </script>
+</body>
+</html>

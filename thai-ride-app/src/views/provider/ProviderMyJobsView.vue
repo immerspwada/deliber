@@ -268,8 +268,9 @@ const fetchProviderInfo = async () => {
   
   console.log('[MyJobs] Fetching provider info for user:', authStore.user.id)
   
+  // CRITICAL FIX: Use providers_v2 table consistently
   const { data, error } = await supabase
-    .from('service_providers')
+    .from('providers_v2')
     .select('*')
     .eq('user_id', authStore.user.id)
     .maybeSingle()

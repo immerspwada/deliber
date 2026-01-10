@@ -106,5 +106,49 @@ export function useGeoFencing() {
 
   const getZoneTypeText = (type: string) => ({ service_area: 'พื้นที่บริการ', surge_zone: 'โซน Surge', restricted: 'พื้นที่ห้าม', airport: 'สนามบิน', event: 'งานอีเวนต์' }[type] || type)
 
-  return { loading, error, fences, alerts, activeFences, surgeZones, restrictedZones, fetchFences, createFence, updateFence, deleteFence, checkPointInFence, getDistanceKm, getZoneTypeText }
+  // ========================================
+  // Provider Tracking Integration
+  // ========================================
+  
+  // Service area center (Bangkok)
+  const SERVICE_AREA = {
+    center: { lat: 13.7563, lng: 100.5018 },
+    radius: 50 // 50 km radius
+  }
+  
+  const isInsideServiceArea = ref(true)
+  const distanceFromCenter = ref(0)
+  
+  /**
+   * Check if location is inside service area
+   * Used by useProviderTracking
+   */
+  const checkLocation = (lat: number, lng: number): boolean => {
+    const distance = getDistanceKm(lat, lng, SERVICE_AREA.center.lat, SERVICE_AREA.center.lng)
+    distanceFromCenter.value = distance
+    isInsideServiceArea.value = distance <= SERVICE_AREA.radius
+    return isInsideServiceArea.value
+  }
+
+  return { 
+    loading, 
+    error, 
+    fences, 
+    alerts, 
+    activeFences, 
+    surgeZones, 
+    restrictedZones, 
+    fetchFences, 
+    createFence, 
+    updateFence, 
+    deleteFence, 
+    checkPointInFence, 
+    getDistanceKm, 
+    getZoneTypeText,
+    // Provider tracking integration
+    SERVICE_AREA,
+    isInsideServiceArea,
+    distanceFromCenter,
+    checkLocation
+  }
 }

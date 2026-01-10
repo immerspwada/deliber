@@ -68,24 +68,24 @@ let trackingInstance: ReturnType<typeof useProviderTracking> | null = null;
 const trackingInitialized = ref(false);
 
 // Computed tracking values
-const isTracking = computed(() => trackingInstance?.isTracking.value ?? false);
+const isTracking = computed(() => trackingInstance?.isTracking?.value ?? false);
 const trackingPosition = computed(
-  () => trackingInstance?.currentPosition.value ?? null
+  () => trackingInstance?.currentPosition?.value ?? null
 );
 const trackingError = computed(
-  () => trackingInstance?.trackingError.value ?? null
+  () => trackingInstance?.trackingError?.value ?? null
 );
 const trackingUpdateCount = computed(
-  () => trackingInstance?.updateCount.value ?? 0
+  () => trackingInstance?.updateCount?.value ?? 0
 );
 const batteryLevel = computed(
-  () => trackingInstance?.batteryLevel.value ?? null
+  () => trackingInstance?.batteryLevel?.value ?? null
 );
 const isInsideServiceArea = computed(
-  () => trackingInstance?.isInsideServiceArea.value ?? true
+  () => trackingInstance?.isInsideServiceArea?.value ?? true
 );
 const distanceFromCenter = computed(
-  () => trackingInstance?.distanceFromCenter.value ?? 0
+  () => trackingInstance?.distanceFromCenter?.value ?? 0
 );
 
 // Initialize tracking when profile is ready
@@ -299,44 +299,62 @@ const handleProofUploaded = (photoUrl: string) => {
 
 // Initialize
 onMounted(async () => {
-  // Always await fetchProfile to ensure profile is ready before toggle
-  const providerProfile = await fetchProfile();
+  try {
+    console.log('[ProviderDashboard] Mounting...')
+    
+    // Always await fetchProfile to ensure profile is ready before toggle
+    const providerProfile = await fetchProfile();
+    console.log('[ProviderDashboard] Profile loaded:', providerProfile)
 
-  // Check if user is a registered provider
-  if (!providerProfile) {
-    // Not a provider, redirect to onboarding
+    // Check if user is a registered provider
+    if (!providerProfile) {
+      console.log('[ProviderDashboard] No provider profile, redirecting to onboarding')
+      // Not a provider, redirect to onboarding
+      router.replace("/provider/onboarding");
+      return;
+    }
+
+    // Check provider status
+    if (providerProfile) {
+      const status = (providerProfile as any).status;
+      console.log('[ProviderDashboard] Provider status:', status)
+      
+      if (status === "pending") {
+        // Application pending, redirect to onboarding to show status
+        console.log('[ProviderDashboard] Status pending, redirecting to onboarding')
+        router.replace("/provider/onboarding");
+        return;
+      } else if (status === "rejected") {
+        // Application rejected, redirect to onboarding
+        console.log('[ProviderDashboard] Status rejected, redirecting to onboarding')
+        router.replace("/provider/onboarding");
+        return;
+      }
+    }
+
+    console.log('[ProviderDashboard] Loading earnings...')
+    fetchEarnings(); // Can run in background
+
+    // Initialize GPS tracking after profile is loaded
+    console.log('[ProviderDashboard] Initializing tracking...')
+    initializeTracking();
+
+    // Start tracking if already online
+    if (isOnline.value && trackingInstance) {
+      console.log('[ProviderDashboard] Starting tracking (already online)...')
+      trackingInstance.startTracking();
+      if (activeRide.value) {
+        trackingInstance.setActiveRide(true);
+      }
+    }
+
+    console.log('[ProviderDashboard] Initialization complete')
+    isInitialized.value = true;
+  } catch (err) {
+    console.error('[ProviderDashboard] Mount error:', err)
+    // Show error and redirect to onboarding
     router.replace("/provider/onboarding");
-    return;
   }
-
-  // Check provider status
-  if (providerProfile) {
-    const status = (providerProfile as any).status;
-    if (status === "pending") {
-      // Application pending, redirect to onboarding to show status
-      router.replace("/provider/onboarding");
-      return;
-    } else if (status === "rejected") {
-      // Application rejected, redirect to onboarding
-      router.replace("/provider/onboarding");
-      return;
-    }
-  }
-
-  fetchEarnings(); // Can run in background
-
-  // Initialize GPS tracking after profile is loaded
-  initializeTracking();
-
-  // Start tracking if already online
-  if (isOnline.value && trackingInstance) {
-    trackingInstance.startTracking();
-    if (activeRide.value) {
-      trackingInstance.setActiveRide(true);
-    }
-  }
-
-  isInitialized.value = true;
 });
 
 // Cleanup
@@ -355,6 +373,21 @@ onUnmounted(() => {
       <div v-if="!isInitialized" class="loading-state">
         <div class="loading-spinner"></div>
         <p>กำลังโหลด...</p>
+      </div>
+
+      <!-- Error State (if profile failed to load) -->
+      <div v-else-if="!profile" class="error-state">
+        <div class="error-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <h3>เกิดข้อผิดพลาด</h3>
+        <p>ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง</p>
+        <button @click="router.push('/provider/onboarding')" class="btn-retry">
+          ลองใหม่อีกครั้ง
+        </button>
       </div>
 
       <!-- Active Ride View -->
@@ -807,6 +840,67 @@ onUnmounted(() => {
 .loading-state p {
   font-size: 14px;
   color: #6b6b6b;
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 24px;
+  text-align: center;
+}
+
+.error-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fee2e2;
+  border-radius: 50%;
+  margin-bottom: 16px;
+}
+
+.error-icon svg {
+  width: 32px;
+  height: 32px;
+  color: #e11900;
+}
+
+.error-state h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.error-state p {
+  font-size: 14px;
+  color: #6b6b6b;
+  margin-bottom: 24px;
+}
+
+.btn-retry {
+  padding: 12px 32px;
+  background: #00a86b;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-retry:hover {
+  background: #008f5b;
+}
+
+.btn-retry:active {
+  transform: scale(0.98);
 }
 
 .dashboard-content {

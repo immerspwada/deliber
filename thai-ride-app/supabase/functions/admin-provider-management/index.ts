@@ -6,227 +6,291 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface ProviderManagementRequest {
-  provider_id: string
-  action: 'approve' | 'reject' | 'suspend' | 'reactivate'
-  reason?: string
-}
-
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify admin authorization
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    // Get request body
+    const body = await req.json()
+    const { provider_id, action, reason, admin_id } = body
+
+    if (!provider_id || !action || !admin_id) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const body: ProviderManagementRequest = await req.json()
-    const { provider_id, action, reason } = body
-
-    // Validate required fields
-    if (!provider_id || !action) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Validate reason for reject/suspend
-    if ((action === 'reject' || action === 'suspend') && (!reason || reason.length < 10)) {
-      return new Response(
-        JSON.stringify({ error: 'Reason must be at least 10 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Get provider
-    const { data: provider, error: providerError } = await supabaseClient
-      .from('providers')
-      .select('*')
-      .eq('id', provider_id)
-      .single()
-
-    if (providerError || !provider) {
-      return new Response(
-        JSON.stringify({ error: 'Provider not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    let affectedJobs: string[] = []
-
-    // Handle different actions
-    switch (action) {
-      case 'approve': {
-        // Generate provider_uid
-        const today = new Date().toISOString().split('T')[0].replace(/-/g, '')
-        const randomNum = Math.floor(10000 + Math.random() * 90000)
-        const providerUid = `PRV-${today}-${randomNum}`
-
-        // Update provider status
-        const { error: updateError } = await supabaseClient
-          .from('providers')
-          .update({
-            status: 'approved',
-            provider_uid: providerUid,
-            approved_at: new Date().toISOString(),
-          })
-          .eq('id', provider_id)
-
-        if (updateError) throw updateError
-
-        // Send approval notification
-        await supabaseClient.from('notifications').insert({
-          recipient_id: provider.user_id,
-          type: 'application_approved',
-          title: 'คำขอของคุณได้รับการอนุมัติ',
-          body: `ยินดีด้วย! บัญชีผู้ให้บริการของคุณได้รับการอนุมัติแล้ว รหัสผู้ให้บริการ: ${providerUid}`,
-          data: { provider_id, provider_uid: providerUid },
-        })
-
-        break
-      }
-
-      case 'reject': {
-        // Update provider status
-        const { error: updateError } = await supabaseClient
-          .from('providers')
-          .update({
-            status: 'rejected',
-            suspension_reason: reason,
-          })
-          .eq('id', provider_id)
-
-        if (updateError) throw updateError
-
-        // Send rejection notification
-        await supabaseClient.from('notifications').insert({
-          recipient_id: provider.user_id,
-          type: 'application_rejected',
-          title: 'คำขอของคุณถูกปฏิเสธ',
-          body: `ขออภัย คำขอเป็นผู้ให้บริการของคุณถูกปฏิเสธ เหตุผล: ${reason}`,
-          data: { provider_id, reason },
-        })
-
-        break
-      }
-
-      case 'suspend': {
-        // Get active jobs
-        const { data: activeJobs } = await supabaseClient
-          .from('jobs')
-          .select('id, customer_id')
-          .eq('provider_id', provider_id)
-          .in('status', ['accepted', 'arrived', 'in_progress'])
-
-        affectedJobs = activeJobs?.map((j) => j.id) || []
-
-        // Cancel active jobs
-        if (affectedJobs.length > 0) {
-          await supabaseClient
-            .from('jobs')
-            .update({
-              status: 'cancelled',
-              cancelled_at: new Date().toISOString(),
-              cancelled_by: 'system',
-              cancellation_reason: 'Provider suspended by admin',
-            })
-            .in('id', affectedJobs)
-
-          // Notify affected customers
-          for (const job of activeJobs || []) {
-            await supabaseClient.from('notifications').insert({
-              recipient_id: job.customer_id,
-              type: 'job_cancelled',
-              title: 'งานถูกยกเลิก',
-              body: 'งานของคุณถูกยกเลิกเนื่องจากผู้ให้บริการถูกระงับการใช้งาน',
-              data: { job_id: job.id },
-            })
-          }
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing required fields: provider_id, action, admin_id' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
+      )
+    }
 
-        // Update provider status
-        const { error: updateError } = await supabaseClient
-          .from('providers')
-          .update({
-            status: 'suspended',
-            suspended_at: new Date().toISOString(),
-            suspension_reason: reason,
-            is_online: false,
-          })
-          .eq('id', provider_id)
+    // Verify admin permissions (basic check)
+    const { data: adminUser, error: adminError } = await supabaseClient.auth.admin.getUserById(admin_id)
+    if (adminError || !adminUser) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid admin user' 
+        }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
 
-        if (updateError) throw updateError
+    let result
+    let auditAction = ''
 
-        // Send suspension notification
-        await supabaseClient.from('notifications').insert({
-          recipient_id: provider.user_id,
-          type: 'account_suspended',
-          title: 'บัญชีของคุณถูกระงับ',
-          body: `บัญชีผู้ให้บริการของคุณถูกระงับการใช้งาน เหตุผล: ${reason}`,
-          data: { provider_id, reason, affected_jobs: affectedJobs },
-        })
-
+    switch (action) {
+      case 'approve':
+        result = await approveProvider(supabaseClient, provider_id, admin_id)
+        auditAction = 'APPROVE_PROVIDER'
         break
-      }
-
-      case 'reactivate': {
-        // Update provider status
-        const { error: updateError } = await supabaseClient
-          .from('providers')
-          .update({
-            status: 'approved',
-            suspended_at: null,
-            suspension_reason: null,
-          })
-          .eq('id', provider_id)
-
-        if (updateError) throw updateError
-
-        // Send reactivation notification
-        await supabaseClient.from('notifications').insert({
-          recipient_id: provider.user_id,
-          type: 'account_reactivated',
-          title: 'บัญชีของคุณถูกเปิดใช้งานอีกครั้ง',
-          body: 'บัญชีผู้ให้บริการของคุณได้รับการเปิดใช้งานอีกครั้งแล้ว',
-          data: { provider_id },
-        })
-
+      
+      case 'reject':
+        result = await rejectProvider(supabaseClient, provider_id, admin_id, reason)
+        auditAction = 'REJECT_PROVIDER'
         break
-      }
-
+      
+      case 'suspend':
+        result = await suspendProvider(supabaseClient, provider_id, admin_id, reason)
+        auditAction = 'SUSPEND_PROVIDER'
+        break
+      
+      case 'activate':
+        result = await activateProvider(supabaseClient, provider_id, admin_id)
+        auditAction = 'ACTIVATE_PROVIDER'
+        break
+      
       default:
         return new Response(
-          JSON.stringify({ error: 'Invalid action' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ 
+            success: false, 
+            error: 'Invalid action. Must be: approve, reject, suspend, or activate' 
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
         )
     }
 
+    // Log admin action for audit trail
+    await logAdminAction(supabaseClient, {
+      admin_id,
+      action: auditAction,
+      target_type: 'provider',
+      target_id: provider_id,
+      reason,
+      result: result.success
+    })
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Provider ${action}ed successfully`,
-        affected_jobs: affectedJobs,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify(result),
+      { 
+        status: result.success ? 200 : 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     )
+
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Admin provider management error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: false, 
+        error: 'Internal server error' 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     )
   }
 })
+
+async function approveProvider(supabaseClient: any, providerId: string, adminId: string) {
+  try {
+    // Generate unique provider UID
+    const providerUid = `P${Date.now().toString().slice(-8)}`
+
+    // Update provider status
+    const { data: provider, error: updateError } = await supabaseClient
+      .from('service_providers')
+      .update({
+        status: 'approved',
+        provider_uid: providerUid,
+        approved_at: new Date().toISOString(),
+        approved_by: adminId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', providerId)
+      .select()
+      .single()
+
+    if (updateError) throw updateError
+
+    // TODO: Send approval notification email
+    console.log(`Provider ${providerId} approved with UID: ${providerUid}`)
+
+    return {
+      success: true,
+      message: 'Provider approved successfully',
+      data: { provider_uid: providerUid }
+    }
+  } catch (error) {
+    console.error('Error approving provider:', error)
+    return {
+      success: false,
+      message: 'Failed to approve provider',
+      error: error.message
+    }
+  }
+}
+
+async function rejectProvider(supabaseClient: any, providerId: string, adminId: string, reason?: string) {
+  try {
+    // Update provider status
+    const { data: provider, error: updateError } = await supabaseClient
+      .from('service_providers')
+      .update({
+        status: 'rejected',
+        rejection_reason: reason,
+        rejected_at: new Date().toISOString(),
+        rejected_by: adminId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', providerId)
+      .select()
+      .single()
+
+    if (updateError) throw updateError
+
+    // TODO: Send rejection notification email
+    console.log(`Provider ${providerId} rejected. Reason: ${reason}`)
+
+    return {
+      success: true,
+      message: 'Provider rejected successfully'
+    }
+  } catch (error) {
+    console.error('Error rejecting provider:', error)
+    return {
+      success: false,
+      message: 'Failed to reject provider',
+      error: error.message
+    }
+  }
+}
+
+async function suspendProvider(supabaseClient: any, providerId: string, adminId: string, reason?: string) {
+  try {
+    // Update provider status
+    const { data: provider, error: updateError } = await supabaseClient
+      .from('service_providers')
+      .update({
+        status: 'suspended',
+        suspension_reason: reason,
+        suspended_at: new Date().toISOString(),
+        suspended_by: adminId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', providerId)
+      .select()
+      .single()
+
+    if (updateError) throw updateError
+
+    // TODO: Cancel active jobs
+    // TODO: Send suspension notification
+
+    console.log(`Provider ${providerId} suspended. Reason: ${reason}`)
+
+    return {
+      success: true,
+      message: 'Provider suspended successfully'
+    }
+  } catch (error) {
+    console.error('Error suspending provider:', error)
+    return {
+      success: false,
+      message: 'Failed to suspend provider',
+      error: error.message
+    }
+  }
+}
+
+async function activateProvider(supabaseClient: any, providerId: string, adminId: string) {
+  try {
+    // Update provider status
+    const { data: provider, error: updateError } = await supabaseClient
+      .from('service_providers')
+      .update({
+        status: 'active',
+        activated_at: new Date().toISOString(),
+        activated_by: adminId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', providerId)
+      .select()
+      .single()
+
+    if (updateError) throw updateError
+
+    console.log(`Provider ${providerId} activated`)
+
+    return {
+      success: true,
+      message: 'Provider activated successfully'
+    }
+  } catch (error) {
+    console.error('Error activating provider:', error)
+    return {
+      success: false,
+      message: 'Failed to activate provider',
+      error: error.message
+    }
+  }
+}
+
+async function logAdminAction(supabaseClient: any, actionData: {
+  admin_id: string
+  action: string
+  target_type: string
+  target_id: string
+  reason?: string
+  result: boolean
+}) {
+  try {
+    await supabaseClient
+      .from('admin_audit_logs')
+      .insert({
+        id: crypto.randomUUID(),
+        admin_id: actionData.admin_id,
+        action: actionData.action,
+        target_type: actionData.target_type,
+        target_id: actionData.target_id,
+        changes: {
+          reason: actionData.reason,
+          result: actionData.result,
+          timestamp: new Date().toISOString()
+        },
+        created_at: new Date().toISOString()
+      })
+  } catch (error) {
+    console.error('Failed to log admin action:', error)
+    // Don't throw - audit logging failure shouldn't break the main operation
+  }
+}

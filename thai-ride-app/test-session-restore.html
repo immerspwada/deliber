@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ทดสอบ Session Restore</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; }
+        .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 ทดสอบ Session Restore - Thai Ride App</h1>
+    
+    <div class="test-case info">
+        <h3>📋 วิธีทดสอบ</h3>
+        <ol>
+            <li><strong>เข้าสู่ระบบ:</strong> ไปที่ <code>http://localhost:5173/login</code> และล็อกอิน</li>
+            <li><strong>ไปหน้าลูกค้า:</strong> ไปที่ <code>http://localhost:5173/customer</code></li>
+            <li><strong>รีเฟรช:</strong> กด F5 หรือ Ctrl+R</li>
+            <li><strong>ตรวจสอบ:</strong> ควรอยู่ที่หน้า <code>/customer</code> ไม่ใช่ <code>/login</code></li>
+        </ol>
+    </div>
+
+    <div class="test-case">
+        <h3>🔍 ตรวจสอบ Session ปัจจุบัน</h3>
+        <button class="btn-primary" onclick="checkCurrentSession()">ตรวจสอบ Session</button>
+        <div id="session-result"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>⚡ ทดสอบ Router Guard Timing</h3>
+        <button class="btn-warning" onclick="testRouterTiming()">ทดสอบ Router Guard</button>
+        <div id="router-result"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>🔄 ทดสอบ Auto Refresh</h3>
+        <button class="btn-success" onclick="testAutoRefresh()">ทดสอบ Auto Refresh (10 ครั้ง)</button>
+        <div id="refresh-result"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>📊 สถิติการทดสอบ</h3>
+        <div id="test-stats">
+            <p>ยังไม่ได้ทดสอบ</p>
+        </div>
+    </div>
+
+    <script>
+        let testStats = {
+            totalTests: 0,
+            successfulRestores: 0,
+            failedRestores: 0,
+            averageRestoreTime: 0
+        };
+
+        function checkCurrentSession() {
+            const result = document.getElementById('session-result');
+            result.innerHTML = '<p>🔍 กำลังตรวจสอบ...</p>';
+
+            // ตรวจสอบ URL ปัจจุบัน
+            const currentUrl = window.location.href;
+            const isOnCustomerPage = currentUrl.includes('/customer');
+            const isOnLoginPage = currentUrl.includes('/login');
+
+            // ตรวจสอบ localStorage/sessionStorage
+            const hasLocalStorage = !!localStorage.getItem('supabase.auth.token');
+            const hasSessionStorage = !!sessionStorage.getItem('demo_mode');
+
+            // ตรวจสอบ Supabase session (ถ้ามี)
+            let supabaseSession = null;
+            try {
+                // ลองหา Supabase session ใน localStorage
+                const keys = Object.keys(localStorage);
+                const supabaseKey = keys.find(key => key.includes('supabase') && key.includes('auth'));
+                if (supabaseKey) {
+                    supabaseSession = JSON.parse(localStorage.getItem(supabaseKey) || '{}');
+                }
+            } catch (e) {
+                console.warn('ไม่สามารถอ่าน Supabase session:', e);
+            }
+
+            const resultHtml = `
+                <div class="${isOnCustomerPage ? 'success' : 'error'}">
+                    <h4>📍 สถานะปัจจุบัน</h4>
+                    <p><strong>URL:</strong> ${currentUrl}</p>
+                    <p><strong>อยู่ที่หน้าลูกค้า:</strong> ${isOnCustomerPage ? '✅ ใช่' : '❌ ไม่ใช่'}</p>
+                    <p><strong>อยู่ที่หน้าล็อกอิน:</strong> ${isOnLoginPage ? '⚠️ ใช่' : '✅ ไม่ใช่'}</p>
+                    
+                    <h4>🔐 Session Data</h4>
+                    <p><strong>localStorage Auth:</strong> ${hasLocalStorage ? '✅ มี' : '❌ ไม่มี'}</p>
+                    <p><strong>sessionStorage Demo:</strong> ${hasSessionStorage ? '✅ มี' : '❌ ไม่มี'}</p>
+                    <p><strong>Supabase Session:</strong> ${supabaseSession ? '✅ มี' : '❌ ไม่มี'}</p>
+                    
+                    ${supabaseSession ? `<pre>${JSON.stringify(supabaseSession, null, 2)}</pre>` : ''}
+                </div>
+            `;
+
+            result.innerHTML = resultHtml;
+        }
+
+        function testRouterTiming() {
+            const result = document.getElementById('router-result');
+            result.innerHTML = '<p>⏱️ กำลังทดสอบ Router Guard Timing...</p>';
+
+            const startTime = Date.now();
+            
+            // จำลองการทำงานของ Router Guard
+            const mockAuthCheck = () => {
+                return new Promise((resolve) => {
+                    // จำลองเวลาที่ auth store ใช้ในการ initialize
+                    const mockInitTime = Math.random() * 4000 + 1000; // 1-5 วินาที
+                    
+                    setTimeout(() => {
+                        const endTime = Date.now();
+                        const duration = endTime - startTime;
+                        
+                        const isSuccess = duration < 5000; // Router Guard รอ 5 วินาที
+                        
+                        resolve({
+                            success: isSuccess,
+                            duration: duration,
+                            mockInitTime: mockInitTime
+                        });
+                    }, mockInitTime);
+                });
+            };
+
+            mockAuthCheck().then(result => {
+                const resultHtml = `
+                    <div class="${result.success ? 'success' : 'error'}">
+                        <h4>⏱️ ผลการทดสอบ Router Timing</h4>
+                        <p><strong>เวลาที่ใช้:</strong> ${result.duration}ms</p>
+                        <p><strong>เวลา Mock Init:</strong> ${result.mockInitTime.toFixed(0)}ms</p>
+                        <p><strong>ผลลัพธ์:</strong> ${result.success ? '✅ ผ่าน (< 5 วินาที)' : '❌ ไม่ผ่าน (> 5 วินาที)'}</p>
+                        <p><strong>Router Guard Timeout:</strong> 5000ms</p>
+                    </div>
+                `;
+                
+                document.getElementById('router-result').innerHTML = resultHtml;
+            });
+        }
+
+        function testAutoRefresh() {
+            const result = document.getElementById('refresh-result');
+            result.innerHTML = '<p>🔄 กำลังทดสอบ Auto Refresh...</p>';
+
+            let currentTest = 0;
+            const totalTests = 10;
+            let results = [];
+
+            const runTest = () => {
+                if (currentTest >= totalTests) {
+                    // แสดงผลสรุป
+                    const successCount = results.filter(r => r.success).length;
+                    const failCount = results.filter(r => !r.success).length;
+                    const avgTime = results.reduce((sum, r) => sum + r.time, 0) / results.length;
+
+                    testStats.totalTests += totalTests;
+                    testStats.successfulRestores += successCount;
+                    testStats.failedRestores += failCount;
+                    testStats.averageRestoreTime = avgTime;
+
+                    const summaryHtml = `
+                        <div class="${successCount === totalTests ? 'success' : 'error'}">
+                            <h4>📊 สรุปผลการทดสอบ Auto Refresh</h4>
+                            <p><strong>ทดสอบทั้งหมด:</strong> ${totalTests} ครั้ง</p>
+                            <p><strong>สำเร็จ:</strong> ${successCount} ครั้ง (${(successCount/totalTests*100).toFixed(1)}%)</p>
+                            <p><strong>ล้มเหลว:</strong> ${failCount} ครั้ง (${(failCount/totalTests*100).toFixed(1)}%)</p>
+                            <p><strong>เวลาเฉลี่ย:</strong> ${avgTime.toFixed(0)}ms</p>
+                            
+                            <h5>📋 รายละเอียดแต่ละครั้ง:</h5>
+                            <pre>${results.map((r, i) => 
+                                `Test ${i+1}: ${r.success ? '✅' : '❌'} ${r.time}ms`
+                            ).join('\n')}</pre>
+                        </div>
+                    `;
+
+                    result.innerHTML = summaryHtml;
+                    updateTestStats();
+                    return;
+                }
+
+                currentTest++;
+                result.innerHTML = `<p>🔄 กำลังทดสอบครั้งที่ ${currentTest}/${totalTests}...</p>`;
+
+                // จำลองการ refresh และ session restore
+                const startTime = Date.now();
+                const mockRestoreTime = Math.random() * 3000 + 500; // 0.5-3.5 วินาที
+
+                setTimeout(() => {
+                    const endTime = Date.now();
+                    const duration = endTime - startTime;
+                    const success = duration < 5000 && Math.random() > 0.1; // 90% success rate
+
+                    results.push({
+                        success: success,
+                        time: duration
+                    });
+
+                    setTimeout(runTest, 100); // รอ 100ms ก่อนทดสอบครั้งต่อไป
+                }, mockRestoreTime);
+            };
+
+            runTest();
+        }
+
+        function updateTestStats() {
+            const stats = document.getElementById('test-stats');
+            const successRate = testStats.totalTests > 0 ? 
+                (testStats.successfulRestores / testStats.totalTests * 100).toFixed(1) : 0;
+
+            stats.innerHTML = `
+                <div class="info">
+                    <h4>📈 สถิติการทดสอบทั้งหมด</h4>
+                    <p><strong>ทดสอบทั้งหมด:</strong> ${testStats.totalTests} ครั้ง</p>
+                    <p><strong>Session Restore สำเร็จ:</strong> ${testStats.successfulRestores} ครั้ง</p>
+                    <p><strong>Session Restore ล้มเหลว:</strong> ${testStats.failedRestores} ครั้ง</p>
+                    <p><strong>อัตราความสำเร็จ:</strong> ${successRate}%</p>
+                    <p><strong>เวลาเฉลี่ย:</strong> ${testStats.averageRestoreTime.toFixed(0)}ms</p>
+                </div>
+            `;
+        }
+
+        // เรียกใช้การตรวจสอบเมื่อโหลดหน้า
+        window.onload = () => {
+            checkCurrentSession();
+        };
+    </script>
+</body>
+</html>

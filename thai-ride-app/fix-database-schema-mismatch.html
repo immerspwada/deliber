@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 แก้ไขปัญหา Database Schema Mismatch</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .critical-fix {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .step {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #00C851;
+        }
+        .result {
+            background: #e8f5e8;
+            border: 1px solid #00C851;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #ffe6e6;
+            border: 1px solid #ff4444;
+            color: #cc0000;
+        }
+        .btn {
+            background: linear-gradient(135deg, #00C851, #007E33);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,200,81,0.3);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 แก้ไขปัญหา Database Schema Mismatch</h1>
+            <div class="critical-fix">
+                <h2>🚨 แก้ไขปัญหา Foreign Key และ Table Schema</h2>
+                <p>แก้ไข ride_requests → jobs_v2 และ customer_id constraint</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>🔍 ขั้นตอนที่ 1: ตรวจสอบปัญหา</h3>
+            <button class="btn" onclick="checkDatabaseIssues()">ตรวจสอบปัญหา Database</button>
+            <div id="checkResult" class="result">พร้อมตรวจสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>🛠️ ขั้นตอนที่ 2: แก้ไข Schema</h3>
+            <button class="btn" onclick="fixDatabaseSchema()">แก้ไข Database Schema</button>
+            <div id="fixResult" class="result">พร้อมแก้ไข...</div>
+        </div>
+
+        <div class="step">
+            <h3>🧪 ขั้นตอนที่ 3: ทดสอบระบบ</h3>
+            <button class="btn" onclick="testSystem()">ทดสอบระบบหลังแก้ไข</button>
+            <div id="testResult" class="result">พร้อมทดสอบ...</div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://onsflqhkgqhydeupiqyt.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);

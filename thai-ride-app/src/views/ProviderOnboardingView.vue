@@ -65,13 +65,13 @@ const checkProviderStatus = async () => {
     const userEmail = authStore.user.email
     console.log('[ProviderOnboarding] Checking status for user:', userId, 'email:', userEmail)
 
-    // Query แบบ array แทน single เพื่อหลีกเลี่ยง error
+    // CRITICAL FIX: Use providers_v2 table (same as router guard)
     const { data, error } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .select('*')
       .eq('user_id', userId)
 
-    console.log('[ProviderOnboarding] Query result:', { 
+    console.log('[ProviderOnboarding] Query providers_v2 result:', { 
       data, 
       dataLength: data?.length,
       error: error?.message, 

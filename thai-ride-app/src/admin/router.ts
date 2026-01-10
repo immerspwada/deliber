@@ -219,12 +219,6 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { module: 'finance' }
       },
       {
-        path: 'payment-settings',
-        name: 'AdminPaymentSettingsV2',
-        component: PaymentAccountsView,
-        meta: { module: 'finance' }
-      },
-      {
         path: 'payment-accounts',
         name: 'AdminPaymentAccountsV2',
         component: PaymentAccountsView,

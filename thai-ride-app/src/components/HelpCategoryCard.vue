@@ -3,18 +3,24 @@
  * Feature: F224 - Help Category Card
  * Help center category card
  */
-defineProps<{
+import { computed } from 'vue'
+import { sanitizeIcon } from '@/utils/sanitize'
+
+const props = defineProps<{
   title: string
   description?: string
   icon: string
   articleCount?: number
   onClick?: () => void
 }>()
+
+// SECURITY FIX: Sanitize icon HTML to prevent XSS
+const sanitizedIcon = computed(() => sanitizeIcon(props.icon))
 </script>
 
 <template>
   <button type="button" class="help-category-card" @click="onClick">
-    <div class="category-icon" v-html="icon" />
+    <div class="category-icon" v-html="sanitizedIcon" />
     <div class="category-content">
       <h4 class="category-title">{{ title }}</h4>
       <p v-if="description" class="category-desc">{{ description }}</p>

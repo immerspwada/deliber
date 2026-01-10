@@ -32,60 +32,18 @@ onErrorCaptured((err) => {
  * Initialize Customer Auth (only for non-admin routes)
  * Admin routes use their own auth system (adminAuth.store.ts)
  */
-const initializeCustomerAuth = async () => {
+const initializeCustomerAuth = async (): Promise<void> => {
   // Lazy import to avoid loading customer auth for admin routes
-  const { useAuthStore } = await import("./stores/auth");
+  const { useAuthStore, initializeAuthStore } = await import("./stores/auth");
   const { useRideStore } = await import("./stores/ride");
 
   const authStore = useAuthStore();
   const rideStore = useRideStore();
 
-  // Check demo mode first - instant ready
-  const isDemoMode = localStorage.getItem("demo_mode") === "true";
-
-  if (isDemoMode) {
-    try {
-      await authStore.initialize();
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.debug("[Demo Init]", err);
-      }
-    }
-
-    // Initialize ride store in background if user exists
-    if (authStore.user?.id) {
-      rideStore.initialize(authStore.user.id).catch((err) => {
-        console.warn("[Ride Init]", err);
-      });
-    }
-    return;
-  }
-
-  // Check if user has any stored session before waiting
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const projectRef = supabaseUrl?.split("//")[1]?.split(".")[0] || "";
-  const hasStoredSession = localStorage.getItem(`sb-${projectRef}-auth-token`);
-
-  if (!hasStoredSession) {
-    // No stored session - user is not logged in
-    return;
-  }
-
-  // Has stored session - initialize with race condition handling
-  let initCompleted = false;
-
-  const timeout = setTimeout(() => {
-    if (!initCompleted) {
-      if (import.meta.env.DEV) {
-        console.debug("[App] Customer auth init taking longer than expected");
-      }
-    }
-  }, 2000);
-
+  // Use auto-initialization for better session restore
   try {
-    await authStore.initialize();
-    initCompleted = true;
-
+    await initializeAuthStore();
+    
     // If user is logged in, restore any active ride (non-blocking)
     if (authStore.user?.id) {
       rideStore.initialize(authStore.user.id).catch((err) => {
@@ -95,12 +53,9 @@ const initializeCustomerAuth = async () => {
       });
     }
   } catch (err) {
-    initCompleted = true;
     if (import.meta.env.DEV) {
       console.debug("[App Init]", err);
     }
-  } finally {
-    clearTimeout(timeout);
   }
 };
 

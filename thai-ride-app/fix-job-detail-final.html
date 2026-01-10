@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 แก้ไข Job Detail ขั้นสุดท้าย</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .critical-fix { background: #dc3545; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .step { background: #f8f9fa; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #28a745; }
+        .result { background: #e8f5e8; border: 1px solid #28a745; padding: 15px; margin: 10px 0; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .error { background: #ffe6e6; border-color: #dc3545; color: #721c24; }
+        .btn { background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; margin: 5px; }
+        .btn:hover { background: #218838; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-primary { background: #007bff; }
+        .btn-primary:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 แก้ไข Job Detail ขั้นสุดท้าย</h1>
+            <div class="critical-fix">
+                <h2>🚨 แก้ไขปัญหา Job Detail View</h2>
+                <p>แก้ไข Foreign Key และ Field Mismatch ให้สมบูรณ์</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>1️⃣ ตรวจสอบงานที่มีปัญหา</h3>
+            <button class="btn btn-primary" onclick="checkProblemJob()">ตรวจสอบงาน ID: 56e21657-2371-4d7b-9a37-63c393f2c9a9</button>
+            <div id="checkResult" class="result">พร้อมตรวจสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>2️⃣ แก้ไขข้อมูลงาน</h3>
+            <button class="btn" onclick="fixJobData()">แก้ไขข้อมูลงาน</button>
+            <div id="fixResult" class="result">พร้อมแก้ไข...</div>
+        </div>
+
+        <div class="step">
+            <h3>3️⃣ ทดสอบ Job Detail View</h3>
+            <button class="btn" onclick="testJobDetail()">ทดสอบ Job Detail</button>
+            <div id="testResult" class="result">พร้อมทดสอบ...</div>
+        </div>
+
+        <div class="step">
+            <h3>🔗 ลิงก์ทดสอบ</h3>
+            <a href="http://localhost:5173/provider/job/56e21657-2371-4d7b-9a37-63c393f2c9a9" target="_blank" class="btn btn-primary">เปิด Job Detail</a>
+            <a href="http://localhost:5173/provider" target="_blank" class="btn">Provider Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://onsflqhkgqhydeupiqyt.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc2ZscWhrZ3FoeWRldXBpcXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0OTg5NTEsImV4cCI6MjA4MDA3NDk1MX0.UtlAxwHlcSTY7VEX6f2NcrN4xfbz4FjRTqGWro8BTRk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        const problemJobId = '56e21657-2371-4d7b-9a37-63c393f2c9a9';
+
+        async function checkProblemJob() {
+            const results = [];
+            try {
+                results.push('🔍 กำลังตรวจสอบงานที่มีปัญหา...\n');
+
+                // Check if job exists in jobs_v2
+                const { data: jobV2, error: jobV2Error } = await supabase
+                    .from('jobs_v2')
+                    .select('*')
+                    .eq('id', problemJobId)
+                    .maybeSingle();
+
+                if (jobV2Error) {
+                    results.push(`❌ Error checking jobs_v2: ${jobV2Error.message}`);
+                } else if (jobV2) {
+                    results.push('✅ พบงานในตาราง jobs_v2');
+                    results.push(`📋 Job: ${jobV2.pickup_address} → ${jobV2.dropoff_address}`);
+                    results.push(`💰 Earnings: ฿${jobV2.estimated_earnings}`);
+                    results.push(`📊 Status: ${jobV2.status}`);
+                    results.push(`👤 Provider ID: ${jobV2.provider_id || 'ไม่มี'}`);
+                } else {
+                    results.push('⚠️ ไม่พบงานในตาราง jobs_v2');
+                }
+
+                // Check if job exists in old ride_requests table
+                const { data: rideRequest, error: rideError } = await supabase
+                    .from('ride_requests')
+                    .select('*')
+                    .eq('id', problemJobId)
+                    .maybeSingle();
+
+                if (rideError) {
+                    results.push(`ℹ️ ไม่พบในตาราง ride_requests (ปกติ): ${rideError.message}`);
+                } else if (rideRequest) {
+                    results.push('⚠️ พบงานในตาราง ride_requests (ตารางเก่า)');
+                    results.push('🔄 ต้องย้ายข้อมูลไปยัง jobs_v2');
+                }
+
+                // Get current user
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    results.push(`👤 Current User: ${user.email}`);
+                    results.push(`🆔 User ID: ${user.id}`);
+                }
+
+            } catch (error) {
+                results.push(`❌ Exception: ${error.message}`);
+            }
+
+            document.getElementById('checkResult').textContent = results.join('\n');
+        }
+
+        async function fixJobData() {
+            const results = [];
+            try {
+                results.push('🛠️ กำลังแก้ไขข้อมูลงาน...\n');
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    results.push('❌ ไม่มีผู้ใช้ล็อกอิน');
+                    document.getElementById('fixResult').textContent = results.join('\n');
+                    return;
+                }
+
+                // Check if job exists in jobs_v2
+                const { data: existingJob } = await supabase
+                    .from('jobs_v2')
+                    .select('*')
+                    .eq('id', problemJobId)
+                    .maybeSingle();
+
+                if (!existingJob) {
+                    results.push('📝 สร้างงานใหม่ในตาราง jobs_v2...');
+                    
+                    // Create the job in jobs_v2
+                    const { data: newJob, error: createError } = await supabase
+                        .from('jobs_v2')
+                        .insert({
+                            id: problemJobId,
+                            customer_id: user.id,
+                            service_type: 'ride',
+                            status: 'accepted',
+                            pickup_address: 'เซ็นทรัลเวิลด์ (แก้ไขแล้ว)',
+                            pickup_lat: 13.7460,
+                            pickup_lng: 100.5340,
+                            dropoff_address: 'สุขุมวิท 24 (แก้ไขแล้ว)',
+                            dropoff_lat: 13.7372,
+                            dropoff_lng: 100.5597,
+                            distance_km: 3.2,
+                            duration_minutes: 15,
+                            estimated_earnings: 95.00,
+                            special_instructions: 'งานที่แก้ไขแล้ว - ' + new Date().toLocaleString('th-TH'),
+                            accepted_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        results.push(`❌ สร้างงานไม่สำเร็จ: ${createError.message}`);
+                    } else {
+                        results.push('✅ สร้างงานใหม่สำเร็จ');
+                        results.push(`🆔 Job ID: ${newJob.id}`);
+                        results.push(`📍 จาก: ${newJob.pickup_address}`);
+                        results.push(`📍 ไป: ${newJob.dropoff_address}`);
+                    }
+                } else {
+                    results.push('✅ งานมีอยู่แล้วในตาราง jobs_v2');
+                    
+                    // Update job to ensure it has correct customer_id
+                    const { error: updateError } = await supabase
+                        .from('jobs_v2')
+                        .update({
+                            customer_id: user.id,
+                            special_instructions: 'งานที่อัพเดทแล้ว - ' + new Date().toLocaleString('th-TH')
+                        })
+                        .eq('id', problemJobId);
+
+                    if (updateError) {
+                        results.push(`⚠️ อัพเดทงานไม่สำเร็จ: ${updateError.message}`);
+                    } else {
+                        results.push('✅ อัพเดทงานสำเร็จ');
+                    }
+                }
+
+                // Get provider info
+                const { data: provider } = await supabase
+                    .from('providers_v2')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (provider) {
+                    results.push(`👤 Provider: ${provider.first_name} ${provider.last_name}`);
+                    
+                    // Assign job to provider if not already assigned
+                    const { error: assignError } = await supabase
+                        .from('jobs_v2')
+                        .update({
+                            provider_id: provider.id,
+                            status: 'accepted',
+                            accepted_at: new Date().toISOString()
+                        })
+                        .eq('id', problemJobId);
+
+                    if (assignError) {
+                        results.push(`⚠️ กำหนด Provider ไม่สำเร็จ: ${assignError.message}`);
+                    } else {
+                        results.push('✅ กำหนด Provider สำเร็จ');
+                    }
+                }
+
+                results.push('\n🎉 แก้ไขข้อมูลงานเสร็จสมบูรณ์!');
+
+            } catch (error) {
+                results.push(`❌ Error: ${error.message}`);
+            }
+
+            document.getElementById('fixResult').textContent = results.join('\n');
+        }
+
+        async function testJobDetail() {
+            const results = [];
+            try {
+                results.push('🧪 กำลังทดสอบ Job Detail...\n');
+
+                // Test the exact query that JobDetailView uses
+                const { data: job, error: jobError } = await supabase
+                    .from('jobs_v2')
+                    .select(`
+                        *,
+                        customer:customer_id (
+                            id,
+                            email,
+                            raw_user_meta_data
+                        )
+                    `)
+                    .eq('id', problemJobId)
+                    .single();
+
+                if (jobError) {
+                    results.push(`❌ Query Error: ${jobError.message}`);
+                    document.getElementById('testResult').textContent = results.join('\n');
+                    return;
+                }
+
+                results.push('✅ Query สำเร็จ!');
+                results.push(`🆔 Job ID: ${job.id}`);
+                results.push(`📍 จาก: ${job.pickup_address}`);
+                results.push(`📍 ไป: ${job.dropoff_address}`);
+                results.push(`💰 รายได้: ฿${job.estimated_earnings}`);
+                results.push(`📊 Status: ${job.status}`);
+                results.push(`👤 Provider ID: ${job.provider_id || 'ไม่มี'}`);
+
+                if (job.customer) {
+                    const customerName = job.customer.raw_user_meta_data?.full_name || 
+                                       job.customer.email?.split('@')[0] || 'ไม่ระบุชื่อ';
+                    const customerPhone = job.customer.raw_user_meta_data?.phone || 'ไม่ระบุเบอร์';
+                    
+                    results.push(`👤 ลูกค้า: ${customerName}`);
+                    results.push(`📞 เบอร์: ${customerPhone}`);
+                } else {
+                    results.push('⚠️ ไม่พบข้อมูลลูกค้า');
+                }
+
+                results.push('\n🎉 Job Detail พร้อมใช้งาน!');
+                results.push('🔗 คลิกลิงก์ด้านล่างเพื่อเปิด Job Detail View');
+
+            } catch (error) {
+                results.push(`❌ Exception: ${error.message}`);
+            }
+
+            document.getElementById('testResult').textContent = results.join('\n');
+        }
+
+        // Auto-check on load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkProblemJob();
+        });
+    </script>
+</body>
+</html>

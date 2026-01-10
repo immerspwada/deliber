@@ -92,7 +92,41 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
 
     session.value = newSession
     user.value = adminUser
+    
+    console.log('[Admin Auth] Saving session to localStorage:', {
+      key: STORAGE_KEYS.SESSION,
+      sessionStructure: {
+        hasToken: !!newSession.token,
+        hasUser: !!newSession.user,
+        userId: newSession.user.id,
+        userEmail: newSession.user.email,
+        userRole: newSession.user.role,
+        loginTime: new Date(newSession.loginTime).toLocaleString(),
+        expiresAt: new Date(newSession.expiresAt).toLocaleString(),
+        isDemoMode: newSession.isDemoMode
+      }
+    })
+    
     localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(newSession))
+    
+    // Verify it was saved correctly
+    const verification = localStorage.getItem(STORAGE_KEYS.SESSION)
+    console.log('[Admin Auth] Session saved verification:', {
+      saved: !!verification,
+      canParse: (() => {
+        try {
+          const parsed = JSON.parse(verification || '{}')
+          return {
+            success: true,
+            hasUser: !!parsed.user,
+            hasUserId: !!parsed.user?.id,
+            expiresAt: parsed.expiresAt
+          }
+        } catch (e) {
+          return { success: false, error: e.message }
+        }
+      })()
+    })
   }
 
   const clearSession = () => {

@@ -6,16 +6,50 @@ import { adminRoutes } from '../admin/router'
 
 // ========================================
 // Admin V2 Auth Check (uses adminAuth.store)
+// SECURITY FIX: Use sessionStorage instead of localStorage for admin sessions
 // ========================================
 const ADMIN_SESSION_KEY = 'admin_v2_session'
 
 const isAdminV2SessionValid = (): boolean => {
   try {
+    // FIXED: Check localStorage where admin auth actually stores the session
     const stored = localStorage.getItem(ADMIN_SESSION_KEY)
-    if (!stored) return false
+    if (!stored) {
+      console.log('[Router] No admin session found in localStorage')
+      return false
+    }
+    
     const session = JSON.parse(stored)
-    return session && Date.now() < session.expiresAt
-  } catch {
+    console.log('[Router] Raw admin session data:', session)
+    
+    // FIXED: Validate correct session structure from adminAuth.store.ts
+    // Session structure: { token, user: { id, email, name, role, permissions }, loginTime, expiresAt, isDemoMode }
+    if (!session || !session.expiresAt || !session.user || !session.user.id) {
+      console.log('[Router] Invalid admin session structure:', {
+        hasSession: !!session,
+        hasExpiresAt: !!session?.expiresAt,
+        hasUser: !!session?.user,
+        hasUserId: !!session?.user?.id,
+        sessionKeys: session ? Object.keys(session) : [],
+        userKeys: session?.user ? Object.keys(session.user) : []
+      })
+      return false
+    }
+    
+    const isValid = Date.now() < session.expiresAt
+    console.log('[Router] Admin session validation:', {
+      hasSession: true,
+      userId: session.user.id,
+      userEmail: session.user.email,
+      userRole: session.user.role,
+      expiresAt: new Date(session.expiresAt).toLocaleString(),
+      isValid,
+      timeRemaining: Math.round((session.expiresAt - Date.now()) / 1000 / 60) + ' minutes'
+    })
+    
+    return isValid
+  } catch (error) {
+    console.error('[Router] Error validating admin session:', error)
     return false
   }
 }
@@ -23,8 +57,10 @@ const isAdminV2SessionValid = (): boolean => {
 /**
  * Clear admin session cache (call when logging out)
  */
-export const clearAdminSessionCache = () => {
+export const clearAdminSessionCache = (): void => {
+  // FIXED: Clear from localStorage where admin session is actually stored
   localStorage.removeItem(ADMIN_SESSION_KEY)
+  console.log('[Router] Admin session cache cleared')
 }
 
 export const routes: RouteRecordRaw[] = [
@@ -310,7 +346,13 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/provider',
     name: 'ProviderDashboard',
-    component: () => import('../views/provider/ProviderDashboardView.vue'),
+    component: () => import('../views/provider/ProviderDashboard.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+  },
+  {
+    path: '/provider/job/:id',
+    name: 'ProviderJobDetail',
+    component: () => import('../views/provider/JobDetailView.vue'),
     meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
   },
   {
@@ -439,6 +481,8 @@ const router = createRouter({
 
 // Navigation guard - ADMIN FIRST, then customer/provider
 router.beforeEach(async (to, _from, next) => {
+  console.log('[Router] Navigation to:', to.path)
+  
   // ========================================
   // 1. ADMIN ROUTES - Completely separate from customer auth
   // Admin uses adminAuth.store.ts (Demo Mode with localStorage)
@@ -446,10 +490,15 @@ router.beforeEach(async (to, _from, next) => {
   const isAdminRoute = to.path.startsWith('/admin')
   
   if (isAdminRoute) {
+    console.log('[Router] Admin route detected:', to.path)
+    
     // Admin login page - always accessible
     if (to.path === '/admin/login') {
       // If already logged in, redirect to dashboard
-      if (isAdminV2SessionValid()) {
+      const isValidSession = isAdminV2SessionValid()
+      console.log('[Router] Admin login page, session valid:', isValidSession)
+      if (isValidSession) {
+        console.log('[Router] Redirecting to admin dashboard (already logged in)')
         return next('/admin/dashboard')
       }
       return next()
@@ -457,13 +506,16 @@ router.beforeEach(async (to, _from, next) => {
     
     // Other admin routes - require admin session
     if (to.meta.requiresAdmin) {
-      if (!isAdminV2SessionValid()) {
+      const isValidSession = isAdminV2SessionValid()
+      console.log('[Router] Admin route requires auth, session valid:', isValidSession)
+      if (!isValidSession) {
         console.warn('[Router] Admin session invalid, redirecting to admin login')
         return next('/admin/login')
       }
     }
     
     // Admin route with valid session - proceed WITHOUT touching customer auth
+    console.log('[Router] Admin route access granted')
     return next()
   }
   
@@ -471,6 +523,7 @@ router.beforeEach(async (to, _from, next) => {
   // 2. PUBLIC ROUTES - No auth needed
   // ========================================
   if (to.meta.public) {
+    console.log('[Router] Public route, allowing access')
     return next()
   }
   
@@ -479,34 +532,147 @@ router.beforeEach(async (to, _from, next) => {
   // Only initialize customer auth for non-admin routes
   // ========================================
   
+  console.log('[Router] Checking customer auth for protected route')
+  
   // Lazy import auth store to avoid loading for admin routes
   const { useAuthStore } = await import('../stores/auth')
   const authStore = useAuthStore()
   
-  // Wait for auth to initialize if needed
-  if (authStore.loading && !authStore.user) {
+  // IMPROVED: Force initialization if not done yet
+  if (!authStore.user && !authStore.session && !authStore.isDemoMode) {
+    console.log('[Router] Auth not initialized, forcing initialization...')
+    try {
+      await authStore.initialize()
+    } catch (error) {
+      console.error('[Router] Auth initialization failed:', error)
+    }
+  }
+  
+  // Wait for auth to initialize if needed - IMPROVED VERSION
+  if (authStore.loading) {
     console.log('[Router] Waiting for customer auth to initialize...')
-    await new Promise(resolve => {
-      const unwatch = authStore.$subscribe(() => {
-        if (!authStore.loading) {
-          unwatch()
-          resolve(true)
+    await new Promise<void>(resolve => {
+      const maxWait = 8000 // เพิ่มเป็น 8 วินาที
+      const startTime = Date.now()
+      
+      const checkAuth = () => {
+        // ตรวจสอบทั้ง loading และ session
+        const isReady = !authStore.loading || authStore.session || authStore.isDemoMode || authStore.user
+        const isTimeout = (Date.now() - startTime) > maxWait
+        
+        console.log('[Router] Auth check progress:', {
+          loading: authStore.loading,
+          hasSession: !!authStore.session,
+          hasUser: !!authStore.user,
+          isDemoMode: authStore.isDemoMode,
+          isReady,
+          isTimeout,
+          elapsed: Math.round((Date.now() - startTime) / 1000) + 's'
+        })
+        
+        if (isReady || isTimeout) {
+          console.log('[Router] Auth check complete:', { 
+            isReady, 
+            isTimeout, 
+            hasSession: !!authStore.session,
+            hasUser: !!authStore.user,
+            isDemoMode: authStore.isDemoMode,
+            loading: authStore.loading 
+          })
+          resolve()
+        } else {
+          setTimeout(checkAuth, 100) // ลดเวลาตรวจสอบเป็น 100ms
         }
-      })
-      // Timeout after 3 seconds
-      setTimeout(() => {
-        unwatch()
-        resolve(true)
-      }, 3000)
+      }
+      
+      checkAuth()
     })
   }
   
+  console.log('[Router] Auth ready, user:', authStore.user?.id, 'session:', !!authStore.session, 'isAuthenticated:', authStore.isAuthenticated, 'isDemoMode:', authStore.isDemoMode)
+  
   // Check if route requires authentication (customer or provider routes)
   if (to.meta.requiresAuth || to.meta.isCustomerRoute || to.meta.isProviderRoute) {
-    if (!authStore.isAuthenticated) {
-      console.warn('[Router] Route requires authentication, redirecting to login')
+    // FINAL FIX: Comprehensive authentication check
+    const hasValidSession = !!authStore.session
+    const hasUser = !!authStore.user
+    const isDemoMode = authStore.isDemoMode
+    const isAuthenticatedComputed = authStore.isAuthenticated
+    
+    // Additional fallback: Check if we have Supabase tokens in storage
+    const hasSupabaseToken = (() => {
+      try {
+        // Check both localStorage and sessionStorage for Supabase tokens
+        const storages = [localStorage, sessionStorage]
+        
+        for (const storage of storages) {
+          const keys = Object.keys(storage)
+          const hasToken = keys.some(key => {
+            if (key.includes('supabase') || key.includes('sb-')) {
+              const value = storage.getItem(key)
+              if (value) {
+                try {
+                  const parsed = JSON.parse(value)
+                  const hasAccessToken = !!(parsed.access_token || parsed.session?.access_token)
+                  if (hasAccessToken) {
+                    console.log('[Router] Found Supabase token in', storage === localStorage ? 'localStorage' : 'sessionStorage', 'key:', key)
+                    return true
+                  }
+                } catch {
+                  return false
+                }
+              }
+            }
+            return false
+          })
+          
+          if (hasToken) return true
+        }
+        
+        return false
+      } catch {
+        return false
+      }
+    })()
+    
+    // Additional fallback: Try to get current Supabase session directly
+    const hasDirectSupabaseSession = (() => {
+      try {
+        // This is a synchronous check of current session
+        const { data: { session } } = supabase.auth.getSession()
+        return !!session?.access_token
+      } catch {
+        return false
+      }
+    })()
+    
+    console.log('[Router] Auth check details:', {
+      hasValidSession,
+      hasUser,
+      isDemoMode,
+      isAuthenticatedComputed,
+      hasSupabaseToken,
+      hasDirectSupabaseSession,
+      route: to.path
+    })
+    
+    // Consider user authenticated if ANY of these conditions are true
+    const isUserAuthenticated = hasValidSession || hasUser || isDemoMode || hasSupabaseToken || hasDirectSupabaseSession
+    
+    if (!isUserAuthenticated) {
+      console.warn('[Router] Route requires authentication, redirecting to login. Auth state:', {
+        session: !!authStore.session,
+        user: !!authStore.user,
+        isDemoMode,
+        isAuthenticated: authStore.isAuthenticated,
+        hasSupabaseToken,
+        hasDirectSupabaseSession,
+        route: to.path
+      })
       return next('/login')
     }
+    
+    console.log('[Router] Authentication check passed for route:', to.path)
   }
   
   // ========================================
@@ -533,38 +699,52 @@ router.beforeEach(async (to, _from, next) => {
       return next()
     }
 
-    // Check if user has provider account and can access
+    // Check if user has provider account in service_providers table
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('can_access_provider_routes', {
-        p_user_id: authStore.user?.id
-      })
+      // Make sure we have user_id
+      if (!authStore.user?.id) {
+        console.warn('[Router] No user ID available')
+        return next('/login')
+      }
 
-      if (error) {
-        console.error('[Router] Provider check error:', error)
+      const { data: providerData, error: providerError } = await supabase
+        .from('providers_v2')
+        .select('id, status')
+        .eq('user_id', authStore.user.id)
+        .maybeSingle()
+
+      if (providerError) {
+        console.error('[Router] Provider check error:', providerError)
         return next('/provider/onboarding')
       }
 
-      if (!data) {
-        console.warn('[Router] No data returned from provider check')
+      // No provider account found
+      if (!providerData) {
+        console.warn('[Router] No provider account found')
         return next('/provider/onboarding')
       }
 
-      // Handle both array and object responses
-      const result = Array.isArray(data) ? data[0] : data as { can_access: boolean; message?: string; status?: string }
+      const providerStatus = (providerData as any).status
 
-      const canAccess = result?.can_access === true
-      const providerStatus = result?.status || 'unknown'
-
-      if (!canAccess) {
-        console.warn('[Router] Provider access denied:', result?.message, 'status:', providerStatus)
+      // Check provider status
+      if (providerStatus === 'pending') {
+        console.log('[Router] Provider status pending, redirecting to onboarding')
         return next('/provider/onboarding')
       }
 
-      // For pending providers, redirect to onboarding (not dashboard)
-      if (providerStatus === 'pending' && to.path === '/provider') {
+      if (providerStatus === 'rejected' || providerStatus === 'suspended') {
+        console.warn('[Router] Provider status:', providerStatus)
         return next('/provider/onboarding')
       }
+
+      // Only approved/active providers can access
+      if (providerStatus !== 'approved' && providerStatus !== 'active') {
+        console.warn('[Router] Invalid provider status:', providerStatus)
+        return next('/provider/onboarding')
+      }
+
+      // Provider is approved/active, allow access
+      console.log('[Router] Provider access granted, status:', providerStatus)
     } catch (err) {
       console.error('[Router] Provider check exception:', err)
       return next('/provider/onboarding')

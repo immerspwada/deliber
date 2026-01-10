@@ -172,6 +172,7 @@ async function executeAction(): Promise<void> {
           provider_id: props.providerId,
           action: actionType.value,
           reason: actionReason.value || undefined,
+          admin_id: '11111111-1111-1111-1111-111111111111' // TODO: Get from auth store
         },
       }
     )

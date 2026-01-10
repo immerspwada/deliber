@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../lib/supabase'
 
 interface Provider {
   id: string
@@ -80,7 +80,7 @@ async function loadProviders(): Promise<void> {
   try {
     // Get providers with pending_verification status
     const { data: providersData, error: providersError } = await supabase
-      .from('providers')
+      .from('service_providers')
       .select('*')
       .eq('status', 'pending_verification')
       .order('created_at', { ascending: true })
@@ -89,7 +89,7 @@ async function loadProviders(): Promise<void> {
 
     // Get document counts for each provider
     const providersWithCounts = await Promise.all(
-      (providersData || []).map(async (provider) => {
+      (providersData || []).map(async (provider: any) => {
         const { data: documents } = await supabase
           .from('provider_documents')
           .select('id, status')
@@ -97,13 +97,13 @@ async function loadProviders(): Promise<void> {
 
         const documentsCount = documents?.length || 0
         const pendingDocumentsCount =
-          documents?.filter((d) => d.status === 'pending').length || 0
+          documents?.filter((d: any) => d.status === 'pending').length || 0
 
         return {
           ...provider,
           documents_count: documentsCount,
           pending_documents_count: pendingDocumentsCount,
-        }
+        } as Provider
       })
     )
 
@@ -125,7 +125,7 @@ function setupRealtimeSubscription(): void {
       {
         event: '*',
         schema: 'public',
-        table: 'providers',
+        table: 'service_providers',
         filter: 'status=eq.pending_verification',
       },
       () => {

@@ -93,8 +93,9 @@ const loadProvider = async () => {
   loading.value = true
   
   try {
+    // CRITICAL FIX: Use providers_v2 table consistently
     const { data, error: fetchError } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .select('*')
       .eq('user_id', authStore.user.id)
       .single()
@@ -228,9 +229,9 @@ const submitDocuments = async () => {
       updatedDocs.vehicle = await uploadToStorage(newVehicle.value, `${userId}/vehicle`)
     }
     
-    // Update provider record - keep status as pending for review
+    // CRITICAL FIX: Use providers_v2 table consistently
     const { error: updateError } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .update({
         documents: updatedDocs,
         status: 'pending',

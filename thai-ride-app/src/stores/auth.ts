@@ -15,7 +15,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Demo mode for testing without Supabase (only in development or when Supabase not configured)
   const isDemoMode = computed(() => {
-    const demoEnabled = localStorage.getItem('demo_mode') === 'true'
+    // SECURITY FIX: Use sessionStorage instead of localStorage for demo mode
+    const demoEnabled = sessionStorage.getItem('demo_mode') === 'true'
     // In production, only allow demo mode if explicitly enabled AND Supabase is not configured
     if (!isDev && env.isSupabaseConfigured) {
       return false
@@ -65,48 +66,89 @@ export const useAuthStore = defineStore('auth', () => {
     } as User
   }
 
-  // Initialize auth state
-  const initialize = async () => {
+  // Initialize auth state - IMPROVED VERSION
+  const initialize = async (): Promise<void> => {
+    if (loading.value) {
+      console.log('[Auth] Already initializing, skipping...')
+      return // ป้องกันการ initialize ซ้ำ
+    }
+    
+    console.log('[Auth] Starting initialization...')
     loading.value = true
     try {
       // Check for demo mode first
-      const demoMode = localStorage.getItem('demo_mode')
-      const demoUserEmail = localStorage.getItem('demo_user')
+      const demoMode = sessionStorage.getItem('demo_mode')
+      const demoUserEmail = sessionStorage.getItem('demo_user')
+      
+      console.log('[Auth] Demo mode check:', { demoMode, demoUserEmail })
       
       if (demoMode === 'true' && demoUserEmail && demoUsers[demoUserEmail]) {
+        console.log('[Auth] Using demo mode for user:', demoUserEmail)
         user.value = demoUsers[demoUserEmail]
         session.value = { user: { id: user.value.id } }
         loading.value = false
+        console.log('[Auth] Demo mode initialization complete')
         return
       }
       
-      // Check for real Supabase session
-      const projectRef = env.projectRef
-      const hasStoredSession = projectRef ? localStorage.getItem('sb-' + projectRef + '-auth-token') : null
-      
-      if (!hasStoredSession) {
-        loading.value = false
-        return
-      }
-      
-      // Has stored session - verify with Supabase (with timeout)
+      // SECURITY FIX: Use Supabase's built-in session management
+      // Get current session with shorter timeout for better UX
+      console.log('[Auth] Getting session from Supabase...')
       const sessionPromise = supabase.auth.getSession()
-      const timeoutPromise = new Promise<null>((resolve) => 
-        setTimeout(() => resolve(null), 2000)
+      const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) => 
+        setTimeout(() => {
+          console.log('[Auth] Session fetch timeout after 3 seconds')
+          resolve({ data: { session: null } })
+        }, 3000) // 3 วินาที
       )
       
       const result = await Promise.race([sessionPromise, timeoutPromise])
+      console.log('[Auth] Session result:', { hasSession: !!(result?.data?.session), result })
       
-      if (result && 'data' in result) {
+      if (result && 'data' in result && result.data.session) {
+        console.log('[Auth] Valid session found, setting up user...')
         session.value = result.data.session
-        if (result.data.session?.user) {
-          await fetchUserProfile(result.data.session.user.id)
+        if (result.data.session.user) {
+          // Set basic user info immediately for faster UI response
+          const sessionUser = result.data.session.user
+          user.value = {
+            id: sessionUser.id,
+            email: sessionUser.email || '',
+            name: sessionUser.user_metadata?.name || 
+                  sessionUser.email?.split('@')[0] || '',
+            phone: sessionUser.user_metadata?.phone || '',
+            role: sessionUser.user_metadata?.role || 'customer',
+            is_active: true,
+            created_at: sessionUser.created_at || new Date().toISOString()
+          } as User
+          
+          console.log('[Auth] User set from session:', user.value.email)
+          
+          // Fetch full profile in background (non-blocking)
+          fetchUserProfile(sessionUser.id).catch(err => {
+            console.warn('Background profile fetch failed:', err)
+          })
         }
+      } else {
+        // No valid session found
+        console.log('[Auth] No valid session found')
+        session.value = null
+        user.value = null
       }
     } catch (err: any) {
+      console.error('[Auth] Initialization error:', err)
       error.value = err.message
+      // Set default state on error
+      session.value = null
+      user.value = null
     } finally {
       loading.value = false
+      console.log('[Auth] Initialization complete. Final state:', {
+        hasUser: !!user.value,
+        hasSession: !!session.value,
+        isAuthenticated: !!session.value || isDemoMode.value,
+        userEmail: user.value?.email
+      })
     }
   }
 
@@ -263,7 +305,8 @@ export const useAuthStore = defineStore('auth', () => {
         // If role is driver/rider, create service_provider entry
         if (role === 'driver' || role === 'rider') {
           const providerType = role === 'driver' ? 'driver' : 'delivery'
-          const { error: providerError } = await (supabase.from('service_providers') as ReturnType<typeof supabase.from>).insert({
+          // CRITICAL FIX: Use providers_v2 table consistently
+          const { error: providerError } = await (supabase.from('providers_v2') as ReturnType<typeof supabase.from>).insert({
             user_id: data.user.id,
             provider_type: providerType,
             is_available: false,
@@ -536,7 +579,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Listen to auth state changes
+  // Listen to auth state changes - IMPROVED VERSION
   supabase.auth.onAuthStateChange(async (event, newSession) => {
     logger.log('onAuthStateChange:', event, 'isLoggingIn:', isLoggingIn.value)
     session.value = newSession
@@ -548,9 +591,31 @@ export const useAuthStore = defineStore('auth', () => {
     }
     
     if (event === 'SIGNED_IN' && newSession?.user) {
-      await fetchUserProfile(newSession.user.id)
+      // Set basic user info immediately
+      user.value = {
+        id: newSession.user.id,
+        email: newSession.user.email || '',
+        name: newSession.user.user_metadata?.name || 
+              newSession.user.email?.split('@')[0] || '',
+        phone: newSession.user.user_metadata?.phone || '',
+        role: newSession.user.user_metadata?.role || 'customer',
+        is_active: true,
+        created_at: newSession.user.created_at || new Date().toISOString()
+      } as User
+      
+      // Fetch full profile in background
+      fetchUserProfile(newSession.user.id).catch(err => {
+        console.warn('Background profile fetch failed:', err)
+      })
     } else if (event === 'SIGNED_OUT') {
       user.value = null
+      // Clear any cached data
+      resetWalletState()
+    } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+      // Session refreshed, ensure user data is still valid
+      if (!user.value || user.value.id !== newSession.user.id) {
+        await fetchUserProfile(newSession.user.id)
+      }
     }
   })
 
@@ -620,3 +685,18 @@ export const useAuthStore = defineStore('auth', () => {
     updateProfile
   }
 })
+
+// Auto-initialize auth store when imported (for better session restore)
+// This ensures session is restored as soon as the store is created
+let autoInitialized = false
+export const initializeAuthStore = async (): Promise<void> => {
+  if (autoInitialized) return
+  autoInitialized = true
+  
+  try {
+    const store = useAuthStore()
+    await store.initialize()
+  } catch (error) {
+    console.warn('[Auth] Auto-initialization failed:', error)
+  }
+}

@@ -330,9 +330,10 @@ const submitApplication = async () => {
     const userId = authStore.user.id
     
     // Check for existing provider record first (prevent duplicate)
+    // CRITICAL FIX: Use providers_v2 table consistently
     console.log('[ProviderRegister] Checking for existing provider before insert...')
     const { data: existingCheck, error: checkError } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .select('id, status')
       .eq('user_id', userId)
       .maybeSingle()
@@ -375,7 +376,8 @@ const submitApplication = async () => {
       // Continue with 'pending' status - admin can request re-upload
     }
     
-    const { error: insertError } = await (supabase.from('service_providers') as any).insert({
+    // CRITICAL FIX: Use providers_v2 table consistently
+    const { error: insertError } = await (supabase.from('providers_v2') as any).insert({
       user_id: userId,
       provider_type: 'pending', // Admin จะเปิดสิทธิ์งานให้ทีหลัง
       allowed_services: [], // Admin จะกำหนดว่าเห็นงานอะไรได้บ้าง
@@ -442,8 +444,9 @@ const checkExistingProvider = async () => {
     // Try direct query first
     let providerRecord: any = null
     
+    // CRITICAL FIX: Use providers_v2 table consistently
     const { data, error: queryError } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .select('*')
       .eq('user_id', userId)
     

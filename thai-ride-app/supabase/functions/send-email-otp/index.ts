@@ -3,6 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { rateLimit, createRateLimitResponse, RATE_LIMITS } from '../_shared/rateLimiter.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +21,15 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // SECURITY FIX: Add rate limiting
+  const rateLimitResult = await rateLimit(req, RATE_LIMITS.OTP_GENERATION)
+  if (!rateLimitResult.allowed) {
+    return createRateLimitResponse(
+      rateLimitResult.resetTime,
+      'Too many OTP requests. Please wait before requesting another.'
+    )
+  }
+
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -28,9 +38,28 @@ serve(async (req) => {
 
     const { user_id, email } = await req.json()
 
+    // SECURITY FIX: Input validation
     if (!user_id || !email) {
       return new Response(
         JSON.stringify({ error: 'user_id and email are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // SECURITY FIX: Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid email format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // SECURITY FIX: Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(user_id)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid user_id format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -48,6 +77,44 @@ serve(async (req) => {
         attempts: 0,
         verified: false,
         created_at: new Date().toISOString()
+      })
+
+    if (insertError) {
+      console.error('Database error:', insertError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to generate OTP' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // TODO: Send actual email (integrate with email service)
+    console.log(`OTP for ${email}: ${otp}`)
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'OTP sent successfully',
+        // SECURITY: Don't expose OTP in production
+        ...(Deno.env.get('ENVIRONMENT') === 'development' && { otp })
+      }),
+      { 
+        status: 200, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString()
+        } 
+      }
+    )
+
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})
       }, { onConflict: 'user_id' })
 
     if (insertError) {

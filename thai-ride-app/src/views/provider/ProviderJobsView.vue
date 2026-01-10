@@ -99,8 +99,9 @@ const fetchProviderInfo = async () => {
   }
 
   try {
+    // CRITICAL FIX: Use providers_v2 table consistently
     const { data, error: fetchError } = await supabase
-      .from("service_providers")
+      .from("providers_v2")
       .select("*")
       .eq("user_id", authStore.user.id)
       .in("status", ["approved", "active"])

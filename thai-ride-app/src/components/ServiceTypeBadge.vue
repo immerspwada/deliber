@@ -3,7 +3,10 @@
  * Feature: F238 - Service Type Badge
  * Display service type badge
  */
-defineProps<{
+import { computed } from 'vue'
+import { sanitizeIcon } from '@/utils/sanitize'
+
+const props = defineProps<{
   type: 'ride' | 'delivery' | 'shopping'
 }>()
 
@@ -12,11 +15,14 @@ const config = {
   delivery: { label: 'ส่งของ', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
   shopping: { label: 'ซื้อของ', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>' }
 }
+
+// SECURITY FIX: Sanitize icon HTML to prevent XSS
+const sanitizedIcon = computed(() => sanitizeIcon(config[props.type].icon))
 </script>
 
 <template>
   <span class="service-type-badge" :class="type">
-    <span class="badge-icon" v-html="config[type].icon" />
+    <span class="badge-icon" v-html="sanitizedIcon" />
     {{ config[type].label }}
   </span>
 </template>

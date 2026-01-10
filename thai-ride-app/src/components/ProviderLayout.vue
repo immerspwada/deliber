@@ -39,8 +39,9 @@ const userRole = computed(() => {
 // Fetch provider type on mount
 onMounted(async () => {
   if (authStore.user?.id) {
+    // CRITICAL FIX: Use providers_v2 table consistently
     const { data } = await supabase
-      .from("service_providers")
+      .from("providers_v2")
       .select("provider_type")
       .eq("user_id", authStore.user.id)
       .maybeSingle();

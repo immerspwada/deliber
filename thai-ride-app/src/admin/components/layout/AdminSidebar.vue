@@ -169,11 +169,11 @@ const menuItems = computed<MenuItem[]>(() => [
         permission: "finance",
       },
       {
-        id: "payment-settings",
-        label: "Payment Settings",
-        labelTh: "ตั้งค่าชำระเงิน",
+        id: "payment-accounts",
+        label: "Payment Accounts",
+        labelTh: "บัญชีรับเงิน",
         icon: "gear",
-        path: "/admin/payment-settings",
+        path: "/admin/payment-accounts",
         permission: "finance",
       },
       {
