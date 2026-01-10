@@ -1,264 +1,178 @@
 <script setup lang="ts">
 /**
- * ErrorBoundary Component
- *
- * Catches and handles errors gracefully, especially:
- * - 406 "Not Acceptable" errors from Supabase .single() queries
- * - Network errors
- * - Unexpected runtime errors
- *
- * Usage:
- * <ErrorBoundary>
- *   <YourComponent />
- * </ErrorBoundary>
+ * ErrorBoundary - จัดการ errors ใน component tree
+ * แสดง fallback UI เมื่อเกิด error
  */
-
-import { ref, onErrorCaptured, provide } from "vue";
+import { onErrorCaptured, ref } from 'vue'
+import { useToast } from '../composables/useToast'
 
 interface Props {
-  fallbackMessage?: string;
-  showRetry?: boolean;
-  onError?: (error: Error) => void;
+  /** Custom error message */
+  fallbackMessage?: string
+  /** Show retry button */
+  showRetry?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  fallbackMessage: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
-  showRetry: true,
-});
+  fallbackMessage: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+  showRetry: true
+})
 
 const emit = defineEmits<{
-  (e: "error", error: Error): void;
-  (e: "retry"): void;
-}>();
+  'retry': []
+  'error': [error: Error]
+}>()
 
-const hasError = ref(false);
-const errorMessage = ref("");
-const errorCode = ref<string | null>(null);
-const retryCount = ref(0);
+const { showError } = useToast()
+const error = ref<Error | null>(null)
+const errorCount = ref(0)
 
-// Error type detection
-const is406Error = (error: any): boolean => {
-  return (
-    error?.code === "PGRST116" ||
-    error?.message?.includes("406") ||
-    error?.message?.includes("Not Acceptable") ||
-    error?.status === 406
-  );
-};
-
-const isNetworkError = (error: any): boolean => {
-  // Only consider it a network error if:
-  // 1. Message explicitly mentions network
-  // 2. It's a fetch error (Failed to fetch)
-  // 3. It's a TypeError with "Failed to fetch" message (actual network error)
-  const message = error?.message?.toLowerCase() || "";
-  return (
-    message.includes("network") ||
-    message.includes("failed to fetch") ||
-    message.includes("networkerror") ||
-    (error?.name === "TypeError" && message.includes("fetch"))
-  );
-};
-
-const getErrorInfo = (error: any): { message: string; code: string | null } => {
-  if (is406Error(error)) {
-    return {
-      message: "ไม่พบข้อมูล กรุณาลองใหม่",
-      code: "406",
-    };
+onErrorCaptured((err: Error) => {
+  console.error('[ErrorBoundary] Caught error:', err)
+  
+  error.value = err
+  errorCount.value++
+  
+  // Show toast notification
+  showError(props.fallbackMessage)
+  
+  // Emit error event for logging
+  emit('error', err)
+  
+  // Log to external service (e.g., Sentry) in production
+  if (import.meta.env.PROD) {
+    // TODO: Send to error tracking service
+    console.error('[Production Error]', {
+      message: err.message,
+      stack: err.stack,
+      count: errorCount.value
+    })
   }
+  
+  // Prevent error from propagating
+  return false
+})
 
-  if (isNetworkError(error)) {
-    return {
-      message: "ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบอินเทอร์เน็ต",
-      code: "NETWORK",
-    };
-  }
-
-  return {
-    message: error?.message || props.fallbackMessage,
-    code: error?.code || null,
-  };
-};
-
-// Capture errors from child components
-onErrorCaptured((error: Error, instance, info) => {
-  console.error("[ErrorBoundary] Caught error:", error, info);
-
-  const errorInfo = getErrorInfo(error);
-  hasError.value = true;
-  errorMessage.value = errorInfo.message;
-  errorCode.value = errorInfo.code;
-
-  // Emit error event
-  emit("error", error);
-  props.onError?.(error);
-
-  // Return false to stop error propagation
-  return false;
-});
-
-// Retry handler
-const handleRetry = () => {
-  retryCount.value++;
-  hasError.value = false;
-  errorMessage.value = "";
-  errorCode.value = null;
-  emit("retry");
-};
-
-// Reset error state
-const resetError = () => {
-  hasError.value = false;
-  errorMessage.value = "";
-  errorCode.value = null;
-};
-
-// Provide reset function to children
-provide("resetErrorBoundary", resetError);
-
-defineExpose({
-  hasError,
-  resetError,
-  retryCount,
-});
+const handleRetry = (): void => {
+  error.value = null
+  emit('retry')
+}
 </script>
 
 <template>
-  <div class="error-boundary">
-    <!-- Error State -->
-    <div v-if="hasError" class="error-fallback">
-      <div class="error-content">
-        <!-- Error Icon -->
-        <div class="error-icon">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-            />
-          </svg>
-        </div>
-
-        <!-- Error Message -->
-        <p class="error-message">{{ errorMessage }}</p>
-
-        <!-- Error Code (for debugging) -->
-        <p v-if="errorCode" class="error-code">รหัส: {{ errorCode }}</p>
-
-        <!-- Retry Button -->
-        <button v-if="showRetry" @click="handleRetry" class="retry-button">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-5 h-5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
-            />
-          </svg>
-          ลองใหม่
-        </button>
-
-        <!-- Retry count indicator -->
-        <p v-if="retryCount > 0" class="retry-count">
-          ลองแล้ว {{ retryCount }} ครั้ง
-        </p>
+  <div v-if="error" class="error-boundary">
+    <div class="error-content">
+      <div class="error-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4M12 16h.01" />
+        </svg>
       </div>
+      
+      <h3 class="error-title">เกิดข้อผิดพลาด</h3>
+      <p class="error-message">{{ fallbackMessage }}</p>
+      
+      <button
+        v-if="showRetry"
+        class="retry-btn"
+        @click="handleRetry"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12a9 9 0 11-6.219-8.56" />
+        </svg>
+        ลองใหม่อีกครั้ง
+      </button>
+      
+      <p v-if="errorCount > 3" class="error-hint">
+        หากปัญหายังคงอยู่ กรุณาติดต่อฝ่ายสนับสนุน
+      </p>
     </div>
-
-    <!-- Normal Content -->
-    <slot v-else />
   </div>
+  
+  <slot v-else />
 </template>
 
 <style scoped>
 .error-boundary {
-  width: 100%;
-  height: 100%;
-}
-
-.error-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
-  padding: 24px;
+  min-height: 300px;
+  padding: 40px 20px;
 }
 
 .error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 400px;
   text-align: center;
-  max-width: 300px;
 }
 
 .error-icon {
   width: 64px;
   height: 64px;
-  margin: 0 auto 16px;
-  color: #f5a623;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffebee;
+  border-radius: 50%;
+  color: #e53935;
 }
 
 .error-icon svg {
-  width: 100%;
-  height: 100%;
+  width: 32px;
+  height: 32px;
+}
+
+.error-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
 }
 
 .error-message {
-  font-size: 16px;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-  font-weight: 500;
+  font-size: 14px;
+  color: #666666;
+  line-height: 1.5;
+  margin: 0;
 }
 
-.error-code {
-  font-size: 12px;
-  color: #999999;
-  margin-bottom: 16px;
-  font-family: monospace;
-}
-
-.retry-button {
-  display: inline-flex;
+.retry-btn {
+  display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  background-color: #00a86b;
-  color: white;
+  background: #00a86b;
   border: none;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 600;
+  color: #ffffff;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  margin-top: 8px;
 }
 
-.retry-button:hover {
-  background-color: #008f5b;
+.retry-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
-.retry-button:active {
+.retry-btn:hover {
+  background: #008f5b;
+  transform: translateY(-1px);
+}
+
+.retry-btn:active {
   transform: scale(0.98);
 }
 
-.retry-button svg {
-  width: 20px;
-  height: 20px;
-}
-
-.retry-count {
+.error-hint {
   font-size: 12px;
   color: #999999;
-  margin-top: 12px;
+  margin: 8px 0 0;
 }
 </style>

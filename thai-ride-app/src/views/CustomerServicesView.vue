@@ -14,9 +14,11 @@ import { useLoyalty } from "../composables/useLoyalty";
 import { useServices } from "../composables/useServices";
 import { useHapticFeedback } from "../composables/useHapticFeedback";
 import { useRideHistory } from "../composables/useRideHistory";
+import { useRoleAccess } from "../composables/useRoleAccess";
 import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import BottomNavigation from "../components/customer/BottomNavigation.vue";
+import RoleSwitcher from "../components/customer/RoleSwitcher.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -28,6 +30,12 @@ const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } =
   useLoyalty();
 const { homePlace, workPlace, fetchSavedPlaces } = useServices();
 const { unratedRidesCount, fetchUnratedRides } = useRideHistory();
+
+// Multi-role support
+const { 
+  canSwitchToProviderMode,
+  getRoleBadge 
+} = useRoleAccess();
 
 // State
 const isLoaded = ref(false);
@@ -778,6 +786,11 @@ onUnmounted(() => {
         </button>
       </div>
     </header>
+
+    <!-- Role Switcher (for providers) -->
+    <div v-if="canSwitchToProviderMode" class="role-switcher-container">
+      <RoleSwitcher current-mode="customer" />
+    </div>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -1846,6 +1859,24 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 24px;
   padding: 20px;
+}
+
+/* Role Switcher Container */
+.role-switcher-container {
+  padding: 12px 20px 0;
+  background: #ffffff;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Section Header */

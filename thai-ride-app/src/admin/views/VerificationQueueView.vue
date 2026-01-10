@@ -1,139 +1,377 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useAdminAPI } from '../composables/useAdminAPI'
-import { useAdminUIStore } from '../stores/adminUI.store'
-import type { Provider, ProviderStatus } from '../types'
+import { ref, computed, onMounted } from 'vue'
+import { supabase } from '@/lib/supabase'
 
-const api = useAdminAPI()
-const uiStore = useAdminUIStore()
-
-const pendingProviders = ref<Provider[]>([])
-const isLoading = ref(false)
-const selectedProvider = ref<Provider | null>(null)
-const showActionModal = ref(false)
-const actionType = ref<'approve' | 'reject'>('approve')
-const actionReason = ref('')
-
-async function loadQueue() {
-  isLoading.value = true
-  pendingProviders.value = await api.getVerificationQueue()
-  isLoading.value = false
+interface Provider {
+  id: string
+  provider_uid: string | null
+  first_name: string
+  last_name: string
+  email: string
+  phone_number: string
+  service_types: string[]
+  status: string
+  created_at: string
+  documents_count: number
+  pending_documents_count: number
 }
 
-function openActionModal(provider: Provider, action: 'approve' | 'reject') {
-  selectedProvider.value = provider
-  actionType.value = action
-  actionReason.value = ''
-  showActionModal.value = true
-}
+const providers = ref<Provider[]>([])
+const loading = ref(true)
+const error = ref<string | null>(null)
 
-async function executeAction() {
-  if (!selectedProvider.value) return
-  const statusMap: Record<string, ProviderStatus> = { approve: 'approved', reject: 'rejected' }
-  const success = await api.updateProviderStatus(selectedProvider.value.id, statusMap[actionType.value], actionReason.value)
-  if (success) {
-    uiStore.showSuccess(actionType.value === 'approve' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย')
-    showActionModal.value = false
-    loadQueue()
-  } else {
-    uiStore.showError('เกิดข้อผิดพลาด')
+// Filters
+const selectedServiceType = ref<string>('all')
+const sortBy = ref<'oldest' | 'newest'>('oldest')
+const searchQuery = ref('')
+
+const serviceTypes = [
+  { value: 'all', label: 'ทุกประเภท' },
+  { value: 'ride', label: 'รถรับส่ง' },
+  { value: 'delivery', label: 'จัดส่งสินค้า' },
+  { value: 'shopping', label: 'ช้อปปิ้ง' },
+  { value: 'moving', label: 'ขนย้าย' },
+  { value: 'laundry', label: 'ซักรีด' },
+]
+
+const filteredProviders = computed(() => {
+  let result = [...providers.value]
+
+  // Filter by service type
+  if (selectedServiceType.value !== 'all') {
+    result = result.filter((p) =>
+      p.service_types.includes(selectedServiceType.value)
+    )
+  }
+
+  // Filter by search query
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(
+      (p) =>
+        p.first_name.toLowerCase().includes(query) ||
+        p.last_name.toLowerCase().includes(query) ||
+        p.email.toLowerCase().includes(query) ||
+        p.phone_number.includes(query)
+    )
+  }
+
+  // Sort
+  result.sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime()
+    const dateB = new Date(b.created_at).getTime()
+    return sortBy.value === 'oldest' ? dateA - dateB : dateB - dateA
+  })
+
+  return result
+})
+
+const pendingCount = computed(() => providers.value.length)
+
+onMounted(async () => {
+  await loadProviders()
+  setupRealtimeSubscription()
+})
+
+async function loadProviders(): Promise<void> {
+  loading.value = true
+  error.value = null
+
+  try {
+    // Get providers with pending_verification status
+    const { data: providersData, error: providersError } = await supabase
+      .from('providers')
+      .select('*')
+      .eq('status', 'pending_verification')
+      .order('created_at', { ascending: true })
+
+    if (providersError) throw providersError
+
+    // Get document counts for each provider
+    const providersWithCounts = await Promise.all(
+      (providersData || []).map(async (provider) => {
+        const { data: documents } = await supabase
+          .from('provider_documents')
+          .select('id, status')
+          .eq('provider_id', provider.id)
+
+        const documentsCount = documents?.length || 0
+        const pendingDocumentsCount =
+          documents?.filter((d) => d.status === 'pending').length || 0
+
+        return {
+          ...provider,
+          documents_count: documentsCount,
+          pending_documents_count: pendingDocumentsCount,
+        }
+      })
+    )
+
+    providers.value = providersWithCounts
+  } catch (err: any) {
+    console.error('Error loading providers:', err)
+    error.value = err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
+  } finally {
+    loading.value = false
   }
 }
 
-function getTypeLabel(type: string) {
-  return { driver: 'คนขับรถ', rider: 'ไรเดอร์', shopper: 'นักช้อป', mover: 'ขนย้าย', laundry: 'ซักผ้า' }[type] || type
+function setupRealtimeSubscription(): void {
+  // Subscribe to provider changes
+  supabase
+    .channel('verification-queue')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'providers',
+        filter: 'status=eq.pending_verification',
+      },
+      () => {
+        loadProviders()
+      }
+    )
+    .subscribe()
 }
 
-function getTimeSince(date: string) {
-  const diff = Date.now() - new Date(date).getTime()
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(hours / 24)
-  if (days > 0) return `${days} วันที่แล้ว`
-  if (hours > 0) return `${hours} ชม.ที่แล้ว`
-  return 'เมื่อสักครู่'
+function getServiceTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    ride: 'รถรับส่ง',
+    delivery: 'จัดส่งสินค้า',
+    shopping: 'ช้อปปิ้ง',
+    moving: 'ขนย้าย',
+    laundry: 'ซักรีด',
+  }
+  return labels[type] || type
 }
 
-onMounted(() => { uiStore.setBreadcrumbs([{ label: 'Users' }, { label: 'รอตรวจสอบ' }]); loadQueue() })
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) {
+    return 'วันนี้'
+  } else if (diffDays === 1) {
+    return 'เมื่อวาน'
+  } else if (diffDays < 7) {
+    return `${diffDays} วันที่แล้ว`
+  } else {
+    return date.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+}
+
+function viewProviderDetails(providerId: string): void {
+  // Navigate to provider detail modal or page
+  // This will be implemented in the next task
+  console.log('View provider:', providerId)
+}
 </script>
 
 <template>
-  <div class="verification-view">
-    <div class="page-header">
-      <div class="header-left"><h1 class="page-title">รอตรวจสอบ</h1><span class="total-count">{{ pendingProviders.length }} คน</span></div>
-      <button class="refresh-btn" @click="loadQueue" :disabled="isLoading"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/></svg></button>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">คิวตรวจสอบผู้ให้บริการ</h1>
+      <p class="mt-2 text-gray-600">
+        ตรวจสอบและอนุมัติผู้ให้บริการที่รอการยืนยัน
+      </p>
     </div>
 
-    <div v-if="isLoading" class="loading-state"><div class="skeleton" v-for="i in 5" :key="i" /></div>
-
-    <div v-else-if="pendingProviders.length === 0" class="empty-state">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      <h3>ไม่มีรายการรอตรวจสอบ</h3>
-      <p>ผู้ให้บริการทั้งหมดได้รับการตรวจสอบแล้ว</p>
-    </div>
-
-    <div v-else class="queue-list">
-      <div v-for="provider in pendingProviders" :key="provider.id" class="queue-card">
-        <div class="card-left">
-          <div class="avatar">{{ (provider.first_name || 'P').charAt(0) }}</div>
-          <div class="info">
-            <div class="name">{{ provider.first_name }} {{ provider.last_name }}</div>
-            <div class="meta"><span class="type-badge">{{ getTypeLabel(provider.provider_type) }}</span><span class="time">{{ getTimeSince(provider.created_at) }}</span></div>
+    <!-- Stats Card -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+      <div class="flex items-center">
+        <div class="flex-shrink-0">
+          <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
           </div>
         </div>
-        <div class="card-actions">
-          <button class="btn btn-success" @click="openActionModal(provider, 'approve')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>อนุมัติ</button>
-          <button class="btn btn-danger" @click="openActionModal(provider, 'reject')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>ปฏิเสธ</button>
+        <div class="ml-4">
+          <p class="text-sm font-medium text-blue-900">ผู้ให้บริการรอตรวจสอบ</p>
+          <p class="text-3xl font-bold text-blue-600">{{ pendingCount }}</p>
         </div>
       </div>
     </div>
 
-    <div v-if="showActionModal" class="modal-overlay" @click.self="showActionModal = false">
-      <div class="modal">
-        <div class="modal-header"><h2>{{ actionType === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ' }}ผู้ให้บริการ</h2><button class="close-btn" @click="showActionModal = false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-        <div class="modal-body">
-          <p v-if="actionType === 'approve'">ยืนยันอนุมัติ {{ selectedProvider?.first_name }} {{ selectedProvider?.last_name }}?</p>
-          <div v-else class="form-group"><label>เหตุผล</label><textarea v-model="actionReason" rows="3" placeholder="ระบุเหตุผล..."></textarea></div>
-          <div class="modal-actions"><button class="btn btn-secondary" @click="showActionModal = false">ยกเลิก</button><button :class="['btn', actionType === 'approve' ? 'btn-success' : 'btn-danger']" @click="executeAction">ยืนยัน</button></div>
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Search -->
+        <div>
+          <label for="search" class="block text-sm font-medium text-gray-700 mb-2">
+            ค้นหา
+          </label>
+          <input
+            id="search"
+            v-model="searchQuery"
+            type="text"
+            placeholder="ชื่อ, อีเมล, เบอร์โทร..."
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <!-- Service Type Filter -->
+        <div>
+          <label for="service-type" class="block text-sm font-medium text-gray-700 mb-2">
+            ประเภทบริการ
+          </label>
+          <select
+            id="service-type"
+            v-model="selectedServiceType"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option v-for="type in serviceTypes" :key="type.value" :value="type.value">
+              {{ type.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Sort -->
+        <div>
+          <label for="sort" class="block text-sm font-medium text-gray-700 mb-2">
+            เรียงตาม
+          </label>
+          <select
+            id="sort"
+            v-model="sortBy"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="oldest">เก่าสุดก่อน</option>
+            <option value="newest">ใหม่สุดก่อน</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center py-12">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p class="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
+      <p class="text-red-600">{{ error }}</p>
+      <button
+        @click="loadProviders"
+        class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+      >
+        ลองใหม่
+      </button>
+    </div>
+
+    <!-- Empty State -->
+    <div
+      v-else-if="filteredProviders.length === 0"
+      class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center"
+    >
+      <svg
+        class="mx-auto h-12 w-12 text-gray-400"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+      <h3 class="mt-4 text-lg font-medium text-gray-900">ไม่มีผู้ให้บริการรอตรวจสอบ</h3>
+      <p class="mt-2 text-gray-600">ยังไม่มีผู้ให้บริการที่รอการยืนยันในขณะนี้</p>
+    </div>
+
+    <!-- Providers List -->
+    <div v-else class="space-y-4">
+      <div
+        v-for="provider in filteredProviders"
+        :key="provider.id"
+        class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+        @click="viewProviderDetails(provider.id)"
+      >
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <!-- Provider Info -->
+            <div class="flex items-center mb-2">
+              <h3 class="text-lg font-semibold text-gray-900">
+                {{ provider.first_name }} {{ provider.last_name }}
+              </h3>
+              <span class="ml-3 px-3 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+                รอตรวจสอบ
+              </span>
+            </div>
+
+            <!-- Contact Info -->
+            <div class="space-y-1 mb-3">
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">อีเมล:</span> {{ provider.email }}
+              </p>
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">เบอร์โทร:</span> {{ provider.phone_number }}
+              </p>
+            </div>
+
+            <!-- Service Types -->
+            <div class="flex flex-wrap gap-2 mb-3">
+              <span
+                v-for="type in provider.service_types"
+                :key="type"
+                class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
+              >
+                {{ getServiceTypeLabel(type) }}
+              </span>
+            </div>
+
+            <!-- Documents Status -->
+            <div class="flex items-center text-sm text-gray-600">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              <span>
+                เอกสาร: {{ provider.documents_count }} ฉบับ
+                <span v-if="provider.pending_documents_count > 0" class="text-yellow-600 font-medium">
+                  ({{ provider.pending_documents_count }} รอตรวจสอบ)
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Submission Date -->
+          <div class="text-right ml-4">
+            <p class="text-sm text-gray-500">ส่งเมื่อ</p>
+            <p class="text-sm font-medium text-gray-900">{{ formatDate(provider.created_at) }}</p>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <button
+            @click.stop="viewProviderDetails(provider.id)"
+            class="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            ตรวจสอบเอกสาร
+          </button>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.verification-view { max-width: 900px; margin: 0 auto; }
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.page-title { font-size: 24px; font-weight: 700; color: #1F2937; margin: 0; }
-.total-count { padding: 4px 12px; background: #FEF3C7; color: #92400E; font-size: 13px; font-weight: 500; border-radius: 16px; }
-.refresh-btn { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; cursor: pointer; color: #6B7280; }
-.loading-state { display: flex; flex-direction: column; gap: 16px; }
-.skeleton { height: 88px; background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 16px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.empty-state { display: flex; flex-direction: column; align-items: center; padding: 80px 20px; background: #fff; border-radius: 16px; text-align: center; }
-.empty-state svg { color: #10B981; margin-bottom: 16px; }
-.empty-state h3 { font-size: 18px; font-weight: 600; color: #1F2937; margin: 0 0 8px 0; }
-.empty-state p { font-size: 14px; color: #6B7280; margin: 0; }
-.queue-list { display: flex; flex-direction: column; gap: 16px; }
-.queue-card { display: flex; align-items: center; justify-content: space-between; padding: 20px; background: #fff; border-radius: 16px; }
-.card-left { display: flex; align-items: center; gap: 16px; }
-.avatar { width: 48px; height: 48px; background: #F59E0B; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; }
-.info .name { font-size: 16px; font-weight: 600; color: #1F2937; margin-bottom: 4px; }
-.info .meta { display: flex; align-items: center; gap: 12px; }
-.type-badge { padding: 4px 10px; background: #EEF2FF; color: #4F46E5; border-radius: 16px; font-size: 12px; font-weight: 500; }
-.time { font-size: 13px; color: #6B7280; }
-.card-actions { display: flex; gap: 8px; }
-.btn { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
-.btn-success { background: #10B981; color: #fff; }
-.btn-danger { background: #EF4444; color: #fff; }
-.btn-secondary { background: #F3F4F6; color: #374151; }
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-.modal { background: #fff; border-radius: 16px; width: 100%; max-width: 400px; }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #E5E7EB; }
-.modal-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
-.close-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 8px; cursor: pointer; color: #6B7280; }
-.modal-body { padding: 24px; }
-.modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
-.form-group label { display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px; }
-.form-group textarea { width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; resize: vertical; }
-</style>

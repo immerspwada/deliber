@@ -509,6 +509,16 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
   
+  // ========================================
+  // MULTI-ROLE SUPPORT: Customer routes accessible by all authenticated users
+  // All roles (customer, driver, rider, admin) can use customer features
+  // ========================================
+  if (to.meta.isCustomerRoute) {
+    // Allow all authenticated users to access customer routes
+    // This enables drivers/riders to also book rides as customers
+    return next()
+  }
+  
   // Check if route requires provider access
   if (to.meta.isProviderRoute) {
     // Allow access to onboarding/registration pages without provider check

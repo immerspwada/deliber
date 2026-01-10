@@ -1,7 +1,7 @@
 <template>
   <div class="wallet-page">
     <header class="wallet-header">
-      <button class="back-btn" @click="goBack">
+      <button class="back-btn" @click="goBack" type="button" aria-label="กลับ">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </button>
       <h1>กระเป๋าเงิน</h1>
@@ -9,116 +9,53 @@
     </header>
 
     <section class="balance-section">
-      <div class="balance-card">
-        <div class="balance-label">ยอดเงินคงเหลือ</div>
-        <div class="balance-amount">
-          <span v-if="!loading">฿{{ formatNumber(currentBalance) }}</span>
-          <span v-else class="loading-text">กำลังโหลด...</span>
-        </div>
-        <div class="balance-actions">
-          <button class="action-btn topup-btn" @click="showTopupModal = true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v12M6 12h12"/></svg>
-            <span>เติมเงิน</span>
-          </button>
-          <button class="action-btn withdraw-btn" @click="showWithdrawModal = true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            <span>ถอนเงิน</span>
-          </button>
-        </div>
-      </div>
+      <WalletBalance
+        :formatted-balance="formattedBalance"
+        :loading="loading"
+        @topup="showTopupModal = true"
+        @withdraw="showWithdrawModal = true"
+      />
 
-      <!-- Pending Requests Alert -->
-      <div v-if="pendingTopupCount > 0 || pendingWithdrawCount > 0" class="pending-alert">
-        <div class="pending-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-        <div class="pending-info">
-          <span class="pending-title">รอดำเนินการ</span>
-          <span class="pending-detail">
-            <template v-if="pendingTopupCount > 0">เติมเงิน {{ pendingTopupCount }} รายการ</template>
-            <template v-if="pendingTopupCount > 0 && pendingWithdrawCount > 0"> • </template>
-            <template v-if="pendingWithdrawCount > 0">ถอนเงิน {{ pendingWithdrawCount }} รายการ</template>
-          </span>
-        </div>
-      </div>
+      <PendingAlert
+        :pending-topup-count="pendingTopupCount"
+        :pending-withdraw-count="pendingWithdrawCount"
+      />
     </section>
 
-    <section class="stats-section">
-      <div class="stat-card">
-        <div class="stat-icon earned">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12z"/></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-label">รายรับทั้งหมด</span>
-          <span class="stat-value">฿{{ formatNumber(totalEarned) }}</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon spent">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-label">รายจ่ายทั้งหมด</span>
-          <span class="stat-value">฿{{ formatNumber(totalSpent) }}</span>
-        </div>
-      </div>
-    </section>
+    <WalletStats
+      :formatted-earned="formattedEarned"
+      :formatted-spent="formattedSpent"
+    />
 
-    <section class="tabs-section">
-      <div class="tabs">
-        <button :class="['tab', { active: activeTab === 'transactions' }]" @click="activeTab = 'transactions'">ประวัติ</button>
-        <button :class="['tab', { active: activeTab === 'topup' }]" @click="activeTab = 'topup'">เติมเงิน</button>
-        <button :class="['tab', { active: activeTab === 'withdraw' }]" @click="activeTab = 'withdraw'">ถอนเงิน</button>
-      </div>
-    </section>
+    <WalletTabs v-model="activeTab" />
 
     <section class="tab-content">
-      <div v-if="activeTab === 'transactions'" class="list">
-        <div v-if="transactions.length === 0" class="empty-state"><p>ยังไม่มีรายการ</p></div>
-        <div v-for="txn in transactions" :key="txn.id" class="txn-item">
-          <div class="txn-info">
-            <span class="txn-type">{{ formatTransactionType(txn.type) }}</span>
-            <span class="txn-date">{{ formatDate(txn.created_at) }}</span>
-          </div>
-          <div :class="['txn-amount', { positive: isPositiveTransaction(txn.type) }]">
-            {{ isPositiveTransaction(txn.type) ? '+' : '-' }}฿{{ formatNumber(Math.abs(txn.amount)) }}
-          </div>
-        </div>
-      </div>
+      <TransactionList
+        v-if="activeTab === 'transactions'"
+        :transactions="transactions"
+      />
 
-      <div v-if="activeTab === 'topup'" class="list">
-        <div v-if="topupRequests.length === 0" class="empty-state"><p>ยังไม่มีคำขอเติมเงิน</p></div>
-        <div v-for="req in topupRequests" :key="req.id" class="req-item">
-          <div class="req-info">
-            <span class="req-amount">฿{{ formatNumber(req.amount) }}</span>
-            <span class="req-date">{{ formatDate(req.created_at) }}</span>
-          </div>
-          <span :class="['badge', formatTopupStatus(req.status).color]">{{ formatTopupStatus(req.status).label }}</span>
-        </div>
-      </div>
+      <TopupRequestList
+        v-if="activeTab === 'topup'"
+        :requests="topupRequests"
+      />
 
-      <div v-if="activeTab === 'withdraw'" class="list">
-        <div v-if="withdrawals.length === 0" class="empty-state"><p>ยังไม่มีคำขอถอนเงิน</p></div>
-        <div v-for="wd in withdrawals" :key="wd.id" class="req-item">
-          <div class="req-info">
-            <span class="req-amount">฿{{ formatNumber(wd.amount) }}</span>
-            <span class="req-date">{{ formatDate(wd.created_at) }}</span>
-          </div>
-          <span :class="['badge', formatWithdrawalStatus(wd.status).color]">{{ formatWithdrawalStatus(wd.status).label }}</span>
-        </div>
-      </div>
+      <WithdrawalList
+        v-if="activeTab === 'withdraw'"
+        :withdrawals="withdrawals"
+      />
     </section>
 
+    <!-- Topup Modal -->
     <div v-if="showTopupModal" class="modal-overlay" @click.self="closeTopupModal">
       <div class="modal topup-modal">
-        <!-- Step 1: เลือกจำนวนเงินและวิธีชำระ -->
         <template v-if="topupStep === 'amount'">
           <h2>เติมเงิน</h2>
           <div class="form-group">
             <label>จำนวนเงิน (บาท)</label>
             <input v-model.number="topupAmount" type="number" min="20" placeholder="ระบุจำนวนเงิน"/>
             <div class="quick-amounts">
-              <button v-for="amt in [100, 200, 500, 1000]" :key="amt" @click="topupAmount = amt">฿{{ amt }}</button>
+              <button v-for="amt in [100, 200, 500, 1000]" :key="amt" @click="topupAmount = amt" type="button">฿{{ amt }}</button>
             </div>
           </div>
           <div class="form-group">
@@ -129,15 +66,14 @@
             </select>
           </div>
           <div class="modal-actions">
-            <button class="btn-secondary" @click="closeTopupModal">ยกเลิก</button>
-            <button class="btn-primary" @click="goToPaymentStep" :disabled="topupAmount < 20">ถัดไป</button>
+            <button class="btn-secondary" @click="closeTopupModal" type="button">ยกเลิก</button>
+            <button class="btn-primary" @click="goToPaymentStep" :disabled="topupAmount < 20" type="button">ถัดไป</button>
           </div>
         </template>
 
-        <!-- Step 2: แสดงข้อมูลการชำระเงิน (QR/บัญชีธนาคาร) -->
         <template v-else-if="topupStep === 'payment'">
           <div class="payment-header">
-            <button class="back-step-btn" @click="topupStep = 'amount'" aria-label="กลับ">
+            <button class="back-step-btn" @click="topupStep = 'amount'" type="button" aria-label="กลับ">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
             <h2>ข้อมูลการชำระเงิน</h2>
@@ -148,25 +84,17 @@
             <span class="amount">฿{{ formatNumber(topupAmount) }}</span>
           </div>
 
-          <!-- Payment Account Info -->
           <div v-if="currentPaymentAccount" class="payment-account-info">
-            <!-- PromptPay QR -->
             <template v-if="topupMethod === 'promptpay'">
               <div class="payment-type-badge promptpay">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
                 <span>พร้อมเพย์</span>
               </div>
               
-              <!-- QR Code Image -->
               <div v-if="currentPaymentAccount.qr_code_url" class="qr-code-container">
                 <img :src="currentPaymentAccount.qr_code_url" :alt="'QR Code ' + currentPaymentAccount.display_name" class="qr-code-image"/>
               </div>
-              <div v-else class="qr-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
-                <p>สแกน QR Code เพื่อชำระเงิน</p>
-              </div>
 
-              <!-- PromptPay Number -->
               <div class="account-details">
                 <div class="detail-row">
                   <span class="detail-label">เบอร์พร้อมเพย์</span>
@@ -182,14 +110,12 @@
               </div>
             </template>
 
-            <!-- Bank Transfer -->
             <template v-else-if="topupMethod === 'bank_transfer'">
               <div class="payment-type-badge bank">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>
                 <span>โอนเงินผ่านธนาคาร</span>
               </div>
 
-              <!-- QR Code Image for Bank Transfer -->
               <div v-if="currentPaymentAccount.qr_code_url" class="qr-code-container">
                 <img :src="currentPaymentAccount.qr_code_url" :alt="'QR Code ' + currentPaymentAccount.display_name" class="qr-code-image"/>
               </div>
@@ -213,34 +139,28 @@
                   <span class="detail-label">ชื่อบัญชี</span>
                   <span class="detail-value">{{ currentPaymentAccount.account_name }}</span>
                 </div>
-                <div v-if="currentPaymentAccount.bank_name" class="detail-row">
-                  <span class="detail-label">ธนาคาร</span>
-                  <span class="detail-value">{{ currentPaymentAccount.bank_name }}</span>
-                </div>
               </div>
             </template>
           </div>
 
-          <!-- No Payment Account -->
           <div v-else class="no-payment-account">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
             <p>ไม่พบข้อมูลบัญชีรับเงิน</p>
             <span>กรุณาติดต่อผู้ดูแลระบบ</span>
           </div>
 
-          <!-- Upload Slip Section -->
           <div class="upload-slip-section">
             <h4>แนบสลิปการโอนเงิน</h4>
             <div v-if="slipPreview" class="slip-preview">
               <img :src="slipPreview" alt="Payment Slip" />
-              <button class="remove-slip-btn" @click="removeSlip" type="button">
+              <button class="remove-slip-btn" @click="removeSlip" type="button" aria-label="ลบสลิป">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
-            <label v-else class="slip-upload-area" :class="{ 'drag-over': isDragging }">
+            <label v-else class="slip-upload-area">
               <input 
                 type="file" 
                 accept="image/jpeg,image/png,image/webp" 
@@ -250,12 +170,11 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
               </svg>
-              <span class="upload-text">คลิกเพื่ือเลือกไฟล์หรือลากไฟล์มาวาง</span>
+              <span class="upload-text">คลิกเพื่อเลือกไฟล์หรือลากไฟล์มาวาง</span>
               <span class="upload-hint">รองรับไฟล์รูปภาพทุกขนาด (จะปรับขนาดอัตโนมัติ)</span>
             </label>
           </div>
 
-          <!-- Instructions -->
           <div class="payment-instructions">
             <h4>ขั้นตอนการเติมเงิน</h4>
             <ol>
@@ -268,8 +187,8 @@
           </div>
 
           <div class="modal-actions">
-            <button class="btn-secondary" @click="closeTopupModal">ยกเลิก</button>
-            <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || !currentPaymentAccount || !slipFile">
+            <button class="btn-secondary" @click="closeTopupModal" type="button">ยกเลิก</button>
+            <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || !currentPaymentAccount || !slipFile" type="button">
               {{ topupLoading ? 'กำลังดำเนินการ...' : 'ยืนยันการโอนเงิน' }}
             </button>
           </div>
@@ -277,6 +196,7 @@
       </div>
     </div>
 
+    <!-- Withdraw Modal -->
     <div v-if="showWithdrawModal" class="modal-overlay" @click.self="showWithdrawModal = false">
       <div class="modal">
         <h2>ถอนเงิน</h2>
@@ -285,7 +205,7 @@
           <label>บัญชีธนาคาร</label>
           <div v-if="bankAccounts.length === 0" class="no-bank">
             <p>ยังไม่มีบัญชีธนาคาร</p>
-            <button class="btn-link" @click="showAddBankModal = true">+ เพิ่มบัญชี</button>
+            <button class="btn-link" @click="showAddBankModal = true" type="button">+ เพิ่มบัญชี</button>
           </div>
           <select v-else v-model="selectedBankAccountId">
             <option value="">เลือกบัญชี</option>
@@ -297,12 +217,15 @@
           <input v-model.number="withdrawAmount" type="number" min="100" placeholder="ขั้นต่ำ 100 บาท"/>
         </div>
         <div class="modal-actions">
-          <button class="btn-secondary" @click="showWithdrawModal = false">ยกเลิก</button>
-          <button class="btn-primary" @click="handleWithdraw" :disabled="withdrawLoading || withdrawAmount < 100 || !selectedBankAccountId">{{ withdrawLoading ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}</button>
+          <button class="btn-secondary" @click="showWithdrawModal = false" type="button">ยกเลิก</button>
+          <button class="btn-primary" @click="handleWithdraw" :disabled="withdrawLoading || withdrawAmount < 100 || !selectedBankAccountId" type="button">
+            {{ withdrawLoading ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}
+          </button>
         </div>
       </div>
     </div>
 
+    <!-- Add Bank Modal -->
     <div v-if="showAddBankModal" class="modal-overlay" @click.self="showAddBankModal = false">
       <div class="modal">
         <h2>เพิ่มบัญชีธนาคาร</h2>
@@ -321,9 +244,23 @@
           <label>ชื่อบัญชี</label>
           <input v-model="newAccountName" type="text" placeholder="ชื่อ-นามสกุล"/>
         </div>
+        
+        <!-- Debug info -->
+        <div v-if="isDev" style="font-size: 11px; color: #666; padding: 8px; background: #f5f5f5; border-radius: 4px; margin-bottom: 12px;">
+          Debug: code={{ newBankCode || 'empty' }}, number={{ newAccountNumber || 'empty' }}, name={{ newAccountName || 'empty' }}, 
+          disabled={{ isAddBankDisabled }}
+        </div>
+        
         <div class="modal-actions">
-          <button class="btn-secondary" @click="showAddBankModal = false">ยกเลิก</button>
-          <button class="btn-primary" @click="handleAddBank" :disabled="addBankLoading || !newBankCode || !newAccountNumber || !newAccountName">{{ addBankLoading ? 'กำลังบันทึก...' : 'บันทึก' }}</button>
+          <button class="btn-secondary" @click="showAddBankModal = false" type="button">ยกเลิก</button>
+          <button 
+            class="btn-primary" 
+            @click="handleAddBank" 
+            :disabled="isAddBankDisabled" 
+            type="button"
+          >
+            {{ addBankLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
+          </button>
         </div>
       </div>
     </div>
@@ -332,25 +269,47 @@
   </div>
 </template>
 
+
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useWallet } from '@/composables/useWallet'
 import { supabase } from '@/lib/supabase'
+import { useWalletStore } from '@/stores/wallet'
+import { useImageResize } from '@/composables/useImageResize'
+import { storeToRefs } from 'pinia'
+
+// Components
+import WalletBalance from '@/components/wallet/WalletBalance.vue'
+import WalletStats from '@/components/wallet/WalletStats.vue'
+import WalletTabs from '@/components/wallet/WalletTabs.vue'
+import PendingAlert from '@/components/wallet/PendingAlert.vue'
+import TransactionList from '@/components/wallet/TransactionList.vue'
+import TopupRequestList from '@/components/wallet/TopupRequestList.vue'
+import WithdrawalList from '@/components/wallet/WithdrawalList.vue'
+
+import type { PaymentReceivingAccount } from '@/stores/wallet'
 
 const router = useRouter()
+const walletStore = useWalletStore()
+const { resizeImage } = useImageResize()
+
+// Store state
 const {
-  balance, transactions, topupRequests, loading,
-  fetchBalance, fetchTransactions, fetchTopupRequests, createTopupRequest,
-  formatTransactionType, formatTopupStatus, isPositiveTransaction,
-  bankAccounts, withdrawals, availableForWithdrawal,
-  fetchBankAccounts, fetchWithdrawals, addBankAccount, requestWithdrawal,
-  formatWithdrawalStatus, subscribeToWallet, subscribeToWithdrawals, THAI_BANKS,
-  paymentAccounts, fetchPaymentAccounts
-} = useWallet()
+  balance,
+  transactions,
+  topupRequests,
+  withdrawals,
+  bankAccounts,
+  paymentAccounts,
+  loading,
+  formattedBalance,
+  formattedEarned,
+  formattedSpent,
+  pendingTopupCount,
+  availableForWithdrawal
+} = storeToRefs(walletStore)
 
-import type { PaymentReceivingAccount } from '@/composables/useWallet'
-
+// Local state
 const activeTab = ref<'transactions' | 'topup' | 'withdraw'>('transactions')
 const showTopupModal = ref(false)
 const showWithdrawModal = ref(false)
@@ -359,19 +318,10 @@ const showAddBankModal = ref(false)
 const topupAmount = ref(100)
 const topupMethod = ref<'promptpay' | 'bank_transfer'>('promptpay')
 const topupLoading = ref(false)
-const topupStep = ref<'amount' | 'payment'>('amount') // Step: เลือกจำนวน -> แสดงข้อมูลชำระเงิน
+const topupStep = ref<'amount' | 'payment'>('amount')
 const slipFile = ref<File | null>(null)
 const slipPreview = ref<string | null>(null)
-const isDragging = ref(false)
 const slipInput = ref<HTMLInputElement | null>(null)
-
-// Current payment account based on selected method
-const currentPaymentAccount = computed((): PaymentReceivingAccount | null => {
-  const account = paymentAccounts.value.find(acc => acc.account_type === topupMethod.value) || null
-  console.log('[WalletView] Current payment account:', account)
-  console.log('[WalletView] QR Code URL:', account?.qr_code_url)
-  return account
-})
 
 const withdrawAmount = ref(100)
 const selectedBankAccountId = ref('')
@@ -384,25 +334,59 @@ const addBankLoading = ref(false)
 
 const toast = ref({ show: false, message: '', type: 'success' as 'success' | 'error' })
 
-let walletSub: { unsubscribe: () => void } | null = null
-let withdrawalSub: { unsubscribe: () => void } | null = null
+// Debug mode
+const isDev = import.meta.env.DEV
 
-const currentBalance = computed(() => balance.value?.balance ?? 0)
-const totalEarned = computed(() => balance.value?.total_earned ?? 0)
-const totalSpent = computed(() => balance.value?.total_spent ?? 0)
-const pendingTopupCount = computed(() => topupRequests.value.filter(r => r.status === 'pending').length)
-const pendingWithdrawCount = computed(() => withdrawals.value.filter(w => w.status === 'pending').length)
+// Computed for button disabled state
+const isAddBankDisabled = computed(() => {
+  const disabled = addBankLoading.value || !newBankCode.value || !newAccountNumber.value || !newAccountName.value
+  if (isDev) {
+    console.log('[AddBank] Disabled check:', {
+      addBankLoading: addBankLoading.value,
+      newBankCode: newBankCode.value,
+      newAccountNumber: newAccountNumber.value,
+      newAccountName: newAccountName.value,
+      disabled
+    })
+  }
+  return disabled
+})
 
-const goBack = () => router.back()
-const formatNumber = (num: number) => num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
-const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+// Computed
+const currentPaymentAccount = computed((): PaymentReceivingAccount | null => {
+  return paymentAccounts.value.find(acc => acc.account_type === topupMethod.value) || null
+})
+
+const pendingWithdrawCount = computed(() => 
+  withdrawals.value.filter(w => w.status === 'pending' || w.status === 'processing').length
+)
+
+// Thai banks
+const THAI_BANKS = [
+  { code: 'BBL', name: 'ธนาคารกรุงเทพ' },
+  { code: 'KBANK', name: 'ธนาคารกสิกรไทย' },
+  { code: 'KTB', name: 'ธนาคารกรุงไทย' },
+  { code: 'SCB', name: 'ธนาคารไทยพาณิชย์' },
+  { code: 'BAY', name: 'ธนาคารกรุงศรีอยุธยา' },
+  { code: 'TMB', name: 'ธนาคารทหารไทยธนชาต' }
+]
+
+// Methods
+const goBack = (): void => router.back()
+
+const numberFormatter = new Intl.NumberFormat('th-TH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+const formatNumber = (num: number): string => numberFormatter.format(num)
+
+const showToast = (message: string, type: 'success' | 'error' = 'success'): void => {
   toast.value = { show: true, message, type }
   setTimeout(() => { toast.value.show = false }, 3000)
 }
 
-// Copy to clipboard
 const copyToClipboard = async (text: string): Promise<void> => {
   try {
     await navigator.clipboard.writeText(text)
@@ -412,22 +396,17 @@ const copyToClipboard = async (text: string): Promise<void> => {
   }
 }
 
-// Go to payment step (fetch payment accounts first)
 const goToPaymentStep = async (): Promise<void> => {
   if (topupAmount.value < 20) {
     showToast('จำนวนเงินขั้นต่ำ 20 บาท', 'error')
     return
   }
-  // Fetch payment accounts if not loaded
   if (paymentAccounts.value.length === 0) {
-    console.log('[WalletView] Fetching payment accounts...')
-    await fetchPaymentAccounts()
-    console.log('[WalletView] Payment accounts loaded:', paymentAccounts.value)
+    await walletStore.fetchPaymentAccounts()
   }
   topupStep.value = 'payment'
 }
 
-// Close topup modal and reset
 const closeTopupModal = (): void => {
   showTopupModal.value = false
   topupStep.value = 'amount'
@@ -436,97 +415,34 @@ const closeTopupModal = (): void => {
   slipPreview.value = null
 }
 
-// Resize image to max dimensions while maintaining aspect ratio
-const resizeImage = (file: File, maxWidth: number = 1200, maxHeight: number = 1600, quality: number = 0.85): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        let width = img.width
-        let height = img.height
 
-        // Calculate new dimensions
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width
-            width = maxWidth
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height
-            height = maxHeight
-          }
-        }
-
-        canvas.width = width
-        canvas.height = height
-
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          reject(new Error('Cannot get canvas context'))
-          return
-        }
-
-        ctx.drawImage(img, 0, 0, width, height)
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve(blob)
-            } else {
-              reject(new Error('Canvas to Blob failed'))
-            }
-          },
-          'image/jpeg',
-          quality
-        )
-      }
-      img.onerror = () => reject(new Error('Image load failed'))
-      img.src = e.target?.result as string
-    }
-    reader.onerror = () => reject(new Error('File read failed'))
-    reader.readAsDataURL(file)
-  })
-}
-
-// Handle slip upload with auto-resize
 const handleSlipUpload = async (event: Event): Promise<void> => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
 
-  // Validate file type
   if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
     showToast('รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP)', 'error')
     return
   }
 
   try {
-    // Show loading state
     const originalSize = (file.size / 1024 / 1024).toFixed(2)
-    console.log(`[WalletView] Original file size: ${originalSize}MB`)
-
-    // Resize image
-    const resizedBlob = await resizeImage(file, 1200, 1600, 0.85)
-    const resizedSize = (resizedBlob.size / 1024 / 1024).toFixed(2)
-    console.log(`[WalletView] Resized file size: ${resizedSize}MB`)
-
-    // Create File from Blob
-    const resizedFile = new File([resizedBlob], file.name, {
-      type: 'image/jpeg',
-      lastModified: Date.now()
+    
+    const result = await resizeImage(file, {
+      maxWidth: 1200,
+      maxHeight: 1600,
+      quality: 0.85
     })
 
-    slipFile.value = resizedFile
+    const resizedSize = (result.resizedSize / 1024 / 1024).toFixed(2)
+    slipFile.value = result.file
 
-    // Create preview
     const reader = new FileReader()
     reader.onload = (e) => {
       slipPreview.value = e.target?.result as string
     }
-    reader.readAsDataURL(resizedFile)
+    reader.readAsDataURL(result.file)
 
     if (parseFloat(originalSize) > 2) {
       showToast(`ปรับขนาดรูปจาก ${originalSize}MB เป็น ${resizedSize}MB`)
@@ -537,7 +453,6 @@ const handleSlipUpload = async (event: Event): Promise<void> => {
   }
 }
 
-// Remove slip
 const removeSlip = (): void => {
   slipFile.value = null
   slipPreview.value = null
@@ -560,7 +475,6 @@ const handleTopup = async (): Promise<void> => {
   topupLoading.value = true
   
   try {
-    // Upload slip to storage first
     const fileExt = slipFile.value.name.split('.').pop() || 'jpg'
     const fileName = `slip_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
     
@@ -577,13 +491,11 @@ const handleTopup = async (): Promise<void> => {
       return
     }
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from('payment-slips')
       .getPublicUrl(fileName)
 
-    // Create topup request with slip URL
-    const result = await createTopupRequest(
+    const result = await walletStore.createTopupRequest(
       topupAmount.value, 
       topupMethod.value,
       undefined,
@@ -605,50 +517,148 @@ const handleTopup = async (): Promise<void> => {
   }
 }
 
+
 const handleWithdraw = async (): Promise<void> => {
-  if (withdrawAmount.value < 100) { showToast('จำนวนเงินขั้นต่ำ 100 บาท', 'error'); return }
-  if (!selectedBankAccountId.value) { showToast('กรุณาเลือกบัญชีธนาคาร', 'error'); return }
+  if (withdrawAmount.value < 100) { 
+    showToast('จำนวนเงินขั้นต่ำ 100 บาท', 'error')
+    return 
+  }
+  if (!selectedBankAccountId.value) { 
+    showToast('กรุณาเลือกบัญชีธนาคาร', 'error')
+    return 
+  }
+  
   withdrawLoading.value = true
   try {
-    const result = await requestWithdrawal(selectedBankAccountId.value, withdrawAmount.value)
-    if (result.success) { showToast(result.message || 'สร้างคำขอถอนเงินสำเร็จ'); showWithdrawModal.value = false; withdrawAmount.value = 100; selectedBankAccountId.value = '' }
-    else { showToast(result.message || 'เกิดข้อผิดพลาด', 'error') }
+    const result = await walletStore.requestWithdrawal(selectedBankAccountId.value, withdrawAmount.value)
+    if (result.success) { 
+      showToast(result.message || 'สร้างคำขอถอนเงินสำเร็จ')
+      showWithdrawModal.value = false
+      withdrawAmount.value = 100
+      selectedBankAccountId.value = '' 
+    } else { 
+      showToast(result.message || 'เกิดข้อผิดพลาด', 'error') 
+    }
   } catch (err: unknown) { 
     const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
     showToast(errorMessage, 'error') 
+  } finally { 
+    withdrawLoading.value = false 
   }
-  finally { withdrawLoading.value = false }
 }
 
 const handleAddBank = async (): Promise<void> => {
-  if (!newBankCode.value || !newAccountNumber.value || !newAccountName.value) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return }
+  console.log('[WalletView] handleAddBank: Starting...')
+  console.log('[WalletView] handleAddBank: Values:', {
+    code: newBankCode.value,
+    number: newAccountNumber.value,
+    name: newAccountName.value,
+    bankAccountsLength: bankAccounts.value.length
+  })
+  
+  if (!newBankCode.value || !newAccountNumber.value || !newAccountName.value) { 
+    console.warn('[WalletView] handleAddBank: Missing required fields')
+    showToast('กรุณากรอกข้อมูลให้ครบ', 'error')
+    return 
+  }
+  
   addBankLoading.value = true
   try {
-    const result = await addBankAccount(newBankCode.value, newAccountNumber.value, newAccountName.value, bankAccounts.value.length === 0)
-    if (result.success) { showToast(result.message || 'เพิ่มบัญชีสำเร็จ'); showAddBankModal.value = false; newBankCode.value = ''; newAccountNumber.value = ''; newAccountName.value = '' }
-    else { showToast(result.message || 'เกิดข้อผิดพลาด', 'error') }
+    console.log('[WalletView] handleAddBank: Calling walletStore.addBankAccount...')
+    const result = await walletStore.addBankAccount(
+      newBankCode.value, 
+      newAccountNumber.value, 
+      newAccountName.value, 
+      bankAccounts.value.length === 0
+    )
+    console.log('[WalletView] handleAddBank: Result:', result)
+    
+    if (result.success) { 
+      console.log('[WalletView] handleAddBank: Success!')
+      showToast(result.message || 'เพิ่มบัญชีสำเร็จ')
+      showAddBankModal.value = false
+      newBankCode.value = ''
+      newAccountNumber.value = ''
+      newAccountName.value = '' 
+    } else { 
+      console.error('[WalletView] handleAddBank: Failed:', result.message)
+      showToast(result.message || 'ไม่สามารถเพิ่มบัญชีได้', 'error') 
+    }
   } catch (err: unknown) { 
+    console.error('[WalletView] handleAddBank: Exception:', err)
     const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+    console.error('[WalletView] handleAddBank: Error message:', errorMessage)
     showToast(errorMessage, 'error') 
+  } finally { 
+    addBankLoading.value = false 
+    console.log('[WalletView] handleAddBank: Completed')
   }
-  finally { addBankLoading.value = false }
 }
 
 onMounted(async () => {
-  await Promise.all([
-    fetchBalance(), 
-    fetchTransactions(), 
-    fetchTopupRequests(), 
-    fetchBankAccounts(), 
-    fetchWithdrawals(),
-    fetchPaymentAccounts() // Fetch admin payment accounts for topup
-  ])
-  walletSub = subscribeToWallet()
-  withdrawalSub = subscribeToWithdrawals()
+  console.log('[WalletView] Mounting...')
+  
+  // Deep debug - check each step
+  try {
+    console.log('[WalletView] Step 1: Fetching balance...')
+    const balanceResult = await walletStore.fetchBalance()
+    console.log('[WalletView] Balance result:', balanceResult)
+    console.log('[WalletView] Store balance state:', balance.value)
+    
+    console.log('[WalletView] Step 2: Fetching transactions...')
+    const txnResult = await walletStore.fetchTransactions()
+    console.log('[WalletView] Transactions result:', txnResult)
+    console.log('[WalletView] Store transactions state:', transactions.value)
+    
+    console.log('[WalletView] Step 3: Fetching topup requests...')
+    const topupResult = await walletStore.fetchTopupRequests()
+    console.log('[WalletView] Topup result:', topupResult)
+    console.log('[WalletView] Store topup state:', topupRequests.value)
+    
+    console.log('[WalletView] Step 4: Fetching bank accounts...')
+    await walletStore.fetchBankAccounts()
+    
+    console.log('[WalletView] Step 5: Fetching withdrawals...')
+    await walletStore.fetchWithdrawals()
+    
+    console.log('[WalletView] Step 6: Fetching payment accounts...')
+    await walletStore.fetchPaymentAccounts()
+    
+    console.log('[WalletView] ===== DATA LOADED =====')
+    console.log('[WalletView] Balance:', formattedBalance.value)
+    console.log('[WalletView] Transactions:', transactions.value.length)
+    console.log('[WalletView] Topup Requests:', topupRequests.value.length)
+    console.log('[WalletView] ========================')
+    
+    // Subscribe to realtime updates
+    walletStore.subscribeToWallet()
+    walletStore.subscribeToWithdrawals()
+    
+    // Run debug utility (available in console as window.debugWallet())
+    if (import.meta.env.DEV) {
+      const { debugWalletSystem, printDebugResults } = await import('@/utils/walletDebug')
+      const debugResults = await debugWalletSystem()
+      printDebugResults(debugResults)
+    }
+  } catch (err) {
+    console.error('[WalletView] ===== ERROR =====')
+    console.error('[WalletView] Error loading data:', err)
+    console.error('[WalletView] Error details:', {
+      message: err instanceof Error ? err.message : 'Unknown error',
+      stack: err instanceof Error ? err.stack : undefined,
+      error: err
+    })
+    console.error('[WalletView] ==================')
+    showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error')
+  }
 })
 
-onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
+onUnmounted(() => {
+  console.log('[WalletView] Unmounting...')
+  walletStore.unsubscribeAll()
+})
 </script>
+
 
 <style scoped>
 .wallet-page { min-height: 100vh; background: #f5f5f5; padding-bottom: 100px; }
@@ -657,51 +667,8 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 .back-btn, .header-spacer { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; }
 .back-btn svg { width: 24px; height: 24px; color: #1a1a1a; }
 .balance-section { padding: 16px; }
-.balance-card { background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%); border-radius: 20px; padding: 24px; color: #fff; box-shadow: 0 8px 24px rgba(0, 168, 107, 0.3); }
-.balance-label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
-.balance-amount { font-size: 36px; font-weight: 700; margin-bottom: 24px; }
-.loading-text { font-size: 20px; opacity: 0.7; }
-.balance-actions { display: flex; gap: 12px; }
-.pending-alert { display: flex; align-items: center; gap: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px; padding: 14px 16px; margin-top: 12px; }
-.pending-icon { width: 40px; height: 40px; background: #ffedd5; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-.pending-icon svg { width: 22px; height: 22px; color: #ea580c; }
-.pending-info { display: flex; flex-direction: column; gap: 2px; }
-.pending-title { font-size: 14px; font-weight: 600; color: #c2410c; }
-.pending-detail { font-size: 12px; color: #ea580c; }
-.action-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.action-btn svg { width: 20px; height: 20px; }
-.topup-btn { background: rgba(255,255,255,0.2); color: #fff; }
-.topup-btn:hover { background: rgba(255,255,255,0.3); }
-.withdraw-btn { background: #fff; color: #00A86B; }
-.withdraw-btn:hover { background: #f0f0f0; }
-.stats-section { display: flex; gap: 12px; padding: 0 16px 16px; }
-.stat-card { flex: 1; display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 14px; padding: 16px; border: 1px solid #f0f0f0; }
-.stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-.stat-icon svg { width: 22px; height: 22px; }
-.stat-icon.earned { background: #e8f5ef; color: #00A86B; }
-.stat-icon.spent { background: #fff3e0; color: #f5a623; }
-.stat-info { display: flex; flex-direction: column; }
-.stat-label { font-size: 12px; color: #999; }
-.stat-value { font-size: 16px; font-weight: 600; color: #1a1a1a; }
-.tabs-section { padding: 0 16px; }
-.tabs { display: flex; background: #fff; border-radius: 12px; padding: 4px; border: 1px solid #e8e8e8; }
-.tab { flex: 1; padding: 10px; border: none; background: none; font-size: 14px; font-weight: 500; color: #666; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
-.tab.active { background: #00A86B; color: #fff; }
-.tab-content { padding: 16px; }
-.list { display: flex; flex-direction: column; gap: 10px; }
-.empty-state { text-align: center; padding: 48px 24px; color: #999; }
-.txn-item, .req-item { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 14px; padding: 16px; border: 1px solid #f0f0f0; }
-.txn-info, .req-info { display: flex; flex-direction: column; gap: 4px; }
-.txn-type { font-size: 14px; font-weight: 600; color: #1a1a1a; }
-.txn-date, .req-date { font-size: 12px; color: #999; }
-.txn-amount { font-size: 16px; font-weight: 600; color: #e53935; }
-.txn-amount.positive { color: #00A86B; }
-.req-amount { font-size: 18px; font-weight: 600; color: #1a1a1a; }
-.badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
-.badge.warning { background: #fff3e0; color: #e65100; }
-.badge.success { background: #e8f5ef; color: #00A86B; }
-.badge.error { background: #ffebee; color: #e53935; }
-.badge.gray { background: #f5f5f5; color: #666; }
+.tab-content { padding: 16px 0; }
+
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 100; }
 .modal { background: #fff; border-radius: 20px 20px 0 0; padding: 24px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
 .modal h2 { font-size: 18px; font-weight: 600; margin: 0 0 20px; color: #1a1a1a; }
@@ -724,7 +691,6 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 .toast.success { background: #00A86B; color: #fff; }
 .toast.error { background: #e53935; color: #fff; }
 
-/* Topup Modal - Payment Info Styles */
 .topup-modal { max-height: 85vh; }
 .payment-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .payment-header h2 { margin: 0; flex: 1; }
@@ -744,9 +710,6 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 
 .qr-code-container { display: flex; justify-content: center; margin: 16px 0; }
 .qr-code-image { width: 180px; height: 180px; border-radius: 12px; border: 2px solid #e8e8e8; object-fit: contain; background: #fff; }
-.qr-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 180px; height: 180px; margin: 16px auto; background: #fff; border: 2px dashed #ccc; border-radius: 12px; color: #999; }
-.qr-placeholder svg { width: 48px; height: 48px; margin-bottom: 8px; }
-.qr-placeholder p { font-size: 12px; margin: 0; }
 
 .bank-info { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .bank-logo { width: 44px; height: 44px; background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid #e8e8e8; }
@@ -772,12 +735,11 @@ onUnmounted(() => { walletSub?.unsubscribe(); withdrawalSub?.unsubscribe() })
 .payment-instructions ol { margin: 0; padding-left: 18px; font-size: 12px; color: #78350f; line-height: 1.6; }
 .payment-instructions li { margin-bottom: 4px; }
 
-/* Upload Slip Section */
 .upload-slip-section { background: #f9f9f9; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
 .upload-slip-section h4 { font-size: 14px; font-weight: 600; color: #1a1a1a; margin: 0 0 12px; }
 
 .slip-upload-area { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 160px; background: #fff; border: 2px dashed #d1d5db; border-radius: 12px; cursor: pointer; transition: all 0.2s; padding: 20px; text-align: center; }
-.slip-upload-area:hover, .slip-upload-area.drag-over { border-color: #00A86B; background: #f0fdf4; }
+.slip-upload-area:hover { border-color: #00A86B; background: #f0fdf4; }
 .slip-upload-area input { display: none; }
 .slip-upload-area svg { width: 40px; height: 40px; color: #9ca3af; margin-bottom: 12px; }
 .upload-text { font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 4px; }

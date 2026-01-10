@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Admin Withdrawals View - Production Ready
- * ==========================================
- * Provider withdrawal requests management
+ * Admin Customer Withdrawals View - Production Ready
+ * ===================================================
+ * Customer withdrawal requests management
  * Uses RPC functions for proper admin access
  */
 import { ref, computed, onMounted, watch } from "vue";
@@ -28,8 +28,8 @@ const stats = ref({
   pending_amount: 0,
   completed_count: 0,
   completed_amount: 0,
-  rejected_count: 0,
-  rejected_amount: 0,
+  cancelled_count: 0,
+  cancelled_amount: 0,
   today_count: 0,
   today_amount: 0,
 });
@@ -53,7 +53,7 @@ async function loadWithdrawals() {
     const offset = (currentPage.value - 1) * pageSize.value;
 
     const { data, error } = await (supabase.rpc as any)(
-      "admin_get_withdrawals",
+      "admin_get_customer_withdrawals",
       {
         p_status: statusFilter.value || null,
         p_limit: pageSize.value,
@@ -69,17 +69,18 @@ async function loadWithdrawals() {
       const search = searchQuery.value.toLowerCase();
       filteredData = filteredData.filter(
         (w: any) =>
-          w.provider_uid?.toLowerCase().includes(search) ||
-          w.provider_name?.toLowerCase().includes(search) ||
-          w.provider_phone?.includes(search) ||
-          w.account_number?.includes(search)
+          w.withdrawal_uid?.toLowerCase().includes(search) ||
+          w.user_name?.toLowerCase().includes(search) ||
+          w.user_phone?.includes(search) ||
+          w.user_email?.toLowerCase().includes(search) ||
+          w.bank_account_number?.includes(search)
       );
     }
 
     withdrawals.value = filteredData;
 
     const { data: countData, error: countError } = await (supabase.rpc as any)(
-      "admin_count_withdrawals",
+      "admin_count_customer_withdrawals",
       {
         p_status: statusFilter.value || null,
       }
@@ -88,8 +89,8 @@ async function loadWithdrawals() {
     if (countError) throw countError;
     totalWithdrawals.value = countData || 0;
   } catch (e) {
-    console.error("Failed to load withdrawals:", e);
-    uiStore.showToast("ไม่สามารถโหลดข้อมูลได้", "error");
+    console.error("Failed to load customer withdrawals:", e);
+    uiStore.showToast("error", "ไม่สามารถโหลดข้อมูลได้");
   } finally {
     isLoading.value = false;
   }
@@ -98,7 +99,7 @@ async function loadWithdrawals() {
 async function loadStats() {
   try {
     const { data, error } = await (supabase.rpc as any)(
-      "admin_get_withdrawal_stats"
+      "admin_get_customer_withdrawal_stats"
     );
     if (error) throw error;
     if (data && data.length > 0) {
@@ -128,38 +129,43 @@ async function processAction() {
   try {
     if (actionType.value === "approve") {
       const { data, error } = await (supabase.rpc as any)(
-        "admin_approve_withdrawal",
+        "admin_process_withdrawal",
         {
           p_withdrawal_id: selectedWithdrawal.value.id,
-          p_transaction_ref: transactionRef.value || null,
-          p_notes: actionNote.value || null,
+          p_action: "completed",
+          p_reason: null,
+          p_admin_notes: actionNote.value || null,
         }
       );
       if (error) throw error;
-      if (data && data[0] && !data[0].success) {
-        throw new Error(data[0].message);
+      const result = typeof data === 'object' ? data : JSON.parse(data);
+      if (!result.success) {
+        throw new Error(result.error || result.message);
       }
-      uiStore.showToast("อนุมัติการถอนเงินสำเร็จ", "success");
+      uiStore.showToast("success", "อนุมัติการถอนเงินสำเร็จ");
     } else {
       const { data, error } = await (supabase.rpc as any)(
-        "admin_reject_withdrawal",
+        "admin_process_withdrawal",
         {
           p_withdrawal_id: selectedWithdrawal.value.id,
-          p_reason: actionNote.value || null,
+          p_action: "rejected",
+          p_reason: actionNote.value || "ไม่ระบุเหตุผล",
+          p_admin_notes: actionNote.value || null,
         }
       );
       if (error) throw error;
-      if (data && data[0] && !data[0].success) {
-        throw new Error(data[0].message);
+      const result = typeof data === 'object' ? data : JSON.parse(data);
+      if (!result.success) {
+        throw new Error(result.error || result.message);
       }
-      uiStore.showToast("ปฏิเสธการถอนเงินสำเร็จ", "success");
+      uiStore.showToast("success", "ปฏิเสธการถอนเงินสำเร็จ");
     }
     showActionModal.value = false;
     await loadWithdrawals();
     await loadStats();
   } catch (e: any) {
     console.error("Failed to process action:", e);
-    uiStore.showToast(e.message || "ไม่สามารถดำเนินการได้", "error");
+    uiStore.showToast("error", e.message || "ไม่สามารถดำเนินการได้");
   } finally {
     processing.value = false;
   }
@@ -198,6 +204,7 @@ function getStatusLabel(status: string) {
     pending: "รอดำเนินการ",
     completed: "โอนแล้ว",
     rejected: "ปฏิเสธ",
+    cancelled: "ยกเลิก",
   };
   return labels[status] || status;
 }
@@ -220,7 +227,7 @@ watch(searchQuery, () => {
 onMounted(() => {
   uiStore.setBreadcrumbs([
     { label: "Finance", path: "/admin/revenue" },
-    { label: "ถอนเงิน" },
+    { label: "ถอนเงินลูกค้า" },
   ]);
   loadWithdrawals();
   loadStats();
@@ -231,7 +238,7 @@ onMounted(() => {
   <div class="withdrawals-view">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">คำขอถอนเงิน</h1>
+        <h1 class="page-title">คำขอถอนเงินลูกค้า</h1>
         <span class="total-count"
           >{{ totalWithdrawals.toLocaleString() }} รายการ</span
         >
@@ -334,7 +341,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon today">
+        <div class="stat-icon rejected">
           <svg
             width="24"
             height="24"
@@ -343,19 +350,18 @@ onMounted(() => {
             stroke="currentColor"
             stroke-width="2"
           >
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-label">วันนี้</span
-          ><span class="stat-value">{{
-            formatCurrency(stats.today_amount)
+          <span class="stat-label">ยกเลิก</span
+          ><span class="stat-value error">{{
+            formatCurrency(stats.cancelled_amount || 0)
           }}</span
           ><span class="stat-sub"
-            >{{ stats.today_count.toLocaleString() }} รายการ</span
+            >{{ (stats.cancelled_count || 0).toLocaleString() }} รายการ</span
           >
         </div>
       </div>
@@ -377,7 +383,7 @@ onMounted(() => {
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="ค้นหา Provider UID, ชื่อ, เบอร์โทร..."
+          placeholder="ค้นหา UID, ชื่อ, เบอร์โทร, อีเมล..."
           class="search-input"
         />
       </div>
@@ -386,6 +392,7 @@ onMounted(() => {
         <option value="pending">รอดำเนินการ</option>
         <option value="completed">โอนแล้ว</option>
         <option value="rejected">ปฏิเสธ</option>
+        <option value="cancelled">ยกเลิก</option>
       </select>
     </div>
 
@@ -396,7 +403,7 @@ onMounted(() => {
       <table v-else-if="withdrawals.length > 0" class="data-table">
         <thead>
           <tr>
-            <th>Provider</th>
+            <th>ลูกค้า</th>
             <th>จำนวนเงิน</th>
             <th>บัญชีปลายทาง</th>
             <th>สถานะ</th>
@@ -414,28 +421,25 @@ onMounted(() => {
             <td>
               <div class="provider-cell">
                 <div class="avatar">
-                  {{ (w.provider_name || "P").charAt(0) }}
+                  {{ (w.user_name || "C").charAt(0) }}
                 </div>
                 <div class="info">
-                  <span class="name">{{ w.provider_name || "-" }}</span
-                  ><code class="uid">{{ w.provider_uid || "-" }}</code>
+                  <span class="name">{{ w.user_name || "-" }}</span
+                  ><code class="uid">{{ w.withdrawal_uid || "-" }}</code>
                 </div>
               </div>
             </td>
             <td>
               <div class="amount-cell">
-                <span class="amount">{{ formatCurrency(w.amount) }}</span
-                ><span v-if="w.fee > 0" class="fee"
-                  >ค่าธรรมเนียม {{ formatCurrency(w.fee) }}</span
-                >
+                <span class="amount">{{ formatCurrency(w.amount) }}</span>
               </div>
             </td>
             <td>
               <div class="bank-info">
                 <span class="bank-name">{{ w.bank_name || "-" }}</span
                 ><span class="account"
-                  >{{ w.account_number || "-" }} -
-                  {{ w.account_name || "-" }}</span
+                  >{{ w.bank_account_number || "-" }} -
+                  {{ w.bank_account_name || "-" }}</span
                 >
               </div>
             </td>
@@ -564,23 +568,29 @@ onMounted(() => {
         </div>
         <div class="modal-body">
           <div class="detail-section">
-            <h3>ข้อมูล Provider</h3>
+            <h3>ข้อมูลลูกค้า</h3>
             <div class="detail-row">
               <span class="label">ชื่อ</span
               ><span class="value">{{
-                selectedWithdrawal.provider_name || "-"
+                selectedWithdrawal.user_name || "-"
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">Provider UID</span
+              <span class="label">Withdrawal UID</span
               ><code class="value uid">{{
-                selectedWithdrawal.provider_uid || "-"
+                selectedWithdrawal.withdrawal_uid || "-"
               }}</code>
+            </div>
+            <div class="detail-row">
+              <span class="label">อีเมล</span
+              ><span class="value">{{
+                selectedWithdrawal.user_email || "-"
+              }}</span>
             </div>
             <div class="detail-row">
               <span class="label">เบอร์โทร</span
               ><span class="value">{{
-                selectedWithdrawal.provider_phone || "-"
+                selectedWithdrawal.user_phone || "-"
               }}</span>
             </div>
           </div>
@@ -590,18 +600,6 @@ onMounted(() => {
               <span class="label">จำนวนเงิน</span
               ><span class="value amount">{{
                 formatCurrency(selectedWithdrawal.amount)
-              }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">ค่าธรรมเนียม</span
-              ><span class="value">{{
-                formatCurrency(selectedWithdrawal.fee || 0)
-              }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">ยอดสุทธิ</span
-              ><span class="value amount">{{
-                formatCurrency(selectedWithdrawal.net_amount)
               }}</span>
             </div>
             <div class="detail-row">
@@ -627,13 +625,13 @@ onMounted(() => {
             <div class="detail-row">
               <span class="label">เลขบัญชี</span
               ><span class="value">{{
-                selectedWithdrawal.account_number || "-"
+                selectedWithdrawal.bank_account_number || "-"
               }}</span>
             </div>
             <div class="detail-row">
               <span class="label">ชื่อบัญชี</span
               ><span class="value">{{
-                selectedWithdrawal.account_name || "-"
+                selectedWithdrawal.bank_account_name || "-"
               }}</span>
             </div>
           </div>
@@ -653,16 +651,22 @@ onMounted(() => {
                   : "-"
               }}</span>
             </div>
-            <div v-if="selectedWithdrawal.transaction_ref" class="detail-row">
-              <span class="label">เลขอ้างอิง</span
-              ><code class="value">{{
-                selectedWithdrawal.transaction_ref
-              }}</code>
+            <div v-if="selectedWithdrawal.processed_by_name" class="detail-row">
+              <span class="label">ดำเนินการโดย</span
+              ><span class="value">{{
+                selectedWithdrawal.processed_by_name
+              }}</span>
             </div>
-            <div v-if="selectedWithdrawal.failed_reason" class="detail-row">
+            <div v-if="selectedWithdrawal.admin_notes" class="detail-row">
+              <span class="label">หมายเหตุ</span
+              ><span class="value">{{
+                selectedWithdrawal.admin_notes
+              }}</span>
+            </div>
+            <div v-if="selectedWithdrawal.reason" class="detail-row">
               <span class="label">เหตุผล</span
               ><span class="value error">{{
-                selectedWithdrawal.failed_reason
+                selectedWithdrawal.reason
               }}</span>
             </div>
           </div>
@@ -741,8 +745,8 @@ onMounted(() => {
         <div class="modal-body">
           <div class="summary-card">
             <div class="summary-row">
-              <span class="label">Provider</span
-              ><span class="value">{{ selectedWithdrawal.provider_name }}</span>
+              <span class="label">ลูกค้า</span
+              ><span class="value">{{ selectedWithdrawal.user_name }}</span>
             </div>
             <div class="summary-row">
               <span class="label">จำนวนเงิน</span
@@ -754,7 +758,7 @@ onMounted(() => {
               <span class="label">บัญชี</span
               ><span class="value"
                 >{{ selectedWithdrawal.bank_name }} -
-                {{ selectedWithdrawal.account_number }}</span
+                {{ selectedWithdrawal.bank_account_number }}</span
               >
             </div>
           </div>
@@ -905,6 +909,10 @@ onMounted(() => {
 .stat-icon.today {
   background: #e0f2fe;
   color: #0ea5e9;
+}
+.stat-icon.rejected {
+  background: #fee2e2;
+  color: #ef4444;
 }
 .stat-content {
   display: flex;

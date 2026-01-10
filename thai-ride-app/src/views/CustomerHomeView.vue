@@ -26,6 +26,7 @@ import { useSearchHistory } from "../composables/useSearchHistory";
 import { useServices } from "../composables/useServices";
 import { useRideStore } from "../stores/ride";
 import { useRideHistory } from "../composables/useRideHistory";
+import { useRoleAccess } from "../composables/useRoleAccess";
 import { useToast } from "../composables/useToast";
 import { usePerformanceMetrics } from "../composables/usePerformanceMetrics";
 import { useQuickReorder } from "../composables/useQuickReorder";
@@ -37,6 +38,7 @@ import WelcomeHeader from "../components/customer/WelcomeHeader.vue";
 import QuickDestinationSearch from "../components/customer/QuickDestinationSearch.vue";
 import CuteServiceGrid from "../components/customer/CuteServiceGrid.vue";
 import BottomNavigation from "../components/customer/BottomNavigation.vue";
+import RoleSwitcher from "../components/customer/RoleSwitcher.vue";
 
 // Non-critical Components - Lazy load
 const ActiveOrderCard = defineAsyncComponent(
@@ -84,6 +86,14 @@ const {
   fetchReorderableItems,
   quickReorder,
 } = useQuickReorder();
+
+// Multi-role support
+const { 
+  isProvider, 
+  getRoleBadge, 
+  getRoleColor,
+  canSwitchToProviderMode 
+} = useRoleAccess();
 
 // Performance Metrics - เก็บ Web Vitals
 const { startCollecting, stopCollecting } = usePerformanceMetrics();
@@ -152,7 +162,11 @@ let realtimeChannel: RealtimeChannel | null = null;
 
 // Computed - ใช้ cached values สำหรับ instant display
 const userName = computed(() => {
-  if (authStore.user?.name) return authStore.user.name;
+  if (authStore.user?.name) {
+    // Show role badge for providers
+    const roleBadge = getRoleBadge()
+    return roleBadge ? `${authStore.user.name}` : authStore.user.name
+  }
   return "คุณ";
 });
 
@@ -691,6 +705,11 @@ onUnmounted(() => {
       @profile-click="navigateTo('/customer/profile')"
     />
 
+    <!-- Role Switcher (for providers who can also be customers) -->
+    <div v-if="canSwitchToProviderMode" class="role-switcher-section">
+      <RoleSwitcher current-mode="customer" />
+    </div>
+
     <!-- Main Content -->
     <main class="main-content">
       <!-- Search Card -->
@@ -992,5 +1011,24 @@ onUnmounted(() => {
 .provider-section {
   padding: 0 20px;
   margin-bottom: 20px;
+}
+
+/* Role Switcher Section */
+.role-switcher-section {
+  padding: 0 20px;
+  margin-top: -8px;
+  margin-bottom: 16px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

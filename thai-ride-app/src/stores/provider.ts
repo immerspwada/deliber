@@ -1,343 +1,340 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { supabase } from '../lib/supabase'
-import type { ServiceProvider, RideRequest, DeliveryRequest } from '../types/database'
+import { supabase } from '@/lib/supabase'
 
-export type ServiceRequest = {
+interface Provider {
   id: string
-  type: 'ride' | 'delivery' | 'shopping'
+  provider_uid: string | null
+  first_name: string
+  last_name: string
+  email: string
+  phone_number: string
+  service_types: string[]
   status: string
-  fare: number
-  distance?: number
-  pickupAddress: string
-  destinationAddress: string
-  pickupLat: number
-  pickupLng: number
-  destinationLat: number
-  destinationLng: number
-  createdAt: string
+  is_online: boolean
+  rating: number
+  total_trips: number
+  total_earnings: number
+}
+
+interface Job {
+  id: string
+  service_type: string
+  status: string
+  pickup_location: any
+  pickup_address: string
+  dropoff_location?: any
+  dropoff_address?: string
+  estimated_earnings: number
+  distance_km?: number
+  duration_minutes?: number
+  created_at: string
+}
+
+interface PerformanceMetrics {
+  rating: number
+  acceptanceRate: number
+  completionRate: number
+  cancellationRate: number
 }
 
 export const useProviderStore = defineStore('provider', () => {
-  const provider = ref<ServiceProvider | null>(null)
+  // State
+  const profile = ref<Provider | null>(null)
   const isOnline = ref(false)
-  const currentLocation = ref<{ lat: number; lng: number } | null>(null)
-  const pendingRequests = ref<ServiceRequest[]>([])
-  const activeRequest = ref<ServiceRequest | null>(null)
+  const currentJob = ref<Job | null>(null)
+  const availableJobs = ref<Job[]>([])
   const todayEarnings = ref(0)
   const todayTrips = ref(0)
+  const metrics = ref<PerformanceMetrics>({
+    rating: 0,
+    acceptanceRate: 0,
+    completionRate: 0,
+    cancellationRate: 0,
+  })
   const loading = ref(false)
-  const error = ref<string | null>(null)
+  const activeServiceType = ref<string | null>(null)
 
-  const hasActiveRequest = computed(() => activeRequest.value !== null)
+  // Getters
+  const canAcceptJobs = computed(() => {
+    return (
+      profile.value?.status === 'approved' ||
+      profile.value?.status === 'active'
+    ) && isOnline.value && !currentJob.value
+  })
 
-  // Fetch provider profile
-  // ใช้ maybeSingle() เพื่อหลีกเลี่ยง 406 error เมื่อ user ยังไม่ได้เป็น provider
-  const fetchProviderProfile = async (userId: string) => {
-    loading.value = true
-    error.value = null
-    
+  const serviceTypes = computed(() => profile.value?.service_types || [])
+
+  // Actions
+  async function loadProfile(): Promise<void> {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('service_providers')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { data, error } = await supabase
+        .from('providers')
         .select('*')
-        .eq('user_id', userId)
-        .maybeSingle()
-      
-      if (fetchError) {
-        error.value = fetchError.message
-        return null
-      }
-      
-      // User ยังไม่ได้เป็น provider
-      if (!data) {
-        provider.value = null
-        isOnline.value = false
-        return null
-      }
-      
-      provider.value = data as ServiceProvider
-      isOnline.value = (data as ServiceProvider)?.is_available || false
-      return data as ServiceProvider
-    } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      return null
-    } finally {
-      loading.value = false
+        .eq('user_id', user.id)
+        .single()
+
+      if (error) throw error
+
+      profile.value = data
+      isOnline.value = data.is_online
+    } catch (error) {
+      console.error('Error loading profile:', error)
+      throw error
     }
   }
 
-  // Toggle online status
-  const toggleOnlineStatus = async () => {
-    if (!provider.value) return false
-    
+  async function toggleOnlineStatus(): Promise<void> {
+    if (!profile.value) return
+
     const newStatus = !isOnline.value
-    
+
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any)
-        .from('service_providers')
-        .update({ 
-          is_online: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', provider.value.id)
-      
-      if (updateError) {
-        error.value = updateError.message
-        return false
-      }
-      
+      const { error } = await supabase
+        .from('providers')
+        .update({ is_online: newStatus })
+        .eq('id', profile.value.id)
+
+      if (error) throw error
+
       isOnline.value = newStatus
-      
+
+      // Load available jobs if going online
       if (newStatus) {
-        // Start listening for requests when going online
-        subscribeToRequests()
+        await loadAvailableJobs()
       } else {
-        // Clear pending requests when going offline
-        pendingRequests.value = []
+        availableJobs.value = []
       }
-      
-      return true
-    } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      return false
+    } catch (error) {
+      console.error('Error toggling online status:', error)
+      throw error
     }
   }
 
-  // Update current location
-  const updateLocation = async (lat: number, lng: number) => {
-    if (!provider.value) return false
-    
-    currentLocation.value = { lat, lng }
-    
+  async function loadAvailableJobs(): Promise<void> {
+    if (!profile.value || !isOnline.value) return
+
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any)
-        .from('service_providers')
-        .update({ 
-          current_lat: lat,
-          current_lng: lng,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', provider.value.id)
-      
-      if (updateError) {
-        console.error('Failed to update location:', updateError)
-        return false
-      }
-      
-      return true
-    } catch (err) {
-      console.error('Location update error:', err)
-      return false
-    }
-  }
+      // Get current location (in real app, use geolocation API)
+      // For now, use a default location
+      const location = { lat: 13.7563, lng: 100.5018 }
 
-  // Accept a request
-  const acceptRequest = async (request: ServiceRequest) => {
-    if (!provider.value) return false
-    
-    loading.value = true
-    
-    try {
-      const tableName = request.type === 'ride' 
-        ? 'ride_requests' 
-        : request.type === 'delivery' 
-          ? 'delivery_requests' 
-          : 'shopping_requests'
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any)
-        .from(tableName)
-        .update({ 
-          provider_id: provider.value.id,
-          status: 'matched',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', request.id)
-      
-      if (updateError) {
-        error.value = updateError.message
-        return false
-      }
-      
-      activeRequest.value = { ...request, status: 'matched' }
-      pendingRequests.value = pendingRequests.value.filter(r => r.id !== request.id)
-      
-      return true
-    } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      return false
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // Complete a request
-  const completeRequest = async () => {
-    if (!provider.value || !activeRequest.value) return false
-    
-    loading.value = true
-    
-    try {
-      const tableName = activeRequest.value.type === 'ride' 
-        ? 'ride_requests' 
-        : activeRequest.value.type === 'delivery' 
-          ? 'delivery_requests' 
-          : 'shopping_requests'
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any)
-        .from(tableName)
-        .update({ 
-          status: 'completed',
-          actual_fare: activeRequest.value.fare,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', activeRequest.value.id)
-      
-      if (updateError) {
-        error.value = updateError.message
-        return false
-      }
-      
-      // Update earnings
-      todayEarnings.value += activeRequest.value.fare
-      todayTrips.value += 1
-      
-      activeRequest.value = null
-      
-      return true
-    } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Unknown error'
-      return false
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // Subscribe to nearby requests
-  const subscribeToRequests = () => {
-    if (!provider.value) return
-
-    // Subscribe to ride requests
-    supabase
-      .channel('ride_requests_channel')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'ride_requests',
-          filter: 'status=eq.pending'
+      // Call job matching Edge Function
+      const { data, error } = await supabase.functions.invoke('job-matching', {
+        body: {
+          provider_id: profile.value.id,
+          location,
+          service_types: profile.value.service_types,
+          max_distance_km: 10,
         },
-        (payload) => {
-          const ride = payload.new as RideRequest
-          // Check if within service radius (simplified)
-          const request: ServiceRequest = {
-            id: ride.id,
-            type: 'ride',
-            status: ride.status || 'pending',
-            fare: ride.estimated_fare || 0,
-            pickupAddress: ride.pickup_address,
-            destinationAddress: ride.destination_address,
-            pickupLat: ride.pickup_lat,
-            pickupLng: ride.pickup_lng,
-            destinationLat: ride.destination_lat,
-            destinationLng: ride.destination_lng,
-            createdAt: ride.created_at || new Date().toISOString()
-          }
-          pendingRequests.value.unshift(request)
-        }
-      )
-      .subscribe()
+      })
 
-    // Subscribe to delivery requests
-    supabase
-      .channel('delivery_requests_channel')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'delivery_requests',
-          filter: 'status=eq.pending'
-        },
-        (payload) => {
-          const delivery = payload.new as DeliveryRequest
-          const request: ServiceRequest = {
-            id: delivery.id,
-            type: 'delivery',
-            status: delivery.status || 'pending',
-            fare: delivery.estimated_fee || 0,
-            pickupAddress: delivery.sender_address,
-            destinationAddress: delivery.recipient_address,
-            pickupLat: delivery.sender_lat,
-            pickupLng: delivery.sender_lng,
-            destinationLat: delivery.recipient_lat,
-            destinationLng: delivery.recipient_lng,
-            createdAt: delivery.created_at || new Date().toISOString()
-          }
-          pendingRequests.value.unshift(request)
-        }
-      )
-      .subscribe()
+      if (error) throw error
+
+      availableJobs.value = data.jobs || []
+    } catch (error) {
+      console.error('Error loading available jobs:', error)
+      throw error
+    }
   }
 
-  // Fetch today's stats
-  const fetchTodayStats = async () => {
-    if (!provider.value) return
-    
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
+  async function acceptJob(jobId: string): Promise<void> {
+    if (!profile.value) return
+
     try {
-      // Fetch completed rides today
-      const { data: rides } = await supabase
-        .from('ride_requests')
-        .select('actual_fare')
-        .eq('provider_id', provider.value.id)
+      const { data, error } = await supabase.functions.invoke('job-acceptance', {
+        body: {
+          job_id: jobId,
+          provider_id: profile.value.id,
+        },
+      })
+
+      if (error) throw error
+
+      if (data.success) {
+        currentJob.value = data.job
+        availableJobs.value = []
+      }
+    } catch (error) {
+      console.error('Error accepting job:', error)
+      throw error
+    }
+  }
+
+  async function updateLocation(lat: number, lng: number): Promise<void> {
+    if (!currentJob.value) return
+
+    try {
+      await supabase.rpc('update_provider_location', {
+        p_job_id: currentJob.value.id,
+        p_location: `POINT(${lng} ${lat})`,
+      })
+    } catch (error) {
+      console.error('Error updating location:', error)
+    }
+  }
+
+  async function loadTodayMetrics(): Promise<void> {
+    if (!profile.value) return
+
+    try {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Get today's earnings
+      const { data: earnings, error: earningsError } = await supabase
+        .from('earnings')
+        .select('net_earnings')
+        .eq('provider_id', profile.value.id)
+        .gte('earned_at', today.toISOString())
+
+      if (earningsError) throw earningsError
+
+      todayEarnings.value = earnings?.reduce((sum, e) => sum + parseFloat(e.net_earnings), 0) || 0
+
+      // Get today's completed trips
+      const { data: jobs, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('provider_id', profile.value.id)
         .eq('status', 'completed')
-        .gte('updated_at', today.toISOString())
-      
-      // Fetch completed deliveries today
-      const { data: deliveries } = await supabase
-        .from('delivery_requests')
-        .select('actual_fee')
-        .eq('provider_id', provider.value.id)
-        .eq('status', 'delivered')
-        .gte('updated_at', today.toISOString())
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rideEarnings = rides?.reduce((sum: number, r: any) => sum + (r.actual_fare || 0), 0) || 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const deliveryEarnings = deliveries?.reduce((sum: number, d: any) => sum + (d.actual_fee || 0), 0) || 0
-      
-      todayEarnings.value = rideEarnings + deliveryEarnings
-      todayTrips.value = (rides?.length || 0) + (deliveries?.length || 0)
-    } catch (err) {
-      console.error('Failed to fetch stats:', err)
+        .gte('completed_at', today.toISOString())
+
+      if (jobsError) throw jobsError
+
+      todayTrips.value = jobs?.length || 0
+
+      // Load performance metrics
+      await loadPerformanceMetrics()
+    } catch (error) {
+      console.error('Error loading today metrics:', error)
+      throw error
+    }
+  }
+
+  async function loadPerformanceMetrics(): Promise<void> {
+    if (!profile.value) return
+
+    try {
+      const { data, error } = await supabase
+        .from('provider_performance_metrics')
+        .select('*')
+        .eq('provider_id', profile.value.id)
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        metrics.value = {
+          rating: parseFloat(data.rating) || 0,
+          acceptanceRate: parseFloat(data.acceptance_rate) || 0,
+          completionRate: parseFloat(data.completion_rate) || 0,
+          cancellationRate: parseFloat(data.cancellation_rate) || 0,
+        }
+      }
+    } catch (error) {
+      console.error('Error loading performance metrics:', error)
+    }
+  }
+
+  async function loadCurrentJob(): Promise<void> {
+    if (!profile.value) return
+
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('provider_id', profile.value.id)
+        .in('status', ['accepted', 'arrived', 'in_progress'])
+        .single()
+
+      if (error && error.code !== 'PGRST116') throw error
+
+      currentJob.value = data || null
+    } catch (error) {
+      console.error('Error loading current job:', error)
+    }
+  }
+
+  function $reset(): void {
+    profile.value = null
+    isOnline.value = false
+    currentJob.value = null
+    availableJobs.value = []
+    todayEarnings.value = 0
+    todayTrips.value = 0
+    metrics.value = {
+      rating: 0,
+      acceptanceRate: 0,
+      completionRate: 0,
+      cancellationRate: 0,
+    }
+    loading.value = false
+    activeServiceType.value = null
+  }
+
+  async function setActiveServiceType(serviceType: string): Promise<void> {
+    if (!profile.value?.service_types.includes(serviceType)) {
+      throw new Error('Invalid service type')
+    }
+
+    activeServiceType.value = serviceType
+
+    // Reload available jobs for this service type
+    if (isOnline.value) {
+      await loadAvailableJobs()
+    }
+  }
+
+  async function loadEarningsByServiceType(serviceType: string): Promise<number> {
+    if (!profile.value) return 0
+
+    try {
+      const { data, error } = await supabase
+        .from('earnings')
+        .select('net_earnings')
+        .eq('provider_id', profile.value.id)
+        .eq('service_type', serviceType)
+
+      if (error) throw error
+
+      return data?.reduce((sum, e) => sum + parseFloat(e.net_earnings), 0) || 0
+    } catch (error) {
+      console.error('Error loading earnings by service type:', error)
+      return 0
     }
   }
 
   return {
-    provider,
+    // State
+    profile,
     isOnline,
-    currentLocation,
-    pendingRequests,
-    activeRequest,
+    currentJob,
+    availableJobs,
     todayEarnings,
     todayTrips,
+    metrics,
     loading,
-    error,
-    hasActiveRequest,
-    fetchProviderProfile,
+    activeServiceType,
+
+    // Getters
+    canAcceptJobs,
+    serviceTypes,
+
+    // Actions
+    loadProfile,
     toggleOnlineStatus,
+    loadAvailableJobs,
+    acceptJob,
     updateLocation,
-    acceptRequest,
-    completeRequest,
-    subscribeToRequests,
-    fetchTodayStats
+    loadTodayMetrics,
+    loadPerformanceMetrics,
+    loadCurrentJob,
+    setActiveServiceType,
+    loadEarningsByServiceType,
+    $reset,
   }
 })
