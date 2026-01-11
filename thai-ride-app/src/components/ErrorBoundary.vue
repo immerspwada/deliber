@@ -34,7 +34,11 @@ onErrorCaptured((err: Error) => {
   errorCount.value++
   
   // Show toast notification
-  showError(props.fallbackMessage)
+  try {
+    showError(props.fallbackMessage)
+  } catch (toastErr) {
+    console.warn('[ErrorBoundary] Toast failed:', toastErr)
+  }
   
   // Emit error event for logging
   emit('error', err)

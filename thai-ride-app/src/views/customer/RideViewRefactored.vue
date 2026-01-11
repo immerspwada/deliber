@@ -1,0 +1,432 @@
+<script setup lang="ts">
+/**
+ * Feature: F02 - Simple Ride Booking (Grab/Bolt Style)
+ * Refactored Version - Modular & Clean
+ * 
+ * Performance Optimizations:
+ * - Lazy loaded heavy components (Map, Tracking, Searching, Rating)
+ * - Minimal initial bundle
+ * - Deferred non-critical rendering
+ * 
+ * UX Enhancements:
+ * - Smooth transitions between steps
+ * - Haptic feedback on interactions
+ * - Better loading states
+ * - Pull-to-refresh for nearby places
+ * 
+ * UX Flow: 1.เลือกจุดหมาย → 2.กดจอง → 3.ติดตาม → 4.ให้คะแนน
+ */
+import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
+import { useRouter } from 'vue-router'
+import { useRideRequest } from '../../composables/useRideRequest'
+import { usePullToRefresh } from '../../composables/usePullToRefresh'
+
+// Critical components - load immediately
+import RideHeader from '../../components/ride/RideHeader.vue'
+import RideSearchBox from '../../components/ride/RideSearchBox.vue'
+import RidePlacesList from '../../components/ride/RidePlacesList.vue'
+import RideBookingPanel from '../../components/ride/RideBookingPanel.vue'
+import PullToRefreshIndicator from '../../components/PullToRefreshIndicator.vue'
+
+// Heavy components - lazy load
+const MapView = defineAsyncComponent({
+  loader: () => import('../../components/MapView.vue'),
+  delay: 0,
+  timeout: 10000
+})
+
+const RideSearchingView = defineAsyncComponent({
+  loader: () => import('../../components/ride/RideSearchingView.vue'),
+  delay: 0
+})
+
+const RideTrackingView = defineAsyncComponent({
+  loader: () => import('../../components/ride/RideTrackingView.vue'),
+  delay: 0
+})
+
+const RideRatingView = defineAsyncComponent({
+  loader: () => import('../../components/ride/RideRatingView.vue'),
+  delay: 0
+})
+
+const router = useRouter()
+
+// Use the ride request composable
+const {
+  currentStep,
+  pickup,
+  destination,
+  selectedVehicle,
+  isBooking,
+  isGettingLocation,
+  isLoadingVehicles,
+  searchQuery,
+  isSearchFocused,
+  searchResults,
+  searchingSeconds,
+  nearbyPlaces,
+  isLoadingNearby,
+  estimatedFare,
+  estimatedTime,
+  estimatedDistance,
+  matchedDriver,
+  userRating,
+  isSubmittingRating,
+  vehicles,
+  savedPlaces,
+  recentPlaces,
+  finalFare,
+  currentBalance,
+  hasEnoughBalance,
+  canBook,
+  statusText,
+  initialize,
+  getCurrentLocation,
+  searchPlaces,
+  selectDestination,
+  handleRouteCalculated,
+  bookRide,
+  cancelRide,
+  submitRating,
+  callDriver,
+  callEmergency,
+  refreshNearbyPlaces
+} = useRideRequest()
+
+// Pull-to-refresh setup
+const pullToRefreshEnabled = computed(() => 
+  currentStep.value === 'select' && !destination.value && !isSearchFocused.value
+)
+
+const { pullDistance, isRefreshing, canRelease, progress } = usePullToRefresh({
+  threshold: 80,
+  resistance: 2.5,
+  maxPull: 150,
+  enabled: pullToRefreshEnabled,
+  onRefresh: async () => {
+    await refreshNearbyPlaces()
+  }
+})
+
+// Navigation
+function goBack(): void {
+  router.push('/customer')
+}
+
+function goToWallet(): void {
+  router.push('/customer/wallet')
+}
+
+function skipRating(): void {
+  userRating.value = 0
+  currentStep.value = 'select'
+  destination.value = null
+  searchQuery.value = ''
+}
+
+// Handle booking with options
+interface BookingOptions {
+  paymentMethod: 'wallet' | 'cash' | 'card'
+  scheduledTime: string | null
+  promoCode: string | null
+  promoDiscount: number
+  finalAmount: number
+}
+
+function handleBook(options: BookingOptions): void {
+  bookRide(options)
+}
+
+// Initialize on mount
+onMounted(() => {
+  initialize()
+})
+</script>
+
+<template>
+  <div class="ride-page">
+    <!-- Pull-to-Refresh Indicator -->
+    <PullToRefreshIndicator
+      :pullDistance="pullDistance"
+      :isRefreshing="isRefreshing"
+      :canRelease="canRelease"
+      :progress="progress"
+    />
+
+    <!-- STEP 1: SELECT DESTINATION -->
+    <Transition name="page-fade" mode="out-in">
+      <div v-if="currentStep === 'select'" key="select" class="select-view">
+        <!-- Header -->
+        <RideHeader
+          :pickup="pickup"
+          :isGettingLocation="isGettingLocation"
+          @back="goBack"
+          @refresh="getCurrentLocation"
+        />
+
+        <!-- Map Preview - Lazy loaded -->
+        <div v-if="pickup" class="map-section">
+          <Suspense>
+            <MapView
+              :pickup="pickup"
+              :destination="destination"
+              :showRoute="!!destination"
+              height="220px"
+              @routeCalculated="handleRouteCalculated"
+            />
+            <template #fallback>
+              <div class="map-skeleton">
+                <div class="map-loading-spinner"></div>
+                <span class="map-loading-text">กำลังโหลดแผนที่...</span>
+              </div>
+            </template>
+          </Suspense>
+        </div>
+
+        <!-- Search Box -->
+        <RideSearchBox
+          v-model="searchQuery"
+          v-model:isFocused="isSearchFocused"
+          :results="searchResults"
+          :nearbyPlaces="nearbyPlaces"
+          :isLoadingNearby="isLoadingNearby"
+          @search="searchPlaces"
+          @select="selectDestination"
+          @clear="searchResults = []"
+        />
+
+        <!-- Places List (when not searching and no destination) -->
+        <Transition name="fade-slide">
+          <RidePlacesList
+            v-if="!isSearchFocused && !destination"
+            :savedPlaces="savedPlaces || []"
+            :recentPlaces="recentPlaces || []"
+            :nearbyPlaces="nearbyPlaces"
+            :isLoadingNearby="isLoadingNearby || isRefreshing"
+            @select="selectDestination"
+          />
+        </Transition>
+
+        <!-- Booking Panel (when destination selected) -->
+        <Transition name="slide-up">
+          <RideBookingPanel
+            v-if="destination"
+            :pickup="pickup"
+            :destination="destination"
+            :vehicles="vehicles"
+            v-model:selectedVehicle="selectedVehicle"
+            :estimatedFare="estimatedFare"
+            :estimatedDistance="estimatedDistance"
+            :estimatedTime="estimatedTime"
+            :finalFare="finalFare"
+            :currentBalance="currentBalance"
+            :hasEnoughBalance="hasEnoughBalance"
+            :canBook="canBook"
+            :isBooking="isBooking"
+            :isLoadingVehicles="isLoadingVehicles"
+            @book="handleBook"
+            @topup="goToWallet"
+          />
+        </Transition>
+      </div>
+
+      <!-- STEP 2: SEARCHING FOR DRIVER - Lazy loaded -->
+      <div v-else-if="currentStep === 'searching'" key="searching" class="step-view">
+        <Suspense>
+          <RideSearchingView
+            :searchingSeconds="searchingSeconds"
+            @cancel="cancelRide"
+          />
+          <template #fallback>
+            <div class="step-loading">
+              <div class="loading-spinner"></div>
+              <p>กำลังโหลด...</p>
+            </div>
+          </template>
+        </Suspense>
+      </div>
+
+      <!-- STEP 3: TRACKING RIDE - Lazy loaded -->
+      <div v-else-if="currentStep === 'tracking'" key="tracking" class="step-view">
+        <Suspense>
+          <RideTrackingView
+            :pickup="pickup"
+            :destination="destination"
+            :matchedDriver="matchedDriver"
+            :statusText="statusText"
+            @callDriver="callDriver"
+            @callEmergency="callEmergency"
+            @cancel="cancelRide"
+          />
+          <template #fallback>
+            <div class="step-loading">
+              <div class="loading-spinner"></div>
+              <p>กำลังโหลด...</p>
+            </div>
+          </template>
+        </Suspense>
+      </div>
+
+      <!-- STEP 4: RATING - Lazy loaded -->
+      <div v-else-if="currentStep === 'rating'" key="rating" class="step-view">
+        <Suspense>
+          <RideRatingView
+            v-model:rating="userRating"
+            :isSubmitting="isSubmittingRating"
+            @submit="submitRating"
+            @skip="skipRating"
+          />
+          <template #fallback>
+            <div class="step-loading">
+              <div class="loading-spinner"></div>
+              <p>กำลังโหลด...</p>
+            </div>
+          </template>
+        </Suspense>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<style scoped>
+.ride-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #f5f5f5;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.select-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.step-view {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.map-section {
+  padding: 16px;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Map skeleton for loading state */
+.map-skeleton {
+  height: 220px;
+  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 50%, #f0f0f0 100%);
+  background-size: 200% 200%;
+  animation: skeleton-gradient 2s ease infinite;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+@keyframes skeleton-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.map-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #00a86b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.map-loading-text {
+  font-size: 13px;
+  color: #999;
+}
+
+/* Step loading state */
+.step-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  gap: 16px;
+  background: #f5f5f5;
+}
+
+.loading-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #00a86b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.step-loading p {
+  color: #666;
+  font-size: 14px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Page transition */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* Fade slide transition */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.25s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+/* Slide up transition for booking panel */
+.slide-up-enter-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-leave-active {
+  transition: all 0.25s ease;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(50%);
+}
+</style>

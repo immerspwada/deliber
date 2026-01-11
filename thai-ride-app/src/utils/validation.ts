@@ -199,6 +199,63 @@ export function sanitizeInput(input: string): string {
 }
 
 /**
+ * Validate Thai phone number
+ */
+export function validateThaiPhoneNumber(phone: string): boolean {
+  if (!phone) return false
+  const phoneRegex = /^(\+66|0)[0-9]{8,9}$/
+  return phoneRegex.test(phone.replace(/[-\s]/g, ''))
+}
+
+/**
+ * Validate email address
+ */
+export function validateEmail(email: string): boolean {
+  if (!email) return false
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+/**
+ * Validate password strength
+ */
+export function validatePassword(password: string): boolean {
+  if (!password) return false
+  // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/
+  return passwordRegex.test(password)
+}
+
+/**
+ * Format Thai phone number for display
+ * Converts 0812345678 to 081-234-5678
+ */
+export function formatThaiPhoneNumber(phone: string): string {
+  if (!phone) return ''
+  
+  // Remove all non-digits
+  const digits = phone.replace(/\D/g, '')
+  
+  // Handle +66 prefix
+  let normalized = digits
+  if (digits.startsWith('66')) {
+    normalized = '0' + digits.slice(2)
+  }
+  
+  // Format as XXX-XXX-XXXX
+  if (normalized.length === 10) {
+    return `${normalized.slice(0, 3)}-${normalized.slice(3, 6)}-${normalized.slice(6)}`
+  }
+  
+  // Format as XX-XXX-XXXX for 9-digit numbers
+  if (normalized.length === 9) {
+    return `${normalized.slice(0, 2)}-${normalized.slice(2, 5)}-${normalized.slice(5)}`
+  }
+  
+  return phone
+}
+
+/**
  * Validate and sanitize ride request data
  */
 export function validateRideRequest(data: unknown): {

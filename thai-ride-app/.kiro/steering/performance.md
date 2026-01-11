@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/vite.config*.ts,**/*.vue"
+inclusion: always
 ---
 
 # Performance Optimization

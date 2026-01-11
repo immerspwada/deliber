@@ -233,6 +233,66 @@ export function logError(error: AppError, context?: string): void {
 }
 
 /**
+ * Parse Edge Function error response
+ */
+export function parseEdgeFunctionError(error: any): AppError {
+  console.error('[EdgeFunction] Error:', error)
+  
+  // Handle Edge Function error response format
+  if (error && typeof error === 'object' && 'error' in error) {
+    const edgeError = error.error
+    
+    if (typeof edgeError === 'object' && edgeError.code && edgeError.message) {
+      // Structured error from Edge Function
+      const errorCode = Object.values(ErrorCode).includes(edgeError.code) 
+        ? edgeError.code as ErrorCode 
+        : ErrorCode.API_ERROR
+      
+      return createAppError(errorCode, edgeError.message, edgeError.details)
+    }
+    
+    if (typeof edgeError === 'string') {
+      return createAppError(ErrorCode.API_ERROR, edgeError)
+    }
+  }
+  
+  // Fallback for unknown Edge Function error format
+  return createAppError(ErrorCode.API_ERROR, 'Edge Function error', { originalError: error })
+}
+
+/**
+ * Handle network-related errors
+ */
+export function handleNetworkError(error: Error): AppError {
+  console.error('[Network] Error:', error)
+  
+  if (error.message.includes('fetch')) {
+    return createAppError(ErrorCode.NETWORK_ERROR, error.message)
+  }
+  
+  if (error.message.includes('timeout')) {
+    return createAppError(ErrorCode.TIMEOUT_ERROR, error.message)
+  }
+  
+  return createAppError(ErrorCode.NETWORK_ERROR, error.message)
+}
+
+/**
+ * Create user-friendly error message
+ */
+export function createUserErrorMessage(error: AppError, context?: string): string {
+  // Use the predefined user message
+  let message = error.userMessage
+  
+  // Add context if provided
+  if (context) {
+    message = `${context}: ${message}`
+  }
+  
+  return message
+}
+
+/**
  * Handle async operations with proper error handling
  */
 export async function withErrorHandling<T>(

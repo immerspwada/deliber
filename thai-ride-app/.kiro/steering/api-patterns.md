@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/services/**/*.ts,**/composables/**/*.ts"
+inclusion: always
 ---
 
 # API & Service Patterns

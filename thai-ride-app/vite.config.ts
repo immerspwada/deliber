@@ -364,12 +364,33 @@ export default defineConfig({
     target: 'esnext',
     minify: 'terser',
     sourcemap: false,
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'map-vendor': ['leaflet']
+        manualChunks: (id) => {
+          // Vue core
+          if (id.includes('node_modules/vue') || 
+              id.includes('node_modules/@vue') ||
+              id.includes('node_modules/vue-router') ||
+              id.includes('node_modules/pinia')) {
+            return 'vue-vendor'
+          }
+          // Map library - separate chunk
+          if (id.includes('node_modules/leaflet')) {
+            return 'map-vendor'
+          }
+          // Supabase - separate chunk
+          if (id.includes('node_modules/@supabase')) {
+            return 'supabase-vendor'
+          }
         }
+      }
+    },
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
       }
     }
   }

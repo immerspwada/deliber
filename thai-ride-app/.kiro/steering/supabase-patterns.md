@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/*.{ts,vue}"
+inclusion: always
 ---
 
 # Supabase Integration Patterns

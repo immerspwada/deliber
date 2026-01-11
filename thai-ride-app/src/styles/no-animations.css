@@ -2,16 +2,17 @@
  * NO ANIMATIONS - Global Override
  * กดปุ๊บ มาปั๊บ
  * 
- * This file disables ALL animations and transitions globally
- * Import this file LAST in main.ts to override everything
+ * IMPORTANT: This file uses specific selectors instead of * to avoid breaking Leaflet
  */
 
 /* ============================================
-   GLOBAL ANIMATION KILLER
+   APP ELEMENTS - NO ANIMATIONS
    ============================================ */
-*,
-*::before,
-*::after {
+html, body, #app,
+div, span, section, article, aside, header, footer, nav, main,
+h1, h2, h3, h4, h5, h6, p, a, button,
+ul, ol, li, form, label,
+table, thead, tbody, tr, th, td {
   animation-duration: 0ms !important;
   animation-delay: 0ms !important;
   transition-duration: 0ms !important;
@@ -19,25 +20,29 @@
 }
 
 /* ============================================
-   KEEP ONLY ESSENTIAL ANIMATIONS
+   KEEP SPINNERS WORKING
    ============================================ */
-
-/* Spinner - must keep spinning */
 .spinner,
 .mini-spinner,
 .calculating-spinner,
 .booking-spinner,
-[class*="spinner"],
-[class*="loading"] .animate-spin {
-  animation-duration: 0.8s !important;
-  animation-timing-function: linear !important;
-  animation-iteration-count: infinite !important;
+.app-loading-spinner,
+[class*="spinner"] {
+  animation: spin 0.8s linear infinite !important;
 }
 
-/* Skeleton shimmer - keep for UX */
 .skeleton {
-  animation-duration: 1.5s !important;
-  animation-iteration-count: infinite !important;
+  animation: shimmer 1.5s infinite !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* ============================================
@@ -48,120 +53,35 @@
 .fade-enter-active,
 .fade-leave-active,
 .slide-enter-active,
-.slide-leave-active,
-.scale-enter-active,
-.scale-leave-active,
-[class*="-enter-active"],
-[class*="-leave-active"] {
+.slide-leave-active {
   transition: none !important;
-  animation: none !important;
 }
 
 .v-enter-from,
 .v-leave-to,
 .fade-enter-from,
-.fade-leave-to,
-.slide-enter-from,
-.slide-leave-to,
-.scale-enter-from,
-.scale-leave-to,
-[class*="-enter-from"],
-[class*="-leave-to"] {
+.fade-leave-to {
   opacity: 1 !important;
-  transform: none !important;
 }
 
 /* ============================================
-   MODAL & OVERLAY - INSTANT
-   ============================================ */
-.modal-overlay,
-.modal-content,
-.bottom-sheet,
-.overlay,
-.backdrop,
-[class*="modal"],
-[class*="overlay"],
-[class*="sheet"] {
-  animation: none !important;
-  transition: none !important;
-}
-
-/* ============================================
-   BUTTONS & INTERACTIVE - INSTANT FEEDBACK
+   BUTTONS - INSTANT FEEDBACK
    ============================================ */
 button:active,
 a:active,
-.btn:active,
 [role="button"]:active {
   transform: scale(0.97) !important;
-  transition: none !important;
 }
 
 /* ============================================
-   CARDS & HOVER - NO ANIMATION
+   TAILWIND ANIMATIONS - DISABLED
    ============================================ */
-.card,
-.card-interactive,
-[class*="card"] {
-  transition: none !important;
-}
-
-.card:hover,
-.card-interactive:hover {
-  transform: none !important;
-}
-
-/* ============================================
-   FORM ELEMENTS - INSTANT
-   ============================================ */
-input,
-select,
-textarea,
-.input-field {
-  transition: none !important;
-}
-
-input:focus,
-select:focus,
-textarea:focus,
-.input-field:focus {
-  transition: none !important;
-}
-
-/* ============================================
-   TAILWIND ANIMATION CLASSES - DISABLED
-   ============================================ */
-.animate-none { animation: none !important; }
-.animate-spin { animation: spin 0.8s linear infinite !important; }
-.animate-ping { animation: none !important; }
-.animate-pulse { animation: none !important; }
-.animate-bounce { animation: none !important; }
-
-/* ============================================
-   CUSTOM ANIMATION CLASSES - DISABLED
-   ============================================ */
-.animate-fadeIn,
-.animate-fadeInUp,
-.animate-slideUp,
-.animate-scaleIn,
-.animate-in,
-.animate-step,
-.animate-step-back,
-[class*="animate-"] {
+.animate-pulse,
+.animate-ping,
+.animate-bounce {
   animation: none !important;
-  opacity: 1 !important;
-  transform: none !important;
 }
 
-/* ============================================
-   KEYFRAMES - ONLY KEEP SPINNER
-   ============================================ */
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.animate-spin {
+  animation: spin 0.8s linear infinite !important;
 }

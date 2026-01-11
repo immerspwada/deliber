@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/*.{test,spec}.ts"
+inclusion: always
 ---
 
 # Testing Standards

@@ -1,9 +1,8 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/*.{ts,vue}"
+inclusion: always
 ---
 
-# Error Handling Standards
+# 🚨 Error Handling Standards (Production-Ready)
 
 ## Error Types
 
@@ -159,4 +158,98 @@ export function useFormValidation<T extends Record<string, unknown>>() {
 
   return { errors, validate, getError };
 }
+```
+
+## Production Error Reporting
+
+```typescript
+// ✅ ส่ง errors ไป Sentry ใน Production
+import * as Sentry from "@sentry/vue";
+
+export function reportError(
+  error: Error,
+  context?: Record<string, unknown>
+): void {
+  // Log locally
+  console.error("[Error]", error.message, context);
+
+  // Send to Sentry in production
+  if (import.meta.env.PROD) {
+    Sentry.captureException(error, {
+      extra: context,
+      tags: {
+        component: context?.component as string,
+        action: context?.action as string,
+      },
+    });
+  }
+}
+
+// Usage
+try {
+  await processPayment(orderId);
+} catch (error) {
+  reportError(error as Error, {
+    component: "PaymentForm",
+    action: "processPayment",
+    orderId,
+  });
+  throw error;
+}
+```
+
+## Circuit Breaker Pattern
+
+```typescript
+// utils/circuitBreaker.ts
+interface CircuitBreakerConfig {
+  failureThreshold: number;
+  resetTimeout: number;
+}
+
+class CircuitBreaker {
+  private failures = 0;
+  private lastFailure: number | null = null;
+  private state: "closed" | "open" | "half-open" = "closed";
+
+  constructor(private config: CircuitBreakerConfig) {}
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.state === "open") {
+      if (Date.now() - (this.lastFailure || 0) > this.config.resetTimeout) {
+        this.state = "half-open";
+      } else {
+        throw new Error("Circuit breaker is open");
+      }
+    }
+
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private onSuccess(): void {
+    this.failures = 0;
+    this.state = "closed";
+  }
+
+  private onFailure(): void {
+    this.failures++;
+    this.lastFailure = Date.now();
+    if (this.failures >= this.config.failureThreshold) {
+      this.state = "open";
+    }
+  }
+}
+
+// Usage for external services
+const paymentCircuitBreaker = new CircuitBreaker({
+  failureThreshold: 5,
+  resetTimeout: 60000, // 1 minute
+});
 ```

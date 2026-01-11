@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/*.vue"
+inclusion: always
 ---
 
 # Vue Component Standards

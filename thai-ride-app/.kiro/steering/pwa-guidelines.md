@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/sw*.{js,ts},**/manifest.json,**/vite.config*.ts"
+inclusion: always
 ---
 
 # PWA Guidelines

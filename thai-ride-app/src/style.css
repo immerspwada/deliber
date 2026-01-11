@@ -434,6 +434,30 @@ button, a, input, select, textarea {
   border: none !important;
 }
 
+/* ===== LEAFLET TILES FIX ===== */
+/* Override Tailwind preflight that breaks Leaflet tiles */
+.leaflet-container img.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+  width: 256px !important;
+  height: 256px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.leaflet-tile-pane,
+.leaflet-tile,
+.leaflet-tile-loaded,
+.leaflet-tile-container,
+.leaflet-layer {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.leaflet-container {
+  background: #e8e8e8 !important;
+}
+
 /* Pickup marker pulse */
 .pickup-marker .pulse-ring-1 {
   animation: marker-pulse-outer 2s ease-out infinite;

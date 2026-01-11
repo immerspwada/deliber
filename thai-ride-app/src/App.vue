@@ -8,12 +8,16 @@ import ErrorBoundary from "./components/ErrorBoundary.vue";
 import OfflineIndicator from "./components/OfflineIndicator.vue";
 import CelebrationOverlay from "./components/customer/CelebrationOverlay.vue";
 import { usePageTransitions } from "./composables/usePageTransitions";
+import { useMapPreloader } from "./composables/useMapPreloader";
 
 const route = useRoute();
 
 // Setup page transitions
 const { transitionName, setupTransitions } = usePageTransitions();
 setupTransitions();
+
+// Initialize map tile preloader (background, non-blocking)
+const { init: initMapPreloader } = useMapPreloader({ autoInit: false });
 
 const hideNavigation = computed(() => route.meta?.hideNavigation === true);
 const isAdminRoute = computed(() => route.path.startsWith("/admin"));
@@ -78,6 +82,14 @@ onMounted(async () => {
   // ========================================
   await initializeCustomerAuth();
   isReady.value = true;
+  
+  // Initialize map tile preloader in background (non-blocking)
+  // This preloads tiles for popular areas and user's location
+  setTimeout(() => {
+    initMapPreloader().catch(() => {
+      // Silently ignore preloader errors
+    });
+  }, 3000);
 });
 
 // Watch for route changes between admin and customer
@@ -96,7 +108,7 @@ watch(isAdminRoute, async (newIsAdmin, oldIsAdmin) => {
 </script>
 
 <template>
-  <div id="app" class="min-h-screen bg-gray-50">
+  <div class="app-root min-h-screen bg-gray-50">
     <!-- Error Display -->
     <div v-if="appError" class="error-banner">
       <p>เกิดข้อผิดพลาด: {{ appError }}</p>
@@ -114,7 +126,7 @@ watch(isAdminRoute, async (newIsAdmin, oldIsAdmin) => {
     <!-- Main App with Error Boundary -->
     <ErrorBoundary
       v-if="isReady"
-      :show-details="true"
+      fallback-message="เกิดข้อผิดพลาดในแอป กรุณาลองใหม่อีกครั้ง"
       @error="(err) => console.error('[ErrorBoundary]', err)"
     >
       <!-- Admin routes - NO AppShell wrapper (AdminShell is in admin routes) -->
@@ -165,7 +177,7 @@ watch(isAdminRoute, async (newIsAdmin, oldIsAdmin) => {
 </template>
 
 <style>
-#app {
+.app-root {
   font-family: "Sarabun", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
