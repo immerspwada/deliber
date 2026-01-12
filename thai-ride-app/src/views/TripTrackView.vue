@@ -37,7 +37,7 @@ const fetchTripShare = async () => {
 
     tripData.value = share;
 
-    // Get ride data with proper relationship hint
+    // Get ride data - updated for providers_v2 schema
     const { data: ride, error: rideError } = await supabase
       .from("ride_requests")
       .select(
@@ -46,17 +46,10 @@ const fetchTripShare = async () => {
         provider:provider_id (
           id,
           user_id,
-          vehicle_type,
-          vehicle_plate,
-          vehicle_color,
-          rating,
-          current_lat,
-          current_lng,
-          users:user_id (
-            name,
-            phone,
-            avatar_url
-          )
+          first_name,
+          last_name,
+          phone_number,
+          rating
         )
       `
       )

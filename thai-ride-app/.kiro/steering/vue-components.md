@@ -1,5 +1,6 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: "**/*.vue"
 ---
 
 # Vue Component Standards
@@ -8,10 +9,11 @@ inclusion: always
 
 ```vue
 <script setup lang="ts">
+// 1. Imports
 import { ref, computed, onMounted } from "vue";
-import type { PropType } from "vue";
+import type { ComponentProps } from "@/types";
 
-// Props with TypeScript
+// 2. Props & Emits
 interface Props {
   title: string;
   items?: string[];
@@ -23,29 +25,35 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
 });
 
-// Emits with TypeScript
 const emit = defineEmits<{
   submit: [data: FormData];
   cancel: [];
 }>();
 
-// Reactive state
+// 3. Composables
+const { isOnline } = useOfflineStatus();
+
+// 4. Reactive State
 const isOpen = ref(false);
 
-// Computed
+// 5. Computed
 const hasItems = computed(() => props.items.length > 0);
 
-// Methods
+// 6. Methods
 function handleSubmit(): void {
   emit("submit", new FormData());
 }
+
+// 7. Lifecycle
+onMounted(() => {
+  // initialization
+});
 </script>
 
 <template>
   <div class="component-wrapper">
-    <h2>{{ title }}</h2>
     <slot name="header" />
-    <div v-if="loading" class="loading">Loading...</div>
+    <div v-if="loading" class="animate-pulse">Loading...</div>
     <ul v-else-if="hasItems">
       <li v-for="item in items" :key="item">{{ item }}</li>
     </ul>
@@ -54,34 +62,91 @@ function handleSubmit(): void {
 </template>
 ```
 
-## Accessibility Requirements
+## Accessibility (A11y) - REQUIRED
 
-- ทุก `<img>` ต้องมี `alt`
-- ทุก `<button>` ต้องมี accessible label
-- ใช้ semantic HTML (`<nav>`, `<main>`, `<article>`)
-- Focus management สำหรับ modals/dialogs
-- Color contrast ratio ≥ 4.5:1
+```vue
+<template>
+  <!-- ✅ Images: ต้องมี alt -->
+  <img :src="url" :alt="description" />
 
-## Performance Guidelines
+  <!-- ✅ Buttons: ต้องมี accessible label -->
+  <button type="button" aria-label="ปิด">
+    <XIcon class="w-5 h-5" />
+  </button>
 
-- ใช้ `v-once` สำหรับ static content
-- ใช้ `v-memo` สำหรับ expensive renders
-- Lazy load components: `defineAsyncComponent()`
-- ใช้ `shallowRef` เมื่อไม่ต้องการ deep reactivity
+  <!-- ✅ Forms: ต้องมี label -->
+  <label for="email">อีเมล</label>
+  <input id="email" type="email" autocomplete="email" />
+
+  <!-- ✅ Semantic HTML -->
+  <nav aria-label="Main navigation">...</nav>
+  <main>...</main>
+  <article>...</article>
+
+  <!-- ✅ Focus management for modals -->
+  <dialog ref="dialogRef" @keydown.esc="close">
+    <div role="document">...</div>
+  </dialog>
+</template>
+```
+
+## Performance Patterns
+
+```vue
+<script setup lang="ts">
+// ✅ Lazy load heavy components
+const MapView = defineAsyncComponent(() => import("@/components/MapView.vue"));
+
+// ✅ Use shallowRef for large objects
+const largeData = shallowRef<BigObject | null>(null);
+
+// ✅ Debounce expensive operations
+const debouncedSearch = useDebounceFn(search, 300);
+</script>
+
+<template>
+  <!-- ✅ v-once for static content -->
+  <header v-once>{{ appName }}</header>
+
+  <!-- ✅ v-memo for expensive renders -->
+  <div v-memo="[item.id, item.status]">
+    <ExpensiveComponent :item="item" />
+  </div>
+
+  <!-- ✅ Lazy load images -->
+  <img :src="url" loading="lazy" decoding="async" />
+</template>
+```
 
 ## Tailwind CSS Patterns
 
 ```vue
 <template>
-  <!-- ใช้ utility classes -->
+  <!-- ✅ Button with states -->
   <button
-    class="px-4 py-2 bg-blue-600 text-white rounded-lg 
-           hover:bg-blue-700 focus:ring-2 focus:ring-blue-500
+    type="button"
+    class="px-4 py-2 bg-primary-600 text-white rounded-xl
+           hover:bg-primary-700 active:scale-95
+           focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed
-           transition-colors duration-200"
+           transition-all duration-200"
     :disabled="loading"
   >
     {{ loading ? "กำลังโหลด..." : "ยืนยัน" }}
   </button>
+
+  <!-- ✅ Touch-friendly (min 44px) -->
+  <button class="min-h-[44px] min-w-[44px] p-3">
+    <Icon />
+  </button>
 </template>
 ```
+
+## Component Checklist
+
+- [ ] TypeScript props with defaults
+- [ ] Emits properly typed
+- [ ] Accessible (a11y compliant)
+- [ ] Touch targets ≥ 44px
+- [ ] Loading/Error states handled
+- [ ] Mobile-first responsive

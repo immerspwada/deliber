@@ -77,6 +77,7 @@ const menuSections = computed(() => [
     items: [
       { path: '/admin/customers', label: 'ลูกค้า', icon: 'customer' },
       { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car', badgeKey: 'pendingProviders' },
+      { path: '/admin/documents', label: 'เอกสาร', icon: 'audit' },
       { path: '/admin/verification-queue', label: 'คิวตรวจสอบ', icon: 'users' }
     ]
   },

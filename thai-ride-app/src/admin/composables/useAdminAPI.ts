@@ -148,31 +148,29 @@ export function useAdminAPI() {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      // Query directly from service_providers table with user join
-      // Note: Using actual columns from schema (no is_online, total_rides, total_earnings)
+      // Query directly from providers_v2 table
       let query = supabase
-        .from('service_providers')
+        .from('providers_v2')
         .select(`
           id,
           user_id,
           provider_uid,
           provider_type,
           status,
+          is_online,
           is_available,
           is_verified,
           rating,
           total_trips,
+          total_earnings,
           vehicle_type,
           vehicle_plate,
+          first_name,
+          last_name,
+          phone_number,
+          email,
           created_at,
-          approved_at,
-          users!service_providers_user_id_fkey (
-            id,
-            email,
-            first_name,
-            last_name,
-            phone_number
-          )
+          approved_at
         `, { count: 'exact' })
 
       // Apply status filter
@@ -206,31 +204,28 @@ export function useAdminAPI() {
 
       const total = count || 0
 
-      // Map to Provider type - using actual schema columns
-      const providers: Provider[] = (data || []).map((p: any) => {
-        const user = p.users || {}
-        return {
-          id: p.id,
-          user_id: p.user_id,
-          provider_uid: p.provider_uid,
-          provider_type: p.provider_type,
-          status: p.status,
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
-          phone_number: user.phone_number || '',
-          email: user.email || '',
-          avatar_url: null,
-          vehicle_type: p.vehicle_type,
-          vehicle_plate: p.vehicle_plate,
-          is_online: p.is_available || false, // is_available is the actual column
-          is_verified: p.is_verified || false,
-          rating: p.rating || 0,
-          total_trips: p.total_trips || 0, // total_trips is the actual column
-          total_earnings: 0, // Not stored in service_providers table
-          created_at: p.created_at,
-          approved_at: p.approved_at
-        }
-      })
+      // Map to Provider type - using providers_v2 columns
+      const providers: Provider[] = (data || []).map((p: any) => ({
+        id: p.id,
+        user_id: p.user_id,
+        provider_uid: p.provider_uid,
+        provider_type: p.provider_type,
+        status: p.status,
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
+        phone_number: p.phone_number || '',
+        email: p.email || '',
+        avatar_url: null,
+        vehicle_type: p.vehicle_type,
+        vehicle_plate: p.vehicle_plate,
+        is_online: p.is_online || false,
+        is_verified: p.is_verified || false,
+        rating: p.rating || 0,
+        total_trips: p.total_trips || 0,
+        total_earnings: p.total_earnings || 0,
+        created_at: p.created_at,
+        approved_at: p.approved_at
+      }))
 
       return {
         data: providers,
@@ -264,7 +259,7 @@ export function useAdminAPI() {
       }
 
       const { error: updateError } = await supabase
-        .from('service_providers')
+        .from('providers_v2')
         .update(updateData)
         .eq('id', providerId)
 
@@ -280,9 +275,9 @@ export function useAdminAPI() {
     console.log('[Admin API] getVerificationQueue called')
     
     try {
-      // Query directly from service_providers table with pending status
+      // Query directly from providers_v2 table with pending status
       const { data, error: queryError } = await supabase
-        .from('service_providers')
+        .from('providers_v2')
         .select(`
           id,
           user_id,
@@ -290,14 +285,11 @@ export function useAdminAPI() {
           provider_type,
           status,
           is_verified,
-          created_at,
-          users!service_providers_user_id_fkey (
-            id,
-            email,
-            first_name,
-            last_name,
-            phone_number
-          )
+          first_name,
+          last_name,
+          phone_number,
+          email,
+          created_at
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
@@ -310,22 +302,19 @@ export function useAdminAPI() {
 
       if (queryError) throw queryError
 
-      return (data || []).map((p: any) => {
-        const user = p.users || {}
-        return {
-          id: p.id,
-          user_id: p.user_id,
-          provider_uid: p.provider_uid,
-          provider_type: p.provider_type,
-          status: p.status,
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
-          phone_number: user.phone_number || '',
-          email: user.email || '',
-          is_verified: p.is_verified || false,
-          created_at: p.created_at
-        }
-      }) as Provider[]
+      return (data || []).map((p: any) => ({
+        id: p.id,
+        user_id: p.user_id,
+        provider_uid: p.provider_uid,
+        provider_type: p.provider_type,
+        status: p.status,
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
+        phone_number: p.phone_number || '',
+        email: p.email || '',
+        is_verified: p.is_verified || false,
+        created_at: p.created_at
+      })) as Provider[]
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch verification queue'
       console.error('getVerificationQueue error:', e)

@@ -17,6 +17,7 @@ const emit = defineEmits<{
   (e: 'routeCalculated', data: { distance: number; duration: number }): void
   (e: 'locationDetected', data: { lat: number; lng: number }): void
   (e: 'markerDragged', data: { type: 'pickup' | 'destination'; lat: number; lng: number }): void
+  (e: 'mapClick', data: { lat: number; lng: number }): void
 }>()
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -55,7 +56,7 @@ const triggerBounceAnimation = (marker: L.Marker) => {
   }
 }
 
-// Get current GPS location
+// Get current GPS location with reduced timeout (non-blocking)
 const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -74,9 +75,9 @@ const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
         reject(error)
       },
       {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
+        enableHighAccuracy: false, // Faster, less accurate (good enough for initial load)
+        timeout: 3000, // Reduced from 10s to 3s
+        maximumAge: 120000 // Accept cached position up to 2 minutes old
       }
     )
   })
@@ -234,9 +235,15 @@ onMounted(async () => {
   }
 
   // Initialize map immediately with default/pickup location
-  initMap(mapContainer.value, {
+  const map = initMap(mapContainer.value, {
     center,
     zoom: defaultZoom
+  })
+
+  // Add click event listener for tap-to-select
+  map.on('click', (e: L.LeafletMouseEvent) => {
+    triggerHapticFeedback()
+    emit('mapClick', { lat: e.latlng.lat, lng: e.latlng.lng })
   })
 
   // Always update markers if pickup or destination is provided

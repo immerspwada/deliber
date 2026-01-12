@@ -1,12 +1,10 @@
 ---
-inclusion: always
+inclusion: manual
 ---
 
-# 📊 Production Monitoring & Observability
+# 📊 Production Monitoring
 
-## Logging Standards
-
-### Structured Logging Format
+## Structured Logging
 
 ```typescript
 // utils/logger.ts
@@ -14,13 +12,13 @@ interface LogEntry {
   level: "debug" | "info" | "warn" | "error";
   message: string;
   timestamp: string;
+  service: string;
   requestId?: string;
   userId?: string;
-  service: string;
   metadata?: Record<string, unknown>;
 }
 
-class ProductionLogger {
+class Logger {
   private service: string;
 
   constructor(service: string) {
@@ -30,25 +28,22 @@ class ProductionLogger {
   private log(
     level: LogEntry["level"],
     message: string,
-    metadata?: Record<string, unknown>
+    meta?: Record<string, unknown>
   ): void {
     const entry: LogEntry = {
       level,
       message,
       timestamp: new Date().toISOString(),
       service: this.service,
-      requestId: getCurrentRequestId(),
-      userId: getCurrentUserId(),
-      metadata: this.sanitize(metadata),
+      metadata: this.sanitize(meta),
     };
 
-    // Production: ส่งไป logging service
     if (import.meta.env.PROD) {
-      this.sendToLoggingService(entry);
+      // Send to logging service
+      sendToLoggingService(entry);
+    } else {
+      console[level](JSON.stringify(entry));
     }
-
-    // Development: console output
-    console[level](JSON.stringify(entry));
   }
 
   private sanitize(
@@ -56,41 +51,28 @@ class ProductionLogger {
   ): Record<string, unknown> | undefined {
     if (!data) return undefined;
 
-    const sensitiveKeys = [
-      "password",
-      "token",
-      "secret",
-      "key",
-      "phone",
-      "email",
-      "id_card",
-    ];
-    const sanitized = { ...data };
+    const sensitive = ["password", "token", "phone", "email", "id_card"];
+    const result = { ...data };
 
-    for (const key of Object.keys(sanitized)) {
-      if (sensitiveKeys.some((sk) => key.toLowerCase().includes(sk))) {
-        sanitized[key] = "[REDACTED]";
+    for (const key of Object.keys(result)) {
+      if (sensitive.some((s) => key.toLowerCase().includes(s))) {
+        result[key] = "[REDACTED]";
       }
     }
-
-    return sanitized;
+    return result;
   }
 
-  info(message: string, metadata?: Record<string, unknown>): void {
-    this.log("info", message, metadata);
+  info(message: string, meta?: Record<string, unknown>): void {
+    this.log("info", message, meta);
   }
 
-  warn(message: string, metadata?: Record<string, unknown>): void {
-    this.log("warn", message, metadata);
+  warn(message: string, meta?: Record<string, unknown>): void {
+    this.log("warn", message, meta);
   }
 
-  error(
-    message: string,
-    error?: Error,
-    metadata?: Record<string, unknown>
-  ): void {
+  error(message: string, error?: Error, meta?: Record<string, unknown>): void {
     this.log("error", message, {
-      ...metadata,
+      ...meta,
       errorName: error?.name,
       errorMessage: error?.message,
       stack: error?.stack,
@@ -98,26 +80,10 @@ class ProductionLogger {
   }
 }
 
-export const logger = new ProductionLogger("thai-ride-app");
-```
-
-### Log Levels Usage
-
-```typescript
-// ✅ ใช้ log level ที่เหมาะสม
-logger.debug("Cache hit", { key: "user:123" }); // Development only
-logger.info("User logged in", { userId: "xxx" }); // Normal operations
-logger.warn("Rate limit approaching", { remaining: 5 }); // Potential issues
-logger.error("Payment failed", error, { orderId: "xxx" }); // Errors
-
-// ❌ ห้ามทำใน Production
-console.log("Debug:", data);
-console.error("Error:", error);
+export const logger = new Logger("thai-ride-app");
 ```
 
 ## Error Tracking (Sentry)
-
-### Sentry Configuration
 
 ```typescript
 // utils/sentry.ts
@@ -130,16 +96,8 @@ export function initSentry(app: App): void {
     app,
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.VITE_APP_ENV,
-    release: import.meta.env.VITE_APP_VERSION,
+    tracesSampleRate: 0.1,
 
-    // Performance monitoring
-    tracesSampleRate: 0.1, // 10% of transactions
-
-    // Session replay (optional)
-    replaysSessionSampleRate: 0.01,
-    replaysOnErrorSampleRate: 0.1,
-
-    // Filter sensitive data
     beforeSend(event) {
       // Remove PII
       if (event.user) {
@@ -149,294 +107,66 @@ export function initSentry(app: App): void {
       return event;
     },
 
-    // Ignore specific errors
     ignoreErrors: [
       "ResizeObserver loop limit exceeded",
-      "Network request failed",
       /Loading chunk \d+ failed/,
     ],
   });
 }
-
-// Usage
-export function captureError(
-  error: Error,
-  context?: Record<string, unknown>
-): void {
-  Sentry.captureException(error, {
-    extra: context,
-    tags: {
-      component: context?.component as string,
-    },
-  });
-}
 ```
 
-### Error Boundaries
-
-```typescript
-// composables/useErrorBoundary.ts
-export function useErrorBoundary(componentName: string) {
-  const error = ref<Error | null>(null);
-
-  onErrorCaptured((err, instance, info) => {
-    error.value = err;
-
-    captureError(err, {
-      component: componentName,
-      info,
-      props: instance?.$props,
-    });
-
-    return false; // Prevent propagation
-  });
-
-  function reset(): void {
-    error.value = null;
-  }
-
-  return { error, reset };
-}
-```
-
-## Performance Monitoring
-
-### Core Web Vitals
+## Web Vitals
 
 ```typescript
 // utils/webVitals.ts
-import { onCLS, onFID, onLCP, onFCP, onTTFB } from "web-vitals";
-
-interface VitalMetric {
-  name: string;
-  value: number;
-  rating: "good" | "needs-improvement" | "poor";
-}
-
-function sendToAnalytics(metric: VitalMetric): void {
-  // ส่งไป analytics service
-  fetch("/api/analytics/vitals", {
-    method: "POST",
-    body: JSON.stringify(metric),
-    keepalive: true,
-  });
-}
+import { onCLS, onINP, onLCP, onFCP, onTTFB } from "web-vitals";
 
 export function initWebVitals(): void {
-  onCLS(sendToAnalytics);
-  onFID(sendToAnalytics);
-  onLCP(sendToAnalytics);
-  onFCP(sendToAnalytics);
-  onTTFB(sendToAnalytics);
-}
+  const sendMetric = (metric: { name: string; value: number }) => {
+    if (import.meta.env.PROD) {
+      fetch("/api/analytics/vitals", {
+        method: "POST",
+        body: JSON.stringify(metric),
+        keepalive: true,
+      });
+    }
+  };
 
-// Targets
-const VITAL_THRESHOLDS = {
-  LCP: { good: 2500, poor: 4000 }, // Largest Contentful Paint
-  FID: { good: 100, poor: 300 }, // First Input Delay
-  CLS: { good: 0.1, poor: 0.25 }, // Cumulative Layout Shift
-  FCP: { good: 1800, poor: 3000 }, // First Contentful Paint
-  TTFB: { good: 800, poor: 1800 }, // Time to First Byte
-};
+  onCLS(sendMetric);
+  onINP(sendMetric);
+  onLCP(sendMetric);
+  onFCP(sendMetric);
+  onTTFB(sendMetric);
+}
 ```
 
-### API Performance Tracking
-
-```typescript
-// utils/apiMetrics.ts
-interface ApiMetric {
-  endpoint: string;
-  method: string;
-  duration: number;
-  status: number;
-  timestamp: string;
-}
-
-const apiMetrics: ApiMetric[] = [];
-
-export function trackApiCall(metric: ApiMetric): void {
-  apiMetrics.push(metric);
-
-  // Alert if slow
-  if (metric.duration > 1000) {
-    logger.warn("Slow API call", {
-      endpoint: metric.endpoint,
-      duration: metric.duration,
-    });
-  }
-
-  // Alert if error
-  if (metric.status >= 500) {
-    logger.error("API error", undefined, {
-      endpoint: metric.endpoint,
-      status: metric.status,
-    });
-  }
-}
-
-// Axios interceptor
-api.interceptors.response.use(
-  (response) => {
-    trackApiCall({
-      endpoint: response.config.url!,
-      method: response.config.method!.toUpperCase(),
-      duration: Date.now() - (response.config as any).startTime,
-      status: response.status,
-      timestamp: new Date().toISOString(),
-    });
-    return response;
-  },
-  (error) => {
-    trackApiCall({
-      endpoint: error.config?.url,
-      method: error.config?.method?.toUpperCase(),
-      duration: Date.now() - (error.config as any)?.startTime,
-      status: error.response?.status || 0,
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-);
-```
-
-## Health Checks
-
-### Application Health Endpoint
+## Health Check Endpoint
 
 ```typescript
 // Edge Function: health-check
 export default async function handler(req: Request): Promise<Response> {
-  const checks = await Promise.allSettled([
-    checkDatabase(),
-    checkSupabaseAuth(),
-    checkExternalServices(),
-  ]);
+  const checks = await Promise.allSettled([checkDatabase(), checkAuth()]);
 
-  const results = {
-    status: checks.every((c) => c.status === "fulfilled")
-      ? "healthy"
-      : "degraded",
-    timestamp: new Date().toISOString(),
-    version: process.env.APP_VERSION,
-    checks: {
-      database: checks[0].status === "fulfilled" ? "ok" : "error",
-      auth: checks[1].status === "fulfilled" ? "ok" : "error",
-      external: checks[2].status === "fulfilled" ? "ok" : "error",
+  const status = checks.every((c) => c.status === "fulfilled")
+    ? "healthy"
+    : "degraded";
+
+  return Response.json(
+    {
+      status,
+      timestamp: new Date().toISOString(),
+      version: process.env.APP_VERSION,
     },
-  };
-
-  return new Response(JSON.stringify(results), {
-    status: results.status === "healthy" ? 200 : 503,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-async function checkDatabase(): Promise<void> {
-  const { error } = await supabase.from("health_check").select("id").limit(1);
-  if (error) throw error;
+    { status: status === "healthy" ? 200 : 503 }
+  );
 }
 ```
 
-### Uptime Monitoring
+## Alert Thresholds
 
-```typescript
-// External monitoring endpoints
-const MONITORING_ENDPOINTS = [
-  { name: "Main App", url: "https://app.thairide.com/health" },
-  { name: "API", url: "https://api.thairide.com/health" },
-  { name: "Supabase", url: "https://xxx.supabase.co/rest/v1/" },
-];
-
-// Alert channels
-const ALERT_CHANNELS = {
-  slack: "https://hooks.slack.com/services/xxx",
-  line: "https://notify-api.line.me/api/notify",
-  email: ["admin@thairide.com", "oncall@thairide.com"],
-};
-```
-
-## Dashboard Metrics
-
-### Key Metrics to Track
-
-```typescript
-interface DashboardMetrics {
-  // Business Metrics
-  activeUsers: number;
-  ridesCompleted: number;
-  revenue: number;
-
-  // Technical Metrics
-  errorRate: number;
-  avgResponseTime: number;
-  p95ResponseTime: number;
-
-  // Infrastructure
-  cpuUsage: number;
-  memoryUsage: number;
-  dbConnections: number;
-}
-
-// Supabase query for metrics
-const metricsQuery = `
-  SELECT 
-    COUNT(DISTINCT user_id) as active_users,
-    COUNT(*) FILTER (WHERE status = 'completed') as rides_completed,
-    SUM(fare) FILTER (WHERE status = 'completed') as revenue,
-    AVG(EXTRACT(EPOCH FROM (completed_at - created_at))) as avg_duration
-  FROM rides
-  WHERE created_at > NOW() - INTERVAL '24 hours'
-`;
-```
-
-## Alerting Rules
-
-### Alert Configuration
-
-```yaml
-# alerting-rules.yaml
-alerts:
-  - name: high_error_rate
-    condition: error_rate > 5%
-    duration: 5m
-    severity: critical
-    channels: [slack, line, email]
-
-  - name: slow_response
-    condition: p95_response_time > 3000ms
-    duration: 10m
-    severity: warning
-    channels: [slack]
-
-  - name: database_connections_high
-    condition: db_connections > 90%
-    duration: 5m
-    severity: critical
-    channels: [slack, line]
-
-  - name: payment_failures
-    condition: payment_failure_rate > 1%
-    duration: 5m
-    severity: critical
-    channels: [slack, line, email]
-```
-
-### On-Call Rotation
-
-```typescript
-// On-call schedule
-const ON_CALL_SCHEDULE = {
-  primary: {
-    weekday: ["dev1@thairide.com", "dev2@thairide.com"],
-    weekend: ["dev3@thairide.com"],
-  },
-  escalation: {
-    level1: "tech-lead@thairide.com",
-    level2: "cto@thairide.com",
-  },
-  escalationTime: {
-    level1: 15, // minutes
-    level2: 30,
-  },
-};
-```
+| Metric         | Warning | Critical | Action       |
+| -------------- | ------- | -------- | ------------ |
+| Error Rate     | > 1%    | > 5%     | Page on-call |
+| P95 Latency    | > 1s    | > 3s     | Investigate  |
+| DB Connections | > 80%   | > 95%    | Scale up     |
+| Memory         | > 70%   | > 90%    | Restart pods |

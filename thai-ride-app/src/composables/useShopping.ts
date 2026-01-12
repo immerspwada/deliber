@@ -164,10 +164,10 @@ export function useShopping() {
           *,
           provider:provider_id (
             id,
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            user:user_id (name, phone)
+            first_name,
+            last_name,
+            phone_number,
+            rating
           )
         `)
         .eq('user_id', authStore.user.id)
@@ -200,10 +200,10 @@ export function useShopping() {
           *,
           provider:provider_id (
             id,
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            user:user_id (name, phone)
+            first_name,
+            last_name,
+            phone_number,
+            rating
           )
         `)
         .eq('user_id', authStore.user.id)
@@ -231,12 +231,10 @@ export function useShopping() {
           *,
           provider:provider_id (
             id,
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            current_lat,
-            current_lng,
-            user:user_id (name, phone)
+            first_name,
+            last_name,
+            phone_number,
+            rating
           ),
           user:user_id (name, phone)
         `)

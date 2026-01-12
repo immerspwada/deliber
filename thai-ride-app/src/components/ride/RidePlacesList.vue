@@ -207,14 +207,16 @@ function getIconPath(icon: string): string {
 
 <style scoped>
 .places-container {
-  padding: 16px;
+  padding: 12px 16px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .places-section {
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 
 .section-header {

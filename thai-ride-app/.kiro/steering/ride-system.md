@@ -1,84 +1,102 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: "**/*{ride,Ride}*.{ts,vue}"
 ---
 
 # Ride System Architecture
 
-## Core Entities
-
-### Ride States
+## Ride State Machine
 
 ```
-PENDING → ACCEPTED → DRIVER_ARRIVED → IN_PROGRESS → COMPLETED
-                  ↘ CANCELLED
+PENDING → ACCEPTED → ARRIVED → IN_PROGRESS → COMPLETED
+    ↓         ↓         ↓           ↓
+CANCELLED CANCELLED CANCELLED   CANCELLED
 ```
 
-### Database Schema Reference
+## Database Schema
 
 ```sql
--- rides table
-CREATE TABLE rides (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  passenger_id UUID REFERENCES auth.users(id),
-  driver_id UUID REFERENCES auth.users(id),
-  status ride_status NOT NULL DEFAULT 'pending',
-  pickup_location GEOGRAPHY(POINT),
-  dropoff_location GEOGRAPHY(POINT),
-  pickup_address TEXT NOT NULL,
-  dropoff_address TEXT NOT NULL,
-  estimated_fare DECIMAL(10,2),
-  final_fare DECIMAL(10,2),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TYPE ride_status AS ENUM (
+  'pending', 'accepted', 'arrived',
+  'in_progress', 'completed', 'cancelled'
 );
 
--- Enable RLS
-ALTER TABLE rides ENABLE ROW LEVEL SECURITY;
+CREATE TABLE rides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL REFERENCES auth.users(id),
+  provider_id UUID REFERENCES providers(id),
+  status ride_status NOT NULL DEFAULT 'pending',
+
+  -- Locations
+  pickup_location GEOGRAPHY(POINT) NOT NULL,
+  dropoff_location GEOGRAPHY(POINT) NOT NULL,
+  pickup_address TEXT NOT NULL,
+  dropoff_address TEXT NOT NULL,
+
+  -- Pricing
+  estimated_fare DECIMAL(10,2) NOT NULL,
+  final_fare DECIMAL(10,2),
+
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at TIMESTAMPTZ,
+  arrived_at TIMESTAMPTZ,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+
+  CONSTRAINT valid_fare CHECK (estimated_fare > 0)
+);
+
+-- Indexes
+CREATE INDEX idx_rides_status ON rides(status);
+CREATE INDEX idx_rides_customer ON rides(customer_id, created_at DESC);
+CREATE INDEX idx_rides_provider ON rides(provider_id, status);
+CREATE INDEX idx_rides_pickup ON rides USING GIST(pickup_location);
 ```
 
-## Service Layer Pattern
+## Service Layer
 
 ```typescript
 // services/rideService.ts
 export const rideService = {
-  async createRide(request: CreateRideRequest): Promise<Ride> {
+  async create(input: CreateRideInput): Promise<Ride> {
     const { data, error } = await supabase
       .from("rides")
       .insert({
-        passenger_id: request.passengerId,
-        pickup_address: request.pickup,
-        dropoff_address: request.dropoff,
-        pickup_location: `POINT(${request.pickupLng} ${request.pickupLat})`,
-        dropoff_location: `POINT(${request.dropoffLng} ${request.dropoffLat})`,
-        estimated_fare: request.estimatedFare,
+        customer_id: input.customerId,
+        pickup_location: `POINT(${input.pickup.lng} ${input.pickup.lat})`,
+        dropoff_location: `POINT(${input.dropoff.lng} ${input.dropoff.lat})`,
+        pickup_address: input.pickup.address,
+        dropoff_address: input.dropoff.address,
+        estimated_fare: input.estimatedFare,
       })
       .select()
       .single();
 
-    if (error) throw new RideServiceError(error.message);
+    if (error) throw new AppError(error.message, ErrorCode.VALIDATION);
     return data;
   },
 
-  async acceptRide(rideId: string, driverId: string): Promise<Ride> {
+  async accept(rideId: string, providerId: string): Promise<Ride> {
     const { data, error } = await supabase
       .from("rides")
       .update({
-        driver_id: driverId,
+        provider_id: providerId,
         status: "accepted",
-        updated_at: new Date().toISOString(),
+        accepted_at: new Date().toISOString(),
       })
       .eq("id", rideId)
       .eq("status", "pending") // Prevent race condition
       .select()
       .single();
 
-    if (error) throw new RideServiceError(error.message);
+    if (error) throw new AppError("Ride already taken", ErrorCode.BUSINESS);
     return data;
   },
 };
 ```
 
-## Realtime Updates
+## Realtime Tracking
 
 ```typescript
 // composables/useRideTracking.ts
@@ -86,26 +104,28 @@ export function useRideTracking(rideId: Ref<string>) {
   const ride = ref<Ride | null>(null);
   const driverLocation = ref<LatLng | null>(null);
 
-  const channel = supabase
-    .channel(`ride-tracking:${rideId.value}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "rides",
-        filter: `id=eq.${rideId.value}`,
-      },
-      (payload) => {
-        ride.value = payload.new as Ride;
-      }
-    )
-    .on("broadcast", { event: "driver_location" }, (payload) => {
-      driverLocation.value = payload.payload as LatLng;
-    })
-    .subscribe();
+  const channel = computed(() =>
+    supabase
+      .channel(`ride:${rideId.value}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: `id=eq.${rideId.value}`,
+        },
+        (payload) => {
+          ride.value = payload.new as Ride;
+        }
+      )
+      .on("broadcast", { event: "location" }, (payload) => {
+        driverLocation.value = payload.payload as LatLng;
+      })
+  );
 
-  onUnmounted(() => channel.unsubscribe());
+  onMounted(() => channel.value.subscribe());
+  onUnmounted(() => channel.value.unsubscribe());
 
   return { ride, driverLocation };
 }
@@ -122,14 +142,15 @@ interface FareConfig {
   surgePricing: number; // 1.0 - 2.5x
 }
 
-function calculateFare(
-  distance: number,
-  duration: number,
+export function calculateFare(
+  distance: number, // km
+  duration: number, // minutes
   config: FareConfig
 ): number {
   const fare =
     config.baseFare + distance * config.perKm + duration * config.perMinute;
 
-  return Math.max(fare * config.surgePricing, config.minimumFare);
+  const surgedFare = fare * config.surgePricing;
+  return Math.max(surgedFare, config.minimumFare);
 }
 ```

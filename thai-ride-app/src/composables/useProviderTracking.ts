@@ -1,256 +1,258 @@
 /**
- * Feature: F31 - Real GPS Tracking for Provider
- * Tables: service_providers (current_lat, current_lng)
- * 
- * ระบบติดตามตำแหน่ง Provider แบบ realtime
- * - อัพเดทตำแหน่งทุก 5 วินาทีเมื่อออนไลน์
- * - อัพเดททุก 3 วินาทีเมื่อมีงาน active
- * - ประหยัดแบตเตอรี่ด้วย adaptive tracking
- * - รองรับ background tracking (PWA)
+ * Provider Location Tracking Composable
+ * ติดตามตำแหน่ง Provider แบบ Realtime
  */
-
-import { ref, onUnmounted, computed } from 'vue'
+import { ref, shallowRef, onUnmounted } from 'vue'
 import { supabase } from '../lib/supabase'
-import { captureError, addBreadcrumb } from '../lib/sentry'
-import { useGeoFencing } from './useGeofencing'
 
-export interface TrackingConfig {
-  // Update intervals (ms)
-  idleInterval: number      // When online but no active ride
-  activeInterval: number    // When has active ride
-  
-  // GPS options
-  enableHighAccuracy: boolean
-  timeout: number
-  maximumAge: number
-  
-  // Minimum distance to trigger update (meters)
-  minDistance: number
+export interface ProviderLocation {
+  provider_id: string
+  latitude: number
+  longitude: number
+  heading?: number
+  speed?: number
+  accuracy?: number
+  updated_at: string
 }
 
-const DEFAULT_CONFIG: TrackingConfig = {
-  idleInterval: 10000,      // 10 seconds when idle
-  activeInterval: 3000,     // 3 seconds when active
-  enableHighAccuracy: true,
-  timeout: 15000,
-  maximumAge: 5000,
-  minDistance: 10,          // 10 meters minimum movement
-}
-
-export function useProviderTracking(providerId: string | null) {
+export function useProviderTracking(rideId: string) {
+  const providerLocation = shallowRef<ProviderLocation | null>(null)
+  const loading = ref(false)
+  const error = ref<string | null>(null)
   const isTracking = ref(false)
-  const currentPosition = ref<{ lat: number; lng: number; accuracy: number } | null>(null)
-  const lastUpdateTime = ref<Date | null>(null)
-  const trackingError = ref<string | null>(null)
-  const hasActiveRide = ref(false)
-  const updateCount = ref(0)
-  const batteryLevel = ref<number | null>(null)
-  
-  // Geofencing for service area check
-  const geofencing = useGeoFencing()
-  const { checkLocation, isInsideServiceArea, distanceFromCenter, SERVICE_AREA } = geofencing
-  
-  let watchId: number | null = null
-  let updateInterval: ReturnType<typeof setInterval> | null = null
-  let lastSentPosition: { lat: number; lng: number } | null = null
-  
-  const config = ref<TrackingConfig>({ ...DEFAULT_CONFIG })
 
-  // Calculate distance between two points (Haversine)
-  const calculateDistance = (
-    lat1: number, lng1: number,
-    lat2: number, lng2: number
-  ): number => {
-    const R = 6371000 // Earth's radius in meters
-    const dLat = toRad(lat2 - lat1)
-    const dLng = toRad(lng2 - lng1)
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
+
+  // Load initial provider location
+  async function loadProviderLocation(): Promise<void> {
+    loading.value = true
+    error.value = null
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error: dbError } = await (supabase as any)
+        .from('provider_locations')
+        .select('*')
+        .eq('ride_id', rideId)
+        .maybeSingle()
+
+      if (dbError) {
+        console.error('[Tracking] Load error:', dbError)
+        error.value = 'ไม่สามารถโหลดตำแหน่งได้'
+        return
+      }
+
+      if (data) {
+        providerLocation.value = data as ProviderLocation
+      }
+
+      // Setup realtime subscription
+      setupRealtimeSubscription()
+
+    } catch (err) {
+      console.error('[Tracking] Exception:', err)
+      error.value = 'เกิดข้อผิดพลาด'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Setup realtime subscription for location updates
+  function setupRealtimeSubscription(): void {
+    cleanupRealtimeSubscription()
+
+    realtimeChannel = supabase
+      .channel(`ride:${rideId}:tracking`)
+      .on('broadcast', { event: 'location_updated' }, (payload) => {
+        const location = payload.payload as ProviderLocation
+        providerLocation.value = location
+        isTracking.value = true
+      })
+      .subscribe((status) => {
+        console.log('[Tracking] Realtime status:', status)
+        if (status === 'SUBSCRIBED') {
+          isTracking.value = true
+        }
+      })
+  }
+
+  // Cleanup subscription
+  function cleanupRealtimeSubscription(): void {
+    if (realtimeChannel) {
+      supabase.removeChannel(realtimeChannel)
+      realtimeChannel = null
+    }
+    isTracking.value = false
+  }
+
+  // Calculate distance between two points
+  function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371 // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
     return R * c
   }
 
-  const toRad = (deg: number): number => deg * (Math.PI / 180)
-
-  // Check battery level for adaptive tracking
-  const checkBattery = async () => {
-    try {
-      if ('getBattery' in navigator) {
-        const battery = await (navigator as any).getBattery()
-        batteryLevel.value = Math.round(battery.level * 100)
-        
-        // Reduce tracking frequency if battery is low
-        if (battery.level < 0.2 && !battery.charging) {
-          config.value.idleInterval = 30000  // 30 seconds
-          config.value.activeInterval = 5000 // 5 seconds
-        }
-      }
-    } catch {
-      // Battery API not available
-    }
+  // Get distance to pickup point
+  function getDistanceToPickup(pickupLat: number, pickupLng: number): number | null {
+    if (!providerLocation.value) return null
+    return calculateDistance(
+      providerLocation.value.latitude,
+      providerLocation.value.longitude,
+      pickupLat,
+      pickupLng
+    )
   }
 
-  // Update position to database
-  const updatePositionToDb = async (lat: number, lng: number, accuracy: number) => {
-    if (!providerId) return false
+  // Estimate arrival time (rough estimate based on distance and speed)
+  function getEstimatedArrival(pickupLat: number, pickupLng: number): number | null {
+    const distance = getDistanceToPickup(pickupLat, pickupLng)
+    if (distance === null) return null
 
-    // Check minimum distance
-    if (lastSentPosition) {
-      const distance = calculateDistance(
-        lastSentPosition.lat, lastSentPosition.lng,
-        lat, lng
-      )
-      if (distance < config.value.minDistance) {
-        return false // Skip update if not moved enough
-      }
-    }
+    // Use provider's speed if available, otherwise assume 30 km/h average
+    const speed = providerLocation.value?.speed || 30
+    const timeInHours = distance / speed
+    return Math.ceil(timeInHours * 60) // Return minutes
+  }
 
+  // Cleanup on unmount
+  onUnmounted(() => {
+    cleanupRealtimeSubscription()
+  })
+
+  return {
+    providerLocation,
+    loading,
+    error,
+    isTracking,
+    loadProviderLocation,
+    cleanupRealtimeSubscription,
+    calculateDistance,
+    getDistanceToPickup,
+    getEstimatedArrival
+  }
+}
+
+// Composable for Provider to update their location
+export function useLocationUpdater() {
+  const updating = ref(false)
+  const error = ref<string | null>(null)
+  const providerId = ref<string | null>(null)
+
+  let watchId: number | null = null
+
+  // Initialize provider ID
+  async function initProvider(): Promise<boolean> {
     try {
-      const { error } = await (supabase
-        .from('service_providers') as any)
-        .update({
-          current_lat: lat,
-          current_lng: lng,
-          last_location_update: new Date().toISOString()
-        })
-        .eq('id', providerId)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return false
 
-      if (error) throw error
+      const { data, error: dbError } = await supabase
+        .from('providers_v2')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
 
-      lastSentPosition = { lat, lng }
-      lastUpdateTime.value = new Date()
-      updateCount.value++
-      
-      addBreadcrumb('Location updated', 'tracking', { lat, lng, accuracy })
-      
+      if (dbError || !data) {
+        console.error('[LocationUpdater] Provider not found')
+        return false
+      }
+
+      providerId.value = data.id
       return true
-    } catch (err: any) {
-      trackingError.value = err.message
-      captureError(err, { providerId, lat, lng }, 'warning')
+    } catch (err) {
+      console.error('[LocationUpdater] Init error:', err)
       return false
     }
   }
 
-  // Handle position update from GPS
-  const handlePositionUpdate = (position: GeolocationPosition) => {
-    const { latitude, longitude, accuracy } = position.coords
-    
-    currentPosition.value = {
-      lat: latitude,
-      lng: longitude,
-      accuracy
+  // Update location once
+  async function updateLocation(
+    rideId: string | null,
+    latitude: number,
+    longitude: number,
+    heading?: number,
+    speed?: number,
+    accuracy?: number
+  ): Promise<boolean> {
+    if (!providerId.value) {
+      const initialized = await initProvider()
+      if (!initialized) return false
     }
-    
-    trackingError.value = null
-    
-    // Check geofencing - alert if outside service area
-    checkLocation(latitude, longitude)
-    
-    // Update to database
-    updatePositionToDb(latitude, longitude, accuracy)
-  }
 
-  // Handle GPS error
-  const handlePositionError = (error: GeolocationPositionError) => {
-    let message = 'ไม่สามารถระบุตำแหน่งได้'
-    
-    switch (error.code) {
-      case error.PERMISSION_DENIED:
-        message = 'กรุณาอนุญาตการเข้าถึงตำแหน่ง'
-        break
-      case error.POSITION_UNAVAILABLE:
-        message = 'ไม่สามารถระบุตำแหน่งได้ กรุณาตรวจสอบ GPS'
-        break
-      case error.TIMEOUT:
-        message = 'หมดเวลาในการระบุตำแหน่ง'
-        break
-    }
-    
-    trackingError.value = message
-    captureError(new Error(message), { code: error.code }, 'warning')
-  }
+    updating.value = true
+    error.value = null
 
-  // Start tracking
-  const startTracking = async () => {
-    if (!providerId) {
-      trackingError.value = 'ไม่พบ Provider ID'
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: dbError } = await (supabase as any).rpc('upsert_provider_location', {
+        p_provider_id: providerId.value,
+        p_ride_id: rideId,
+        p_latitude: latitude,
+        p_longitude: longitude,
+        p_heading: heading || null,
+        p_speed: speed || null,
+        p_accuracy: accuracy || null
+      })
+
+      if (dbError) {
+        console.error('[LocationUpdater] Update error:', dbError)
+        error.value = 'ไม่สามารถอัพเดทตำแหน่งได้'
+        return false
+      }
+
+      return true
+    } catch (err) {
+      console.error('[LocationUpdater] Exception:', err)
+      error.value = 'เกิดข้อผิดพลาด'
       return false
+    } finally {
+      updating.value = false
     }
+  }
 
+  // Start continuous location tracking
+  function startTracking(rideId: string | null): void {
     if (!navigator.geolocation) {
-      trackingError.value = 'เบราว์เซอร์ไม่รองรับ GPS'
-      return false
+      error.value = 'ไม่รองรับ GPS'
+      return
     }
 
-    // Check battery
-    await checkBattery()
+    stopTracking()
 
-    // Start watching position
     watchId = navigator.geolocation.watchPosition(
-      handlePositionUpdate,
-      handlePositionError,
+      (position) => {
+        updateLocation(
+          rideId,
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.heading || undefined,
+          position.coords.speed ? position.coords.speed * 3.6 : undefined, // Convert m/s to km/h
+          position.coords.accuracy
+        )
+      },
+      (err) => {
+        console.error('[LocationUpdater] GPS error:', err.message)
+        error.value = 'ไม่สามารถรับตำแหน่ง GPS ได้'
+      },
       {
-        enableHighAccuracy: config.value.enableHighAccuracy,
-        timeout: config.value.timeout,
-        maximumAge: config.value.maximumAge
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000
       }
     )
-
-    isTracking.value = true
-    addBreadcrumb('Tracking started', 'tracking', { providerId })
-    
-    return true
   }
 
   // Stop tracking
-  const stopTracking = () => {
+  function stopTracking(): void {
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId)
       watchId = null
     }
-
-    if (updateInterval) {
-      clearInterval(updateInterval)
-      updateInterval = null
-    }
-
-    isTracking.value = false
-    addBreadcrumb('Tracking stopped', 'tracking', { providerId })
-  }
-
-  // Set active ride status (changes tracking frequency)
-  const setActiveRide = (active: boolean) => {
-    hasActiveRide.value = active
-    
-    // Restart tracking with new interval if needed
-    if (isTracking.value) {
-      stopTracking()
-      startTracking()
-    }
-  }
-
-  // Get current interval based on state
-  const currentInterval = computed(() => {
-    return hasActiveRide.value 
-      ? config.value.activeInterval 
-      : config.value.idleInterval
-  })
-
-  // Force update position now
-  const forceUpdate = () => {
-    if (!navigator.geolocation) return
-
-    navigator.geolocation.getCurrentPosition(
-      handlePositionUpdate,
-      handlePositionError,
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    )
   }
 
   // Cleanup on unmount
@@ -259,38 +261,12 @@ export function useProviderTracking(providerId: string | null) {
   })
 
   return {
-    isTracking,
-    currentPosition,
-    lastUpdateTime,
-    trackingError,
-    hasActiveRide,
-    updateCount,
-    batteryLevel,
-    currentInterval,
-    isInsideServiceArea,
-    distanceFromCenter,
-    SERVICE_AREA,
+    updating,
+    error,
+    providerId,
+    initProvider,
+    updateLocation,
     startTracking,
-    stopTracking,
-    setActiveRide,
-    forceUpdate,
-    config
-  }
-}
-
-// Singleton for background tracking
-let globalTrackingInstance: ReturnType<typeof useProviderTracking> | null = null
-
-export const getGlobalTracking = (providerId: string) => {
-  if (!globalTrackingInstance) {
-    globalTrackingInstance = useProviderTracking(providerId)
-  }
-  return globalTrackingInstance
-}
-
-export const clearGlobalTracking = () => {
-  if (globalTrackingInstance) {
-    globalTrackingInstance.stopTracking()
-    globalTrackingInstance = null
+    stopTracking
   }
 }

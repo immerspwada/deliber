@@ -4,7 +4,7 @@
  * MUNEEF Style: สีเขียว #00A86B, ใส่ใจทุกรายละเอียด
  * รวมบริการทั้งหมดไว้ในที่เดียว พร้อมรองรับบริการใหม่ในอนาคต
  */
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useRideStore } from "../stores/ride";
@@ -15,6 +15,8 @@ import { useServices } from "../composables/useServices";
 import { useHapticFeedback } from "../composables/useHapticFeedback";
 import { useRideHistory } from "../composables/useRideHistory";
 import { useRoleAccess } from "../composables/useRoleAccess";
+import { useFavoriteServices } from "../composables/useFavoriteServices";
+import { useServicePromotions } from "../composables/useServicePromotions";
 import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import BottomNavigation from "../components/customer/BottomNavigation.vue";
@@ -36,6 +38,28 @@ const {
   canSwitchToProviderMode,
   getRoleBadge 
 } = useRoleAccess();
+
+// Favorite Services
+const { 
+  favoriteServiceIds, 
+  isFavorite, 
+  fetchFavorites, 
+  toggleFavorite 
+} = useFavoriteServices();
+
+// Service Promotions
+const {
+  promotions,
+  hasPromotion,
+  getPromotionBadge,
+  fetchPromotions,
+  formatDiscount,
+  getTimeRemaining
+} = useServicePromotions();
+
+// Search
+const searchQuery = ref('');
+const showSearch = ref(false);
 
 // State
 const isLoaded = ref(false);
@@ -166,9 +190,30 @@ const allServices: Service[] = [
 const walletBalance = computed(() => balance.value?.balance || 0);
 const loyaltyPoints = computed(() => loyaltySummary.value?.current_points || 0);
 
+// Search filtered services
+const searchFilteredServices = computed(() => {
+  if (!searchQuery.value.trim()) return allServices;
+  const query = searchQuery.value.toLowerCase();
+  return allServices.filter(s => 
+    s.name.toLowerCase().includes(query) || 
+    s.description.toLowerCase().includes(query)
+  );
+});
+
 const filteredServices = computed(() => {
-  if (activeCategory.value === "all") return allServices;
-  return allServices.filter((s) => s.category === activeCategory.value);
+  const baseServices = searchQuery.value.trim() ? searchFilteredServices.value : allServices;
+  if (activeCategory.value === "all") return baseServices;
+  return baseServices.filter((s) => s.category === activeCategory.value);
+});
+
+// Favorite services sorted first
+const sortedFilteredServices = computed(() => {
+  const services = [...filteredServices.value];
+  return services.sort((a, b) => {
+    const aFav = isFavorite(a.id) ? 0 : 1;
+    const bFav = isFavorite(b.id) ? 0 : 1;
+    return aFav - bFav;
+  });
 });
 
 const popularServices = computed(() => allServices.filter((s) => s.isPopular));
@@ -593,6 +638,34 @@ const handleServiceClick = (service: Service) => {
   navigateTo(service.route);
 };
 
+// Toggle favorite with long press
+const handleFavoriteToggle = async (e: Event, serviceId: string) => {
+  e.stopPropagation();
+  vibrate("medium");
+  const added = await toggleFavorite(serviceId);
+  if (added) {
+    showSuccess("เพิ่มในบริการโปรดแล้ว");
+  } else {
+    showInfo("นำออกจากบริการโปรดแล้ว");
+  }
+};
+
+// Search handlers
+const handleSearchFocus = () => {
+  showSearch.value = true;
+};
+
+const handleSearchBlur = () => {
+  if (!searchQuery.value.trim()) {
+    showSearch.value = false;
+  }
+};
+
+const clearSearch = () => {
+  searchQuery.value = '';
+  showSearch.value = false;
+};
+
 const handleOrderClick = (order: ActiveOrder) => {
   vibrate("light");
   navigateTo(order.trackingPath);
@@ -695,6 +768,8 @@ onMounted(async () => {
     fetchSavedPlaces().catch(() => {}),
     fetchUnratedRides().catch(() => {}),
     fetchRecommendedServices(),
+    fetchFavorites().catch(() => {}),
+    fetchPromotions().catch(() => {}),
   ]);
 
   // Small delay for smooth transition
@@ -770,6 +845,29 @@ onUnmounted(() => {
           </svg>
           <span>฿{{ walletBalance.toLocaleString() }}</span>
         </button>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-input-wrapper" :class="{ focused: showSearch }">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="ค้นหาบริการ..."
+            @focus="handleSearchFocus"
+            @blur="handleSearchBlur"
+          />
+          <button v-if="searchQuery" class="clear-search-btn" @click="clearSearch" aria-label="ล้างการค้นหา">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Category Tabs with Animation -->
@@ -848,6 +946,44 @@ onUnmounted(() => {
               <span class="route-to">{{ order.to }}</span>
             </div>
             <div class="order-pulse"></div>
+          </button>
+        </div>
+      </section>
+
+      <!-- Promotions Section -->
+      <section v-if="promotions.length > 0" class="promotions-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+              <circle cx="7" cy="7" r="1" />
+            </svg>
+            โปรโมชั่นพิเศษ
+          </h2>
+          <button class="see-all-btn" @click="navigateTo('/customer/promotions')">
+            ดูทั้งหมด
+          </button>
+        </div>
+
+        <div class="promotions-scroll">
+          <button
+            v-for="promo in promotions.slice(0, 5)"
+            :key="promo.id"
+            class="promo-card"
+            :style="{ '--promo-color': allServices.find(s => s.id === promo.service_id)?.color || '#00A86B' }"
+            @click="navigateTo(allServices.find(s => s.id === promo.service_id)?.route || '/customer/services')"
+          >
+            <div class="promo-badge">
+              <span class="promo-discount">{{ formatDiscount(promo) }}</span>
+            </div>
+            <div class="promo-content">
+              <span class="promo-title">{{ promo.title }}</span>
+              <span class="promo-desc">{{ promo.description }}</span>
+              <span class="promo-expiry">{{ getTimeRemaining(promo.end_date) }}</span>
+            </div>
+            <div class="promo-service">
+              {{ allServices.find(s => s.id === promo.service_id)?.name || promo.service_id }}
+            </div>
           </button>
         </div>
       </section>
@@ -1218,10 +1354,13 @@ onUnmounted(() => {
           :class="{ 'fade-in': !isChangingCategory }"
         >
           <button
-            v-for="service in filteredServices"
+            v-for="service in sortedFilteredServices"
             :key="service.id"
             class="service-card"
-            :class="{ pressed: pressedServiceId === service.id }"
+            :class="{ 
+              pressed: pressedServiceId === service.id,
+              favorite: isFavorite(service.id)
+            }"
             :style="{ '--accent': service.color }"
             @mousedown="handleServicePress(service.id)"
             @mouseup="handleServiceRelease"
@@ -1230,11 +1369,25 @@ onUnmounted(() => {
             @touchend="handleServiceRelease"
             @click="handleServiceClick(service)"
           >
-            <!-- Badge -->
-            <span v-if="service.isNew" class="service-badge new">ใหม่</span>
-            <span v-else-if="service.isPopular" class="service-badge popular"
-              >ยอดนิยม</span
+            <!-- Favorite Button -->
+            <button 
+              class="favorite-btn"
+              :class="{ active: isFavorite(service.id) }"
+              @click="handleFavoriteToggle($event, service.id)"
+              aria-label="เพิ่ม/ลบจากรายการโปรด"
             >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </button>
+
+            <!-- Promotion Badge -->
+            <span v-if="hasPromotion(service.id)" class="service-badge promo">
+              {{ getPromotionBadge(service.id) }}
+            </span>
+            <!-- Other Badges -->
+            <span v-else-if="service.isNew" class="service-badge new">ใหม่</span>
+            <span v-else-if="service.isPopular" class="service-badge popular">ยอดนิยม</span>
 
             <!-- Icon -->
             <div class="service-icon">
@@ -1780,6 +1933,73 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 
+/* Search Container */
+.search-container {
+  padding: 0 20px 12px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f5f5f5;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+}
+
+.search-input-wrapper.focused {
+  background: #ffffff;
+  border-color: #00a86b;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.15);
+}
+
+.search-icon {
+  width: 20px;
+  height: 20px;
+  color: #999999;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  color: #1a1a1a;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #999999;
+}
+
+.clear-search-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8e8e8;
+  border: none;
+  border-radius: 50%;
+  color: #666666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+}
+
+.clear-search-btn:hover {
+  background: #d0d0d0;
+}
+
+.clear-search-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Category Tabs with Animation */
 .category-tabs {
   display: flex;
@@ -2053,7 +2273,7 @@ onUnmounted(() => {
 
 /* Recommended Services Section */
 .recommended-section {
-  /* Default styling */
+  margin-bottom: 20px;
 }
 
 .skeleton-recommendations {
@@ -2176,7 +2396,7 @@ onUnmounted(() => {
 
 /* Quick Access - Saved Places */
 .quick-access-section {
-  /* Default styling */
+  margin-bottom: 16px;
 }
 
 .quick-places {
@@ -2253,7 +2473,7 @@ onUnmounted(() => {
 
 /* Popular Section */
 .popular-section {
-  /* Default styling */
+  margin-bottom: 20px;
 }
 
 .popular-grid {
@@ -2449,6 +2669,22 @@ onUnmounted(() => {
   background: #f5a623;
 }
 
+.service-badge.promo {
+  background: #00a86b;
+  animation: promoPulse 2s infinite;
+}
+
+@keyframes promoPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
 .service-icon {
   width: 52px;
   height: 52px;
@@ -2464,6 +2700,65 @@ onUnmounted(() => {
 
 .service-card.pressed .service-icon {
   transform: scale(0.95);
+}
+
+/* Favorite Service Styling */
+.service-card.favorite {
+  border-color: #FFD700;
+  background: linear-gradient(135deg, #FFF9E6 0%, #FFFFFF 100%);
+}
+
+.service-card.favorite::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #FFD700, #FFA500);
+  border-radius: 22px;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* Favorite Button */
+.favorite-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: #cccccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+  backdrop-filter: blur(4px);
+}
+
+.favorite-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+}
+
+.favorite-btn.active {
+  color: #FFD700;
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.favorite-btn.active svg {
+  fill: currentColor;
+}
+
+.favorite-btn svg {
+  width: 16px;
+  height: 16px;
+  transition: all 0.2s ease;
 }
 
 .service-icon svg {
@@ -2487,7 +2782,7 @@ onUnmounted(() => {
 
 /* Loyalty Card */
 .loyalty-section {
-  /* Default styling */
+  margin-bottom: 16px;
 }
 
 .loyalty-card {
@@ -2609,6 +2904,114 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 500;
   color: #666666;
+}
+
+/* Promotions Section */
+.promotions-section {
+  margin-bottom: 20px;
+}
+
+.promotions-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.promo-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--promo-color) 8%, white) 0%,
+    #ffffff 100%
+  );
+  border: 2px solid color-mix(in srgb, var(--promo-color) 20%, white);
+  border-radius: 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.promo-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--promo-color);
+}
+
+.promo-card:hover {
+  border-color: var(--promo-color);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--promo-color) 20%, transparent);
+  transform: translateY(-1px);
+}
+
+.promo-card:active {
+  transform: scale(0.98);
+}
+
+.promo-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  padding: 8px 12px;
+  background: var(--promo-color);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.promo-discount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+}
+
+.promo-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.promo-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.promo-desc {
+  display: block;
+  font-size: 12px;
+  color: #666666;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.promo-expiry {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #fff3e0;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #f5a623;
+}
+
+.promo-service {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--promo-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 /* Responsive */

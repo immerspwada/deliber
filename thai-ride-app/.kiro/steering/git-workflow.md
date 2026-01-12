@@ -1,5 +1,5 @@
 ---
-inclusion: always
+inclusion: manual
 ---
 
 # Git Workflow
@@ -19,21 +19,23 @@ docs/     - Documentation (docs/api-guide)
 ```
 <type>(<scope>): <subject>
 
-<body>
+[optional body]
 
-<footer>
+[optional footer]
 ```
 
 ### Types
 
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation
-- `style`: Formatting, no code change
-- `refactor`: Code restructuring
-- `perf`: Performance improvement
-- `test`: Adding tests
-- `chore`: Maintenance tasks
+| Type       | Description                 |
+| ---------- | --------------------------- |
+| `feat`     | New feature                 |
+| `fix`      | Bug fix                     |
+| `docs`     | Documentation               |
+| `style`    | Formatting (no code change) |
+| `refactor` | Code restructuring          |
+| `perf`     | Performance improvement     |
+| `test`     | Adding tests                |
+| `chore`    | Maintenance                 |
 
 ### Examples
 
@@ -42,16 +44,12 @@ feat(ride): add real-time driver tracking
 
 - Implement Supabase realtime subscription
 - Add driver location marker on map
-- Update ETA calculation
 
 Closes #123
 ```
 
 ```bash
 fix(auth): resolve session persistence issue
-
-Session was not persisting after page refresh due to
-incorrect storage configuration.
 
 Fixes #456
 ```
@@ -60,21 +58,16 @@ Fixes #456
 
 ```bash
 # .husky/pre-commit
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-npm run lint:secrets
 npm run lint
+npm run type-check
 npm run test -- --run
 ```
 
-## Pull Request Checklist
+## PR Checklist
 
-- [ ] Code follows project standards
-- [ ] Tests added/updated
-- [ ] No TypeScript errors
-- [ ] No ESLint warnings
-- [ ] Tested on mobile viewport
-- [ ] RLS policies updated (if DB changes)
-- [ ] Migration is reversible
-- [ ] No secrets in code
+- [ ] TypeScript: no errors
+- [ ] ESLint: no warnings
+- [ ] Tests: all passing
+- [ ] Mobile: tested on viewport
+- [ ] RLS: policies updated (if DB changes)
+- [ ] Secrets: none in code

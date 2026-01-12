@@ -11,7 +11,6 @@ import RidePromoInput from './RidePromoInput.vue'
 import RidePaymentMethod, { type PaymentMethod } from './RidePaymentMethod.vue'
 import RideSchedulePicker from './RideSchedulePicker.vue'
 import RideMultiStop from './RideMultiStop.vue'
-import RideSplitFare from './RideSplitFare.vue'
 
 const props = defineProps<{
   pickup: GeoLocation | null
@@ -75,27 +74,10 @@ interface StopPoint {
 const multiStops = ref<StopPoint[]>([])
 const multiStopFare = ref(0)
 
-// Split fare state
-interface SplitMember {
-  id: string
-  name: string
-  phone?: string
-  status: 'pending' | 'accepted' | 'declined' | 'paid'
-  amount: number
-}
-const splitMembers = ref<SplitMember[]>([])
-const myShareAmount = ref(0)
-
 // Computed final fare with discount
 const discountedFare = computed(() => {
   const baseFare = props.finalFare + multiStopFare.value
   return Math.max(0, baseFare - promoDiscount.value)
-})
-
-// My share after split
-const myFinalShare = computed(() => {
-  if (splitMembers.value.length === 0) return discountedFare.value
-  return myShareAmount.value || Math.ceil(discountedFare.value / (splitMembers.value.length + 1))
 })
 
 // Check if can book based on payment method
@@ -103,16 +85,14 @@ const canBookWithPayment = computed(() => {
   if (paymentMethod.value === 'cash') {
     return props.pickup && props.destination && !props.isBooking
   }
-  // For wallet, check balance against my share (after split)
-  const amountToCheck = splitMembers.value.length > 0 ? myFinalShare.value : discountedFare.value
-  const hasBalance = props.currentBalance >= amountToCheck
+  // For wallet, check balance
+  const hasBalance = props.currentBalance >= discountedFare.value
   return props.pickup && props.destination && !props.isBooking && hasBalance
 })
 
 // Check if has enough balance for wallet payment
 const hasEnoughForWallet = computed(() => {
-  const amountToCheck = splitMembers.value.length > 0 ? myFinalShare.value : discountedFare.value
-  return props.currentBalance >= amountToCheck
+  return props.currentBalance >= discountedFare.value
 })
 
 // Handle vehicle selection with haptic
@@ -165,16 +145,6 @@ function handleStopsUpdate(stops: StopPoint[]): void {
 
 function handleMultiStopFareChange(additionalFare: number): void {
   multiStopFare.value = additionalFare
-}
-
-// Split fare handlers
-function handleSplitMembersUpdate(members: SplitMember[]): void {
-  splitMembers.value = members
-}
-
-function handleSplitConfirmed(details: { members: SplitMember[]; myShare: number }): void {
-  splitMembers.value = details.members
-  myShareAmount.value = details.myShare
 }
 
 function handleBook(): void {
@@ -306,16 +276,6 @@ function getVehicleIcon(icon: string): string {
       @fare-change="handleMultiStopFareChange"
     />
 
-    <!-- Split Fare -->
-    <RideSplitFare
-      :ride-id="'temp-' + Date.now()"
-      :total-fare="discountedFare"
-      :current-user-id="'user'"
-      :current-user-name="'คุณ'"
-      @update:members="handleSplitMembersUpdate"
-      @split-confirmed="handleSplitConfirmed"
-    />
-
     <!-- Promo Code Input -->
     <RidePromoInput
       :applied-code="promoCode ?? undefined"
@@ -329,12 +289,12 @@ function getVehicleIcon(icon: string): string {
     <RidePaymentMethod
       v-model:selected-method="paymentMethod"
       :wallet-balance="currentBalance"
-      :required-amount="splitMembers.length > 0 ? myFinalShare : discountedFare"
+      :required-amount="discountedFare"
       @topup="emit('topup')"
     />
 
     <!-- Fare Summary -->
-    <div v-if="promoDiscount > 0 || multiStopFare > 0 || splitMembers.length > 0" class="fare-summary">
+    <div v-if="promoDiscount > 0 || multiStopFare > 0" class="fare-summary">
       <div class="fare-row">
         <span>ค่าโดยสารพื้นฐาน</span>
         <span :class="{ 'original-fare': promoDiscount > 0 }">฿{{ finalFare.toLocaleString() }}</span>
@@ -347,17 +307,9 @@ function getVehicleIcon(icon: string): string {
         <span>ส่วนลด ({{ promoCode }})</span>
         <span>-฿{{ promoDiscount.toLocaleString() }}</span>
       </div>
-      <div class="fare-row subtotal">
-        <span>รวมทั้งหมด</span>
-        <span>฿{{ discountedFare.toLocaleString() }}</span>
-      </div>
-      <div v-if="splitMembers.length > 0" class="fare-row split-info">
-        <span>แบ่งจ่าย {{ splitMembers.length + 1 }} คน</span>
-        <span class="split-share">ส่วนของคุณ: ฿{{ myFinalShare.toLocaleString() }}</span>
-      </div>
       <div class="fare-row total">
-        <span>ยอดที่คุณต้องจ่าย</span>
-        <span>฿{{ (splitMembers.length > 0 ? myFinalShare : discountedFare).toLocaleString() }}</span>
+        <span>ยอดที่ต้องจ่าย</span>
+        <span>฿{{ discountedFare.toLocaleString() }}</span>
       </div>
     </div>
 
@@ -367,7 +319,6 @@ function getVehicleIcon(icon: string): string {
       :class="{ 
         'insufficient-balance': paymentMethod === 'wallet' && !hasEnoughForWallet,
         'scheduled': scheduledTime !== null,
-        'split-active': splitMembers.length > 0,
         'pressed': isBookButtonPressed
       }"
       :disabled="!canBookWithPayment"
@@ -383,22 +334,14 @@ function getVehicleIcon(icon: string): string {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
         </svg>
-        เงินไม่พอ • ฿{{ (splitMembers.length > 0 ? myFinalShare : discountedFare).toLocaleString() }}
+        เงินไม่พอ • ฿{{ discountedFare.toLocaleString() }}
       </span>
       <span v-else-if="scheduledTime" class="btn-content">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10" />
           <polyline points="12,6 12,12 16,14" />
         </svg>
-        จองล่วงหน้า • ฿{{ (splitMembers.length > 0 ? myFinalShare : discountedFare).toLocaleString() }}
-      </span>
-      <span v-else-if="splitMembers.length > 0" class="btn-content">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-        </svg>
-        แบ่งจ่าย {{ splitMembers.length + 1 }} คน • ฿{{ myFinalShare.toLocaleString() }}
+        จองล่วงหน้า • ฿{{ discountedFare.toLocaleString() }}
       </span>
       <span v-else class="btn-content">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -424,17 +367,22 @@ function getVehicleIcon(icon: string): string {
 
 <style scoped>
 .booking-panel {
-  padding: 20px 16px;
+  padding: 16px 16px 20px;
   background: #fff;
   border-top: 1px solid #f0f0f0;
-  border-radius: 24px 24px 0 0;
+  border-radius: 20px 20px 0 0;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Trip Summary */
 .trip-summary {
-  margin-bottom: 24px;
-  padding-bottom: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -512,14 +460,14 @@ function getVehicleIcon(icon: string): string {
 
 /* Vehicle Section */
 .vehicle-section {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .section-label {
   font-size: 13px;
   font-weight: 600;
   color: #1a1a1a;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -532,12 +480,12 @@ function getVehicleIcon(icon: string): string {
 
 .skeleton-card {
   flex: 1;
-  height: 130px;
+  height: 110px;
   background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s infinite;
   animation-delay: var(--delay, 0ms);
-  border-radius: 16px;
+  border-radius: 14px;
 }
 
 @keyframes skeleton-loading {
@@ -555,11 +503,11 @@ function getVehicleIcon(icon: string): string {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 16px 10px;
+  gap: 6px;
+  padding: 12px 8px;
   background: #f8f9fa;
   border: 2px solid transparent;
-  border-radius: 16px;
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
@@ -658,17 +606,18 @@ function getVehicleIcon(icon: string): string {
 /* Book Button */
 .book-btn {
   width: 100%;
-  padding: 18px;
+  padding: 16px;
   background: linear-gradient(135deg, #00a86b 0%, #00875a 100%);
   color: #fff;
   border: none;
-  border-radius: 16px;
-  font-size: 17px;
+  border-radius: 14px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 168, 107, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 168, 107, 0.3);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
 .book-btn:disabled {
@@ -738,29 +687,6 @@ function getVehicleIcon(icon: string): string {
 .fare-row.total span:last-child {
   color: #00a86b;
   font-size: 18px;
-}
-
-.fare-row.subtotal {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1a1a1a;
-  padding-top: 8px;
-}
-
-.fare-row.split-info {
-  background: #e8f5ef;
-  margin: 10px -14px;
-  padding: 12px 14px;
-  border-radius: 10px;
-}
-
-.fare-row.split-info .split-share {
-  font-weight: 600;
-  color: #00a86b;
-}
-
-.book-btn.split-active {
-  background: linear-gradient(135deg, #00a86b 0%, #00875a 100%);
 }
 
 .spin {

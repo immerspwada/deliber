@@ -26,6 +26,7 @@ import RideHeader from '../../components/ride/RideHeader.vue'
 import RideSearchBox from '../../components/ride/RideSearchBox.vue'
 import RidePlacesList from '../../components/ride/RidePlacesList.vue'
 import RideBookingPanel from '../../components/ride/RideBookingPanel.vue'
+import RideStepIndicator from '../../components/ride/RideStepIndicator.vue'
 import PullToRefreshIndicator from '../../components/PullToRefreshIndicator.vue'
 
 // Heavy components - lazy load
@@ -90,9 +91,50 @@ const {
   cancelRide,
   submitRating,
   callDriver,
-  callEmergency,
-  refreshNearbyPlaces
+  callEmergency
 } = useRideRequest()
+
+// Map interaction state
+const isSelectingOnMap = ref(false)
+const mapCenter = ref<{ lat: number; lng: number } | null>(null)
+
+// Reverse geocode helper
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { Accept: 'application/json', 'User-Agent': 'ThaiRideApp/1.0' } }
+    )
+    if (response.ok) {
+      const data = await response.json()
+      return data.display_name?.split(',').slice(0, 2).join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+    }
+  } catch {
+    // ignore
+  }
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+}
+
+// Handle map click to select destination
+async function handleMapClick(coords: { lat: number; lng: number }): Promise<void> {
+  // Haptic feedback
+  if ('vibrate' in navigator) {
+    navigator.vibrate(30)
+  }
+  
+  // Get address from coordinates
+  const address = await reverseGeocode(coords.lat, coords.lng)
+  
+  // Set as destination
+  selectDestination({
+    name: address,
+    address: address,
+    lat: coords.lat,
+    lng: coords.lng
+  })
+  
+  searchQuery.value = address
+}
 
 // Pull-to-refresh setup
 const pullToRefreshEnabled = computed(() => 
@@ -105,7 +147,7 @@ const { pullDistance, isRefreshing, canRelease, progress } = usePullToRefresh({
   maxPull: 150,
   enabled: pullToRefreshEnabled,
   onRefresh: async () => {
-    await refreshNearbyPlaces()
+    await getCurrentLocation()
   }
 })
 
@@ -142,6 +184,13 @@ function handleBook(options: BookingOptions): void {
 onMounted(() => {
   initialize()
 })
+
+// Reset to first step
+function resetToSelect(): void {
+  currentStep.value = 'select'
+  destination.value = null
+  searchQuery.value = ''
+}
 </script>
 
 <template>
@@ -165,7 +214,7 @@ onMounted(() => {
           @refresh="getCurrentLocation"
         />
 
-        <!-- Map Preview - Lazy loaded -->
+        <!-- Map Preview - Tap to select destination -->
         <div v-if="pickup" class="map-section">
           <Suspense>
             <MapView
@@ -174,6 +223,7 @@ onMounted(() => {
               :showRoute="!!destination"
               height="220px"
               @routeCalculated="handleRouteCalculated"
+              @mapClick="handleMapClick"
             />
             <template #fallback>
               <div class="map-skeleton">
@@ -182,7 +232,19 @@ onMounted(() => {
               </div>
             </template>
           </Suspense>
+          
+          <!-- Map hint -->
+          <div v-if="!destination" class="map-hint">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span>แตะบนแผนที่เพื่อเลือกปลายทาง</span>
+          </div>
         </div>
+
+        <!-- Step Indicator - Below Map, Above Search -->
+        <RideStepIndicator :currentStep="currentStep" />
 
         <!-- Search Box -->
         <RideSearchBox
@@ -300,19 +362,36 @@ onMounted(() => {
 .select-view {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - 120px);
+  min-height: calc(100dvh - 120px);
 }
 
 .step-view {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh - 120px);
+  min-height: calc(100dvh - 120px);
 }
 
 .map-section {
   padding: 16px;
   background: #fff;
   border-bottom: 1px solid #f0f0f0;
+}
+
+.map-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f8f8f8;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #666;
+}
+
+.map-hint svg {
+  color: #00a86b;
 }
 
 /* Map skeleton for loading state */

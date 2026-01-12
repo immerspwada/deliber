@@ -330,7 +330,6 @@ const submitApplication = async () => {
     const userId = authStore.user.id
     
     // Check for existing provider record first (prevent duplicate)
-    // CRITICAL FIX: Use providers_v2 table consistently
     console.log('[ProviderRegister] Checking for existing provider before insert...')
     const { data: existingCheck, error: checkError } = await supabase
       .from('providers_v2')
@@ -371,52 +370,76 @@ const submitApplication = async () => {
         vehicleUrl = await uploadToStorage(vehicleFile.value, `${userId}/vehicle`)
       }
       uploadProgress.value = 75
-    } catch (uploadErr: any) {
-      console.warn('Storage upload failed, using pending status:', uploadErr.message)
+    } catch (uploadErr: unknown) {
+      const errMsg = uploadErr instanceof Error ? uploadErr.message : 'Unknown error'
+      console.warn('Storage upload failed, using pending status:', errMsg)
       // Continue with 'pending' status - admin can request re-upload
     }
     
-    // CRITICAL FIX: Use providers_v2 table consistently
-    const { error: insertError } = await (supabase.from('providers_v2') as any).insert({
-      user_id: userId,
-      provider_type: 'pending', // Admin จะเปิดสิทธิ์งานให้ทีหลัง
-      allowed_services: [], // Admin จะกำหนดว่าเห็นงานอะไรได้บ้าง
-      vehicle_type: vehicleType.value,
-      vehicle_plate: vehiclePlate.value,
-      vehicle_color: vehicleColor.value,
-      vehicle_info: {
-        brand: vehicleBrand.value,
-        model: vehicleModel.value,
-        year: vehicleYear.value,
-        license_plate: vehiclePlate.value,
-        color: vehicleColor.value
-      },
-      license_number: licenseNumber.value,
-      license_expiry: licenseExpiry.value,
-      national_id: nationalId.value,
-      documents: { 
-        id_card: idCardUrl, 
-        license: licenseUrl, 
-        vehicle: vehicleUrl 
-      },
-      status: 'pending', // This triggers auto_add_to_verification_queue
-      is_available: false,
-      rating: 5.0,
-      total_trips: 0
-    })
+    // Get user info from auth store
+    const userEmail = authStore.user.email || ''
+    const userName = authStore.user.name || authStore.user.email?.split('@')[0] || ''
+    const userPhone = authStore.user.phone || ''
+    const nameParts = userName.split(' ')
+    const firstName = nameParts[0] || 'Unknown'
+    const lastName = nameParts.slice(1).join(' ') || 'Provider'
+    
+    // Insert provider record
+    const { error: insertError } = await supabase
+      .from('providers_v2')
+      .insert({
+        user_id: userId,
+        first_name: firstName,
+        last_name: lastName,
+        email: userEmail,
+        phone_number: userPhone || '0000000000',
+        provider_type: 'pending',
+        allowed_services: [],
+        vehicle_type: vehicleType.value,
+        vehicle_plate: vehiclePlate.value,
+        vehicle_color: vehicleColor.value,
+        vehicle_info: {
+          brand: vehicleBrand.value,
+          model: vehicleModel.value,
+          year: vehicleYear.value,
+          license_plate: vehiclePlate.value,
+          color: vehicleColor.value
+        },
+        license_number: licenseNumber.value,
+        license_expiry: licenseExpiry.value || null,
+        national_id: nationalId.value,
+        documents: { 
+          id_card: idCardUrl, 
+          license: licenseUrl, 
+          vehicle: vehicleUrl 
+        },
+        status: 'pending',
+        is_available: false,
+        is_online: false,
+        rating: 5.0,
+        total_trips: 0,
+        total_earnings: 0
+      } as Record<string, unknown>)
     
     uploadProgress.value = 100
     
     if (insertError) {
-      if (insertError.code === '23505') error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว'
-      else error.value = insertError.message
+      console.error('[ProviderRegister] Insert error:', insertError)
+      if (insertError.code === '23505') {
+        error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว'
+      } else if (insertError.message.includes('violates check constraint')) {
+        error.value = 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
+      } else {
+        error.value = insertError.message
+      }
       return
     }
     
     vibrate('success')
     showSuccess.value = true
-  } catch (err: any) {
-    error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+    error.value = errMsg
     vibrate('error')
   } finally {
     isLoading.value = false

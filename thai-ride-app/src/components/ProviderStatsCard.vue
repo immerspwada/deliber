@@ -51,7 +51,6 @@ withDefaults(defineProps<Props>(), {
           <div class="perf-fill" :style="{ width: `${rating / 5 * 100}%` }"></div>
         </div>
       </div>
-</template>
 
       <div class="perf-item">
         <div class="perf-header">

@@ -224,18 +224,19 @@ function handleSelectPlace(place: SearchResult | NearbyPlace): void {
 
 <style scoped>
 .search-section {
-  padding: 16px;
+  padding: 10px 16px;
   background: #fff;
   position: relative;
+  flex-shrink: 0;
 }
 
 .search-box {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background: #f5f5f5;
-  border-radius: 14px;
-  padding: 14px 16px;
+  border-radius: 12px;
+  padding: 12px 14px;
   border: 2px solid transparent;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }

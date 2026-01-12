@@ -112,8 +112,7 @@ const findOrderByUUID = async (uuid: string) => {
   for (const { table, type } of tables) {
     const { data } = await (supabase.from(table) as any)
       .select(`*, provider:provider_id (
-        id, vehicle_type, vehicle_plate, vehicle_color, rating, current_lat, current_lng,
-        user:user_id (name, phone, avatar_url)
+        id, first_name, last_name, phone_number, rating
       ), user:user_id (name, phone)`)
       .eq('id', uuid)
       .maybeSingle()
@@ -138,8 +137,7 @@ const fetchOrder = async () => {
       if (config) {
         const { data } = await (supabase.from(config.table) as any)
           .select(`*, provider:provider_id (
-            id, vehicle_type, vehicle_plate, vehicle_color, rating, current_lat, current_lng,
-            user:user_id (name, phone, avatar_url)
+            id, first_name, last_name, phone_number, rating
           ), user:user_id (name, phone)`)
           .eq('tracking_id', id)
           .maybeSingle()

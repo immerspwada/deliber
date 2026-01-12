@@ -79,12 +79,10 @@ export const useProviderStore = defineStore('provider-v2', () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw createAppError(ErrorCode.AUTH_ERROR, 'ไม่ได้เข้าสู่ระบบ')
 
+      // Query provider without join (provider_locations may not exist)
       const { data, error } = await supabase
         .from('providers_v2')
-        .select(`
-          *,
-          current_location:provider_locations(lat, lng, address, updated_at)
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .maybeSingle()
 

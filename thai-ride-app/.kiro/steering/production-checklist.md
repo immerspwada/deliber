@@ -1,214 +1,104 @@
 ---
-inclusion: always
+inclusion: manual
 ---
 
-# 🚀 Production Deployment Checklist
+# 🚀 Production Deployment
 
-## Pre-Deployment Requirements
+## Pre-Deploy Checklist
 
-### ✅ Code Quality Gates
+### Code Quality
 
-- [ ] TypeScript strict mode - ไม่มี `any` types
-- [ ] ESLint ผ่านทุก rules (0 errors, 0 warnings)
-- [ ] Unit tests ผ่าน 100% (coverage > 80%)
-- [ ] Integration tests ผ่านทุก critical flows
-- [ ] No console.log statements (ใช้ structured logging แทน)
-- [ ] No hardcoded values (ใช้ env variables)
+- [ ] `npm run lint` - 0 errors, 0 warnings
+- [ ] `npm run type-check` - No TypeScript errors
+- [ ] `npm run test -- --run` - All tests pass
+- [ ] `npm run build` - Build successful
+- [ ] No `console.log` statements
+- [ ] No hardcoded values
 
-### ✅ Security Checklist
+### Security
 
-- [ ] RLS policies enabled ทุก tables
-- [ ] API rate limiting configured
-- [ ] CORS whitelist production domains only
-- [ ] Secrets ไม่อยู่ใน codebase
-- [ ] Input validation ทุก endpoints
-- [ ] SQL injection protection verified
-- [ ] XSS protection verified
+- [ ] RLS enabled on ALL tables
+- [ ] Rate limiting configured
+- [ ] CORS whitelist production only
+- [ ] No secrets in codebase
+- [ ] Input validation on all endpoints
+- [ ] Security headers configured
 
-### ✅ Performance Checklist
+### Performance
 
-- [ ] Bundle size < 500KB (gzipped)
-- [ ] Lighthouse score > 90
-- [ ] API response time < 500ms
-- [ ] Database queries optimized (no N+1)
-- [ ] Images optimized (WebP, lazy loading)
+- [ ] Bundle size < 500KB gzipped
+- [ ] Lighthouse score ≥ 90
+- [ ] Images optimized
 - [ ] Code splitting implemented
 
-## Environment Configuration
-
-### Production Environment Variables
+## Environment Variables
 
 ```bash
-# .env.production (ห้าม commit!)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_production_anon_key
-VITE_GOOGLE_MAPS_API_KEY=your_production_maps_key
-VITE_VAPID_PUBLIC_KEY=your_vapid_public_key
-VITE_SENTRY_DSN=your_sentry_dsn
+# Production (.env.production)
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=xxx
+VITE_GOOGLE_MAPS_API_KEY=xxx
+VITE_VAPID_PUBLIC_KEY=xxx
+VITE_SENTRY_DSN=xxx
 VITE_APP_ENV=production
-
-# Feature Flags
-VITE_ENABLE_ANALYTICS=true
-VITE_ENABLE_ERROR_REPORTING=true
-VITE_ENABLE_PERFORMANCE_MONITORING=true
 ```
 
-### Vercel Configuration
-
-```json
-// vercel.json
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": "vite",
-  "regions": ["sin1"],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
-      ]
-    }
-  ]
-}
-```
-
-## Database Migration Process
-
-### Migration Steps
+## Deployment Steps
 
 ```bash
-# 1. Backup production database
-supabase db dump -f backup_$(date +%Y%m%d).sql
+# 1. Run all checks
+npm run lint && npm run type-check && npm run test -- --run
 
-# 2. Test migration on staging
-supabase db push --db-url $STAGING_DB_URL
-
-# 3. Verify staging
-npm run test:integration -- --env=staging
-
-# 4. Apply to production (during maintenance window)
-supabase db push --db-url $PRODUCTION_DB_URL
-
-# 5. Verify production
-npm run test:smoke -- --env=production
-```
-
-### Rollback Plan
-
-```sql
--- ทุก migration ต้องมี rollback script
--- migrations/xxx_feature.sql
--- migrations/xxx_feature_rollback.sql
-
--- Example rollback
-BEGIN;
-  DROP TABLE IF EXISTS new_feature_table;
-  ALTER TABLE existing_table DROP COLUMN IF EXISTS new_column;
-COMMIT;
-```
-
-## Deployment Process
-
-### 1. Pre-deployment
-
-```bash
-# Run all checks
-npm run lint
-npm run type-check
-npm run test
+# 2. Build
 npm run build
 
-# Verify build
-npm run preview
-```
-
-### 2. Staging Deployment
-
-```bash
-# Deploy to staging
+# 3. Deploy to staging
 vercel --env staging
 
-# Run smoke tests
+# 4. Smoke test staging
 npm run test:smoke -- --env=staging
 
-# Manual QA verification
-```
-
-### 3. Production Deployment
-
-```bash
-# Deploy to production
+# 5. Deploy to production
 vercel --prod
 
-# Verify deployment
-curl -I https://your-app.vercel.app/health
-
-# Monitor for 30 minutes
-# Check error rates, response times
+# 6. Verify
+curl -I https://app.thairide.com/health
 ```
 
-### 4. Post-deployment
-
-- [ ] Verify all critical flows work
-- [ ] Check error monitoring (Sentry)
-- [ ] Check performance metrics
-- [ ] Notify team of successful deployment
-
-## Rollback Procedure
-
-### Immediate Rollback (< 5 minutes)
+## Database Migration
 
 ```bash
-# Vercel instant rollback
+# 1. Backup
+supabase db dump -f backup_$(date +%Y%m%d).sql
+
+# 2. Test on staging
+supabase db push --db-url $STAGING_DB_URL
+
+# 3. Apply to production
+supabase db push --db-url $PRODUCTION_DB_URL
+```
+
+## Rollback
+
+```bash
+# Instant rollback (Vercel)
 vercel rollback
 
-# Or rollback to specific deployment
-vercel rollback [deployment-url]
-```
-
-### Database Rollback
-
-```bash
-# Restore from backup
+# Database rollback
 psql $PRODUCTION_DB_URL < backup_YYYYMMDD.sql
-
-# Or run rollback migration
-supabase db push migrations/xxx_rollback.sql
 ```
 
-## Monitoring Setup
+## Monitoring Alerts
 
-### Required Monitoring
+| Metric         | Warning | Critical |
+| -------------- | ------- | -------- |
+| Error Rate     | > 1%    | > 5%     |
+| Response Time  | > 1s    | > 3s     |
+| CPU Usage      | > 70%   | > 90%    |
+| DB Connections | > 80%   | > 95%    |
 
-1. **Error Tracking**: Sentry
-2. **Performance**: Vercel Analytics
-3. **Uptime**: UptimeRobot / Pingdom
-4. **Database**: Supabase Dashboard
+## Maintenance Window
 
-### Alert Thresholds
-
-| Metric               | Warning | Critical |
-| -------------------- | ------- | -------- |
-| Error Rate           | > 1%    | > 5%     |
-| Response Time        | > 1s    | > 3s     |
-| CPU Usage            | > 70%   | > 90%    |
-| Memory Usage         | > 70%   | > 90%    |
-| Database Connections | > 80%   | > 95%    |
-
-## Maintenance Windows
-
-### Scheduled Maintenance
-
-- **Time**: วันอาทิตย์ 02:00-04:00 ICT
-- **Notification**: แจ้งล่วงหน้า 24 ชั่วโมง
-- **Duration**: ไม่เกิน 2 ชั่วโมง
-
-### Emergency Maintenance
-
-- **Approval**: ต้องได้รับอนุมัติจาก Tech Lead
-- **Communication**: แจ้งทันทีผ่าน Slack/Line
-- **Post-mortem**: ต้องทำ incident report ภายใน 24 ชั่วโมง
+- **Time**: Sunday 02:00-04:00 ICT
+- **Notice**: 24 hours advance
+- **Duration**: Max 2 hours

@@ -2,33 +2,41 @@
 inclusion: always
 ---
 
-# 🔐 Security Checklist (Production-Ready)
+# 🔐 Security Standards (Production)
 
-## Authentication & Authorization
-
-### ✅ ต้องทำ
-
-- ใช้ Supabase Auth สำหรับ authentication
-- ตรวจสอบ session ก่อนทุก protected route
-- ใช้ RLS policies ทุก table
-- Validate user permissions ฝั่ง server
-- ใช้ PKCE flow สำหรับ OAuth
-- Implement session timeout (30 นาที inactive)
-- Force re-authentication สำหรับ sensitive actions
-
-### ❌ ห้ามทำ
-
-- เก็บ tokens ใน localStorage (ใช้ Supabase session management)
-- Trust client-side validation เพียงอย่างเดียว
-- Expose sensitive data ใน client bundle
-- ใช้ predictable session IDs
-
-## Data Validation (Production)
+## Authentication & Session
 
 ```typescript
-// ✅ ใช้ Zod สำหรับ runtime validation
+// ✅ REQUIRED Configuration
+const supabaseConfig = {
+  auth: {
+    flowType: "pkce", // ใช้ PKCE flow
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+};
+
+// ✅ Session validation
+const {
+  data: { user },
+  error,
+} = await supabase.auth.getUser();
+if (error || !user) {
+  await supabase.auth.signOut();
+  router.push("/login");
+}
+
+// ❌ NEVER DO
+localStorage.setItem("token", accessToken); // ห้าม store tokens manually
+```
+
+## Input Validation (Zod)
+
+```typescript
 import { z } from "zod";
 
+// ✅ Define schemas
 const RideRequestSchema = z.object({
   pickup: z.object({
     lat: z.number().min(-90).max(90),
@@ -44,84 +52,48 @@ const RideRequestSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
-// Edge Function validation
+// ✅ Validate in Edge Functions
 export async function handler(req: Request): Promise<Response> {
   const body = await req.json();
   const result = RideRequestSchema.safeParse(body);
 
   if (!result.success) {
-    return new Response(
-      JSON.stringify({
+    return Response.json(
+      {
         error: "VALIDATION_ERROR",
         details: result.error.flatten(),
-      }),
+      },
       { status: 400 }
     );
   }
 
-  // Process validated data
-  const validatedData = result.data;
+  // Process result.data (validated)
 }
 ```
 
-## Environment Variables
-
-```bash
-# .env.example - ต้องมีไฟล์นี้
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_GOOGLE_MAPS_API_KEY=your_maps_key
-VITE_VAPID_PUBLIC_KEY=your_vapid_key
-VITE_SENTRY_DSN=your_sentry_dsn
-VITE_APP_ENV=development
-
-# ❌ ห้าม commit ไฟล์เหล่านี้
-# .env
-# .env.local
-# .env.production
-```
-
-## API Security (Production)
-
-### Rate Limiting
+## Rate Limiting
 
 ```typescript
-// ทุก Edge Function ต้องมี rate limiting
+// Edge Function rate limits
 const RATE_LIMITS = {
-  auth: { windowMs: 60000, max: 5 }, // 5 requests/min
-  api: { windowMs: 60000, max: 100 }, // 100 requests/min
-  upload: { windowMs: 60000, max: 10 }, // 10 uploads/min
-  withdrawal: { windowMs: 3600000, max: 3 }, // 3/hour
-};
-```
-
-### CORS Configuration
-
-```typescript
-// Production CORS - whitelist only
-const ALLOWED_ORIGINS = [
-  "https://app.thairide.com",
-  "https://admin.thairide.com",
-];
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : "",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Max-Age": "86400",
-};
+  auth: { window: 60_000, max: 5 }, // 5/min
+  api: { window: 60_000, max: 100 }, // 100/min
+  upload: { window: 60_000, max: 10 }, // 10/min
+  withdrawal: { window: 3600_000, max: 3 }, // 3/hour
+} as const;
 ```
 
 ## XSS Prevention
 
 ```vue
-<!-- ✅ Vue auto-escapes by default -->
-<p>{{ userInput }}</p>
+<template>
+  <!-- ✅ Vue auto-escapes -->
+  <p>{{ userInput }}</p>
 
-<!-- ❌ ระวังการใช้ v-html -->
-<div v-html="sanitizedHtml"></div>
+  <!-- ⚠️ v-html requires sanitization -->
+  <div v-html="sanitizedHtml" />
+</template>
 
-<!-- ใช้ DOMPurify ถ้าจำเป็น -->
 <script setup lang="ts">
 import DOMPurify from "dompurify";
 
@@ -134,54 +106,74 @@ const sanitizedHtml = computed(() =>
 </script>
 ```
 
-## Sensitive Data Handling
+## Environment Variables
 
-### PII Protection
+```bash
+# .env.example (commit this)
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_GOOGLE_MAPS_API_KEY=
+VITE_VAPID_PUBLIC_KEY=
+VITE_SENTRY_DSN=
+VITE_APP_ENV=development
 
-```typescript
-// ✅ Mask sensitive data ก่อน log
-function maskPII(data: Record<string, unknown>): Record<string, unknown> {
-  const sensitiveFields = ["phone", "email", "id_card", "bank_account"];
-  const masked = { ...data };
+# ❌ NEVER commit
+# .env, .env.local, .env.production
+```
 
-  for (const field of sensitiveFields) {
-    if (masked[field]) {
-      const value = String(masked[field]);
-      masked[field] =
-        value.slice(0, 2) + "*".repeat(value.length - 4) + value.slice(-2);
+## Security Headers (vercel.json)
+
+```json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(self), camera=(), microphone=()"
+        }
+      ]
     }
-  }
-
-  return masked;
+  ]
 }
 ```
 
-### Security Headers (Production)
+## PII Masking
 
 ```typescript
-// vercel.json หรือ middleware
-const securityHeaders = {
-  "Content-Security-Policy":
-    "default-src 'self'; script-src 'self' 'unsafe-inline' https://maps.googleapis.com",
-  "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
-  "X-XSS-Protection": "1; mode=block",
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "geolocation=(self), camera=(), microphone=()",
-};
+// ✅ Mask before logging
+function maskPII(data: Record<string, unknown>): Record<string, unknown> {
+  const sensitive = ["phone", "email", "id_card", "bank_account"];
+  const masked = { ...data };
+
+  for (const field of sensitive) {
+    if (typeof masked[field] === "string") {
+      const val = masked[field] as string;
+      masked[field] = val.slice(0, 2) + "***" + val.slice(-2);
+    }
+  }
+  return masked;
+}
+
+// Usage
+logger.info("User action", maskPII({ phone: "0812345678" }));
+// Output: { phone: '08***78' }
 ```
 
-## Security Audit Checklist
+## Pre-Deploy Security Checklist
 
-### Before Production Deploy
-
-- [ ] RLS enabled ทุก tables
+- [ ] RLS enabled on ALL tables
 - [ ] Rate limiting configured
 - [ ] CORS whitelist production domains only
-- [ ] No secrets in codebase
-- [ ] Input validation ทุก endpoints
-- [ ] SQL injection protection verified
-- [ ] XSS protection verified
-- [ ] HTTPS enforced
+- [ ] No secrets in codebase (use env vars)
+- [ ] Input validation on all endpoints
 - [ ] Security headers configured
-- [ ] Audit logging enabled for sensitive operations
+- [ ] Audit logging for sensitive operations

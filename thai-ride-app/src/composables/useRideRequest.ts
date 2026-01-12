@@ -386,13 +386,13 @@ export function useRideRequest() {
   async function checkActiveRide(): Promise<void> {
     if (!authStore.user?.id) return
     
+    // Query updated for providers_v2 schema
     const { data, error } = await supabase
       .from('ride_requests')
       .select(`
         *,
         provider:provider_id (
-          id, user_id, vehicle_type, vehicle_plate, vehicle_color, rating, total_trips, current_lat, current_lng,
-          users:user_id (name, phone, avatar_url)
+          id, user_id, first_name, last_name, phone_number, rating, total_trips
         )
       `)
       .eq('user_id', authStore.user.id)
@@ -407,18 +407,19 @@ export function useRideRequest() {
       activeRide.value = data
       const provider = (data as Record<string, unknown>).provider as Record<string, unknown> | undefined
       if (provider) {
-        const user = provider.users as Record<string, unknown> | undefined
+        // providers_v2 has first_name, last_name, phone_number directly
+        const fullName = `${provider.first_name || ''} ${provider.last_name || ''}`.trim()
         matchedDriver.value = {
           id: String(provider.id),
-          name: String(user?.name || 'คนขับ'),
-          phone: String(user?.phone || ''),
+          name: fullName || 'คนขับ',
+          phone: String(provider.phone_number || ''),
           rating: Number(provider.rating) || 4.8,
-          vehicle_type: String(provider.vehicle_type || 'รถยนต์'),
-          vehicle_color: String(provider.vehicle_color || 'สีดำ'),
-          vehicle_plate: String(provider.vehicle_plate || ''),
-          avatar_url: user?.avatar_url as string | undefined,
-          current_lat: Number(provider.current_lat),
-          current_lng: Number(provider.current_lng)
+          vehicle_type: 'รถยนต์', // providers_v2 doesn't have vehicle info yet
+          vehicle_color: 'สีดำ',
+          vehicle_plate: '',
+          avatar_url: undefined,
+          current_lat: 0,
+          current_lng: 0
         }
       }
       currentStep.value = (data as { status: string }).status === 'pending' ? 'searching' : 'tracking'

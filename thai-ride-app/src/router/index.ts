@@ -118,6 +118,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
+        path: 'job/:id',
+        name: 'ProviderJobDetail',
+        component: () => import('../views/provider/ProviderJobDetailView.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
         path: 'earnings',
         name: 'ProviderEarnings',
         component: () => import('../views/provider/ProviderEarningsView.vue'),

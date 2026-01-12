@@ -21,33 +21,34 @@ const authStore = useAuthStore();
 const showRoleSwitcher = ref(false);
 
 // Provider info from database
-const providerType = ref<string | null>(null);
+const serviceTypes = ref<string[]>([]);
 
-// Get user role label
+// Get user role label based on service_types array
 const userRole = computed(() => {
+  if (serviceTypes.value.length === 0) return "ผู้ให้บริการ";
+  if (serviceTypes.value.length > 1) return "หลายบริการ";
+  
   const typeLabels: Record<string, string> = {
-    driver: "คนขับรถ",
-    rider: "ไรเดอร์",
-    shopper: "ช้อปเปอร์",
-    mover: "ขนย้าย",
+    ride: "คนขับรถ",
+    delivery: "ไรเดอร์",
+    shopping: "ช้อปเปอร์",
+    moving: "ขนย้าย",
     laundry: "ซักผ้า",
-    multi: "หลายบริการ",
   };
-  return typeLabels[providerType.value || ""] || "ผู้ให้บริการ";
+  return typeLabels[serviceTypes.value[0] ?? ""] || "ผู้ให้บริการ";
 });
 
-// Fetch provider type on mount
+// Fetch provider service_types on mount
 onMounted(async () => {
   if (authStore.user?.id) {
-    // CRITICAL FIX: Use providers_v2 table consistently
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("providers_v2")
-      .select("provider_type")
+      .select("service_types")
       .eq("user_id", authStore.user.id)
       .maybeSingle();
 
-    if (data) {
-      providerType.value = data.provider_type;
+    if (!error && data?.service_types) {
+      serviceTypes.value = data.service_types;
     }
   }
 });
@@ -297,7 +298,7 @@ const logout = async () => {
 
     <!-- Main Content -->
     <main class="provider-main">
-      <slot />
+      <router-view />
     </main>
 
     <!-- Bottom Navigation -->

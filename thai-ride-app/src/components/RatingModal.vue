@@ -1,366 +1,427 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+/**
+ * Rating Modal Component
+ * ให้คะแนนหลังเสร็จงาน
+ */
+import { ref, computed } from 'vue'
+import { useRating, PROVIDER_TAGS, CUSTOMER_TAGS } from '../composables/useRating'
 
 interface Props {
-  isOpen: boolean
-  driverName?: string
-  serviceType?: 'ride' | 'delivery' | 'shopping'
+  rideId: string
+  rateeId: string
+  rateeName: string
+  raterRole: 'customer' | 'provider'
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  driverName: 'ผู้ให้บริการ',
-  serviceType: 'ride'
-})
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  submit: [rating: number, comment: string, tip: number]
+  submitted: []
 }>()
 
+const { loading, error, submitRating } = useRating()
+
+// State
 const rating = ref(0)
 const hoverRating = ref(0)
+const selectedTags = ref<string[]>([])
 const comment = ref('')
-const selectedTip = ref<number | null>(null)
 
-const tipOptions = [0, 10, 20, 50]
+// Computed
+const displayRating = computed(() => hoverRating.value || rating.value)
 
-const quickComments = [
-  'บริการดีมาก',
-  'ขับรถปลอดภัย',
-  'มาตรงเวลา',
-  'สุภาพเป็นกันเอง',
-  'รถสะอาด'
-]
+const tags = computed(() => 
+  props.raterRole === 'customer' ? PROVIDER_TAGS : CUSTOMER_TAGS
+)
 
-const setRating = (value: number) => {
+const ratingLabels = ['', 'แย่มาก', 'ไม่ดี', 'พอใช้', 'ดี', 'ยอดเยี่ยม']
+
+const canSubmit = computed(() => rating.value > 0 && !loading.value)
+
+// Methods
+function setRating(value: number): void {
   rating.value = value
 }
 
-const addQuickComment = (text: string) => {
-  if (comment.value) {
-    comment.value += ', ' + text
+function toggleTag(tag: string): void {
+  const index = selectedTags.value.indexOf(tag)
+  if (index === -1) {
+    selectedTags.value.push(tag)
   } else {
-    comment.value = text
+    selectedTags.value.splice(index, 1)
   }
 }
 
-const submitRating = () => {
-  emit('submit', rating.value, comment.value, selectedTip.value || 0)
-}
+async function handleSubmit(): Promise<void> {
+  if (!canSubmit.value) return
 
-const closeModal = () => {
-  emit('close')
+  const result = await submitRating({
+    rideId: props.rideId,
+    rateeId: props.rateeId,
+    raterRole: props.raterRole,
+    rating: rating.value,
+    comment: comment.value || undefined,
+    tags: selectedTags.value.length > 0 ? selectedTags.value : undefined
+  })
+
+  if (result) {
+    emit('submitted')
+  }
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>ให้คะแนนการบริการ</h2>
-          <button @click="closeModal" class="close-btn">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+  <div class="modal-overlay" @click.self="emit('close')">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="rating-title">
+      <!-- Header -->
+      <div class="modal-header">
+        <h2 id="rating-title">ให้คะแนน</h2>
+        <button class="close-btn" @click="emit('close')" type="button" aria-label="ปิด">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Ratee Info -->
+      <div class="ratee-info">
+        <div class="ratee-avatar">👤</div>
+        <span class="ratee-name">{{ rateeName }}</span>
+      </div>
+
+      <!-- Star Rating -->
+      <div class="rating-section">
+        <div class="stars" role="radiogroup" aria-label="คะแนน">
+          <button
+            v-for="star in 5"
+            :key="star"
+            class="star-btn"
+            :class="{ active: star <= displayRating }"
+            @click="setRating(star)"
+            @mouseenter="hoverRating = star"
+            @mouseleave="hoverRating = 0"
+            type="button"
+            :aria-label="`${star} ดาว`"
+            :aria-checked="star === rating"
+            role="radio"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
           </button>
         </div>
+        <span v-if="displayRating > 0" class="rating-label">
+          {{ ratingLabels[displayRating] }}
+        </span>
+      </div>
 
-        <div class="modal-body">
-          <!-- Driver Info -->
-          <div class="driver-info">
-            <div class="driver-avatar">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-              </svg>
-            </div>
-            <span class="driver-name">{{ driverName }}</span>
-          </div>
-
-          <!-- Star Rating -->
-          <div class="rating-section">
-            <div class="stars">
-              <button
-                v-for="i in 5"
-                :key="i"
-                @click="setRating(i)"
-                @mouseenter="hoverRating = i"
-                @mouseleave="hoverRating = 0"
-                class="star-btn"
-              >
-                <svg
-                  :class="['star', { filled: i <= (hoverRating || rating) }]"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
-              </button>
-            </div>
-            <span class="rating-label">
-              {{ rating === 0 ? 'แตะเพื่อให้คะแนน' : rating === 5 ? 'ยอดเยี่ยม!' : rating >= 4 ? 'ดีมาก' : rating >= 3 ? 'ดี' : 'ปรับปรุง' }}
-            </span>
-          </div>
-
-          <!-- Quick Comments -->
-          <div v-if="rating > 0" class="quick-comments">
-            <button
-              v-for="text in quickComments"
-              :key="text"
-              @click="addQuickComment(text)"
-              class="quick-comment-btn"
-            >
-              {{ text }}
-            </button>
-          </div>
-
-          <!-- Comment Input -->
-          <div v-if="rating > 0" class="comment-section">
-            <textarea
-              v-model="comment"
-              placeholder="เพิ่มความคิดเห็น (ไม่บังคับ)"
-              class="comment-input"
-              rows="3"
-            ></textarea>
-          </div>
-
-          <!-- Tip Section -->
-          <div v-if="rating >= 4" class="tip-section">
-            <h3 class="tip-title">ให้ทิปผู้ให้บริการ</h3>
-            <div class="tip-options">
-              <button
-                v-for="amount in tipOptions"
-                :key="amount"
-                @click="selectedTip = amount"
-                :class="['tip-btn', { active: selectedTip === amount }]"
-              >
-                {{ amount === 0 ? 'ไม่ให้ทิป' : `฿${amount}` }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button @click="submitRating" :disabled="rating === 0" class="btn-primary">
-            ส่งคะแนน
+      <!-- Tags -->
+      <div v-if="rating >= 4" class="tags-section">
+        <p class="tags-label">อะไรที่ดี? (เลือกได้หลายข้อ)</p>
+        <div class="tags-grid">
+          <button
+            v-for="tag in tags"
+            :key="tag.key"
+            class="tag-btn"
+            :class="{ selected: selectedTags.includes(tag.key) }"
+            @click="toggleTag(tag.key)"
+            type="button"
+          >
+            <span class="tag-icon">{{ tag.icon }}</span>
+            <span class="tag-label">{{ tag.label }}</span>
           </button>
         </div>
       </div>
+
+      <!-- Comment -->
+      <div class="comment-section">
+        <label for="rating-comment">ความคิดเห็นเพิ่มเติม (ไม่บังคับ)</label>
+        <textarea
+          id="rating-comment"
+          v-model="comment"
+          placeholder="แชร์ประสบการณ์ของคุณ..."
+          rows="3"
+          maxlength="500"
+        ></textarea>
+      </div>
+
+      <!-- Error -->
+      <div v-if="error" class="error-message" role="alert">
+        {{ error }}
+      </div>
+
+      <!-- Submit Button -->
+      <button
+        class="submit-btn"
+        :disabled="!canSubmit"
+        @click="handleSubmit"
+        type="button"
+      >
+        <span v-if="loading" class="btn-loader" aria-hidden="true"></span>
+        <span v-else>ส่งคะแนน</span>
+      </button>
+
+      <!-- Skip Button -->
+      <button
+        class="skip-btn"
+        @click="emit('close')"
+        type="button"
+      >
+        ข้ามไปก่อน
+      </button>
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <style scoped>
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background: rgba(0,0,0,0.5);
   display: flex;
-  align-items: flex-end;
-  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
 }
 
-.modal {
+.modal-content {
   width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  max-width: 400px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
   max-height: 90vh;
   overflow-y: auto;
 }
 
+/* Header */
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid var(--color-border);
+  justify-content: space-between;
+  margin-bottom: 20px;
 }
 
 .modal-header h2 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
 }
 
 .close-btn {
   width: 36px;
   height: 36px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
   cursor: pointer;
 }
 
 .close-btn svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
+  color: #6b7280;
 }
 
-.modal-body {
-  padding: 24px 20px;
-}
-
-.driver-info {
+/* Ratee Info */
+.ratee-info {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
   margin-bottom: 24px;
 }
 
-.driver-avatar {
+.ratee-avatar {
   width: 64px;
   height: 64px;
+  background: #f3f4f6;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-secondary);
-  border-radius: 50%;
-  margin-bottom: 8px;
+  font-size: 32px;
 }
 
-.driver-avatar svg {
-  width: 32px;
-  height: 32px;
-}
-
-.driver-name {
+.ratee-name {
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
+  color: #111;
 }
 
+/* Stars */
 .rating-section {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
   margin-bottom: 24px;
 }
 
 .stars {
   display: flex;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
 .star-btn {
+  width: 48px;
+  height: 48px;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  color: #e5e7eb;
+  transition: all 0.2s;
+  padding: 0;
 }
 
-.star {
-  width: 40px;
-  height: 40px;
-  color: var(--color-border);
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-
-.star.filled {
-  color: #F59E0B;
-}
-
-.star-btn:hover .star {
+.star-btn.active {
+  color: #fbbf24;
   transform: scale(1.1);
+}
+
+.star-btn svg {
+  width: 100%;
+  height: 100%;
 }
 
 .rating-label {
   font-size: 14px;
-  color: var(--color-text-secondary);
+  color: #6b7280;
+  font-weight: 500;
 }
 
-.quick-comments {
+/* Tags */
+.tags-section {
+  margin-bottom: 20px;
+}
+
+.tags-label {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 12px 0;
+  text-align: center;
+}
+
+.tags-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 16px;
+  justify-content: center;
 }
 
-.quick-comment-btn {
+.tag-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
-  background-color: var(--color-secondary);
-  border: none;
-  border-radius: var(--radius-full);
+  background: #f3f4f6;
+  border: 2px solid transparent;
+  border-radius: 20px;
   font-size: 13px;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.quick-comment-btn:hover {
-  background-color: var(--color-secondary-hover);
+.tag-btn.selected {
+  background: #dcfce7;
+  border-color: #10b981;
 }
 
+.tag-icon {
+  font-size: 16px;
+}
+
+.tag-label {
+  color: #374151;
+}
+
+/* Comment */
 .comment-section {
   margin-bottom: 20px;
 }
 
-.comment-input {
+.comment-section label {
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.comment-section textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   font-size: 14px;
   resize: none;
+  font-family: inherit;
 }
 
-.comment-input:focus {
+.comment-section textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: #000;
 }
 
-.tip-section {
-  padding-top: 20px;
-  border-top: 1px solid var(--color-border);
-}
-
-.tip-title {
-  font-size: 15px;
-  font-weight: 500;
-  margin-bottom: 12px;
-  text-align: center;
-}
-
-.tip-options {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.tip-btn {
-  padding: 12px 8px;
-  background-color: var(--color-secondary);
-  border: 2px solid transparent;
-  border-radius: var(--radius-sm);
+/* Error */
+.error-message {
+  padding: 12px;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: #b91c1c;
   font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
+  text-align: center;
+  margin-bottom: 16px;
 }
 
-.tip-btn.active {
-  border-color: var(--color-primary);
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.modal-footer {
-  padding: 20px;
-  border-top: 1px solid var(--color-border);
-}
-
-.btn-primary {
+/* Buttons */
+.submit-btn {
   width: 100%;
   padding: 16px;
-  background-color: var(--color-primary);
-  color: white;
+  background: #000;
+  color: #fff;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
 }
 
-.btn-primary:disabled {
-  background-color: var(--color-disabled);
+.submit-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-loader {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.skip-btn {
+  width: 100%;
+  padding: 14px;
+  background: none;
+  color: #6b7280;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
 }
 </style>

@@ -1,34 +1,16 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: "**/*{Service,service,api}*.ts"
 ---
 
 # API & Service Patterns
 
-## Service Layer Architecture
-
-```typescript
-// services/base.ts
-export class ServiceError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public statusCode: number = 500
-  ) {
-    super(message);
-    this.name = "ServiceError";
-  }
-}
-
-export function handleSupabaseError(error: PostgrestError): never {
-  throw new ServiceError(error.message, error.code, 400);
-}
-```
-
-## Standard Service Pattern
+## Service Layer Structure
 
 ```typescript
 // services/rideService.ts
 import { supabase } from "@/lib/supabase";
+import { AppError, ErrorCode } from "@/types/errors";
 import type { Ride, CreateRideInput } from "@/types";
 
 export const rideService = {
@@ -38,14 +20,16 @@ export const rideService = {
       .select(
         `
         *,
-        passenger:users!passenger_id(*),
-        driver:users!driver_id(*)
+        customer:profiles!customer_id(id, name, phone),
+        provider:providers!provider_id(id, name, vehicle_type)
       `
       )
       .eq("id", id)
       .single();
 
-    if (error) handleSupabaseError(error);
+    if (error) {
+      throw new AppError(error.message, ErrorCode.NOT_FOUND);
+    }
     return data;
   },
 
@@ -56,7 +40,9 @@ export const rideService = {
       .select()
       .single();
 
-    if (error) handleSupabaseError(error);
+    if (error) {
+      throw new AppError(error.message, ErrorCode.VALIDATION);
+    }
     return data;
   },
 
@@ -68,58 +54,78 @@ export const rideService = {
       .select()
       .single();
 
-    if (error) handleSupabaseError(error);
+    if (error) {
+      throw new AppError(error.message, ErrorCode.BUSINESS);
+    }
     return data;
   },
 };
 ```
 
-## Composable Pattern for Data Fetching
+## Data Fetching Composable
 
 ```typescript
-// composables/useRide.ts
-export function useRide(rideId: MaybeRef<string>) {
-  const ride = ref<Ride | null>(null);
+// composables/useQuery.ts
+interface UseQueryOptions<T> {
+  immediate?: boolean;
+  onError?: (error: Error) => void;
+}
+
+export function useQuery<T>(
+  fetcher: () => Promise<T>,
+  options: UseQueryOptions<T> = {}
+) {
+  const data = ref<T | null>(null) as Ref<T | null>;
   const loading = ref(false);
   const error = ref<Error | null>(null);
 
-  async function fetch(): Promise<void> {
+  async function execute(): Promise<T | null> {
     loading.value = true;
     error.value = null;
 
     try {
-      ride.value = await rideService.getById(toValue(rideId));
+      data.value = await fetcher();
+      return data.value;
     } catch (e) {
       error.value = e as Error;
+      options.onError?.(e as Error);
+      return null;
     } finally {
       loading.value = false;
     }
   }
 
-  // Auto-fetch on mount and when rideId changes
-  watchEffect(() => {
-    if (toValue(rideId)) fetch();
-  });
+  if (options.immediate !== false) {
+    execute();
+  }
 
-  return { ride, loading, error, refetch: fetch };
+  return { data, loading, error, execute, refetch: execute };
 }
+
+// Usage
+const {
+  data: ride,
+  loading,
+  refetch,
+} = useQuery(() => rideService.getById(rideId.value));
 ```
 
-## Mutation Pattern
+## Mutation Composable
 
 ```typescript
-// composables/useCreateRide.ts
-export function useCreateRide() {
+// composables/useMutation.ts
+export function useMutation<TInput, TOutput>(
+  mutator: (input: TInput) => Promise<TOutput>
+) {
   const loading = ref(false);
   const error = ref<Error | null>(null);
 
-  async function execute(input: CreateRideInput): Promise<Ride | null> {
+  async function execute(input: TInput): Promise<TOutput | null> {
     loading.value = true;
     error.value = null;
 
     try {
-      const ride = await rideService.create(input);
-      return ride;
+      return await mutator(input);
     } catch (e) {
       error.value = e as Error;
       return null;
@@ -130,30 +136,69 @@ export function useCreateRide() {
 
   return { execute, loading, error };
 }
+
+// Usage
+const { execute: createRide, loading } = useMutation(rideService.create);
+const ride = await createRide({ pickup, dropoff });
 ```
 
-## Retry Logic
+## Optimistic Updates
 
 ```typescript
-// utils/retry.ts
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-  delayMs = 1000
-): Promise<T> {
-  let lastError: Error | null = null;
+// composables/useOptimisticUpdate.ts
+export function useOptimisticUpdate<T>(
+  currentValue: Ref<T>,
+  updater: (value: T) => Promise<T>
+) {
+  async function execute(optimisticValue: T): Promise<T | null> {
+    const previousValue = currentValue.value;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Optimistic update
+    currentValue.value = optimisticValue;
+
     try {
-      return await fn();
-    } catch (e) {
-      lastError = e as Error;
-      if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, delayMs * attempt));
-      }
+      const result = await updater(optimisticValue);
+      currentValue.value = result;
+      return result;
+    } catch (error) {
+      // Rollback on error
+      currentValue.value = previousValue;
+      throw error;
     }
   }
 
-  throw lastError;
+  return { execute };
+}
+```
+
+## Caching
+
+```typescript
+// utils/cache.ts
+const cache = new Map<string, { data: unknown; timestamp: number }>();
+const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+
+export function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+
+  if (Date.now() - entry.timestamp > DEFAULT_TTL) {
+    cache.delete(key);
+    return null;
+  }
+
+  return entry.data as T;
+}
+
+export function setCache<T>(key: string, data: T): void {
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
+export function invalidateCache(pattern: string): void {
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) {
+      cache.delete(key);
+    }
+  }
 }
 ```

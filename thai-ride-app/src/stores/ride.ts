@@ -97,6 +97,7 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
+      // Query ride_requests - provider_id now references providers_v2
       const { data, error: queryError } = await supabase
         .from('ride_requests')
         .select(`
@@ -104,18 +105,11 @@ export const useRideStore = defineStore('ride', () => {
           provider:provider_id (
             id,
             user_id,
-            vehicle_type,
-            vehicle_plate,
-            vehicle_color,
+            first_name,
+            last_name,
+            phone_number,
             rating,
-            total_trips,
-            current_lat,
-            current_lng,
-            users:user_id (
-              name,
-              phone,
-              avatar_url
-            )
+            total_trips
           )
         `)
         .eq('user_id', userId)
@@ -131,22 +125,21 @@ export const useRideStore = defineStore('ride', () => {
       if (data) {
         currentRide.value = data
         
-        // Set matched driver if exists
+        // Set matched driver if exists (providers_v2 schema)
         const provider = (data as any).provider
         if (provider) {
-          const user = provider.users
           matchedDriver.value = {
             id: provider.id,
-            name: user?.name || 'คนขับ',
-            phone: user?.phone || '',
+            name: `${provider.first_name || ''} ${provider.last_name || ''}`.trim() || 'คนขับ',
+            phone: provider.phone_number || '',
             rating: provider.rating || 4.8,
             total_trips: provider.total_trips || 0,
-            vehicle_type: provider.vehicle_type || 'รถยนต์',
-            vehicle_color: provider.vehicle_color || 'สีดำ',
-            vehicle_plate: provider.vehicle_plate || '',
-            avatar_url: user?.avatar_url,
-            current_lat: provider.current_lat,
-            current_lng: provider.current_lng,
+            vehicle_type: 'รถยนต์', // providers_v2 doesn't have vehicle info yet
+            vehicle_color: 'สีดำ',
+            vehicle_plate: '',
+            avatar_url: undefined,
+            current_lat: 0,
+            current_lng: 0,
             eta: 5
           }
         }
@@ -542,12 +535,9 @@ export const useRideStore = defineStore('ride', () => {
             .select(`
               *,
               provider:provider_id (
-                vehicle_type,
-                vehicle_plate,
-                rating,
-                users:user_id (
-                  name
-                )
+                first_name,
+                last_name,
+                rating
               )
             `)
             .eq('user_id', userId)

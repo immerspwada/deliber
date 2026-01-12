@@ -1,13 +1,14 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: "**/*{sw,pwa,manifest,offline}*"
 ---
 
 # PWA Guidelines
 
-## Service Worker Configuration
+## Vite PWA Configuration
 
 ```typescript
-// vite.config.ts - PWA Plugin
+// vite.config.ts
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
@@ -19,7 +20,7 @@ export default defineConfig({
         name: "Thai Ride App",
         short_name: "ThaiRide",
         description: "แอปเรียกรถในประเทศไทย",
-        theme_color: "#3B82F6",
+        theme_color: "#00a86b",
         background_color: "#ffffff",
         display: "standalone",
         orientation: "portrait",
@@ -46,6 +47,14 @@ export default defineConfig({
               expiration: { maxEntries: 50, maxAgeSeconds: 300 },
             },
           },
+          {
+            urlPattern: /^https:\/\/.*\.googleapis\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-maps",
+              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
+            },
+          },
         ],
       },
     }),
@@ -53,23 +62,32 @@ export default defineConfig({
 });
 ```
 
-## Offline Support
+## Offline Status
 
 ```typescript
 // composables/useOfflineStatus.ts
 export function useOfflineStatus() {
   const isOnline = ref(navigator.onLine);
-  const pendingActions = ref<OfflineAction[]>([]);
+  const pendingActions = ref<QueuedAction[]>([]);
 
   onMounted(() => {
-    window.addEventListener("online", () => {
-      isOnline.value = true;
-      syncPendingActions();
-    });
-    window.addEventListener("offline", () => {
-      isOnline.value = false;
-    });
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
   });
+
+  onUnmounted(() => {
+    window.removeEventListener("online", handleOnline);
+    window.removeEventListener("offline", handleOffline);
+  });
+
+  function handleOnline(): void {
+    isOnline.value = true;
+    syncPendingActions();
+  }
+
+  function handleOffline(): void {
+    isOnline.value = false;
+  }
 
   async function syncPendingActions(): Promise<void> {
     for (const action of pendingActions.value) {
@@ -87,15 +105,18 @@ export function useOfflineStatus() {
 ```typescript
 // services/pushNotification.ts
 export async function subscribeToPush(): Promise<PushSubscription | null> {
-  if (!("serviceWorker" in navigator)) return null;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return null;
+  }
 
   const registration = await navigator.serviceWorker.ready;
+
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY,
   });
 
-  // Save subscription to Supabase
+  // Save to database
   await supabase.from("push_subscriptions").upsert({
     user_id: currentUser.id,
     subscription: JSON.stringify(subscription),
@@ -105,7 +126,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
 }
 ```
 
-## App Install Prompt
+## Install Prompt
 
 ```typescript
 // composables/useInstallPrompt.ts
@@ -120,15 +141,31 @@ export function useInstallPrompt() {
     });
   });
 
-  async function install(): Promise<void> {
-    if (!deferredPrompt.value) return;
+  async function install(): Promise<boolean> {
+    if (!deferredPrompt.value) return false;
+
     deferredPrompt.value.prompt();
     const { outcome } = await deferredPrompt.value.userChoice;
-    if (outcome === "accepted") {
-      deferredPrompt.value = null;
-    }
+    deferredPrompt.value = null;
+
+    return outcome === "accepted";
   }
 
   return { canInstall, install };
 }
+```
+
+## Offline UI Indicator
+
+```vue
+<template>
+  <Transition name="slide">
+    <div
+      v-if="!isOnline"
+      class="fixed top-0 inset-x-0 bg-amber-500 text-white text-center py-2 z-50"
+    >
+      ⚠️ ออฟไลน์ - บางฟีเจอร์อาจไม่พร้อมใช้งาน
+    </div>
+  </Transition>
+</template>
 ```

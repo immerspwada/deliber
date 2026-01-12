@@ -104,24 +104,26 @@ function handleRefresh(): void {
 
 <style scoped>
 .header-section {
-  background: linear-gradient(135deg, #00a86b 0%, #00875a 100%);
-  padding: 12px 16px;
-  padding-top: calc(12px + env(safe-area-inset-top));
+  background: #fff;
+  padding: 10px 16px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
 }
 
 .header-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .back-btn {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: #f5f5f5;
   border: none;
-  color: #fff;
+  color: #333;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,31 +135,27 @@ function handleRefresh(): void {
 
 .back-btn:active,
 .back-btn.pressed {
-  background: rgba(255, 255, 255, 0.35);
-  transform: scale(0.92);
+  background: #e8e8e8;
+  transform: scale(0.95);
 }
 
 .pickup-display {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 14px;
-  padding: 12px 14px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  gap: 10px;
+  background: #f8f8f8;
+  border-radius: 10px;
+  padding: 8px 12px;
   min-width: 0;
 }
 
 .pickup-dot {
-  width: 14px;
-  height: 14px;
-  background: #fff;
+  width: 10px;
+  height: 10px;
+  background: #00a86b;
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
 }
 
 .pickup-dot.pulsing {
@@ -166,12 +164,10 @@ function handleRefresh(): void {
 
 @keyframes pulse-dot {
   0%, 100% { 
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
-    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 168, 107, 0.4);
   }
   50% { 
-    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.1);
-    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(0, 168, 107, 0);
   }
 }
 
@@ -180,19 +176,20 @@ function handleRefresh(): void {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  gap: 2px;
+  gap: 1px;
 }
 
 .pickup-label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 10px;
+  color: #999;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 500;
 }
 
 .pickup-address {
   font-size: 14px;
-  color: #fff;
+  color: #333;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -200,7 +197,7 @@ function handleRefresh(): void {
 }
 
 .pickup-address.loading {
-  opacity: 0.8;
+  color: #999;
 }
 
 .loading-dots::after {
@@ -218,10 +215,10 @@ function handleRefresh(): void {
 .refresh-btn {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: transparent;
   border: none;
-  color: #fff;
+  color: #999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -232,12 +229,12 @@ function handleRefresh(): void {
 
 .refresh-btn:active:not(:disabled),
 .refresh-btn.pressed {
-  background: rgba(255, 255, 255, 0.35);
-  transform: scale(0.92);
+  background: #f0f0f0;
+  color: #00a86b;
 }
 
 .refresh-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
 .spin {
