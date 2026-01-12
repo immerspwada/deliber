@@ -86,12 +86,15 @@ onUnmounted(() => { cleanup() })
     </div>
 
     <div class="suggestions-list">
-      <button
+      <div
         v-for="suggestion in visibleSuggestions"
         :key="suggestion.id"
         class="suggestion-card"
+        role="button"
+        tabindex="0"
         :style="{ '--accent': suggestion.iconColor }"
         @click="handleSuggestionClick(suggestion)"
+        @keydown.enter="handleSuggestionClick(suggestion)"
       >
         <div class="suggestion-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -113,7 +116,7 @@ onUnmounted(() => { cleanup() })
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </div>
-      </button>
+      </div>
     </div>
   </section>
 </template>

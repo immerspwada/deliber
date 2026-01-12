@@ -50,52 +50,54 @@ function handleRefresh(): void {
 
 <template>
   <div class="header-section">
-    <button 
-      class="back-btn" 
-      :class="{ pressed: isBackPressed }"
-      @click="handleBack" 
-      aria-label="กลับ"
-    >
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 12H5M12 19l-7-7 7-7" />
-      </svg>
-    </button>
-    
-    <div class="pickup-display">
-      <div class="pickup-dot" :class="{ pulsing: isGettingLocation }"></div>
-      <div class="pickup-info">
-        <span class="pickup-label">จุดรับ</span>
-        <Transition name="fade-slide" mode="out-in">
-          <span v-if="pickup?.address" :key="pickup.address" class="pickup-address">
-            {{ pickup.address }}
-          </span>
-          <span v-else key="loading" class="pickup-address loading">
-            <span class="loading-dots">กำลังหาตำแหน่ง</span>
-          </span>
-        </Transition>
+    <div class="header-row">
+      <button 
+        class="back-btn" 
+        :class="{ pressed: isBackPressed }"
+        @click="handleBack" 
+        aria-label="กลับ"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+      </button>
+      
+      <div class="pickup-display">
+        <div class="pickup-dot" :class="{ pulsing: isGettingLocation }"></div>
+        <div class="pickup-info">
+          <span class="pickup-label">จุดรับ</span>
+          <Transition name="fade-slide" mode="out-in">
+            <span v-if="pickup?.address" :key="pickup.address" class="pickup-address">
+              {{ pickup.address }}
+            </span>
+            <span v-else key="loading" class="pickup-address loading">
+              <span class="loading-dots">กำลังหาตำแหน่ง</span>
+            </span>
+          </Transition>
+        </div>
+        <button 
+          v-if="isGettingLocation" 
+          class="refresh-btn" 
+          disabled
+          aria-label="กำลังโหลด"
+        >
+          <svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
+          </svg>
+        </button>
+        <button 
+          v-else 
+          class="refresh-btn" 
+          :class="{ pressed: isRefreshPressed }"
+          @click="handleRefresh"
+          aria-label="รีเฟรชตำแหน่ง"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
       </div>
-      <button 
-        v-if="isGettingLocation" 
-        class="refresh-btn" 
-        disabled
-        aria-label="กำลังโหลด"
-      >
-        <svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12a9 9 0 11-6.219-8.56" />
-        </svg>
-      </button>
-      <button 
-        v-else 
-        class="refresh-btn" 
-        :class="{ pressed: isRefreshPressed }"
-        @click="handleRefresh"
-        aria-label="รีเฟรชตำแหน่ง"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-      </button>
     </div>
   </div>
 </template>
@@ -103,16 +105,19 @@ function handleRefresh(): void {
 <style scoped>
 .header-section {
   background: linear-gradient(135deg, #00a86b 0%, #00875a 100%);
-  padding: 16px;
-  padding-top: calc(16px + env(safe-area-inset-top));
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+
+.header-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
 }
 
 .back-btn {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   border: none;
@@ -123,6 +128,7 @@ function handleRefresh(): void {
   cursor: pointer;
   transition: all 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
 .back-btn:active,
@@ -132,14 +138,16 @@ function handleRefresh(): void {
 }
 
 .pickup-display {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 12px;
   background: rgba(255, 255, 255, 0.15);
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px 14px;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  min-width: 0;
 }
 
 .pickup-dot {
@@ -208,8 +216,8 @@ function handleRefresh(): void {
 }
 
 .refresh-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   border: none;
