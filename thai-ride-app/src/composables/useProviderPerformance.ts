@@ -74,7 +74,7 @@ export function useProviderPerformance() {
   const metrics = ref<PerformanceMetrics | null>(null)
   const score = ref<PerformanceScore | null>(null)
 
-  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+  // PRODUCTION ONLY - No demo mode
 
   // Calculate overall score from metrics
   const calculateScore = (m: PerformanceMetrics): number => {
@@ -163,61 +163,48 @@ export function useProviderPerformance() {
     return earned
   }
 
-  // Fetch performance data for a provider
+  // Fetch performance data for a provider - PRODUCTION ONLY
   const fetchPerformance = async (providerId: string) => {
     loading.value = true
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        // Demo data
-        metrics.value = {
-          acceptanceRate: 92,
-          completionRate: 98,
-          onTimeRate: 95,
-          rating: 4.8,
-          responseTime: 15,
-          totalTrips: 156,
-          cancellationRate: 2,
-          onlineHours: 42
-        }
-      } else {
-        // Fetch from database
-        const { data: provider } = await supabase
-          .from('service_providers')
-          .select('rating, total_trips')
-          .eq('id', providerId)
-          .single()
+      // Fetch from database
+      const { data: provider } = await supabase
+        .from('service_providers')
+        .select('rating, total_trips')
+        .eq('id', providerId)
+        .single()
 
-        // Fetch completed rides count
-        const { count: completedCount } = await supabase
-          .from('ride_requests')
-          .select('*', { count: 'exact', head: true })
-          .eq('provider_id', providerId)
-          .eq('status', 'completed')
+      // Fetch completed rides count
+      const { count: completedCount } = await supabase
+        .from('ride_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('provider_id', providerId)
+        .eq('status', 'completed')
 
-        // Fetch cancelled rides count
-        const { count: cancelledCount } = await supabase
-          .from('ride_requests')
-          .select('*', { count: 'exact', head: true })
-          .eq('provider_id', providerId)
-          .eq('status', 'cancelled')
+      // Fetch cancelled rides count
+      const { count: cancelledCount } = await supabase
+        .from('ride_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('provider_id', providerId)
+        .eq('status', 'cancelled')
 
-        const totalRides = (completedCount || 0) + (cancelledCount || 0)
-        const completionRate = totalRides > 0 ? ((completedCount || 0) / totalRides) * 100 : 100
-        const cancellationRate = totalRides > 0 ? ((cancelledCount || 0) / totalRides) * 100 : 0
+      const totalRides = (completedCount || 0) + (cancelledCount || 0)
+      const completionRate = totalRides > 0 ? ((completedCount || 0) / totalRides) * 100 : 100
+      const cancellationRate = totalRides > 0 ? ((cancelledCount || 0) / totalRides) * 100 : 0
 
-        const providerData = provider as { rating?: number; total_trips?: number } | null
-        
-        metrics.value = {
-          acceptanceRate: 90, // Would need more tracking to calculate
-          completionRate: Math.round(completionRate),
-          onTimeRate: 90, // Would need more tracking
-          rating: Number(providerData?.rating) || 5,
-          responseTime: 20, // Would need more tracking
-          totalTrips: providerData?.total_trips || 0,
-          cancellationRate: Math.round(cancellationRate),
-          onlineHours: 0 // Would fetch from provider_online_sessions
+      const providerData = provider as { rating?: number; total_trips?: number } | null
+      
+      metrics.value = {
+        acceptanceRate: 90, // Would need more tracking to calculate
+        completionRate: Math.round(completionRate),
+        onTimeRate: 90, // Would need more tracking
+        rating: Number(providerData?.rating) || 5,
+        responseTime: 20, // Would need more tracking
+        totalTrips: providerData?.total_trips || 0,
+        cancellationRate: Math.round(cancellationRate),
+        onlineHours: 0 // Would fetch from provider_online_sessions
         }
       }
 

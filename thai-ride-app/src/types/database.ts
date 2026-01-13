@@ -54,7 +54,6 @@ export type Database = {
         }
         Relationships: []
       }
-
       job_assignment_queue: {
         Row: {
           attempt_number: number | null
@@ -268,73 +267,102 @@ export type Database = {
         }
         Relationships: []
       }
-
       providers_v2: {
         Row: {
           approved_at: string | null
           created_at: string | null
           current_lat: number | null
           current_lng: number | null
+          documents: Json | null
           email: string
           first_name: string
           id: string
+          is_available: boolean | null
           is_online: boolean | null
           last_name: string
+          license_expiry: string | null
+          license_number: string | null
+          national_id: string | null
           phone_number: string
+          provider_type: string | null
           provider_uid: string | null
           rating: number | null
-          service_types: ServiceType[]
-          status: ProviderStatus
+          service_types: Database["public"]["Enums"]["service_type"][]
+          status: Database["public"]["Enums"]["provider_status"]
           suspended_at: string | null
           suspension_reason: string | null
           total_earnings: number | null
           total_trips: number | null
           updated_at: string | null
           user_id: string
+          vehicle_color: string | null
+          vehicle_info: Json | null
+          vehicle_plate: string | null
+          vehicle_type: string | null
         }
         Insert: {
           approved_at?: string | null
           created_at?: string | null
           current_lat?: number | null
           current_lng?: number | null
+          documents?: Json | null
           email: string
           first_name: string
           id?: string
+          is_available?: boolean | null
           is_online?: boolean | null
           last_name: string
+          license_expiry?: string | null
+          license_number?: string | null
+          national_id?: string | null
           phone_number: string
+          provider_type?: string | null
           provider_uid?: string | null
           rating?: number | null
-          service_types?: ServiceType[]
-          status?: ProviderStatus
+          service_types?: Database["public"]["Enums"]["service_type"][]
+          status?: Database["public"]["Enums"]["provider_status"]
           suspended_at?: string | null
           suspension_reason?: string | null
           total_earnings?: number | null
           total_trips?: number | null
           updated_at?: string | null
           user_id: string
+          vehicle_color?: string | null
+          vehicle_info?: Json | null
+          vehicle_plate?: string | null
+          vehicle_type?: string | null
         }
         Update: {
           approved_at?: string | null
           created_at?: string | null
           current_lat?: number | null
           current_lng?: number | null
+          documents?: Json | null
           email?: string
           first_name?: string
           id?: string
+          is_available?: boolean | null
           is_online?: boolean | null
           last_name?: string
+          license_expiry?: string | null
+          license_number?: string | null
+          national_id?: string | null
           phone_number?: string
+          provider_type?: string | null
           provider_uid?: string | null
           rating?: number | null
-          service_types?: ServiceType[]
-          status?: ProviderStatus
+          service_types?: Database["public"]["Enums"]["service_type"][]
+          status?: Database["public"]["Enums"]["provider_status"]
           suspended_at?: string | null
           suspension_reason?: string | null
           total_earnings?: number | null
           total_trips?: number | null
           updated_at?: string | null
           user_id?: string
+          vehicle_color?: string | null
+          vehicle_info?: Json | null
+          vehicle_plate?: string | null
+          vehicle_type?: string | null
         }
         Relationships: []
       }
@@ -353,6 +381,7 @@ export type Database = {
           estimated_fare: number | null
           final_fare: number | null
           id: string
+          notes: string | null
           paid_amount: number | null
           passenger_count: number | null
           payment_method: string | null
@@ -393,6 +422,7 @@ export type Database = {
           estimated_fare?: number | null
           final_fare?: number | null
           id?: string
+          notes?: string | null
           paid_amount?: number | null
           passenger_count?: number | null
           payment_method?: string | null
@@ -433,6 +463,7 @@ export type Database = {
           estimated_fare?: number | null
           final_fare?: number | null
           id?: string
+          notes?: string | null
           paid_amount?: number | null
           passenger_count?: number | null
           payment_method?: string | null
@@ -658,3 +689,40 @@ export type AdminUserProviderView = Database['public']['Views']['admin_user_prov
 // Constants
 export const PROVIDER_STATUS = ['pending', 'pending_verification', 'approved', 'active', 'suspended', 'rejected'] as const
 export const SERVICE_TYPES = ['ride', 'delivery', 'shopping', 'moving', 'laundry'] as const
+
+// Manual types for tables not in generated schema
+export interface JobV2 {
+  id: string
+  job_uid: string | null
+  service_type: ServiceType
+  status: string
+  customer_id: string
+  provider_id: string | null
+  pickup_address: string
+  pickup_lat: number | null
+  pickup_lng: number | null
+  dropoff_address: string | null
+  dropoff_lat: number | null
+  dropoff_lng: number | null
+  distance_km: number | null
+  estimated_earnings: number | null
+  final_earnings: number | null
+  created_at: string | null
+  accepted_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  cancelled_at: string | null
+}
+
+export interface EarningsV2 {
+  id: string
+  provider_id: string
+  job_id: string | null
+  job_type: ServiceType | null
+  gross_earnings: number
+  platform_fee: number | null
+  net_earnings: number | null
+  tip_amount: number | null
+  earned_at: string | null
+  created_at: string | null
+}

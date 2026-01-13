@@ -336,6 +336,9 @@ export function isInstalled(): boolean {
 
 // Listen for install prompt
 window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault()
-  deferredPrompt = e as BeforeInstallPromptEvent
+  // Only prevent default if we have a custom install flow
+  if (window.location.pathname.includes('/install') || document.querySelector('[data-pwa-install]')) {
+    e.preventDefault()
+    deferredPrompt = e as BeforeInstallPromptEvent
+  }
 })

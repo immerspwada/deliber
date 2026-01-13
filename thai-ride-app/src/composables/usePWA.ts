@@ -31,9 +31,12 @@ export function usePWA() {
 
   // Handle install prompt
   const handleBeforeInstallPrompt = (e: Event) => {
-    e.preventDefault()
-    deferredPrompt = e as BeforeInstallPromptEvent
-    canInstall.value = true
+    // Only prevent default if we actually want to show a custom install UI
+    if (canInstall.value === false) {
+      e.preventDefault()
+      deferredPrompt = e as BeforeInstallPromptEvent
+      canInstall.value = true
+    }
   }
 
   // Trigger install prompt

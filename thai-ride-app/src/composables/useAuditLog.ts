@@ -51,47 +51,7 @@ export function useAuditLog() {
   const auditLogs = ref<AuditLogEntry[]>([])
   const stats = ref<StatusChangeStats[]>([])
 
-  // Check if demo mode
-  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
-
-  // Generate demo audit logs
-  const generateDemoLogs = (): AuditLogEntry[] => {
-    const entityTypes: AuditLogEntry['entity_type'][] = ['ride', 'delivery', 'shopping']
-    const statuses = {
-      ride: ['pending', 'matched', 'pickup', 'in_progress', 'completed'],
-      delivery: ['pending', 'accepted', 'picking_up', 'picked_up', 'delivering', 'delivered'],
-      shopping: ['pending', 'accepted', 'shopping', 'purchased', 'delivering', 'delivered']
-    }
-    const roles: AuditLogEntry['changed_by_role'][] = ['customer', 'provider', 'admin', 'system']
-    const names = ['คุณสมชาย', 'คุณสมหญิง', 'Admin', 'System']
-
-    const logs: AuditLogEntry[] = []
-    const now = new Date()
-
-    for (let i = 0; i < 30; i++) {
-      const entityType = entityTypes[Math.floor(Math.random() * entityTypes.length)]!
-      const statusList = statuses[entityType as keyof typeof statuses]
-      const statusIdx = Math.floor(Math.random() * (statusList.length - 1))
-      const roleIdx = Math.floor(Math.random() * roles.length)
-
-      logs.push({
-        id: `demo-audit-${i}`,
-        entity_type: entityType,
-        entity_id: `demo-entity-${i}`,
-        tracking_id: `${entityType.toUpperCase().slice(0, 3)}-${Date.now()}-${i}`,
-        old_status: statusList[statusIdx] || null,
-        new_status: statusList[statusIdx + 1] || 'completed',
-        changed_by: `demo-user-${roleIdx}`,
-        changed_by_role: roles[roleIdx]!,
-        changed_by_name: names[roleIdx] || 'Unknown',
-        reason: null,
-        metadata: {},
-        created_at: new Date(now.getTime() - i * 1000 * 60 * 5).toISOString()
-      })
-    }
-
-    return logs
-  }
+  // PRODUCTION ONLY - No demo mode
 
   // Fetch recent audit logs
   const fetchRecentLogs = async (limit = 50, entityType?: string) => {
@@ -99,15 +59,6 @@ export function useAuditLog() {
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        let logs = generateDemoLogs()
-        if (entityType) {
-          logs = logs.filter(l => l.entity_type === entityType)
-        }
-        auditLogs.value = logs.slice(0, limit)
-        return auditLogs.value
-      }
-
       const { data, error: fetchError } = await (supabase.rpc as any)('get_recent_status_changes', {
         p_limit: limit,
         p_entity_type: entityType || null
@@ -131,23 +82,82 @@ export function useAuditLog() {
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        // Generate demo trail for entity
-        const statuses = {
-          ride: ['pending', 'matched', 'pickup', 'in_progress', 'completed'],
-          delivery: ['pending', 'accepted', 'picking_up', 'picked_up', 'delivering', 'delivered'],
-          shopping: ['pending', 'accepted', 'shopping', 'purchased', 'delivering', 'delivered']
-        }
-        const statusList = statuses[entityType as keyof typeof statuses] || ['pending', 'completed']
-        const trail: AuditLogEntry[] = []
-        const now = new Date()
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_entity_audit_trail', {
+        p_entity_type: entityType,
+        p_entity_id: entityId
+      })
 
-        for (let i = 0; i < statusList.length - 1; i++) {
-          trail.push({
-            id: `demo-trail-${i}`,
-            entity_type: entityType as AuditLogEntry['entity_type'],
-            entity_id: entityId,
-            tracking_id: null,
+      if (fetchError) throw fetchError
+
+      return data || []
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Unknown error'
+      return []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Fetch status change statistics
+  const fetchStatusChangeStats = async (entityType?: string) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const { data, error: fetchError } = await (supabase.rpc as any)('get_status_change_stats', {
+        p_entity_type: entityType || null
+      })
+
+      if (fetchError) throw fetchError
+
+      stats.value = data || []
+      return stats.value
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Unknown error'
+      return []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Log status change - PRODUCTION ONLY
+  const logStatusChange = async (
+    entityType: string,
+    entityId: string,
+    oldStatus: string | null,
+    newStatus: string,
+    metadata?: Record<string, unknown>
+  ) => {
+    try {
+      const { error: insertError } = await supabase
+        .from('status_audit_log')
+        .insert({
+          entity_type: entityType,
+          entity_id: entityId,
+          old_status: oldStatus,
+          new_status: newStatus,
+          metadata: metadata || {}
+        })
+
+      if (insertError) throw insertError
+      return true
+    } catch (e: unknown) {
+      console.error('Failed to log status change:', e)
+      return false
+    }
+  }
+
+  return {
+    loading,
+    error,
+    auditLogs,
+    stats,
+    fetchRecentLogs,
+    fetchEntityAuditTrail,
+    fetchStatusChangeStats,
+    logStatusChange
+  }
+}
             old_status: statusList[i] || null,
             new_status: statusList[i + 1] || 'completed',
             changed_by: `demo-user-${i}`,

@@ -22,9 +22,9 @@ import { useJobAlert } from '../../composables/useJobAlert'
 import { useAutoAcceptRules } from '../../composables/useAutoAcceptRules'
 import { useJobPriority } from '../../composables/useJobPriority'
 import { usePushNotification } from '../../composables/usePushNotification'
-import JobHeatMap from '../../components/provider/JobHeatMap.vue'
 import JobPreviewMap from '../../components/provider/JobPreviewMap.vue'
 import AutoAcceptSettings from '../../components/provider/AutoAcceptSettings.vue'
+import JobHeatMap from '../../components/provider/JobHeatMap.vue'
 
 // =====================================================
 // Types & Validation Schemas
@@ -83,7 +83,6 @@ const isOnline = ref(false)
 const toggling = ref(false)
 const availableJobs = shallowRef<Job[]>([])
 const userLocation = ref<{ lat: number; lng: number } | null>(null)
-const showHeatMap = ref(true)
 const acceptingJobId = ref<string | null>(null)
 const acceptError = ref<string | null>(null)
 const sortBy = ref<'distance' | 'fare_high' | 'newest'>('distance')
@@ -92,6 +91,7 @@ const selectedJobForPreview = ref<Job | null>(null)
 const retryCount = ref(0)
 const lastRefreshTime = ref<Date | null>(null)
 const connectionStatus = ref<'connected' | 'connecting' | 'disconnected'>('disconnected')
+const showHeatMap = ref(false)
 
 // Development mode check
 const isDev = computed(() => import.meta.env.DEV)
@@ -748,6 +748,12 @@ function showJobPreview(job: Job): void {
 function closeJobPreview(): void {
   showJobPreviewModal.value = false
   selectedJobForPreview.value = null
+}
+
+// Simulate new job for testing
+function simulateNewJob(): void {
+  playAlert()
+  quickVibrate()
 }
 
 // Watch for location changes
@@ -1778,11 +1784,28 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
-.jobs-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #111;
-  margin: 0;
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-select {
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  min-height: 36px;
+  font-family: 'Sarabun', sans-serif;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #00A86B;
+  box-shadow: 0 0 0 2px rgba(0,168,107,0.2);
 }
 
 .refresh-btn {
@@ -1952,13 +1975,69 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.point-label {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.point-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.job-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+/* Job Actions */
+.job-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.preview-btn {
+  flex: 1;
+  padding: 12px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  font-family: 'Sarabun', sans-serif;
+}
+
+.preview-btn:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.preview-btn:active {
+  transform: scale(0.98);
+}
+
 .accept-btn {
-  width: 100%;
-  padding: 14px;
+  flex: 2;
+  padding: 12px;
   background: #000;
   color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -1966,7 +2045,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
+  min-height: 44px;
+  font-family: 'Sarabun', sans-serif;
 }
 
 .accept-btn:active:not(:disabled) {
@@ -1986,5 +2066,243 @@ onUnmounted(() => {
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+  margin: 0;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.job-preview-info {
+  margin-bottom: 20px;
+}
+
+.preview-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.preview-type-badge.ride {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.preview-type-badge.delivery {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.preview-type-badge.shopping {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.preview-price {
+  font-size: 32px;
+  font-weight: 700;
+  color: #10b981;
+  margin-bottom: 16px;
+}
+
+.preview-route {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.preview-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.preview-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.preview-marker.pickup { background: #10b981; }
+.preview-marker.dropoff { background: #ef4444; }
+
+.preview-label {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.preview-address {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.meta-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.meta-label {
+  color: #6b7280;
+}
+
+.meta-value {
+  color: #111;
+  font-weight: 500;
+}
+
+.preview-map {
+  height: 200px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.modal-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  font-family: 'Sarabun', sans-serif;
+}
+
+.modal-btn.secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.modal-btn.secondary:active {
+  background: #e5e7eb;
+}
+
+.modal-btn.primary {
+  background: #000;
+  color: #fff;
+}
+
+.modal-btn.primary:active {
+  background: #1f2937;
+}
+
+.modal-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Quick Stats */
+.quick-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #6b7280;
+  text-align: center;
 }
 </style>

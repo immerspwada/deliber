@@ -385,41 +385,48 @@ const submitApplication = async () => {
     const lastName = nameParts.slice(1).join(' ') || 'Provider'
     
     // Insert provider record
+    // Note: service_types จะถูกกำหนดโดย Admin หลังอนุมัติ
+    // ข้อมูล vehicle และ documents จะถูกเก็บใน JSONB columns
+    const insertData: Record<string, unknown> = {
+      user_id: userId,
+      first_name: firstName,
+      last_name: lastName,
+      email: userEmail,
+      phone_number: userPhone || '0000000000',
+      service_types: [], // Admin จะกำหนดทีหลัง
+      status: 'pending',
+      is_online: false,
+      rating: 5.0,
+      total_trips: 0,
+      total_earnings: 0,
+      // Vehicle info - เก็บใน columns ที่จะถูกสร้างจาก migration 249
+      vehicle_type: vehicleType.value,
+      vehicle_plate: vehiclePlate.value,
+      vehicle_color: vehicleColor.value,
+      vehicle_info: {
+        brand: vehicleBrand.value,
+        model: vehicleModel.value,
+        year: vehicleYear.value,
+        license_plate: vehiclePlate.value,
+        color: vehicleColor.value
+      },
+      // License info
+      license_number: licenseNumber.value,
+      license_expiry: licenseExpiry.value || null,
+      national_id: nationalId.value,
+      // Documents URLs
+      documents: {
+        id_card: idCardUrl,
+        license: licenseUrl,
+        vehicle: vehicleUrl
+      },
+      provider_type: 'pending',
+      is_available: false
+    }
+    
     const { error: insertError } = await supabase
       .from('providers_v2')
-      .insert({
-        user_id: userId,
-        first_name: firstName,
-        last_name: lastName,
-        email: userEmail,
-        phone_number: userPhone || '0000000000',
-        provider_type: 'pending',
-        allowed_services: [],
-        vehicle_type: vehicleType.value,
-        vehicle_plate: vehiclePlate.value,
-        vehicle_color: vehicleColor.value,
-        vehicle_info: {
-          brand: vehicleBrand.value,
-          model: vehicleModel.value,
-          year: vehicleYear.value,
-          license_plate: vehiclePlate.value,
-          color: vehicleColor.value
-        },
-        license_number: licenseNumber.value,
-        license_expiry: licenseExpiry.value || null,
-        national_id: nationalId.value,
-        documents: { 
-          id_card: idCardUrl, 
-          license: licenseUrl, 
-          vehicle: vehicleUrl 
-        },
-        status: 'pending',
-        is_available: false,
-        is_online: false,
-        rating: 5.0,
-        total_trips: 0,
-        total_earnings: 0
-      } as Record<string, unknown>)
+      .insert(insertData)
     
     uploadProgress.value = 100
     

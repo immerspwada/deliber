@@ -204,7 +204,8 @@ export const useRideStore = defineStore('ride', () => {
     rideType: 'standard' | 'premium' | 'shared' = 'standard',
     passengerCount: number = 1,
     specialRequests?: string,
-    scheduledAt?: string // ISO datetime string for scheduled rides
+    scheduledAt?: string, // ISO datetime string for scheduled rides
+    notes?: string // Customer notes for provider
   ) => {
     loading.value = true
     error.value = null
@@ -243,7 +244,8 @@ export const useRideStore = defineStore('ride', () => {
         special_requests: specialRequests,
         estimated_fare: estimatedFare,
         status: scheduledAt ? 'scheduled' : 'pending',
-        scheduled_time: scheduledAt || null
+        scheduled_time: scheduledAt || null,
+        notes: notes || null
       }
       
       console.log('[createRideRequest] Insert payload:', insertPayload)

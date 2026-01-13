@@ -11,6 +11,7 @@ import RidePromoInput from './RidePromoInput.vue'
 import RidePaymentMethod, { type PaymentMethod } from './RidePaymentMethod.vue'
 import RideSchedulePicker from './RideSchedulePicker.vue'
 import RideMultiStop from './RideMultiStop.vue'
+import NotesInput from './NotesInput.vue'
 
 const props = defineProps<{
   pickup: GeoLocation | null
@@ -26,7 +27,11 @@ const props = defineProps<{
   canBook: boolean
   isBooking: boolean
   isLoadingVehicles: boolean
+  notes?: string
 }>()
+
+// Notes model
+const notesValue = defineModel<string>('notes', { default: '' })
 
 const emit = defineEmits<{
   'update:selectedVehicle': [value: string]
@@ -49,6 +54,7 @@ interface BookingOptions {
   promoCode: string | null
   promoDiscount: number
   finalAmount: number
+  notes: string
 }
 
 // Enhanced state
@@ -157,7 +163,8 @@ function handleBook(): void {
       scheduledTime: scheduledTime.value,
       promoCode: promoCode.value,
       promoDiscount: promoDiscount.value,
-      finalAmount: discountedFare.value
+      finalAmount: discountedFare.value,
+      notes: notesValue.value
     })
   }, 100)
 }
@@ -274,6 +281,13 @@ function getVehicleIcon(icon: string): string {
       :max-stops="3"
       @update:stops="handleStopsUpdate"
       @fare-change="handleMultiStopFareChange"
+    />
+
+    <!-- Notes Input -->
+    <NotesInput
+      v-model="notesValue"
+      :max-length="500"
+      placeholder="เพิ่มข้อความถึงคนขับ เช่น รอที่ล็อบบี้, โทรเมื่อถึง..."
     />
 
     <!-- Promo Code Input -->

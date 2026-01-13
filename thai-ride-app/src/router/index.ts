@@ -108,7 +108,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'ProviderJobs',
-        component: () => import('../views/provider/ProviderJobsView.vue'),
+        component: () => import('../components/provider/SimpleProviderDashboard.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
@@ -144,6 +144,14 @@ export const routes: RouteRecordRaw[] = [
     ]
   },
   
+  // Admin Login (outside layout)
+  {
+    path: '/admin/login',
+    name: 'AdminLogin',
+    component: () => import('../views/admin/AdminLoginView.vue'),
+    meta: { public: true, hideNavigation: true }
+  },
+  
   // Admin Routes (requires admin access)
   {
     path: '/admin',
@@ -153,6 +161,12 @@ export const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'AdminDashboard',
+        component: () => import('../views/admin/AdminDashboardView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'dashboard',
+        name: 'AdminDashboardAlt',
         component: () => import('../views/admin/AdminDashboardView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
@@ -179,6 +193,312 @@ export const routes: RouteRecordRaw[] = [
         name: 'AdminAnalytics',
         component: () => import('../views/admin/AdminAnalyticsView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'documents',
+        name: 'AdminDocuments',
+        component: () => import('../views/admin/AdminDocumentsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      // Service Management Routes - Using actual views from src/admin/views/
+      {
+        path: 'orders',
+        name: 'AdminOrders',
+        component: () => import('../admin/views/OrdersView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'live-map',
+        name: 'AdminLiveMap',
+        component: () => import('../admin/views/DriverTrackingView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'customers',
+        name: 'AdminCustomers',
+        component: () => import('../admin/views/CustomersView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'verification-queue',
+        name: 'AdminVerificationQueue',
+        component: () => import('../admin/views/VerificationQueueView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'driver-tracking',
+        name: 'AdminDriverTracking',
+        component: () => import('../admin/views/DriverTrackingView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'scheduled-rides',
+        name: 'AdminScheduledRides',
+        component: () => import('../admin/views/ScheduledRidesView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'delivery',
+        name: 'AdminDelivery',
+        component: () => import('../admin/views/DeliveryView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'shopping',
+        name: 'AdminShopping',
+        component: () => import('../admin/views/ShoppingView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'job-management',
+        name: 'AdminJobManagement',
+        component: () => import('../admin/views/JobManagementView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'queue-bookings',
+        name: 'AdminQueueBookings',
+        component: () => import('../admin/views/QueueBookingsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'moving',
+        name: 'AdminMoving',
+        component: () => import('../admin/views/MovingView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'laundry',
+        name: 'AdminLaundry',
+        component: () => import('../admin/views/LaundryView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'cancellations',
+        name: 'AdminCancellations',
+        component: () => import('../admin/views/CancellationsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      // Finance Routes
+      {
+        path: 'revenue',
+        name: 'AdminRevenue',
+        component: () => import('../admin/views/RevenueView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'payments',
+        name: 'AdminPayments',
+        component: () => import('../admin/views/PaymentsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'refunds',
+        name: 'AdminRefunds',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'wallets',
+        name: 'AdminWallets',
+        component: () => import('../admin/views/WalletsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'topup-requests',
+        name: 'AdminTopupRequests',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'withdrawals',
+        name: 'AdminWithdrawals',
+        component: () => import('../admin/views/WithdrawalsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'tips',
+        name: 'AdminTips',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      // Marketing Routes
+      {
+        path: 'promos',
+        name: 'AdminPromos',
+        component: () => import('../admin/views/PromosView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'referrals',
+        name: 'AdminReferrals',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'loyalty',
+        name: 'AdminLoyalty',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'incentives',
+        name: 'AdminIncentives',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'subscriptions',
+        name: 'AdminSubscriptions',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      // Support Routes
+      {
+        path: 'ratings',
+        name: 'AdminRatings',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'feedback',
+        name: 'AdminFeedback',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'support',
+        name: 'AdminSupport',
+        component: () => import('../admin/views/SupportView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'fraud-alerts',
+        name: 'AdminFraudAlerts',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'corporate',
+        name: 'AdminCorporate',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      // Reports & Analytics Routes
+      {
+        path: 'reports',
+        name: 'AdminReports',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'ux-analytics',
+        name: 'AdminUXAnalytics',
+        component: () => import('../admin/views/CustomerUXAnalyticsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      // Settings Routes
+      {
+        path: 'settings',
+        name: 'AdminSettings',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'notifications',
+        name: 'AdminNotifications',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'push-notifications',
+        name: 'AdminPushNotifications',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'notification-templates',
+        name: 'AdminNotificationTemplates',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'service-zones',
+        name: 'AdminServiceZones',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'surge-pricing',
+        name: 'AdminSurgePricing',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'system-health',
+        name: 'AdminSystemHealth',
+        component: () => import('../admin/views/SystemLogsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'security',
+        name: 'AdminSecurity',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'production-dashboard',
+        name: 'AdminProductionDashboard',
+        component: () => import('../admin/views/PerformanceDashboardView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'cross-role-monitor',
+        name: 'AdminCrossRoleMonitor',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'audit-log',
+        name: 'AdminAuditLog',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'alerting',
+        name: 'AdminAlerting',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'deployment',
+        name: 'AdminDeployment',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'data-management',
+        name: 'AdminDataManagement',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'compliance',
+        name: 'AdminCompliance',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'incidents',
+        name: 'AdminIncidents',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'readiness',
+        name: 'AdminReadiness',
+        component: () => import('../views/admin/AdminPlaceholderView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
       }
     ]
   }
@@ -191,6 +511,7 @@ const router = createRouter({
 })
 
 // Navigation guard with comprehensive role checking
+// PRODUCTION ONLY - No demo mode, uses real Supabase authentication
 router.beforeEach(async (to, _from, next) => {
   console.log('[Router] Navigating to:', to.path, 'Meta:', to.meta)
   
@@ -199,7 +520,7 @@ router.beforeEach(async (to, _from, next) => {
     return next()
   }
 
-  // Check authentication
+  // Check real Supabase authentication
   const { data: { session } } = await supabase.auth.getSession()
   
   if (!session && to.meta.requiresAuth) {

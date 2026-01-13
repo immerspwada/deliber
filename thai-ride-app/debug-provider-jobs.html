@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Provider Jobs</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .log { max-height: 300px; overflow-y: auto; background: #000; color: #0f0; padding: 10px; border-radius: 4px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Provider Job System</h1>
+    
+    <div class="section">
+        <h2>1. Database Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connection-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Check Tables</h2>
+        <button onclick="checkTables()">Check Tables</button>
+        <div id="tables-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Check Pending Rides</h2>
+        <button onclick="checkPendingRides()">Check Pending Rides</button>
+        <div id="pending-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. Create Test Ride</h2>
+        <button onclick="createTestRide()">Create Test Ride</button>
+        <div id="create-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>5. Test Realtime</h2>
+        <button onclick="testRealtime()">Start Realtime Test</button>
+        <button onclick="stopRealtime()">Stop Realtime</button>
+        <div id="realtime-result"></div>
+        <div id="realtime-log" class="log"></div>
+    </div>
+
+    <script>
+        // Supabase configuration
+        const supabaseUrl = 'http://127.0.0.1:54321'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        let realtimeChannel = null
+
+        function log(message) {
+            const logDiv = document.getElementById('realtime-log')
+            const timestamp = new Date().toLocaleTimeString()
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`
+            logDiv.scrollTop = logDiv.scrollHeight
+            console.log(message)
+        }
+
+        async function testConnection() {
+            const resultDiv = document.getElementById('connection-result')
+            try {
+                const { data, error } = await supabase.from('ride_requests').select('count').limit(1)
+                if (error) throw error
+                resultDiv.innerHTML = '<div class="success">✅ Database connection successful!</div>'
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Connection failed: ${error.message}</div>`
+            }
+        }
+
+        async function checkTables() {
+            const resultDiv = document.getElementById('tables-result')
+            try {
+                // Check ride_requests table
+                const { data: rides, error: ridesError } = await supabase
+                    .from('ride_requests')
+                    .select('id, status, created_at')
+                    .limit(5)
+
+                // Check providers_v2 table
+                const { data: providers, error: providersError } = await supabase
+                    .from('providers_v2')
+                    .select('id, user_id, status, is_online')
+                    .limit(5)
+
+                let html = '<div class="success">'
+                html += `<h4>ride_requests table:</h4>`
+                if (ridesError) {
+                    html += `<p class="error">Error: ${ridesError.message}</p>`
+                } else {
+                    html += `<p>Found ${rides.length} records</p>`
+                    html += `<pre>${JSON.stringify(rides, null, 2)}</pre>`
+                }
+
+                html += `<h4>providers_v2 table:</h4>`
+                if (providersError) {
+                    html += `<p class="error">Error: ${providersError.message}</p>`
+                } else {
+                    html += `<p>Found ${providers.length} records</p>`
+                    html += `<pre>${JSON.stringify(providers, null, 2)}</pre>`
+                }
+                html += '</div>'
+
+                resultDiv.innerHTML = html
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`
+            }
+        }
+
+        async function checkPendingRides() {
+            const resultDiv = document.getElementById('pending-result')
+            try {
+                const { data, error } = await supabase
+                    .from('ride_requests')
+                    .select('*')
+                    .eq('status', 'pending')
+                    .is('provider_id', null)
+
+                if (error) throw error
+
+                resultDiv.innerHTML = `
+                    <div class="info">
+                        <h4>Pending Rides: ${data.length}</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`
+            }
+        }
+
+        async function createTestRide() {
+            const resultDiv = document.getElementById('create-result')
+            try {
+                const testRide = {
+                    user_id: '00000000-0000-0000-0000-000000000001', // Demo user
+                    tracking_id: `TEST-${Date.now()}`,
+                    pickup_lat: 13.7563,
+                    pickup_lng: 100.5018,
+                    pickup_address: 'Bangkok Center (Test)',
+                    destination_lat: 13.7466,
+                    destination_lng: 100.5392,
+                    destination_address: 'Siam Square (Test)',
+                    estimated_fare: 150.00,
+                    status: 'pending'
+                }
+
+                const { data, error } = await supabase
+                    .from('ride_requests')
+                    .insert(testRide)
+                    .select()
+                    .single()
+
+                if (error) throw error
+
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        ✅ Test ride created successfully!
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `
+                log(`Test ride created: ${data.id}`)
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`
+            }
+        }
+
+        async function testRealtime() {
+            const resultDiv = document.getElementById('realtime-result')
+            
+            try {
+                // Stop existing channel
+                if (realtimeChannel) {
+                    await supabase.removeChannel(realtimeChannel)
+                }
+
+                log('Starting realtime subscription...')
+                
+                realtimeChannel = supabase
+                    .channel('test_ride_jobs')
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: 'INSERT',
+                            schema: 'public',
+                            table: 'ride_requests',
+                            filter: 'status=eq.pending'
+                        },
+                        (payload) => {
+                            log(`🔔 NEW RIDE: ${JSON.stringify(payload.new)}`)
+                        }
+                    )
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: 'UPDATE',
+                            schema: 'public',
+                            table: 'ride_requests'
+                        },
+                        (payload) => {
+                            log(`📝 RIDE UPDATED: ${payload.new.id} -> ${payload.new.status}`)
+                        }
+                    )
+                    .subscribe((status) => {
+                        log(`Subscription status: ${status}`)
+                        if (status === 'SUBSCRIBED') {
+                            resultDiv.innerHTML = '<div class="success">✅ Realtime subscription active!</div>'
+                        } else if (status === 'CHANNEL_ERROR') {
+                            resultDiv.innerHTML = '<div class="error">❌ Realtime subscription failed!</div>'
+                        }
+                    })
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`
+                log(`Error: ${error.message}`)
+            }
+        }
+
+        async function stopRealtime() {
+            if (realtimeChannel) {
+                await supabase.removeChannel(realtimeChannel)
+                realtimeChannel = null
+                log('Realtime subscription stopped')
+                document.getElementById('realtime-result').innerHTML = '<div class="info">Realtime stopped</div>'
+            }
+        }
+
+        // Auto-start connection test
+        window.onload = () => {
+            testConnection()
+        }
+    </script>
+</body>
+</html>

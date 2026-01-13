@@ -28,7 +28,6 @@ export interface AdminSession {
   user: AdminUser
   loginTime: number
   expiresAt: number
-  isDemoMode: boolean
 }
 
 export interface LoginAttempt {
@@ -46,19 +45,6 @@ const MAX_LOGIN_ATTEMPTS = 5
 const LOCKOUT_DURATION = 60000 // 1 minute
 const REQUEST_TIMEOUT = 15000 // 15 seconds
 
-// Demo admin credentials
-const DEMO_ADMIN = {
-  email: 'admin@demo.com',
-  password: 'admin1234',
-  user: {
-    id: 'demo-admin-001',
-    email: 'admin@demo.com',
-    name: 'Demo Admin',
-    role: 'admin' as const,
-    created_at: new Date().toISOString()
-  }
-}
-
 // ========================================
 // Storage Keys
 // ========================================
@@ -66,7 +52,6 @@ const STORAGE_KEYS = {
   TOKEN: 'admin_token',
   USER: 'admin_user',
   LOGIN_TIME: 'admin_login_time',
-  DEMO_MODE: 'admin_demo_mode',
   LOCKOUT: 'admin_lockout',
   ACTIVITY_LOG: 'admin_activity_log'
 }
@@ -86,7 +71,6 @@ export function useAdminAuth() {
   // State
   const currentUser = ref<AdminUser | null>(null)
   const isAuthenticated = ref(false)
-  const isDemoMode = ref(false)
   const loading = ref(false)
   const error = ref('')
   const isOnline = ref(navigator.onLine)
@@ -196,7 +180,6 @@ export function useAdminAuth() {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN)
       const userStr = localStorage.getItem(STORAGE_KEYS.USER)
       const loginTimeStr = localStorage.getItem(STORAGE_KEYS.LOGIN_TIME)
-      const demoMode = localStorage.getItem(STORAGE_KEYS.DEMO_MODE) === 'true'
 
       if (!token || !userStr || !loginTimeStr) {
         cachedSession = null
@@ -216,7 +199,7 @@ export function useAdminAuth() {
       }
 
       const user = JSON.parse(userStr) as AdminUser
-      cachedSession = { token, user, loginTime, expiresAt, isDemoMode: demoMode }
+      cachedSession = { token, user, loginTime, expiresAt }
       sessionCacheTime = now
       return cachedSession
     } catch {
@@ -227,44 +210,35 @@ export function useAdminAuth() {
     }
   }
 
-  const setSession = (user: AdminUser, token: string, demoMode: boolean) => {
+  const setSession = (user: AdminUser, token: string) => {
     const now = Date.now()
     localStorage.setItem(STORAGE_KEYS.TOKEN, token)
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user))
     localStorage.setItem(STORAGE_KEYS.LOGIN_TIME, now.toString())
-    if (demoMode) {
-      localStorage.setItem(STORAGE_KEYS.DEMO_MODE, 'true')
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.DEMO_MODE)
-    }
 
     // Update cache
     cachedSession = {
       token,
       user,
       loginTime: now,
-      expiresAt: now + SESSION_TTL,
-      isDemoMode: demoMode
+      expiresAt: now + SESSION_TTL
     }
     sessionCacheTime = now
 
     // Update state
     currentUser.value = user
     isAuthenticated.value = true
-    isDemoMode.value = demoMode
   }
 
   const clearSession = () => {
     localStorage.removeItem(STORAGE_KEYS.TOKEN)
     localStorage.removeItem(STORAGE_KEYS.USER)
     localStorage.removeItem(STORAGE_KEYS.LOGIN_TIME)
-    localStorage.removeItem(STORAGE_KEYS.DEMO_MODE)
     
     cachedSession = null
     sessionCacheTime = 0
     currentUser.value = null
     isAuthenticated.value = false
-    isDemoMode.value = false
   }
 
   const isSessionValid = (): boolean => {
@@ -284,19 +258,16 @@ export function useAdminAuth() {
 
     currentUser.value = session.user
     isAuthenticated.value = true
-    isDemoMode.value = session.isDemoMode
 
-    // For non-demo mode, verify Supabase session
-    if (!session.isDemoMode) {
-      try {
-        const { data: { session: supaSession } } = await supabase.auth.getSession()
-        if (!supaSession) {
-          clearSession()
-          return false
-        }
-      } catch {
-        // Keep session if network error (offline support)
+    // Verify Supabase session
+    try {
+      const { data: { session: supaSession } } = await supabase.auth.getSession()
+      if (!supaSession) {
+        clearSession()
+        return false
       }
+    } catch {
+      // Keep session if network error (offline support)
     }
 
     return true
@@ -335,16 +306,6 @@ export function useAdminAuth() {
 
     loading.value = true
     error.value = ''
-
-    // Demo mode login
-    if (trimmedEmail === DEMO_ADMIN.email && password === DEMO_ADMIN.password) {
-      await new Promise(resolve => setTimeout(resolve, 300)) // UX delay
-      setSession(DEMO_ADMIN.user, 'demo_admin_token', true)
-      clearLockout()
-      logActivity('login', { email: trimmedEmail, mode: 'demo' })
-      loading.value = false
-      return true
-    }
 
     // Supabase login
     try {
@@ -402,9 +363,9 @@ export function useAdminAuth() {
         created_at: new Date().toISOString()
       }
 
-      setSession(adminUser, authData.session?.access_token || 'admin_token', false)
+      setSession(adminUser, authData.session?.access_token || 'admin_token')
       clearLockout()
-      logActivity('login', { email: trimmedEmail, mode: 'supabase' })
+      logActivity('login', { email: trimmedEmail })
       loading.value = false
       return true
 
@@ -511,7 +472,6 @@ export function useAdminAuth() {
     // State
     currentUser,
     isAuthenticated,
-    isDemoMode,
     loading,
     error,
     isOnline,
@@ -534,10 +494,6 @@ export function useAdminAuth() {
     stopSessionCheck,
     
     // Constants (for UI)
-    DEMO_CREDENTIALS: {
-      email: DEMO_ADMIN.email,
-      password: DEMO_ADMIN.password
-    },
     MAX_LOGIN_ATTEMPTS,
     LOCKOUT_DURATION
   }
@@ -566,7 +522,6 @@ export function getAdminAuthInstance() {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN)
       const userStr = localStorage.getItem(STORAGE_KEYS.USER)
       const loginTimeStr = localStorage.getItem(STORAGE_KEYS.LOGIN_TIME)
-      const demoMode = localStorage.getItem(STORAGE_KEYS.DEMO_MODE) === 'true'
 
       if (!token || !userStr || !loginTimeStr) {
         localCachedSession = null
@@ -581,14 +536,13 @@ export function getAdminAuthInstance() {
         localStorage.removeItem(STORAGE_KEYS.TOKEN)
         localStorage.removeItem(STORAGE_KEYS.USER)
         localStorage.removeItem(STORAGE_KEYS.LOGIN_TIME)
-        localStorage.removeItem(STORAGE_KEYS.DEMO_MODE)
         localCachedSession = null
         localSessionCacheTime = now
         return null
       }
 
       const user = JSON.parse(userStr) as AdminUser
-      localCachedSession = { token, user, loginTime, expiresAt, isDemoMode: demoMode }
+      localCachedSession = { token, user, loginTime, expiresAt }
       localSessionCacheTime = now
       return localCachedSession
     } catch {

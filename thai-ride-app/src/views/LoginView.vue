@@ -17,15 +17,6 @@ const socialLoading = ref<'google' | 'facebook' | null>(null)
 const rememberMe = ref(true)
 const error = ref('')
 const successMessage = ref('')
-const showFillToast = ref(false)
-const filledAccount = ref('')
-
-const testAccounts = [
-  { label: 'ลูกค้า', email: 'customer@demo.com', password: 'demo1234', role: 'customer' },
-  { label: 'คนขับ', email: 'driver1@demo.com', password: 'demo1234', role: 'driver' },
-  { label: 'ไรเดอร์', email: 'rider@demo.com', password: 'demo1234', role: 'rider' },
-  { label: 'แอดมิน', email: 'admin@demo.com', password: 'admin1234', role: 'admin' }
-]
 
 // Social Login handlers
 const loginWithGoogle = async () => {
@@ -52,19 +43,6 @@ const loginWithFacebook = async () => {
   } finally {
     socialLoading.value = null
   }
-}
-
-const selectTestAccount = (account: typeof testAccounts[0]) => {
-  email.value = account.email
-  password.value = account.password
-  loginMethod.value = 'password'
-  error.value = ''
-  
-  filledAccount.value = account.label
-  showFillToast.value = true
-  setTimeout(() => {
-    showFillToast.value = false
-  }, 2000)
 }
 
 const isEmailValid = computed(() => {
@@ -127,9 +105,6 @@ const loginWithPassword = async () => {
   isLoading.value = true
   error.value = ''
   
-  localStorage.removeItem('demo_mode')
-  localStorage.removeItem('demo_user')
-  
   try {
     const success = await authStore.login(email.value, password.value)
     
@@ -160,6 +135,7 @@ const resetOtpState = () => {
 }
 
 const goToRegister = () => router.push('/register')
+const goToAdminLogin = () => router.push('/admin/login')
 </script>
 
 <template>
@@ -272,16 +248,6 @@ const goToRegister = () => router.push('/register')
           <span v-if="isLoading" class="loading"><span class="spinner"></span>กำลังเข้าสู่ระบบ...</span>
           <span v-else>เข้าสู่ระบบ</span>
         </button>
-        
-        <!-- Demo Accounts -->
-        <div class="demo-row">
-          <span class="demo-label">ทดสอบ:</span>
-          <div class="demo-chips">
-            <button v-for="acc in testAccounts" :key="acc.email" @click="selectTestAccount(acc)" class="chip">
-              {{ acc.label }}
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- Social Login -->
@@ -315,17 +281,17 @@ const goToRegister = () => router.push('/register')
         <span>ยังไม่มีบัญชี?</span>
         <button @click="goToRegister" class="link-btn accent">สมัครสมาชิก</button>
       </div>
-    </div>
 
-    <!-- Toast -->
-    <Transition name="toast">
-      <div v-if="showFillToast" class="toast">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>
-        </svg>
-        กรอก {{ filledAccount }} แล้ว
+      <!-- Admin Login Link -->
+      <div class="admin-link">
+        <button @click="goToAdminLogin" class="admin-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          เข้าสู่ระบบสำหรับผู้ดูแล
+        </button>
       </div>
-    </Transition>
+    </div>
   </div>
 </template>
 
@@ -610,49 +576,6 @@ const goToRegister = () => router.push('/register')
   accent-color: #00A86B;
 }
 
-/* Demo Row */
-.demo-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid #F0F0F0;
-}
-
-.demo-label {
-  font-size: 11px;
-  color: #999999;
-  white-space: nowrap;
-}
-
-.demo-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.chip {
-  padding: 6px 12px;
-  background: #F5F5F5;
-  border: none;
-  border-radius: 16px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #1A1A1A;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.chip:hover {
-  background: #00A86B;
-  color: #FFFFFF;
-}
-
-.chip:active {
-  transform: scale(0.95);
-}
-
 /* Register Row */
 .register-row {
   display: flex;
@@ -663,59 +586,43 @@ const goToRegister = () => router.push('/register')
   color: #666666;
 }
 
-/* Toast */
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
+/* Admin Link */
+.admin-link {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #F0F0F0;
+}
+
+.admin-btn {
+  width: 100%;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 12px 20px;
-  background: #1A1A1A;
-  color: #FFFFFF;
-  border-radius: 24px;
+  padding: 12px;
+  background: #F5F5F5;
+  border: 1px solid #E8E8E8;
+  border-radius: 12px;
   font-size: 13px;
   font-weight: 500;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
+  color: #666666;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.toast svg {
+.admin-btn:hover {
+  background: #1A1A1A;
+  border-color: #1A1A1A;
+  color: #FFFFFF;
+}
+
+.admin-btn:active {
+  transform: scale(0.98);
+}
+
+.admin-btn svg {
   width: 18px;
   height: 18px;
-  color: #00A86B;
-}
-
-.toast-enter-active {
-  animation: toastIn 0.3s ease;
-}
-
-.toast-leave-active {
-  animation: toastOut 0.3s ease;
-}
-
-@keyframes toastIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes toastOut {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
 }
 
 /* Social Login */
@@ -832,11 +739,6 @@ const goToRegister = () => router.push('/register')
   
   .btn-primary {
     padding: 12px;
-  }
-  
-  .demo-row {
-    margin-top: 10px;
-    padding-top: 10px;
   }
 }
 </style>

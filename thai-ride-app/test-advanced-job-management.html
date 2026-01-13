@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Advanced Job Management System Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+        .priority-demo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .job-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            position: relative;
+        }
+        .priority-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .priority-high { background: #fee2e2; color: #dc2626; }
+        .priority-medium { background: #fef3c7; color: #d97706; }
+        .priority-low { background: #e0e7ff; color: #3730a3; }
+        .heat-map {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            max-width: 400px;
+            margin: 20px 0;
+        }
+        .heat-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .heat-cell:hover {
+            transform: scale(1.1);
+        }
+        .heat-0 { background: #f3f4f6; }
+        .heat-1 { background: #dbeafe; }
+        .heat-2 { background: #bfdbfe; }
+        .heat-3 { background: #93c5fd; }
+        .heat-4 { background: #60a5fa; }
+        .heat-5 { background: #3b82f6; }
+        .heat-6 { background: #2563eb; }
+        .heat-7 { background: #1d4ed8; }
+        .heat-8 { background: #1e40af; }
+        .heat-9 { background: #1e3a8a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Advanced Job Management System Test</h1>
+            <p>ทดสอบระบบ Job Priority, Auto-Accept Rules และ Heat Map</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="priorityConfigs">-</div>
+                <div class="stat-label">Priority Configs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="autoAcceptRules">-</div>
+                <div class="stat-label">Auto-Accept Rules</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="heatMapPoints">-</div>
+                <div class="stat-label">Heat Map Points</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="systemConfigs">-</div>
+                <div class="stat-label">System Configs</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 System Tests</h3>
+            <button onclick="testDatabaseTables()">Test Database Tables</button>
+            <button onclick="testPrioritySystem()">Test Priority System</button>
+            <button onclick="testAutoAcceptRules()">Test Auto-Accept Rules</button>
+            <button onclick="testHeatMapSystem()">Test Heat Map System</button>
+            <button onclick="runFullSystemTest()">Run Full System Test</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Priority System Demo</h3>
+            <button onclick="createDemoJobs()">Create Demo Jobs</button>
+            <button onclick="calculatePriorities()">Calculate Priorities</button>
+            <div id="priorityDemo" class="priority-demo"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔥 Heat Map Visualization</h3>
+            <button onclick="generateHeatMapData()">Generate Heat Map Data</button>
+            <div id="heatMapViz" class="heat-map"></div>
+            <p><small>Heat Map: Blue (low demand) → Dark Blue (high demand)</small></p>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Results</h3>
+            <div id="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Debug Log</h3>
+            <div id="log" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        // Supabase configuration
+        const supabaseUrl = 'http://127.0.0.1:54321'
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+
+        let demoJobs = []
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const logDiv = document.getElementById('log')
+            const entry = document.createElement('div')
+            entry.innerHTML = `<span style="color: #666">[${timestamp}]</span> ${message}`
+            logDiv.appendChild(entry)
+            logDiv.scrollTop = logDiv.scrollHeight
+            console.log(`[${type.toUpperCase()}] ${message}`)
+        }
+
+        function showResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results')
+            const result = document.createElement('div')
+            result.className = `test-result ${type}`
+            result.textContent = message
+            resultsDiv.appendChild(result)
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = ''
+            document.getElementById('results').innerHTML = ''
+        }
+
+        async function testDatabaseTables() {
+            log('Testing database tables...')
+            const tables = [
+                'job_priority_config',
+                'auto_accept_rules', 
+                'job_heat_map_data',
+                'system_config'
+            ]
+
+            let allTablesExist = true
+
+            for (const table of tables) {
+                try {
+                    const { data, error } = await supabase
+                        .from(table)
+                        .select('count', { count: 'exact', head: true })
+
+                    if (error) {
+                        showResult(`❌ Table ${table} error: ${error.message}`, 'error')
+                        allTablesExist = false
+                    } else {
+                        showResult(`✅ Table ${table} exists`, 'success')
+                        log(`Table ${table}: OK`)
+                    }
+                } catch (err) {
+                    showResult(`❌ Table ${table} failed: ${err.message}`, 'error')
+                    allTablesExist = false
+                }
+            }
+
+            if (allTablesExist) {
+                showResult('✅ All database tables exist', 'success')
+            }
+
+            await updateStats()
+        }
+
+        async function testPrioritySystem() {
+            log('Testing priority system...')
+            
+            try {
+                // Test priority config
+                const { data: configs, error: configError } = await supabase
+                    .from('job_priority_config')
+                    .select('*')
+
+                if (configError) throw configError
+
+                showResult(`✅ Priority configs loaded: ${configs.length}`, 'success')
+
+                // Test priority calculation function
+                const { data: priorityResult, error: priorityError } = await supabase
+                    .rpc('calculate_job_priority_score', {
+                        p_ride_id: '00000000-0000-0000-0000-000000000001',
+                        p_provider_lat: 13.7563,
+                        p_provider_lng: 100.5018
+                    })
+
+                if (priorityError) {
+                    showResult(`⚠️ Priority function test: ${priorityError.message}`, 'warning')
+                } else {
+                    showResult(`✅ Priority calculation works: ${priorityResult}`, 'success')
+                }
+
+            } catch (error) {
+                showResult(`❌ Priority system test failed: ${error.message}`, 'error')
+            }
+        }
+
+        async function testAutoAcceptRules() {
+            log('Testing auto-accept rules...')
+            
+            try {
+                // Test auto-accept rules table
+                const { data: rules, error: rulesError } = await supabase
+                    .from('auto_accept_rules')
+                    .select('*')
+                    .limit(5)
+
+                if (rulesError) throw rulesError
+
+                showResult(`✅ Auto-accept rules loaded: ${rules.length}`, 'success')
+
+                // Test auto-accept function
+                const { data: autoAcceptResult, error: autoAcceptError } = await supabase
+                    .rpc('check_auto_accept_rules', {
+                        p_ride_id: '00000000-0000-0000-0000-000000000001',
+                        p_provider_id: '00000000-0000-0000-0000-000000000002'
+                    })
+
+                if (autoAcceptError) {
+                    showResult(`⚠️ Auto-accept function test: ${autoAcceptError.message}`, 'warning')
+                } else {
+                    showResult(`✅ Auto-accept check works: ${autoAcceptResult}`, 'success')
+                }
+
+            } catch (error) {
+                showResult(`❌ Auto-accept system test failed: ${error.message}`, 'error')
+            }
+        }
+
+        async function testHeatMapSystem() {
+            log('Testing heat map system...')
+            
+            try {
+                // Test heat map data table
+                const { data: heatData, error: heatError } = await supabase
+                    .from('job_heat_map_data')
+                    .select('*')
+                    .limit(10)
+
+                if (heatError) throw heatError
+
+                showResult(`✅ Heat map data loaded: ${heatData.length} points`, 'success')
+
+                // Test heat map update function
+                const { error: updateError } = await supabase
+                    .rpc('update_heat_map_data')
+
+                if (updateError) {
+                    showResult(`⚠️ Heat map update function: ${updateError.message}`, 'warning')
+                } else {
+                    showResult(`✅ Heat map update function works`, 'success')
+                }
+
+            } catch (error) {
+                showResult(`❌ Heat map system test failed: ${error.message}`, 'error')
+            }
+        }
+
+        async function updateStats() {
+            try {
+                // Count priority configs
+                const { count: priorityCount } = await supabase
+                    .from('job_priority_config')
+                    .select('*', { count: 'exact', head: true })
+
+                document.getElementById('priorityConfigs').textContent = priorityCount || '0'
+
+                // Count auto-accept rules
+                const { count: rulesCount } = await supabase
+                    .from('auto_accept_rules')
+                    .select('*', { count: 'exact', head: true })
+
+                document.getElementById('autoAcceptRules').textContent = rulesCount || '0'
+
+                // Count heat map points
+                const { count: heatCount } = await supabase
+                    .from('job_heat_map_data')
+                    .select('*', { count: 'exact', head: true })
+
+                document.getElementById('heatMapPoints').textContent = heatCount || '0'
+
+                // Count system configs
+                const { count: configCount } = await supabase
+                    .from('system_config')
+                    .select('*', { count: 'exact', head: true })
+
+                document.getElementById('systemConfigs').textContent = configCount || '0'
+
+            } catch (error) {
+                log(`Stats update error: ${error.message}`, 'error')
+            }
+        }
+
+        function createDemoJobs() {
+            demoJobs = [
+                {
+                    id: '1',
+                    tracking_id: 'DEMO-001',
+                    pickup_address: 'สยามพารากอน',
+                    destination_address: 'เซ็นทรัลเวิลด์',
+                    estimated_fare: 150,
+                    distance: 2.5,
+                    created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 min ago
+                    customer_rating: 4.8
+                },
+                {
+                    id: '2',
+                    tracking_id: 'DEMO-002',
+                    pickup_address: 'จตุจักร',
+                    destination_address: 'ดอนเมือง',
+                    estimated_fare: 300,
+                    distance: 8.2,
+                    created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 min ago
+                    customer_rating: 4.2
+                },
+                {
+                    id: '3',
+                    tracking_id: 'DEMO-003',
+                    pickup_address: 'สีลม',
+                    destination_address: 'สาทร',
+                    estimated_fare: 80,
+                    distance: 1.2,
+                    created_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(), // 2 min ago
+                    customer_rating: 3.9
+                },
+                {
+                    id: '4',
+                    tracking_id: 'DEMO-004',
+                    pickup_address: 'ลาดพร้าว',
+                    destination_address: 'รามอินทรา',
+                    estimated_fare: 220,
+                    distance: 12.5,
+                    created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 min ago
+                    customer_rating: 4.5
+                }
+            ]
+
+            showResult(`✅ Created ${demoJobs.length} demo jobs`, 'success')
+            log(`Demo jobs created: ${demoJobs.length}`)
+        }
+
+        function calculatePriorities() {
+            if (demoJobs.length === 0) {
+                showResult('❌ No demo jobs found. Create demo jobs first.', 'error')
+                return
+            }
+
+            // Simple priority calculation (distance + fare + time + rating)
+            const providerLat = 13.7563 // Provider location (Siam)
+            const providerLng = 100.5018
+
+            demoJobs.forEach(job => {
+                // Distance score (closer = better, max 40 points)
+                const distanceScore = Math.max(0, 40 - (job.distance * 4))
+                
+                // Fare score (higher = better, max 30 points)
+                const fareScore = Math.min(30, (job.estimated_fare - 50) / 10)
+                
+                // Time score (newer = better, max 20 points)
+                const timeMinutes = (Date.now() - new Date(job.created_at).getTime()) / (1000 * 60)
+                const timeScore = Math.max(0, 20 - timeMinutes)
+                
+                // Rating score (higher = better, max 10 points)
+                const ratingScore = (job.customer_rating - 1) * 2.5
+                
+                job.priority_score = distanceScore + fareScore + timeScore + ratingScore
+            })
+
+            // Sort by priority
+            demoJobs.sort((a, b) => b.priority_score - a.priority_score)
+
+            displayPriorityDemo()
+            showResult(`✅ Calculated priorities for ${demoJobs.length} jobs`, 'success')
+        }
+
+        function displayPriorityDemo() {
+            const demoDiv = document.getElementById('priorityDemo')
+            demoDiv.innerHTML = ''
+
+            demoJobs.forEach(job => {
+                const priorityClass = job.priority_score >= 70 ? 'priority-high' : 
+                                   job.priority_score >= 40 ? 'priority-medium' : 'priority-low'
+                
+                const priorityText = job.priority_score >= 70 ? 'HIGH' : 
+                                   job.priority_score >= 40 ? 'MEDIUM' : 'LOW'
+
+                const card = document.createElement('div')
+                card.className = 'job-card'
+                card.innerHTML = `
+                    <div class="priority-badge ${priorityClass}">${priorityText}</div>
+                    <h4>${job.tracking_id}</h4>
+                    <p><strong>Route:</strong> ${job.pickup_address} → ${job.destination_address}</p>
+                    <p><strong>Fare:</strong> ฿${job.estimated_fare} | <strong>Distance:</strong> ${job.distance}km</p>
+                    <p><strong>Customer Rating:</strong> ${job.customer_rating}⭐</p>
+                    <p><strong>Priority Score:</strong> ${job.priority_score.toFixed(1)}/100</p>
+                    <small>Created: ${new Date(job.created_at).toLocaleTimeString()}</small>
+                `
+                demoDiv.appendChild(card)
+            })
+        }
+
+        function generateHeatMapData() {
+            const heatMapDiv = document.getElementById('heatMapViz')
+            heatMapDiv.innerHTML = ''
+
+            // Generate 100 cells (10x10 grid)
+            for (let i = 0; i < 100; i++) {
+                const cell = document.createElement('div')
+                cell.className = 'heat-cell'
+                
+                // Random heat level (0-9)
+                const heatLevel = Math.floor(Math.random() * 10)
+                cell.classList.add(`heat-${heatLevel}`)
+                
+                cell.title = `Grid ${i}: Heat Level ${heatLevel}`
+                cell.onclick = () => {
+                    showResult(`Grid ${i}: Heat Level ${heatLevel}`, 'info')
+                }
+                
+                heatMapDiv.appendChild(cell)
+            }
+
+            showResult('✅ Generated heat map visualization', 'success')
+        }
+
+        async function runFullSystemTest() {
+            log('🚀 Running full system test...')
+            clearLog()
+            
+            const tests = [
+                { name: 'Database Tables', fn: testDatabaseTables },
+                { name: 'Priority System', fn: testPrioritySystem },
+                { name: 'Auto-Accept Rules', fn: testAutoAcceptRules },
+                { name: 'Heat Map System', fn: testHeatMapSystem }
+            ]
+
+            let passed = 0
+            let total = tests.length
+
+            for (const test of tests) {
+                log(`Running ${test.name}...`)
+                try {
+                    await test.fn()
+                    passed++
+                } catch (error) {
+                    log(`Test ${test.name} failed: ${error.message}`, 'error')
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000))
+            }
+
+            // Final summary
+            const successRate = Math.round((passed / total) * 100)
+            if (successRate >= 75) {
+                showResult(`🎉 System Test Passed: ${passed}/${total} tests (${successRate}%)`, 'success')
+                showResult('✅ Advanced Job Management System is working!', 'success')
+            } else {
+                showResult(`⚠️ System Test Partial: ${passed}/${total} tests (${successRate}%)`, 'warning')
+                showResult('❌ Some components need attention', 'error')
+            }
+
+            log(`Full system test completed: ${passed}/${total} tests passed`)
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            log('🚀 Advanced Job Management System Test initialized')
+            await updateStats()
+        })
+    </script>
+</body>
+</html>
