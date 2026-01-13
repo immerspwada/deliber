@@ -20,7 +20,19 @@
     "lint:secrets": "node scripts/check-secrets.js",
     "bundle:analyze": "npm run build && open dist/stats.html",
     "bundle:size": "npm run build && du -sh dist/* | sort -h",
-    "prepare": "cd .. && husky install .husky || true"
+    "prepare": "cd .. && husky install .husky || true",
+    "docker:install": "bash scripts/install-docker.sh",
+    "docker:check": "docker --version && docker compose version",
+    "supabase:start": "npx supabase start",
+    "supabase:stop": "npx supabase stop",
+    "supabase:status": "npx supabase status",
+    "supabase:reset": "npx supabase db reset",
+    "supabase:push": "npx supabase db push",
+    "supabase:types": "npx supabase gen types typescript --local > src/types/database.ts",
+    "setup": "npm run docker:install && npm run supabase:start && npm run supabase:types",
+    "dev:full": "npm run supabase:start && npm run dev",
+    "test:rls": "node test-provider-job-visibility.js",
+    "debug:jobs": "open debug-provider-jobs.html"
   },
   "lint-staged": {
     "*.{ts,js,vue,json}": [
@@ -66,6 +78,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "rollup-plugin-visualizer": "^6.0.5",
+    "supabase": "^2.72.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.51.0",
     "vite": "^7.2.4",

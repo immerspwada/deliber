@@ -333,25 +333,38 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
   // Subscribe to new jobs
   async function subscribeToNewJobs(): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) {
+      console.error('[Provider] User not authenticated')
+      return
+    }
 
-    // Get provider location from providers_v2 table
+    // Get provider info from providers_v2 table
     const { data: provider } = await supabase
       .from('providers_v2')
-      .select('current_lat, current_lng, service_types')
+      .select('id, current_lat, current_lng, service_types, status, is_online, is_available')
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (!provider) return
+    if (!provider) {
+      console.error('[Provider] Provider profile not found')
+      return
+    }
+
+    if (!provider.is_online || !provider.is_available) {
+      console.warn('[Provider] Provider is not online or available')
+      return
+    }
 
     providerLocation.value = {
       lat: provider.current_lat || 0,
       lng: provider.current_lng || 0
     }
 
-    // Subscribe to ride_requests table directly (main table used by customers)
+    console.log('[Provider] Subscribing to new jobs for provider:', provider.id)
+
+    // Subscribe to ride_requests table for new pending jobs
     const channel = supabase
-      .channel(`new_ride_jobs_${user.id}`)
+      .channel(`provider_jobs_${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -362,11 +375,18 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
         },
         async (payload) => {
           const newJob = payload.new as any
-          console.log('[Provider] New ride request:', newJob)
+          console.log('[Provider] 🆕 New ride request detected:', newJob.tracking_id || newJob.id)
+
+          // Skip if job already has a provider
+          if (newJob.provider_id) {
+            console.log('[Provider] Job already assigned, skipping')
+            return
+          }
 
           // Calculate distance if provider has location
+          let distance = 0
           if (providerLocation.value && newJob.pickup_lat && newJob.pickup_lng) {
-            const distance = calculateDistance(
+            distance = calculateDistance(
               providerLocation.value.lat,
               providerLocation.value.lng,
               newJob.pickup_lat,
@@ -375,11 +395,9 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
 
             // Only show jobs within 10km radius
             if (distance > 10) {
-              console.log('[Provider] Job too far:', distance, 'km')
+              console.log('[Provider] Job too far:', distance.toFixed(2), 'km, skipping')
               return
             }
-
-            newJob.distance = distance
           }
 
           // Transform to JobRequest format
@@ -397,16 +415,18 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
             destination_address: newJob.destination_address,
             created_at: newJob.created_at,
             type: 'ride',
-            distance: newJob.distance
+            distance: distance
           }
 
-          // Add to available jobs
-          availableJobs.value.push(jobRequest)
-          
-          // Play notification sound
-          playNotificationSound()
-          
-          console.log('[Provider] Job added to available list:', jobRequest.id)
+          // Add to available jobs (avoid duplicates)
+          const exists = availableJobs.value.find(j => j.id === jobRequest.id)
+          if (!exists) {
+            availableJobs.value.push(jobRequest)
+            console.log('[Provider] ✅ Job added to available list:', jobRequest.tracking_id, `(${distance.toFixed(2)}km)`)
+            
+            // Play notification sound
+            playNotificationSound()
+          }
         }
       )
       .on(
@@ -418,15 +438,23 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
         },
         (payload) => {
           const updated = payload.new as any
-          // Remove from available if no longer pending
-          if (updated.status !== 'pending') {
-            availableJobs.value = availableJobs.value.filter(j => j.id !== updated.id)
-            console.log('[Provider] Job removed from available list:', updated.id, 'status:', updated.status)
+          
+          // Remove from available if no longer pending or assigned to someone
+          if (updated.status !== 'pending' || updated.provider_id) {
+            const removed = availableJobs.value.find(j => j.id === updated.id)
+            if (removed) {
+              availableJobs.value = availableJobs.value.filter(j => j.id !== updated.id)
+              console.log('[Provider] 🗑️ Job removed from available list:', updated.tracking_id || updated.id, 
+                         'status:', updated.status, 'provider:', updated.provider_id ? 'assigned' : 'none')
+            }
           }
         }
       )
       .subscribe((status) => {
-        console.log('[Provider] Realtime subscription status:', status)
+        console.log('[Provider] 📡 Realtime subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('[Provider] ✅ Successfully subscribed to job updates')
+        }
       })
 
     realtimeChannels.value.push(channel)
@@ -488,21 +516,31 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
   // Load initial available jobs
   async function loadAvailableJobs(): Promise<void> {
     isLoading.value = true
+    error.value = null
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return
+      }
 
-      console.log('[Provider] Loading available jobs...')
+      console.log('[Provider] Loading available jobs for user:', user.id)
 
-      // Get provider location from providers_v2 table
+      // Get provider info from providers_v2 table
       const { data: provider } = await supabase
         .from('providers_v2')
-        .select('current_lat, current_lng')
+        .select('id, current_lat, current_lng, status, is_online, is_available')
         .eq('user_id', user.id)
         .maybeSingle()
 
-      if (provider && provider.current_lat && provider.current_lng) {
+      if (!provider) {
+        error.value = 'ไม่พบข้อมูลผู้ให้บริการ'
+        console.error('[Provider] Provider profile not found for user:', user.id)
+        return
+      }
+
+      if (provider.current_lat && provider.current_lng) {
         providerLocation.value = { 
           lat: provider.current_lat, 
           lng: provider.current_lng 
@@ -510,10 +548,24 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
         console.log('[Provider] Provider location:', providerLocation.value)
       }
 
-      // Load pending ride requests
+      // Load pending ride requests - RLS policies should now allow this
+      console.log('[Provider] Fetching pending rides...')
       const { data: rides, error: ridesError } = await supabase
         .from('ride_requests')
-        .select('*')
+        .select(`
+          id,
+          tracking_id,
+          user_id,
+          status,
+          pickup_lat,
+          pickup_lng,
+          pickup_address,
+          destination_lat,
+          destination_lng,
+          destination_address,
+          estimated_fare,
+          created_at
+        `)
         .eq('status', 'pending')
         .is('provider_id', null)
         .order('created_at', { ascending: false })
@@ -521,12 +573,20 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
 
       if (ridesError) {
         console.error('[Provider] Load jobs error:', ridesError)
-        throw ridesError
+        error.value = `ไม่สามารถโหลดงานได้: ${ridesError.message}`
+        
+        // If RLS blocks access, show helpful error
+        if (ridesError.message.includes('permission') || ridesError.message.includes('policy')) {
+          error.value = 'ไม่สามารถเข้าถึงงานได้ กรุณาตรวจสอบสถานะผู้ให้บริการ'
+        }
+        return
       }
+
+      console.log('[Provider] Raw rides data:', rides?.length || 0, 'rides found')
 
       const jobs: JobRequest[] = []
 
-      if (rides) {
+      if (rides && rides.length > 0) {
         for (const ride of rides) {
           const jobWithType: JobRequest = { 
             ...ride, 
@@ -543,21 +603,32 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
               ride.pickup_lng
             )
             
+            console.log(`[Provider] Job ${ride.tracking_id || ride.id}: ${jobWithType.distance.toFixed(2)}km away`)
+            
             // Only include jobs within 10km radius
             if (jobWithType.distance <= 10) {
               jobs.push(jobWithType)
+            } else {
+              console.log(`[Provider] Skipping job ${ride.tracking_id || ride.id}: too far (${jobWithType.distance.toFixed(2)}km)`)
             }
           } else {
+            // Include all jobs if no location available
             jobs.push(jobWithType)
           }
         }
       }
 
       availableJobs.value = jobs
-      console.log('[Provider] ✓ Loaded', jobs.length, 'available jobs')
-    } catch (err) {
-      console.error('[Provider] loadAvailableJobs error:', err)
-      error.value = 'ไม่สามารถโหลดงานได้'
+      console.log('[Provider] ✅ Loaded', jobs.length, 'available jobs (filtered by distance)')
+      
+      // Log job details for debugging
+      jobs.forEach(job => {
+        console.log(`[Provider] 📍 ${job.tracking_id}: ${job.pickup_address} → ${job.destination_address} (฿${job.estimated_fare})`)
+      })
+
+    } catch (err: any) {
+      console.error('[Provider] loadAvailableJobs exception:', err)
+      error.value = err.message || 'เกิดข้อผิดพลาดในการโหลดงาน'
     } finally {
       isLoading.value = false
     }

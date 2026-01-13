@@ -38,7 +38,7 @@ import WelcomeHeader from "../components/customer/WelcomeHeader.vue";
 import QuickDestinationSearch from "../components/customer/QuickDestinationSearch.vue";
 import CuteServiceGrid from "../components/customer/CuteServiceGrid.vue";
 import BottomNavigation from "../components/customer/BottomNavigation.vue";
-import RoleSwitcher from "../components/customer/RoleSwitcher.vue";
+
 
 // Non-critical Components - Lazy load
 const ActiveOrderCard = defineAsyncComponent(
@@ -91,8 +91,7 @@ const {
 const { 
   isProvider, 
   getRoleBadge, 
-  getRoleColor,
-  canSwitchToProviderMode 
+  getRoleColor
 } = useRoleAccess();
 
 // Performance Metrics - เก็บ Web Vitals
@@ -705,10 +704,7 @@ onUnmounted(() => {
       @profile-click="navigateTo('/customer/profile')"
     />
 
-    <!-- Role Switcher (for providers who can also be customers) -->
-    <div v-if="canSwitchToProviderMode" class="role-switcher-section">
-      <RoleSwitcher current-mode="customer" />
-    </div>
+
 
     <!-- Main Content -->
     <main class="main-content">
@@ -1013,22 +1009,5 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
-/* Role Switcher Section */
-.role-switcher-section {
-  padding: 0 20px;
-  margin-top: -8px;
-  margin-bottom: 16px;
-  animation: slideDown 0.3s ease;
-}
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 </style>

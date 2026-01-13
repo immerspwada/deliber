@@ -6,20 +6,14 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
-import { useProviderJobPool } from '../../composables/useProviderJobPool'
-import { useProviderJobPoolFallback } from '../../composables/useProviderJobPoolFallback'
+import { useSimpleProviderJobPool } from '../../composables/useSimpleProviderJobPool'
 import ProviderStatusToggle from '../../components/ProviderStatusToggle.vue'
 import DailyGoalCard from '../../components/DailyGoalCard.vue'
 import JobNotification from '../../components/provider/JobNotification.vue'
 
 const router = useRouter()
 
-// Check if we should use fallback mode
-const useFallback = ref(localStorage.getItem('provider-use-fallback') === 'true')
-
-// Job Pool Integration - use fallback if database is not available
-const jobPoolComposable = useFallback.value ? useProviderJobPoolFallback() : useProviderJobPool(['ride', 'delivery', 'shopping'])
-
+// Job Pool Integration - use simple version without complex filters
 const { 
   availableJobs, 
   currentJob, 
@@ -28,7 +22,7 @@ const {
   loadAvailableJobs,
   acceptJob,
   cleanup: cleanupJobPool
-} = jobPoolComposable
+} = useSimpleProviderJobPool()
 
 // State
 const loading = ref(true)
@@ -249,7 +243,7 @@ async function logout() {
 async function handleAcceptJob(job: any) {
   try {
     console.log('[Provider] Accepting job:', job.id)
-    const result = await acceptJob(job.id, job.type)
+    const result = await acceptJob(job.id)
     
     if (result.success) {
       console.log('[Provider] Job accepted successfully')
@@ -337,9 +331,7 @@ async function createTestJob() {
 }
 
 function toggleFallbackMode() {
-  useFallback.value = !useFallback.value
-  localStorage.setItem('provider-use-fallback', useFallback.value.toString())
-  alert(`เปลี่ยนเป็น ${useFallback.value ? 'Fallback' : 'Database'} mode - กรุณา refresh หน้า`)
+  // Removed - using simple mode only
 }
 
 // Lifecycle
@@ -461,9 +453,8 @@ onUnmounted(() => {
       <!-- Debug Info (Development Only) -->
       <div v-if="!import.meta.env.PROD" class="debug-info">
         <details>
-          <summary>🔧 Debug Info</summary>
+          <summary>🔧 Debug Info (Simple Mode)</summary>
           <div class="debug-content">
-            <p><strong>Mode:</strong> {{ useFallback ? 'Fallback' : 'Database' }}</p>
             <p><strong>Online:</strong> {{ isOnline }}</p>
             <p><strong>Available Jobs:</strong> {{ availableJobs.length }}</p>
             <p><strong>Provider ID:</strong> {{ provider?.id }}</p>
@@ -471,7 +462,6 @@ onUnmounted(() => {
             <p><strong>Status:</strong> {{ provider?.status }}</p>
             <button @click="debugJobs" class="debug-btn">🔍 Debug Jobs</button>
             <button @click="createTestJob" class="debug-btn">➕ Create Test Job</button>
-            <button @click="toggleFallbackMode" class="debug-btn">🔄 Toggle Mode</button>
           </div>
         </details>
       </div>

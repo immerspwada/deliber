@@ -108,7 +108,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'ProviderJobs',
-        component: () => import('../views/provider/ProviderJobsView.vue'),
+        component: () => import('../components/provider/SimpleProviderDashboard.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
@@ -247,6 +247,12 @@ export const routes: RouteRecordRaw[] = [
         path: 'shopping',
         name: 'AdminShopping',
         component: () => import('../admin/views/ShoppingView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'job-management',
+        name: 'AdminJobManagement',
+        component: () => import('../admin/views/JobManagementView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {

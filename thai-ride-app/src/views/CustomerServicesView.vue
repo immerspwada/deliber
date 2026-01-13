@@ -20,7 +20,7 @@ import { useServicePromotions } from "../composables/useServicePromotions";
 import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import BottomNavigation from "../components/customer/BottomNavigation.vue";
-import RoleSwitcher from "../components/customer/RoleSwitcher.vue";
+
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -35,7 +35,6 @@ const { unratedRidesCount, fetchUnratedRides } = useRideHistory();
 
 // Multi-role support
 const { 
-  canSwitchToProviderMode,
   getRoleBadge 
 } = useRoleAccess();
 
@@ -885,10 +884,7 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <!-- Role Switcher (for providers) -->
-    <div v-if="canSwitchToProviderMode" class="role-switcher-container">
-      <RoleSwitcher current-mode="customer" />
-    </div>
+
 
     <!-- Main Content -->
     <main class="main-content">
@@ -2081,23 +2077,7 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-/* Role Switcher Container */
-.role-switcher-container {
-  padding: 12px 20px 0;
-  background: #ffffff;
-  animation: slideDown 0.3s ease;
-}
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* Section Header */
 .section-header {

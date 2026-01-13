@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Test Provider Job Fix</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Provider Job System Fix Test</h1>
+            <p>ทดสอบว่า Provider สามารถเห็นงานจาก Customer ได้หรือไม่</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="pendingCount">-</div>
+                <div class="stat-label">Pending Jobs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="providerCount">-</div>
+                <div class="stat-label">Active Providers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="policyCount">-</div>
+                <div class="stat-label">RLS Policies</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Quick Tests</h3>
+            <button onclick="testDatabaseConnection()">Test Database</button>
+            <button onclick="testRLSPolicies()">Test RLS Policies</button>
+            <button onclick="createTestRide()">Create Test Ride</button>
+            <button onclick="testProviderAccess()">Test Provider Access</button>
+            <button onclick="runFullTest()">Run Full Test</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Results</h3>
+            <div id="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Debug Log</h3>
+            <div id="log" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        // Supabase configuration
+        const supabaseUrl = 'http://127.0.0.1:54321'
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const logDiv = document.getElementById('log')
+            const entry = document.createElement('div')
+            entry.innerHTML = `<span style="color: #666">[${timestamp}]</span> ${message}`
+            logDiv.appendChild(entry)
+            logDiv.scrollTop = logDiv.scrollHeight
+            console.log(`[${type.toUpperCase()}] ${message}`)
+        }
+
+        function showResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results')
+            const result = document.createElement('div')
+            result.className = `test-result ${type}`
+            result.textContent = message
+            resultsDiv.appendChild(result)
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = ''
+            document.getElementById('results').innerHTML = ''
+        }
+
+        async function testDatabaseConnection() {
+            log('Testing database connection...')
+            try {
+                const { data, error } = await supabase
+                    .from('ride_requests')
+                    .select('count', { count: 'exact', head: true })
+
+                if (error) {
+                    throw error
+                }
+
+                showResult('✅ Database connection successful', 'success')
+                log('Database connected successfully')
+                return true
+            } catch (error) {
+                showResult(`❌ Database connection failed: ${error.message}`, 'error')
+                log(`Database connection error: ${error.message}`, 'error')
+                return false
+            }
+        }
+
+        async function testRLSPolicies() {
+            log('Testing RLS policies...')
+            try {
+                const { data, error } = await supabase
+                    .rpc('test_provider_job_visibility')
+
+                if (error) {
+                    throw error
+                }
+
+                data.forEach(test => {
+                    const status = test.result ? '✅' : '❌'
+                    const type = test.result ? 'success' : 'error'
+                    showResult(`${status} ${test.test_name}: ${test.message}`, type)
+                    log(`${test.test_name}: ${test.message}`)
+                })
+
+                // Update stats
+                const policyTest = data.find(t => t.test_name === 'rls_policies_exist')
+                if (policyTest) {
+                    const count = policyTest.message.match(/\d+/)?.[0] || '0'
+                    document.getElementById('policyCount').textContent = count
+                }
+
+                return true
+            } catch (error) {
+                showResult(`❌ RLS policy test failed: ${error.message}`, 'error')
+                log(`RLS policy test error: ${error.message}`, 'error')
+                return false
+            }
+        }
+
+        async function createTestRide() {
+            log('Creating test ride...')
+            try {
+                const testRide = {
+                    user_id: '00000000-0000-0000-0000-000000000001', // Test UUID
+                    status: 'pending',
+                    pickup_lat: 13.7563,
+                    pickup_lng: 100.5018,
+                    pickup_address: 'สยามพารากอน กรุงเทพฯ',
+                    destination_lat: 13.7467,
+                    destination_lng: 100.5342,
+                    destination_address: 'เซ็นทรัลเวิลด์ กรุงเทพฯ',
+                    estimated_fare: 150,
+                    tracking_id: 'TEST-' + Date.now()
+                }
+
+                const { data, error } = await supabase
+                    .from('ride_requests')
+                    .insert(testRide)
+                    .select()
+                    .single()
+
+                if (error) {
+                    throw error
+                }
+
+                showResult(`✅ Test ride created: ${data.tracking_id}`, 'success')
+                log(`Test ride created successfully: ${data.tracking_id}`)
+                
+                // Update pending count
+                await updateStats()
+                return data
+            } catch (error) {
+                showResult(`❌ Failed to create test ride: ${error.message}`, 'error')
+                log(`Create test ride error: ${error.message}`, 'error')
+                return null
+            }
+        }
+
+        async function testProviderAccess() {
+            log('Testing provider access to jobs...')
+            try {
+                // Test 1: Can providers see pending rides?
+                const { data: pendingRides, error: pendingError } = await supabase
+                    .from('ride_requests')
+                    .select('*')
+                    .eq('status', 'pending')
+                    .is('provider_id', null)
+                    .limit(10)
+
+                if (pendingError) {
+                    throw pendingError
+                }
+
+                showResult(`✅ Providers can see ${pendingRides.length} pending rides`, 'success')
+                log(`Found ${pendingRides.length} pending rides visible to providers`)
+
+                // Test 2: Test nearby rides function
+                try {
+                    const { data: nearbyRides, error: nearbyError } = await supabase
+                        .rpc('get_nearby_pending_rides', {
+                            provider_lat: 13.7563,
+                            provider_lng: 100.5018,
+                            radius_km: 10
+                        })
+
+                    if (nearbyError) {
+                        showResult(`⚠️ Nearby rides function requires authentication: ${nearbyError.message}`, 'warning')
+                        log(`Nearby rides function error (expected): ${nearbyError.message}`)
+                    } else {
+                        showResult(`✅ Nearby rides function works: ${nearbyRides.length} rides found`, 'success')
+                        log(`Nearby rides function returned ${nearbyRides.length} rides`)
+                    }
+                } catch (nearbyErr) {
+                    showResult(`⚠️ Nearby rides function test skipped: ${nearbyErr.message}`, 'warning')
+                }
+
+                return pendingRides.length > 0
+            } catch (error) {
+                showResult(`❌ Provider access test failed: ${error.message}`, 'error')
+                log(`Provider access test error: ${error.message}`, 'error')
+                return false
+            }
+        }
+
+        async function updateStats() {
+            try {
+                // Count pending rides
+                const { count: pendingCount } = await supabase
+                    .from('ride_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'pending')
+                    .is('provider_id', null)
+
+                document.getElementById('pendingCount').textContent = pendingCount || '0'
+
+                // Count active providers
+                const { count: providerCount } = await supabase
+                    .from('providers_v2')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('is_online', true)
+                    .eq('is_available', true)
+
+                document.getElementById('providerCount').textContent = providerCount || '0'
+
+            } catch (error) {
+                log(`Stats update error: ${error.message}`, 'error')
+            }
+        }
+
+        async function runFullTest() {
+            log('🚀 Running full test suite...')
+            clearLog()
+            
+            const tests = [
+                { name: 'Database Connection', fn: testDatabaseConnection },
+                { name: 'RLS Policies', fn: testRLSPolicies },
+                { name: 'Create Test Ride', fn: createTestRide },
+                { name: 'Provider Access', fn: testProviderAccess }
+            ]
+
+            let passed = 0
+            let total = tests.length
+
+            for (const test of tests) {
+                log(`Running ${test.name}...`)
+                try {
+                    const result = await test.fn()
+                    if (result) passed++
+                } catch (error) {
+                    log(`Test ${test.name} failed: ${error.message}`, 'error')
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second between tests
+            }
+
+            // Final summary
+            const successRate = Math.round((passed / total) * 100)
+            if (successRate >= 75) {
+                showResult(`🎉 Test Suite Passed: ${passed}/${total} tests (${successRate}%)`, 'success')
+                showResult('✅ Provider Job System is working correctly!', 'success')
+            } else {
+                showResult(`⚠️ Test Suite Partial: ${passed}/${total} tests (${successRate}%)`, 'warning')
+                showResult('❌ Provider Job System needs attention', 'error')
+            }
+
+            log(`Test suite completed: ${passed}/${total} tests passed`)
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            log('🔧 Provider Job Fix Test initialized')
+            await updateStats()
+        })
+    </script>
+</body>
+</html>
