@@ -57,6 +57,7 @@ export interface BookingOptions {
   promoCode: string | null
   promoDiscount: number
   finalAmount: number
+  notes?: string
 }
 
 export function useRideRequest() {
@@ -509,7 +510,10 @@ export function useRideRequest() {
         pickup.value,
         destination.value,
         rideType,
-        1
+        1,
+        undefined, // specialRequests
+        options?.scheduledTime ?? undefined,
+        options?.notes
       )
       
       if (ride) {

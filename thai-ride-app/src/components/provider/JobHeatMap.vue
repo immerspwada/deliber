@@ -2,8 +2,10 @@
 /**
  * Job Heat Map Component
  * Shows areas with high job demand
+ * Uses CachedTileLayer for offline support
  */
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { cachedTileLayer } from '../../lib/CachedTileLayer'
 
 interface HotZone {
   id: string
@@ -70,7 +72,13 @@ const intensityRadius = {
 
 // Initialize map
 async function initMap() {
-  if (!mapContainer.value) return
+  // Wait for next tick to ensure DOM is ready
+  await nextTick()
+  
+  if (!mapContainer.value) {
+    console.warn('[JobHeatMap] Map container not ready')
+    return
+  }
 
   // Dynamic import Leaflet
   const L = await import('leaflet')
@@ -88,10 +96,15 @@ async function initMap() {
     attributionControl: false
   })
 
-  // Add tile layer
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19
-  }).addTo(map.value)
+  // Add cached tile layer for offline support
+  const tileLayer = cachedTileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }
+  )
+  tileLayer.addTo(map.value)
 
   // Add zoom control to bottom right
   L.control.zoom({ position: 'bottomright' }).addTo(map.value)

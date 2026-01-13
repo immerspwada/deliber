@@ -6,10 +6,29 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
+import { useProviderJobPool } from '../../composables/useProviderJobPool'
+import { useProviderJobPoolFallback } from '../../composables/useProviderJobPoolFallback'
 import ProviderStatusToggle from '../../components/ProviderStatusToggle.vue'
 import DailyGoalCard from '../../components/DailyGoalCard.vue'
+import JobNotification from '../../components/provider/JobNotification.vue'
 
 const router = useRouter()
+
+// Check if we should use fallback mode
+const useFallback = ref(localStorage.getItem('provider-use-fallback') === 'true')
+
+// Job Pool Integration - use fallback if database is not available
+const jobPoolComposable = useFallback.value ? useProviderJobPoolFallback() : useProviderJobPool(['ride', 'delivery', 'shopping'])
+
+const { 
+  availableJobs, 
+  currentJob, 
+  jobCount, 
+  subscribeToNewJobs, 
+  loadAvailableJobs,
+  acceptJob,
+  cleanup: cleanupJobPool
+} = jobPoolComposable
 
 // State
 const loading = ref(true)
@@ -128,10 +147,15 @@ async function handleToggleOnline(newValue: boolean) {
   toggling.value = true
   
   try {
+    // Update both is_online and is_available for proper job matching
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: e } = await (supabase as any)
       .from('providers_v2')
-      .update({ is_online: newValue, updated_at: new Date().toISOString() })
+      .update({ 
+        is_online: newValue, 
+        is_available: newValue, // Set availability same as online status
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', provider.value.id)
 
     if (e) {
@@ -141,6 +165,32 @@ async function handleToggleOnline(newValue: boolean) {
     }
 
     isOnline.value = newValue
+    
+    // Update provider object to reflect changes
+    if (provider.value) {
+      provider.value = {
+        ...provider.value,
+        is_online: newValue,
+        is_available: newValue
+      }
+    }
+    
+    console.log(`[Provider] Status updated: online=${newValue}, available=${newValue}`)
+    
+    // Initialize or cleanup job subscriptions based on online status
+    if (newValue) {
+      console.log('[Provider] Going online - subscribing to jobs')
+      try {
+        await subscribeToNewJobs()
+        await loadAvailableJobs()
+        console.log('[Provider] Job subscriptions initialized successfully')
+      } catch (error) {
+        console.error('[Provider] Failed to initialize job subscriptions:', error)
+      }
+    } else {
+      console.log('[Provider] Going offline - cleaning up subscriptions')
+      cleanupJobPool()
+    }
   } catch (err) {
     console.error('Toggle exception:', err)
     isOnline.value = !newValue // Revert
@@ -195,18 +245,121 @@ async function logout() {
   router.replace('/login')
 }
 
+// Job handling functions
+async function handleAcceptJob(job: any) {
+  try {
+    console.log('[Provider] Accepting job:', job.id)
+    const result = await acceptJob(job.id, job.type)
+    
+    if (result.success) {
+      console.log('[Provider] Job accepted successfully')
+      // Navigate to job detail view
+      router.push(`/provider/jobs/${job.id}`)
+    } else {
+      console.error('[Provider] Failed to accept job:', result.error)
+      alert('ไม่สามารถรับงานได้: ' + (result.error || 'เกิดข้อผิดพลาด'))
+    }
+  } catch (error) {
+    console.error('[Provider] Error accepting job:', error)
+    alert('เกิดข้อผิดพลาดในการรับงาน')
+  }
+}
+
+function handleViewAllJobs() {
+  router.push('/provider/jobs')
+}
+
+// Debug functions (Development only)
+async function debugJobs() {
+  console.log('🔍 Debug Provider Jobs...')
+  console.log('Provider:', provider.value)
+  console.log('Available Jobs:', availableJobs.value)
+  console.log('Is Online:', isOnline.value)
+  
+  try {
+    // Check database directly
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: pendingRides, error } = await supabase
+        .from('ride_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .is('provider_id', null)
+        .limit(10)
+      
+      if (error) {
+        console.error('❌ Database error:', error)
+      } else {
+        console.log('📋 Pending rides in database:', pendingRides)
+        
+        if (pendingRides.length > 0 && availableJobs.value.length === 0) {
+          console.warn('⚠️ Found pending rides in DB but not in UI - subscription issue!')
+        }
+      }
+    }
+  } catch (err) {
+    console.error('❌ Debug error:', err)
+  }
+}
+
+async function createTestJob() {
+  try {
+    const testRide = {
+      user_id: '00000000-0000-0000-0000-000000000001',
+      tracking_id: `TEST-${Date.now()}`,
+      pickup_lat: 13.7563,
+      pickup_lng: 100.5018,
+      pickup_address: 'Bangkok Center (Test)',
+      destination_lat: 13.7466,
+      destination_lng: 100.5392,
+      destination_address: 'Siam Square (Test)',
+      estimated_fare: 150.00,
+      status: 'pending'
+    }
+
+    const { data, error } = await supabase
+      .from('ride_requests')
+      .insert(testRide)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error creating test job:', error)
+      alert('ไม่สามารถสร้างงานทดสอบได้: ' + error.message)
+    } else {
+      console.log('✅ Test job created:', data)
+      alert('สร้างงานทดสอบสำเร็จ: ' + data.tracking_id)
+    }
+  } catch (err) {
+    console.error('❌ Exception:', err)
+    alert('เกิดข้อผิดพลาด')
+  }
+}
+
+function toggleFallbackMode() {
+  useFallback.value = !useFallback.value
+  localStorage.setItem('provider-use-fallback', useFallback.value.toString())
+  alert(`เปลี่ยนเป็น ${useFallback.value ? 'Fallback' : 'Database'} mode - กรุณา refresh หน้า`)
+}
+
 // Lifecycle
 onMounted(() => {
   loadProvider()
+  
+  // Add touch event listeners for pull-to-refresh
   document.addEventListener('touchstart', handleTouchStart, { passive: true })
   document.addEventListener('touchmove', handleTouchMove, { passive: true })
-  document.addEventListener('touchend', handleTouchEnd)
+  document.addEventListener('touchend', handleTouchEnd, { passive: true })
 })
 
 onUnmounted(() => {
+  // Cleanup touch event listeners
   document.removeEventListener('touchstart', handleTouchStart)
   document.removeEventListener('touchmove', handleTouchMove)
   document.removeEventListener('touchend', handleTouchEnd)
+  
+  // Cleanup job pool subscriptions
+  cleanupJobPool()
 })
 </script>
 
@@ -297,8 +450,34 @@ onUnmounted(() => {
         />
       </section>
 
+      <!-- Job Notifications -->
+      <JobNotification
+        v-if="isOnline && availableJobs.length > 0"
+        :available-jobs="availableJobs"
+        @accept-job="handleAcceptJob"
+        @view-all-jobs="handleViewAllJobs"
+      />
+
+      <!-- Debug Info (Development Only) -->
+      <div v-if="!import.meta.env.PROD" class="debug-info">
+        <details>
+          <summary>🔧 Debug Info</summary>
+          <div class="debug-content">
+            <p><strong>Mode:</strong> {{ useFallback ? 'Fallback' : 'Database' }}</p>
+            <p><strong>Online:</strong> {{ isOnline }}</p>
+            <p><strong>Available Jobs:</strong> {{ availableJobs.length }}</p>
+            <p><strong>Provider ID:</strong> {{ provider?.id }}</p>
+            <p><strong>User ID:</strong> {{ provider?.user_id }}</p>
+            <p><strong>Status:</strong> {{ provider?.status }}</p>
+            <button @click="debugJobs" class="debug-btn">🔍 Debug Jobs</button>
+            <button @click="createTestJob" class="debug-btn">➕ Create Test Job</button>
+            <button @click="toggleFallbackMode" class="debug-btn">🔄 Toggle Mode</button>
+          </div>
+        </details>
+      </div>
+
       <!-- Waiting for Jobs -->
-      <div v-if="isOnline" class="waiting-card">
+      <div v-if="isOnline && availableJobs.length === 0" class="waiting-card">
         <div class="waiting-animation">
           <div class="pulse-ring"></div>
           <div class="pulse-ring delay-1"></div>
@@ -832,5 +1011,52 @@ onUnmounted(() => {
   .stats-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Debug Info (Development Only) */
+.debug-info {
+  margin: 16px 0;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.debug-info details {
+  cursor: pointer;
+}
+
+.debug-info summary {
+  font-weight: 600;
+  color: #6c757d;
+  padding: 4px 0;
+}
+
+.debug-content {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dee2e6;
+}
+
+.debug-content p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #495057;
+}
+
+.debug-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  margin: 4px 4px 4px 0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.debug-btn:hover {
+  background: #5a6268;
 }
 </style>

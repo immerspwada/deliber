@@ -53,11 +53,6 @@ const handleLogout = () => {
 
     <div class="spacer" />
 
-    <!-- Demo Badge -->
-    <div v-if="authStore.isDemoMode" class="demo-badge">
-      Demo Mode
-    </div>
-
     <!-- Notifications -->
     <div class="header-action">
       <button class="action-btn" @click="showNotifications = !showNotifications">

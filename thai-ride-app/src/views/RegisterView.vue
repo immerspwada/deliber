@@ -140,8 +140,6 @@ const submitRegistration = async (): Promise<void> => {
   try {
     const fullName = `${firstName.value} ${lastName.value}`.trim()
     const cleanPhone = phone.value.replace(/[-\s]/g, '')
-    localStorage.removeItem('demo_mode')
-    localStorage.removeItem('demo_user')
     
     const success = await authStore.register(email.value, password.value, {
       name: fullName, phone: cleanPhone, role: 'customer'

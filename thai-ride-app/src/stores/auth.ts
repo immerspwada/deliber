@@ -13,60 +13,12 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
   const isLoggingIn = ref(false) // Flag to prevent duplicate fetchUserProfile calls
 
-  // Demo mode for testing without Supabase (only in development or when Supabase not configured)
-  const isDemoMode = computed(() => {
-    // SECURITY FIX: Use sessionStorage instead of localStorage for demo mode
-    const demoEnabled = sessionStorage.getItem('demo_mode') === 'true'
-    // In production, only allow demo mode if explicitly enabled AND Supabase is not configured
-    if (!isDev && env.isSupabaseConfigured) {
-      return false
-    }
-    return demoEnabled
-  })
-  const isAuthenticated = computed(() => !!session.value || isDemoMode.value)
+  // PRODUCTION ONLY - No demo mode
+  const isDemoMode = computed(() => false)
+  const isAuthenticated = computed(() => !!session.value)
   const isVerified = computed(() => user.value?.is_active === true)
 
-  // Demo users data
-  const demoUsers: Record<string, User> = {
-    'customer@demo.com': {
-      id: '22222222-2222-2222-2222-222222222222',
-      email: 'customer@demo.com',
-      name: 'Customer Demo',
-      phone: '0812345678',
-      role: 'customer',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User,
-    'driver1@demo.com': {
-      id: 'd1111111-1111-1111-1111-111111111111',
-      email: 'driver1@demo.com',
-      name: 'สมชาย ใจดี',
-      phone: '0898765432',
-      role: 'driver',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User,
-    'rider@demo.com': {
-      id: '44444444-4444-4444-4444-444444444444',
-      email: 'rider@demo.com',
-      name: 'Rider User',
-      phone: '0876543210',
-      role: 'rider',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User,
-    'admin@demo.com': {
-      id: '11111111-1111-1111-1111-111111111111',
-      email: 'admin@demo.com',
-      name: 'Admin Demo',
-      phone: '0800000000',
-      role: 'admin',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User
-  }
-
-  // Initialize auth state - IMPROVED VERSION
+  // Initialize auth state - PRODUCTION VERSION
   const initialize = async (): Promise<void> => {
     if (loading.value) {
       console.log('[Auth] Already initializing, skipping...')
@@ -76,30 +28,15 @@ export const useAuthStore = defineStore('auth', () => {
     console.log('[Auth] Starting initialization...')
     loading.value = true
     try {
-      // Check for demo mode first
-      const demoMode = sessionStorage.getItem('demo_mode')
-      const demoUserEmail = sessionStorage.getItem('demo_user')
-      
-      console.log('[Auth] Demo mode check:', { demoMode, demoUserEmail })
-      
-      if (demoMode === 'true' && demoUserEmail && demoUsers[demoUserEmail]) {
-        console.log('[Auth] Using demo mode for user:', demoUserEmail)
-        user.value = demoUsers[demoUserEmail]
-        session.value = { user: { id: user.value.id } }
-        loading.value = false
-        console.log('[Auth] Demo mode initialization complete')
-        return
-      }
-      
       // SECURITY FIX: Use Supabase's built-in session management
       // Get current session with shorter timeout for better UX
       console.log('[Auth] Getting session from Supabase...')
       const sessionPromise = supabase.auth.getSession()
       const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) => 
         setTimeout(() => {
-          console.log('[Auth] Session fetch timeout after 3 seconds')
+          console.log('[Auth] Session fetch timeout after 5 seconds')
           resolve({ data: { session: null } })
-        }, 3000) // 3 วินาที
+        }, 5000) // เพิ่มเป็น 5 วินาที
       )
       
       const result = await Promise.race([sessionPromise, timeoutPromise])
@@ -146,7 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('[Auth] Initialization complete. Final state:', {
         hasUser: !!user.value,
         hasSession: !!session.value,
-        isAuthenticated: !!session.value || isDemoMode.value,
+        isAuthenticated: !!session.value,
         userEmail: user.value?.email
       })
     }
@@ -330,32 +267,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Login with email and password
+  // Login with email and password - PRODUCTION ONLY
   const loginWithEmail = async (emailInput: string, passwordInput: string) => {
     loading.value = true
     error.value = null
     isLoggingIn.value = true
     logger.log('loginWithEmail started:', emailInput)
-    
-    // Check for demo accounts first (only in dev or when Supabase not configured)
-    const demoPasswords: Record<string, string> = {
-      'customer@demo.com': 'demo1234',
-      'driver1@demo.com': 'demo1234',
-      'rider@demo.com': 'demo1234',
-      'admin@demo.com': 'admin1234'
-    }
-    
-    const allowDemoLogin = isDev || !env.isSupabaseConfigured
-    if (allowDemoLogin && demoUsers[emailInput] && demoPasswords[emailInput] === passwordInput) {
-      logger.log('Demo login for:', emailInput)
-      localStorage.setItem('demo_mode', 'true')
-      localStorage.setItem('demo_user', emailInput)
-      user.value = demoUsers[emailInput]
-      session.value = { user: { id: user.value.id } }
-      loading.value = false
-      isLoggingIn.value = false
-      return true
-    }
     
     // Try real Supabase login with timeout
     try {
@@ -365,7 +282,7 @@ export const useAuthStore = defineStore('auth', () => {
       const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
         setTimeout(() => {
           logger.warn('Supabase signIn TIMEOUT')
-          resolve({ data: null, error: { message: 'Login timeout - using demo mode' } })
+          resolve({ data: null, error: { message: 'Login timeout - please try again' } })
         }, 5000)
       })
       
@@ -513,16 +430,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Logout
+  // Logout - PRODUCTION ONLY
   const logout = async () => {
     loading.value = true
     error.value = null
     
     try {
-      // Clear local state immediately for instant feedback
-      localStorage.removeItem('demo_mode')
-      localStorage.removeItem('demo_user')
-      
       // Clear user state immediately
       user.value = null
       session.value = null

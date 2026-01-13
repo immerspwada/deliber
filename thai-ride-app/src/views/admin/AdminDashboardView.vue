@@ -156,15 +156,24 @@ const loadStats = async () => {
       .select('*', { count: 'exact', head: true })
       .in('status', ['approved', 'active'])
 
-    // Load job count
-    const { count: jobCount } = await supabase
-      .from('jobs_v2')
-      .select('*', { count: 'exact', head: true })
+    // Load job count - try jobs_v2 first, fallback to ride_requests
+    let jobCount = 0
+    try {
+      const result = await (supabase as any)
+        .from('jobs_v2')
+        .select('*', { count: 'exact', head: true })
+      jobCount = result.count || 0
+    } catch {
+      const result = await supabase
+        .from('ride_requests')
+        .select('*', { count: 'exact', head: true })
+      jobCount = result.count || 0
+    }
 
     stats.value = {
       totalUsers: userCount || 0,
       activeProviders: providerCount || 0,
-      totalJobs: jobCount || 0,
+      totalJobs: jobCount,
       totalRevenue: 0 // Calculate from earnings if needed
     }
   } catch (error) {

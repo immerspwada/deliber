@@ -76,7 +76,6 @@ const user = computed(() => {
 })
 
 const isLoggedIn = computed(() => authStore.isAuthenticated)
-const isDemoMode = computed(() => authStore.isDemoMode)
 
 const showEditModal = ref(false)
 const editForm = ref({ firstName: '', lastName: '', phone: '' })
@@ -130,18 +129,6 @@ const saveProfile = async () => {
     const fullName = `${editForm.value.firstName.trim()} ${editForm.value.lastName.trim()}`.trim()
     const cleanPhone = phone || ''
     
-    if (isDemoMode.value) {
-      const demoUser = { ...authStore.user, name: fullName, phone: cleanPhone }
-      localStorage.setItem('demo_user', JSON.stringify(demoUser))
-      if (authStore.user) {
-        (authStore.user as any).name = fullName;
-        (authStore.user as any).phone = cleanPhone
-      }
-      saveSuccess.value = true
-      setTimeout(() => showEditModal.value = false, 1000)
-      return
-    }
-    
     // Clear any previous auth errors
     authStore.error = null
     
@@ -187,8 +174,6 @@ const loggingOut = ref(false)
 const logout = async () => {
   if (loggingOut.value) return
   loggingOut.value = true
-  localStorage.removeItem('demo_mode')
-  localStorage.removeItem('demo_user')
   router.push('/login')
   try {
     await authStore.logout()

@@ -22,7 +22,6 @@ import { useJobAlert } from '../../composables/useJobAlert'
 import { useAutoAcceptRules } from '../../composables/useAutoAcceptRules'
 import { useJobPriority } from '../../composables/useJobPriority'
 import { usePushNotification } from '../../composables/usePushNotification'
-import JobHeatMap from '../../components/provider/JobHeatMap.vue'
 import JobPreviewMap from '../../components/provider/JobPreviewMap.vue'
 import AutoAcceptSettings from '../../components/provider/AutoAcceptSettings.vue'
 
@@ -81,7 +80,6 @@ const isOnline = ref(false)
 const toggling = ref(false)
 const availableJobs = shallowRef<Job[]>([])
 const userLocation = ref<{ lat: number; lng: number } | null>(null)
-const showHeatMap = ref(true)
 const acceptingJobId = ref<string | null>(null)
 const acceptError = ref<string | null>(null)
 
@@ -755,11 +753,6 @@ onUnmounted(() => {
             </svg>
             <span>อยู่ในพื้นที่ที่มีความต้องการสูงเพื่อรับงานเร็วขึ้น</span>
           </div>
-        </div>
-
-        <!-- Heat Map -->
-        <div v-if="showHeatMap && availableJobs.length === 0" class="heat-map-section">
-          <JobHeatMap :user-location="userLocation" />
         </div>
 
         <!-- Jobs List -->

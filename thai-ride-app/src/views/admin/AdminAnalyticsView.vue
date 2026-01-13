@@ -215,23 +215,38 @@ const recentActivity = ref<Activity[]>([])
 
 const loadAnalytics = async () => {
   try {
-    // Load job metrics
-    const { data: jobs } = await supabase
-      .from('jobs_v2')
-      .select('*')
-      .gte('created_at', dateRange.value.from)
-      .lte('created_at', dateRange.value.to)
+    // Load job metrics - try jobs_v2 first, fallback to ride_requests
+    let jobs: any[] = []
+    try {
+      const result = await (supabase as any)
+        .from('jobs_v2')
+        .select('*')
+        .gte('created_at', dateRange.value.from)
+        .lte('created_at', dateRange.value.to)
+      jobs = result.data || []
+    } catch {
+      const result = await supabase
+        .from('ride_requests')
+        .select('*')
+        .gte('created_at', dateRange.value.from)
+        .lte('created_at', dateRange.value.to)
+      jobs = (result.data || []).map((r: any) => ({
+        ...r,
+        service_type: 'ride'
+      }))
+    }
 
-    if (jobs) {
+    if (jobs.length > 0) {
       metrics.value.totalJobs = jobs.length
       metrics.value.completionRate = Math.round(
-        (jobs.filter(j => j.status === 'completed').length / jobs.length) * 100
+        (jobs.filter((j: any) => j.status === 'completed').length / jobs.length) * 100
       )
 
       // Service type distribution
       const serviceCount: Record<string, number> = {}
-      jobs.forEach(job => {
-        serviceCount[job.service_type] = (serviceCount[job.service_type] || 0) + 1
+      jobs.forEach((job: any) => {
+        const type = job.service_type || 'ride'
+        serviceCount[type] = (serviceCount[type] || 0) + 1
       })
 
       serviceStats.value = Object.entries(serviceCount).map(([type, count]) => ({
@@ -241,15 +256,20 @@ const loadAnalytics = async () => {
       }))
     }
 
-    // Load earnings
-    const { data: earnings } = await supabase
-      .from('earnings_v2')
-      .select('gross_earnings')
-      .gte('earned_at', dateRange.value.from)
-      .lte('earned_at', dateRange.value.to)
+    // Load earnings - try earnings_v2 first, skip if not available
+    try {
+      const result = await (supabase as any)
+        .from('earnings_v2')
+        .select('gross_earnings')
+        .gte('earned_at', dateRange.value.from)
+        .lte('earned_at', dateRange.value.to)
 
-    if (earnings) {
-      metrics.value.totalRevenue = earnings.reduce((sum, e) => sum + (e.gross_earnings || 0), 0)
+      if (result.data) {
+        metrics.value.totalRevenue = result.data.reduce((sum: number, e: any) => sum + (e.gross_earnings || 0), 0)
+      }
+    } catch {
+      // earnings_v2 table may not exist
+      metrics.value.totalRevenue = 0
     }
 
     // Load user count

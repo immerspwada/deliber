@@ -354,24 +354,6 @@ onMounted(async () => {
       fetchWithTimeout(() => fetchSavedPlaces()),
       fetchWithTimeout(() => fetchRecentPlaces()),
     ]);
-    
-    // Seed demo recent places if empty (for demo mode)
-    if (recentPlaces.value.length === 0) {
-      const DEMO_RECENT_KEY = 'demo_recent_places';
-      const existing = localStorage.getItem(DEMO_RECENT_KEY);
-      if (!existing || JSON.parse(existing).length === 0) {
-        const demoRecentPlaces = [
-          { id: 'demo-recent-1', name: 'เซ็นทรัลเวิลด์', address: '999/9 ถนนพระราม 1 แขวงปทุมวัน เขตปทุมวัน กรุงเทพฯ 10330', lat: 13.7466, lng: 100.5391, last_used_at: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
-          { id: 'demo-recent-2', name: 'สยามพารากอน', address: '991 ถนนพระราม 1 แขวงปทุมวัน เขตปทุมวัน กรุงเทพฯ 10330', lat: 13.7465, lng: 100.5347, last_used_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-          { id: 'demo-recent-3', name: 'เทอร์มินอล 21 อโศก', address: '88 ซอยสุขุมวิท 19 แขวงคลองเตยเหนือ เขตวัฒนา กรุงเทพฯ 10110', lat: 13.7377, lng: 100.5603, last_used_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
-          { id: 'demo-recent-4', name: 'โรงพยาบาลบำรุงราษฎร์', address: '33 ซอยสุขุมวิท 3 แขวงคลองเตยเหนือ เขตวัฒนา กรุงเทพฯ 10110', lat: 13.7449, lng: 100.5519, last_used_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
-          { id: 'demo-recent-5', name: 'สนามบินสุวรรณภูมิ', address: '999 หมู่ 1 ตำบลหนองปรือ อำเภอบางพลี สมุทรปราการ 10540', lat: 13.6900, lng: 100.7501, last_used_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() },
-        ];
-        localStorage.setItem(DEMO_RECENT_KEY, JSON.stringify(demoRecentPlaces));
-        // Refetch to load the seeded data
-        await fetchRecentPlaces();
-      }
-    }
   } catch (err) {
     console.error("Error loading places:", err);
   } finally {

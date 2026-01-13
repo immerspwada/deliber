@@ -161,7 +161,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../../lib/supabase'
-import type { JobV2, ServiceType } from '../../types/database'
+import type { ServiceType } from '../../types/database'
+
+// Local type for jobs (table may not exist in generated types)
+interface JobV2 {
+  id: string
+  job_uid: string | null
+  service_type: string
+  status: string
+  customer_id: string
+  provider_id: string | null
+  pickup_address: string
+  dropoff_address: string | null
+  distance_km: number | null
+  estimated_earnings: number | null
+  final_earnings: number | null
+  created_at: string | null
+}
 
 const jobs = ref<JobV2[]>([])
 const loading = ref(false)
@@ -214,11 +230,43 @@ const filteredJobs = computed(() => {
 const loadJobs = async () => {
   loading.value = true
   try {
-    const { data, error } = await supabase
-      .from('jobs_v2')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1000)
+    // Try jobs_v2 first, fallback to ride_requests
+    let data: any[] = []
+    let error: any = null
+    
+    try {
+      const result = await (supabase as any)
+        .from('jobs_v2')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000)
+      
+      data = result.data || []
+      error = result.error
+    } catch {
+      // Fallback to ride_requests if jobs_v2 doesn't exist
+      const result = await supabase
+        .from('ride_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000)
+      
+      data = (result.data || []).map((r: any) => ({
+        id: r.id,
+        job_uid: r.tracking_id,
+        service_type: 'ride',
+        status: r.status,
+        customer_id: r.user_id,
+        provider_id: r.provider_id,
+        pickup_address: r.pickup_address,
+        dropoff_address: r.destination_address,
+        distance_km: r.distance_km,
+        estimated_earnings: r.estimated_fare,
+        final_earnings: r.final_fare,
+        created_at: r.created_at
+      }))
+      error = result.error
+    }
 
     if (error) throw error
     jobs.value = data || []

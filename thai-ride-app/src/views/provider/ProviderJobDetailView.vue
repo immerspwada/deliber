@@ -6,14 +6,32 @@
  * - แสดงรายละเอียดงาน (ลูกค้า, ที่อยู่, ราคา)
  * - แผนที่ navigation ไปหาลูกค้า
  * - ปุ่มอัพเดทสถานะ (ถึงจุดรับ → รับลูกค้าแล้ว → เสร็จสิ้น)
- * - โทรหาลูกค้า
+ * - โทร/แชทหาลูกค้า
+ * - Photo Evidence (ถ่ายรูปยืนยัน)
+ * - ETA Display (เวลาโดยประมาณ)
  * - Realtime status updates
+ * 
+ * Security:
+ * - Role-based access (provider only)
+ * - Input validation with Zod
+ * - Proper error handling
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
 import { useJobAlert } from '../../composables/useJobAlert'
-import { useLocationUpdater } from '../../composables/useProviderTracking'
+import { useRoleAccess } from '../../composables/useRoleAccess'
+import { useErrorHandler } from '../../composables/useErrorHandler'
+import { useETA } from '../../composables/useETA'
+import { ErrorCode, createAppError, handleSupabaseError } from '../../utils/errorHandler'
+import ChatDrawer from '../../components/ChatDrawer.vue'
+import PhotoEvidence from '../../components/provider/PhotoEvidence.vue'
+
+// Zod Schemas for validation
+const JobIdSchema = z.string().uuid()
+
+const CancelReasonSchema = z.string().max(500, 'เหตุผลยาวเกินไป').optional()
 
 // Types
 interface JobDetail {
@@ -30,6 +48,8 @@ interface JobDetail {
   fare: number
   notes?: string
   created_at: string
+  pickup_photo?: string | null
+  dropoff_photo?: string | null
   customer: {
     id: string
     name: string
@@ -49,15 +69,21 @@ interface StatusStep {
 const route = useRoute()
 const router = useRouter()
 const { quickBeep, quickVibrate } = useJobAlert()
+const { canAccessProvider, providerId, checkingProvider, checkProviderRouteAccess } = useRoleAccess()
+const { handleAsync, clearError } = useErrorHandler()
+const { eta, startTracking, updateETA, stopTracking, arrivalTime } = useETA()
 
 // State
 const loading = ref(true)
-const error = ref<string | null>(null)
+const errorMessage = ref<string | null>(null)
 const job = ref<JobDetail | null>(null)
 const updating = ref(false)
 const showCancelModal = ref(false)
+const showChatDrawer = ref(false)
 const cancelReason = ref('')
 const providerLocation = ref<{ lat: number; lng: number } | null>(null)
+const accessDenied = ref(false)
+const photoError = ref<string | null>(null)
 
 // Realtime subscription
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
@@ -73,7 +99,12 @@ const STATUS_FLOW: StatusStep[] = [
 ]
 
 // Computed
-const jobId = computed(() => route.params.id as string)
+const jobId = computed(() => {
+  const id = route.params.id as string
+  // Validate UUID format
+  const result = JobIdSchema.safeParse(id)
+  return result.success ? id : null
+})
 
 const currentStatusIndex = computed(() => {
   if (!job.value) return -1
@@ -118,6 +149,33 @@ const distanceToPickup = computed(() => {
   )
 })
 
+// ETA destination based on status
+const etaDestination = computed(() => {
+  if (!job.value) return null
+  const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status } = job.value
+  
+  // Before pickup: ETA to pickup
+  if (['matched', 'arriving'].includes(status)) {
+    return { lat: pickup_lat, lng: pickup_lng, label: 'จุดรับ' }
+  }
+  // After pickup: ETA to dropoff
+  if (['pickup', 'in_progress'].includes(status)) {
+    return { lat: dropoff_lat, lng: dropoff_lng, label: 'จุดส่ง' }
+  }
+  return null
+})
+
+// Show photo evidence based on status
+const showPickupPhoto = computed(() => {
+  if (!job.value) return false
+  return ['pickup', 'in_progress', 'completed'].includes(job.value.status)
+})
+
+const showDropoffPhoto = computed(() => {
+  if (!job.value) return false
+  return ['in_progress', 'completed'].includes(job.value.status)
+})
+
 // Methods
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
@@ -135,68 +193,148 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)} กม.`
 }
 
-async function loadJob(): Promise<void> {
-  loading.value = true
-  error.value = null
+/**
+ * Check provider access before loading job
+ * Wait for checkProviderRouteAccess to complete first
+ */
+async function checkAccess(): Promise<boolean> {
+  console.log('[JobDetail] Checking access...', {
+    checkingProvider: checkingProvider.value,
+    canAccessProvider: canAccessProvider.value,
+    providerId: providerId.value
+  })
+  
+  // If still checking, wait for it to complete
+  if (checkingProvider.value) {
+    console.log('[JobDetail] Waiting for provider check to complete...')
+    let attempts = 0
+    while (checkingProvider.value && attempts < 30) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      attempts++
+    }
+  }
+  
+  // If canAccessProvider is still false, try checking again
+  if (!canAccessProvider.value) {
+    console.log('[JobDetail] canAccessProvider is false, checking again...')
+    const hasAccess = await checkProviderRouteAccess()
+    console.log('[JobDetail] checkProviderRouteAccess result:', hasAccess)
+    
+    if (!hasAccess) {
+      accessDenied.value = true
+      errorMessage.value = 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้'
+      return false
+    }
+  }
+  
+  console.log('[JobDetail] Access granted, providerId:', providerId.value)
+  return true
+}
 
-  try {
+async function loadJob(): Promise<void> {
+  // Validate job ID first
+  if (!jobId.value) {
+    errorMessage.value = 'รหัสงานไม่ถูกต้อง'
+    loading.value = false
+    return
+  }
+
+  // Check access
+  if (!await checkAccess()) {
+    loading.value = false
+    return
+  }
+
+  loading.value = true
+  errorMessage.value = null
+  clearError()
+
+  const result = await handleAsync(async () => {
     const { data, error: dbError } = await supabase
       .from('ride_requests')
       .select(`
         id, status, ride_type, pickup_address, destination_address,
         pickup_lat, pickup_lng, destination_lat, destination_lng,
-        estimated_fare, final_fare, notes, created_at,
-        profiles:user_id(id, full_name, phone, avatar_url)
+        estimated_fare, final_fare, notes, created_at, user_id, provider_id
       `)
-      .eq('id', jobId.value)
+      .eq('id', jobId.value!)
       .single()
 
     if (dbError) {
-      console.error('[JobDetail] Load error:', dbError)
-      error.value = 'ไม่สามารถโหลดข้อมูลงานได้'
-      return
+      throw handleSupabaseError(dbError, 'LoadJob')
     }
 
     if (!data) {
-      error.value = 'ไม่พบข้อมูลงาน'
-      return
+      throw createAppError(ErrorCode.NOT_FOUND, 'Job not found', { jobId: jobId.value })
     }
 
-    const profile = data.profiles as Record<string, unknown> | null
-    job.value = {
-      id: data.id,
-      type: 'ride',
-      status: data.status,
-      service_type: data.ride_type || 'standard',
-      pickup_address: data.pickup_address || '',
-      pickup_lat: data.pickup_lat || 0,
-      pickup_lng: data.pickup_lng || 0,
-      dropoff_address: data.destination_address || '',
-      dropoff_lat: data.destination_lat || 0,
-      dropoff_lng: data.destination_lng || 0,
-      fare: data.final_fare || data.estimated_fare || 0,
-      notes: data.notes,
-      created_at: data.created_at,
-      customer: profile ? {
-        id: profile.id as string,
-        name: profile.full_name as string || 'ลูกค้า',
-        phone: profile.phone as string || '',
-        avatar_url: profile.avatar_url as string | undefined
-      } : null
+    // Verify this job belongs to current provider
+    if (data.provider_id && providerId.value && data.provider_id !== providerId.value) {
+      throw createAppError(ErrorCode.PERMISSION_DENIED, 'Not authorized to view this job')
     }
 
-    // Setup realtime subscription
-    setupRealtimeSubscription()
+    return data
+  }, 'LoadJob')
 
-  } catch (err) {
-    console.error('[JobDetail] Exception:', err)
-    error.value = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-  } finally {
+  if (!result) {
+    errorMessage.value = 'ไม่สามารถโหลดข้อมูลงานได้'
     loading.value = false
+    return
   }
+
+  // Fetch customer profile separately with error handling
+  let customerProfile: { id: string; full_name: string | null; phone: string | null; avatar_url: string | null } | null = null
+  if (result.user_id) {
+    const profileResult = await handleAsync(async () => {
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('id, name, phone, avatar_url')
+        .eq('id', result.user_id)
+        .maybeSingle()
+      
+      if (profileError) {
+        console.warn('[JobDetail] Profile fetch warning:', profileError)
+      }
+      return profileData ? {
+        id: profileData.id,
+        full_name: profileData.name,
+        phone: profileData.phone,
+        avatar_url: profileData.avatar_url
+      } : null
+    }, 'FetchCustomerProfile')
+    
+    customerProfile = profileResult as typeof customerProfile
+  }
+
+  job.value = {
+    id: result.id,
+    type: 'ride',
+    status: result.status,
+    service_type: result.ride_type || 'standard',
+    pickup_address: result.pickup_address || '',
+    pickup_lat: result.pickup_lat || 0,
+    pickup_lng: result.pickup_lng || 0,
+    dropoff_address: result.destination_address || '',
+    dropoff_lat: result.destination_lat || 0,
+    dropoff_lng: result.destination_lng || 0,
+    fare: result.final_fare || result.estimated_fare || 0,
+    notes: result.notes as string | undefined,
+    created_at: result.created_at,
+    customer: customerProfile ? {
+      id: customerProfile.id,
+      name: customerProfile.full_name || 'ลูกค้า',
+      phone: customerProfile.phone || '',
+      avatar_url: customerProfile.avatar_url || undefined
+    } : null
+  }
+
+  // Setup realtime subscription
+  setupRealtimeSubscription()
+  loading.value = false
 }
 
 function setupRealtimeSubscription(): void {
+  if (!jobId.value) return
   cleanupRealtimeSubscription()
 
   realtimeChannel = supabase
@@ -208,7 +346,12 @@ function setupRealtimeSubscription(): void {
       filter: `id=eq.${jobId.value}`
     }, (payload) => {
       if (job.value && payload.new) {
-        job.value.status = (payload.new as Record<string, unknown>).status as string
+        const newData = payload.new as Record<string, unknown>
+        job.value.status = newData.status as string
+        // Update fare if changed
+        if (newData.final_fare) {
+          job.value.fare = newData.final_fare as number
+        }
       }
     })
     .subscribe()
@@ -225,10 +368,10 @@ async function updateStatus(): Promise<void> {
   if (!job.value || !nextStatus.value || updating.value) return
 
   updating.value = true
-  error.value = null
+  errorMessage.value = null
 
-  try {
-    const newStatus = nextStatus.value.key
+  const result = await handleAsync(async () => {
+    const newStatus = nextStatus.value!.key
     
     const { error: updateError } = await supabase
       .from('ride_requests')
@@ -236,38 +379,47 @@ async function updateStatus(): Promise<void> {
         status: newStatus,
         updated_at: new Date().toISOString()
       })
-      .eq('id', job.value.id)
+      .eq('id', job.value!.id)
 
     if (updateError) {
-      throw new Error(updateError.message)
+      throw handleSupabaseError(updateError, 'UpdateStatus')
     }
 
+    return newStatus
+  }, 'UpdateStatus')
+
+  if (result) {
     // Update local state
-    job.value.status = newStatus
+    job.value!.status = result
     quickBeep()
     quickVibrate()
 
     // If completed, show success and go back
-    if (newStatus === 'completed') {
+    if (result === 'completed') {
       setTimeout(() => {
         router.push('/provider/my-jobs')
       }, 1500)
     }
-
-  } catch (err) {
-    console.error('[JobDetail] Update error:', err)
-    error.value = 'ไม่สามารถอัพเดทสถานะได้'
-  } finally {
-    updating.value = false
+  } else {
+    errorMessage.value = 'ไม่สามารถอัพเดทสถานะได้'
   }
+
+  updating.value = false
 }
 
 async function cancelJob(): Promise<void> {
   if (!job.value || updating.value) return
 
+  // Validate cancel reason
+  const reasonValidation = CancelReasonSchema.safeParse(cancelReason.value)
+  if (!reasonValidation.success) {
+    errorMessage.value = reasonValidation.error.issues[0]?.message || 'ข้อมูลไม่ถูกต้อง'
+    return
+  }
+
   updating.value = true
 
-  try {
+  const result = await handleAsync(async () => {
     const { error: updateError } = await supabase
       .from('ride_requests')
       .update({ 
@@ -276,21 +428,23 @@ async function cancelJob(): Promise<void> {
         cancelled_by: 'provider',
         updated_at: new Date().toISOString()
       })
-      .eq('id', job.value.id)
+      .eq('id', job.value!.id)
 
     if (updateError) {
-      throw new Error(updateError.message)
+      throw handleSupabaseError(updateError, 'CancelJob')
     }
 
+    return true
+  }, 'CancelJob')
+
+  if (result) {
     showCancelModal.value = false
     router.push('/provider/my-jobs')
-
-  } catch (err) {
-    console.error('[JobDetail] Cancel error:', err)
-    error.value = 'ไม่สามารถยกเลิกงานได้'
-  } finally {
-    updating.value = false
+  } else {
+    errorMessage.value = 'ไม่สามารถยกเลิกงานได้'
   }
+
+  updating.value = false
 }
 
 function openNavigation(): void {
@@ -305,6 +459,28 @@ function callCustomer(): void {
   }
 }
 
+function openChat(): void {
+  showChatDrawer.value = true
+}
+
+function handlePhotoUploaded(type: 'pickup' | 'dropoff', url: string): void {
+  if (job.value) {
+    if (type === 'pickup') {
+      job.value.pickup_photo = url
+    } else {
+      job.value.dropoff_photo = url
+    }
+  }
+  photoError.value = null
+}
+
+function handlePhotoError(message: string): void {
+  photoError.value = message
+  setTimeout(() => {
+    photoError.value = null
+  }, 3000)
+}
+
 function startLocationTracking(): void {
   if (!navigator.geolocation) return
 
@@ -314,10 +490,23 @@ function startLocationTracking(): void {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude
       }
+      
+      // Update ETA when location changes
+      if (etaDestination.value) {
+        updateETA(
+          pos.coords.latitude, pos.coords.longitude,
+          etaDestination.value.lat, etaDestination.value.lng
+        )
+      }
     },
     (err) => console.warn('[Location] Error:', err.message),
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   )
+  
+  // Start ETA tracking if destination available
+  if (etaDestination.value) {
+    startTracking(etaDestination.value.lat, etaDestination.value.lng)
+  }
 }
 
 function stopLocationTracking(): void {
@@ -325,10 +514,15 @@ function stopLocationTracking(): void {
     navigator.geolocation.clearWatch(locationWatchId)
     locationWatchId = null
   }
+  stopTracking()
 }
 
 function goBack(): void {
   router.push('/provider/my-jobs')
+}
+
+function goToUnauthorized(): void {
+  router.push('/unauthorized')
 }
 
 // Lifecycle
@@ -363,22 +557,30 @@ watch(() => route.params.id, () => {
       <div class="header-spacer"></div>
     </header>
 
+    <!-- Access Denied -->
+    <div v-if="accessDenied" class="error-state" role="alert">
+      <div class="error-icon" aria-hidden="true">🚫</div>
+      <p>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
+      <button class="retry-btn" @click="goToUnauthorized" type="button">กลับหน้าหลัก</button>
+    </div>
+
     <!-- Loading -->
-    <div v-if="loading" class="center-state">
-      <div class="loader"></div>
+    <div v-else-if="loading" class="center-state" role="status" aria-label="กำลังโหลด">
+      <div class="loader" aria-hidden="true"></div>
+      <span class="sr-only">กำลังโหลดข้อมูล...</span>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="error-state">
-      <div class="error-icon">⚠️</div>
-      <p>{{ error }}</p>
+    <div v-else-if="errorMessage" class="error-state" role="alert">
+      <div class="error-icon" aria-hidden="true">⚠️</div>
+      <p>{{ errorMessage }}</p>
       <button class="retry-btn" @click="loadJob" type="button">ลองใหม่</button>
     </div>
 
     <!-- Job Detail -->
     <template v-else-if="job">
       <!-- Status Progress -->
-      <div class="status-progress">
+      <nav class="status-progress" aria-label="สถานะงาน">
         <div 
           v-for="(step, index) in STATUS_FLOW" 
           :key="step.key"
@@ -388,15 +590,16 @@ watch(() => route.params.id, () => {
             completed: index < currentStatusIndex,
             pending: index > currentStatusIndex
           }"
+          :aria-current="index === currentStatusIndex ? 'step' : undefined"
         >
-          <div class="step-icon">{{ step.icon }}</div>
+          <div class="step-icon" aria-hidden="true">{{ step.icon }}</div>
           <span class="step-label">{{ step.label }}</span>
         </div>
-      </div>
+      </nav>
 
       <!-- Completed Banner -->
-      <div v-if="isCompleted" class="success-banner">
-        <span class="success-icon">🎉</span>
+      <div v-if="isCompleted" class="success-banner" role="status">
+        <span class="success-icon" aria-hidden="true">🎉</span>
         <div class="success-text">
           <h3>งานเสร็จสิ้น!</h3>
           <p>รายได้ ฿{{ job.fare.toLocaleString() }}</p>
@@ -404,45 +607,98 @@ watch(() => route.params.id, () => {
       </div>
 
       <!-- Cancelled Banner -->
-      <div v-if="isCancelled" class="cancelled-banner">
-        <span class="cancelled-icon">❌</span>
+      <div v-if="isCancelled" class="cancelled-banner" role="status">
+        <span class="cancelled-icon" aria-hidden="true">❌</span>
         <div class="cancelled-text">
           <h3>งานถูกยกเลิก</h3>
         </div>
       </div>
 
       <!-- Customer Card -->
-      <div v-if="job.customer" class="customer-card">
+      <article v-if="job.customer" class="customer-card" aria-label="ข้อมูลลูกค้า">
         <div class="customer-avatar">
           <img 
             v-if="job.customer.avatar_url" 
             :src="job.customer.avatar_url" 
-            :alt="job.customer.name"
+            :alt="`รูปโปรไฟล์ ${job.customer.name}`"
+            loading="lazy"
+            decoding="async"
           />
-          <span v-else class="avatar-placeholder">👤</span>
+          <span v-else class="avatar-placeholder" aria-hidden="true">👤</span>
         </div>
         <div class="customer-info">
           <h3>{{ job.customer.name }}</h3>
           <p v-if="distanceToPickup !== null" class="distance-info">
-            📍 ห่าง {{ formatDistance(distanceToPickup) }}
+            <span aria-hidden="true">📍</span> ห่าง {{ formatDistance(distanceToPickup) }}
           </p>
         </div>
-        <button 
-          v-if="job.customer.phone && !isCompleted && !isCancelled"
-          class="call-btn"
-          @click="callCustomer"
-          type="button"
-          aria-label="โทรหาลูกค้า"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-          </svg>
-          โทร
-        </button>
-      </div>
+        <div v-if="!isCompleted && !isCancelled" class="contact-buttons">
+          <button 
+            v-if="job.customer.phone"
+            class="call-btn"
+            @click="callCustomer"
+            type="button"
+            :aria-label="`โทรหา ${job.customer.name}`"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+            </svg>
+          </button>
+          <button 
+            class="chat-btn"
+            @click="openChat"
+            type="button"
+            :aria-label="`แชทกับ ${job.customer.name}`"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+          </button>
+        </div>
+      </article>
+
+      <!-- Customer Card Fallback (no customer data) -->
+      <article v-else class="customer-card" aria-label="ข้อมูลลูกค้า">
+        <div class="customer-avatar">
+          <span class="avatar-placeholder" aria-hidden="true">👤</span>
+        </div>
+        <div class="customer-info">
+          <h3>ลูกค้า</h3>
+          <p class="distance-info">ไม่มีข้อมูลลูกค้า</p>
+        </div>
+        <div v-if="!isCompleted && !isCancelled" class="contact-buttons">
+          <button 
+            class="chat-btn"
+            @click="openChat"
+            type="button"
+            aria-label="แชทกับลูกค้า"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+          </button>
+        </div>
+      </article>
+
+      <!-- ETA Card -->
+      <article v-if="eta && etaDestination && !isCompleted && !isCancelled" class="eta-card" aria-label="เวลาโดยประมาณ">
+        <div class="eta-header">
+          <span class="eta-icon" aria-hidden="true">⏱️</span>
+          <span class="eta-label">ถึง{{ etaDestination.label }}</span>
+        </div>
+        <div class="eta-content">
+          <div class="eta-time">
+            <span class="eta-value">{{ eta.formattedTime }}</span>
+            <span class="eta-arrival">ถึงประมาณ {{ arrivalTime }}</span>
+          </div>
+          <div class="eta-distance">
+            <span class="eta-km">{{ eta.formattedDistance }}</span>
+          </div>
+        </div>
+      </article>
 
       <!-- Route Info -->
-      <div class="route-card">
+      <article class="route-card" aria-label="เส้นทาง">
         <div class="route-point">
           <span class="point-marker pickup" aria-hidden="true"></span>
           <div class="point-content">
@@ -458,27 +714,62 @@ watch(() => route.params.id, () => {
             <span class="point-address">{{ job.dropoff_address }}</span>
           </div>
         </div>
-      </div>
+      </article>
 
       <!-- Notes -->
-      <div v-if="job.notes" class="notes-card">
-        <h4>📝 หมายเหตุจากลูกค้า</h4>
+      <aside v-if="job.notes" class="notes-card" aria-label="หมายเหตุ">
+        <h4><span aria-hidden="true">📝</span> หมายเหตุจากลูกค้า</h4>
         <p>{{ job.notes }}</p>
-      </div>
+      </aside>
 
       <!-- Fare -->
-      <div class="fare-card">
+      <div class="fare-card" aria-label="ค่าโดยสาร">
         <span class="fare-label">ค่าโดยสาร</span>
-        <span class="fare-amount">฿{{ job.fare.toLocaleString() }}</span>
+        <span class="fare-amount" aria-live="polite">฿{{ job.fare.toLocaleString() }}</span>
       </div>
 
+      <!-- Photo Evidence Section -->
+      <section v-if="showPickupPhoto || showDropoffPhoto" class="photo-section" aria-label="รูปยืนยัน">
+        <h4 class="section-title">
+          <span aria-hidden="true">📷</span> รูปยืนยัน
+        </h4>
+        <div class="photo-grid">
+          <PhotoEvidence
+            v-if="showPickupPhoto"
+            :ride-id="job.id"
+            type="pickup"
+            :existing-photo="job.pickup_photo"
+            :disabled="isCompleted || isCancelled"
+            @uploaded="(url) => handlePhotoUploaded('pickup', url)"
+            @error="handlePhotoError"
+          />
+          <PhotoEvidence
+            v-if="showDropoffPhoto"
+            :ride-id="job.id"
+            type="dropoff"
+            :existing-photo="job.dropoff_photo"
+            :disabled="isCompleted || isCancelled"
+            @uploaded="(url) => handlePhotoUploaded('dropoff', url)"
+            @error="handlePhotoError"
+          />
+        </div>
+      </section>
+
+      <!-- Photo Error Toast -->
+      <Transition name="toast">
+        <div v-if="photoError" class="photo-error-toast" role="alert">
+          <span aria-hidden="true">⚠️</span> {{ photoError }}
+        </div>
+      </Transition>
+
       <!-- Action Buttons -->
-      <div v-if="!isCompleted && !isCancelled" class="action-buttons">
+      <div v-if="!isCompleted && !isCancelled" class="action-buttons" role="group" aria-label="การดำเนินการ">
         <!-- Navigation Button -->
         <button 
           class="nav-btn"
           @click="openNavigation"
           type="button"
+          aria-label="เปิดแผนที่นำทาง"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -494,8 +785,10 @@ watch(() => route.params.id, () => {
           @click="updateStatus"
           :disabled="updating"
           type="button"
+          :aria-busy="updating"
         >
           <span v-if="updating" class="btn-loader" aria-hidden="true"></span>
+          <span v-if="updating" class="sr-only">กำลังดำเนินการ...</span>
           <span v-else>{{ nextStatus?.action }}</span>
         </button>
       </div>
@@ -506,45 +799,73 @@ watch(() => route.params.id, () => {
         class="cancel-btn"
         @click="showCancelModal = true"
         type="button"
+        aria-haspopup="dialog"
       >
         ยกเลิกงาน
       </button>
     </template>
 
     <!-- Cancel Modal -->
-    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
-      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="cancel-title">
-        <h3 id="cancel-title">ยกเลิกงาน</h3>
-        <p>คุณแน่ใจหรือไม่ที่จะยกเลิกงานนี้?</p>
-        
-        <label for="cancel-reason">เหตุผล (ไม่บังคับ)</label>
-        <textarea 
-          id="cancel-reason"
-          v-model="cancelReason"
-          placeholder="ระบุเหตุผลในการยกเลิก..."
-          rows="3"
-        ></textarea>
+    <Teleport to="body">
+      <div 
+        v-if="showCancelModal" 
+        class="modal-overlay" 
+        @click.self="showCancelModal = false"
+        role="presentation"
+      >
+        <div 
+          class="modal-content" 
+          role="dialog" 
+          aria-modal="true" 
+          aria-labelledby="cancel-title"
+          aria-describedby="cancel-description"
+        >
+          <h3 id="cancel-title">ยกเลิกงาน</h3>
+          <p id="cancel-description">คุณแน่ใจหรือไม่ที่จะยกเลิกงานนี้?</p>
+          
+          <label for="cancel-reason">เหตุผล (ไม่บังคับ)</label>
+          <textarea 
+            id="cancel-reason"
+            v-model="cancelReason"
+            placeholder="ระบุเหตุผลในการยกเลิก..."
+            rows="3"
+            maxlength="500"
+            aria-describedby="reason-hint"
+          ></textarea>
+          <span id="reason-hint" class="sr-only">สูงสุด 500 ตัวอักษร</span>
 
-        <div class="modal-actions">
-          <button 
-            class="modal-cancel-btn"
-            @click="showCancelModal = false"
-            type="button"
-          >
-            ไม่ยกเลิก
-          </button>
-          <button 
-            class="modal-confirm-btn"
-            @click="cancelJob"
-            :disabled="updating"
-            type="button"
-          >
-            <span v-if="updating" class="btn-loader" aria-hidden="true"></span>
-            <span v-else>ยืนยันยกเลิก</span>
-          </button>
+          <div class="modal-actions">
+            <button 
+              class="modal-cancel-btn"
+              @click="showCancelModal = false"
+              type="button"
+            >
+              ไม่ยกเลิก
+            </button>
+            <button 
+              class="modal-confirm-btn"
+              @click="cancelJob"
+              :disabled="updating"
+              type="button"
+              :aria-busy="updating"
+            >
+              <span v-if="updating" class="btn-loader" aria-hidden="true"></span>
+              <span v-if="updating" class="sr-only">กำลังดำเนินการ...</span>
+              <span v-else>ยืนยันยกเลิก</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
+
+    <!-- Chat Drawer -->
+    <ChatDrawer
+      v-if="job"
+      :ride-id="job.id"
+      :other-user-name="job.customer?.name || 'ลูกค้า'"
+      :is-open="showChatDrawer"
+      @close="showChatDrawer = false"
+    />
   </div>
 </template>
 
@@ -553,6 +874,19 @@ watch(() => route.params.id, () => {
   min-height: 100vh;
   background: #f9fafb;
   padding-bottom: 100px;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Header */
@@ -800,16 +1134,14 @@ watch(() => route.params.id, () => {
 .call-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   background: #10b981;
   color: #fff;
   border: none;
   border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
   cursor: pointer;
-  min-height: 44px;
 }
 
 .call-btn:active {
@@ -817,8 +1149,95 @@ watch(() => route.params.id, () => {
 }
 
 .call-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+}
+
+/* Contact Buttons */
+.contact-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.chat-btn:active {
+  background: #2563eb;
+}
+
+.chat-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ETA Card */
+.eta-card {
+  padding: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  margin: 0 16px 12px;
+  border-radius: 16px;
+  border: 1px solid #bfdbfe;
+}
+
+.eta-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.eta-icon {
+  font-size: 20px;
+}
+
+.eta-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.eta-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.eta-time {
+  display: flex;
+  flex-direction: column;
+}
+
+.eta-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.eta-arrival {
+  font-size: 12px;
+  color: #3b82f6;
+  margin-top: 2px;
+}
+
+.eta-distance {
+  text-align: right;
+}
+
+.eta-km {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e40af;
 }
 
 /* Route Card */
@@ -1114,5 +1533,67 @@ watch(() => route.params.id, () => {
 
 .modal-confirm-btn:disabled {
   opacity: 0.6;
+}
+
+/* Photo Section */
+.photo-section {
+  padding: 16px;
+  background: #fff;
+  margin: 0 16px 12px;
+  border-radius: 16px;
+  border: 1px solid #f0f0f0;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 400px) {
+  .photo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Photo Error Toast */
+.photo-error-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
 }
 </style>

@@ -82,6 +82,7 @@ const {
   hasEnoughBalance,
   canBook,
   statusText,
+  activeRide,
   initialize,
   getCurrentLocation,
   searchPlaces,
@@ -94,9 +95,16 @@ const {
   callEmergency
 } = useRideRequest()
 
+// Computed rideId from activeRide
+const currentRideId = computed(() => {
+  if (activeRide.value?.id) {
+    return String(activeRide.value.id)
+  }
+  return undefined
+})
+
 // Map interaction state
-const isSelectingOnMap = ref(false)
-const mapCenter = ref<{ lat: number; lng: number } | null>(null)
+const rideNotes = ref('')
 
 // Reverse geocode helper
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
@@ -174,10 +182,11 @@ interface BookingOptions {
   promoCode: string | null
   promoDiscount: number
   finalAmount: number
+  notes: string
 }
 
 function handleBook(options: BookingOptions): void {
-  bookRide(options)
+  bookRide({ ...options, notes: rideNotes.value })
 }
 
 // Initialize on mount
@@ -190,6 +199,7 @@ function resetToSelect(): void {
   currentStep.value = 'select'
   destination.value = null
   searchQuery.value = ''
+  rideNotes.value = ''
 }
 </script>
 
@@ -278,6 +288,7 @@ function resetToSelect(): void {
             :destination="destination"
             :vehicles="vehicles"
             v-model:selectedVehicle="selectedVehicle"
+            v-model:notes="rideNotes"
             :estimatedFare="estimatedFare"
             :estimatedDistance="estimatedDistance"
             :estimatedTime="estimatedTime"
@@ -317,6 +328,7 @@ function resetToSelect(): void {
             :destination="destination"
             :matchedDriver="matchedDriver"
             :statusText="statusText"
+            :rideId="currentRideId"
             @callDriver="callDriver"
             @callEmergency="callEmergency"
             @cancel="cancelRide"

@@ -274,7 +274,10 @@ export async function initMapTilePreloader(): Promise<void> {
       // Then preload popular areas (low priority)
       await preloadPopularAreas()
       
-      console.log(`[MapTilePreloader] Preloaded ${tilesPreloadedThisSession} tiles`)
+      // Only log if tiles were actually preloaded
+      if (tilesPreloadedThisSession > 0) {
+        console.log(`[MapTilePreloader] Preloaded ${tilesPreloadedThisSession} tiles`)
+      }
     }, { timeout: 10000 })
   } else {
     // Fallback for browsers without requestIdleCallback

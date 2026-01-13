@@ -20,12 +20,15 @@ export interface Order {
   tracking_id: string
   service_type: ServiceType
   status: OrderStatus
+  priority?: 'normal' | 'urgent' | 'high_value' | 'scheduled'
   customer_id: string
   customer_name?: string
   customer_phone?: string
+  customer_email?: string
   provider_id?: string
   provider_name?: string
   provider_phone?: string
+  provider_rating?: number
   
   // Location
   pickup_address?: string
@@ -39,11 +42,19 @@ export interface Order {
   base_fare: number
   distance_fare?: number
   surge_multiplier?: number
+  estimated_amount?: number
+  final_amount?: number
   promo_discount?: number
+  promo_code?: string
   tip_amount?: number
   total_amount: number
   payment_method: 'cash' | 'wallet' | 'card'
   payment_status: 'pending' | 'paid' | 'refunded'
+  
+  // Additional Info
+  distance_km?: number
+  duration_minutes?: number
+  special_notes?: string
   
   // Timestamps
   created_at: string
@@ -51,16 +62,19 @@ export interface Order {
   started_at?: string
   completed_at?: string
   cancelled_at?: string
+  last_updated?: string
   
   // Cancellation
   cancelled_by?: 'customer' | 'provider' | 'admin' | 'system'
   cancel_reason?: string
   
-  // Rating
+  // Rating & Feedback
   customer_rating?: number
   provider_rating?: number
+  rating?: number
   customer_review?: string
   provider_review?: string
+  feedback?: string
   
   // Notes
   customer_notes?: string
@@ -72,6 +86,8 @@ export interface OrderFilters {
   service_type?: ServiceType
   status?: OrderStatus
   payment_status?: string
+  date_from?: string
+  date_to?: string
   dateFrom?: string
   dateTo?: string
   sortBy?: string

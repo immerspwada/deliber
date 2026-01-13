@@ -13,15 +13,9 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { 
-  type ServiceType, 
-  type RequestStatus,
-  getServiceDefinition,
-  getAtomicFunction,
-  getTableName,
-  getAllServiceTypes
-} from '@/lib/serviceRegistry'
-import { AppError, handleRpcError, ErrorType } from '@/lib/errorHandler'
+
+export type ServiceType = 'ride' | 'delivery' | 'shopping'
+export type RequestStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface JobRequest {
   id: string
@@ -62,7 +56,7 @@ export interface CompleteResult {
   platformFee?: number
 }
 
-export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTypes()) {
+export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
   const availableJobs = ref<JobRequest[]>([])
   const currentJob = ref<JobRequest | null>(null)
   const isLoading = ref(false)
@@ -91,41 +85,78 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
   }
 
   // Accept job
-  async function acceptJob(requestId: string, requestType: ServiceType): Promise<AcceptResult> {
+  async function acceptJob(requestId: string, requestType: ServiceType = 'ride'): Promise<AcceptResult> {
     isLoading.value = true
     error.value = null
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new AppError(ErrorType.AUTH_REQUIRED)
-
-      const functionName = getAtomicFunction(requestType, 'accept')
-      const paramName = `p_${requestType}_id`
-      
-      const { data, error: rpcError } = await supabase.rpc(functionName, {
-        [paramName]: requestId,
-        p_provider_id: user.id
-      })
-
-      if (rpcError) {
-        const appError = handleRpcError(rpcError)
-        if (appError.type === ErrorType.ALREADY_ACCEPTED) {
-          // Remove from available jobs
-          availableJobs.value = availableJobs.value.filter(j => j.id !== requestId)
-          return { success: false, error: 'ALREADY_ACCEPTED' }
-        }
-        throw appError
+      if (!user) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return { success: false, error: 'AUTH_REQUIRED' }
       }
+
+      // Get provider ID from providers_v2 table
+      const { data: provider } = await supabase
+        .from('providers_v2')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!provider) {
+        error.value = 'ไม่พบข้อมูลผู้ให้บริการ'
+        return { success: false, error: 'PROVIDER_NOT_FOUND' }
+      }
+
+      console.log('[Provider] Accepting job:', requestId, 'provider_id:', provider.id)
+
+      // Update ride_requests table directly with race condition protection
+      const { data: updatedRide, error: updateError } = await supabase
+        .from('ride_requests')
+        .update({
+          provider_id: provider.id,
+          status: 'accepted',
+          accepted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId)
+        .eq('status', 'pending') // Race condition protection
+        .is('provider_id', null) // Ensure not already accepted
+        .select()
+        .maybeSingle()
+
+      if (updateError) {
+        console.error('[Provider] Accept job error:', updateError)
+        error.value = 'ไม่สามารถรับงานได้'
+        return { success: false, error: updateError.message }
+      }
+
+      if (!updatedRide) {
+        console.log('[Provider] Job already taken or not found')
+        // Remove from available jobs
+        availableJobs.value = availableJobs.value.filter(j => j.id !== requestId)
+        error.value = 'งานนี้ถูกรับไปแล้ว'
+        return { success: false, error: 'ALREADY_ACCEPTED' }
+      }
+
+      console.log('[Provider] ✓ Job accepted successfully:', updatedRide)
 
       // Remove from available jobs
       availableJobs.value = availableJobs.value.filter(j => j.id !== requestId)
 
-      // Fetch and set as current job
-      await fetchCurrentJob(requestId, requestType)
+      // Set as current job
+      currentJob.value = {
+        ...updatedRide,
+        type: requestType
+      } as JobRequest
+
+      // Subscribe to current job updates
+      await subscribeToCurrentJob()
 
       return { success: true, requestId }
     } catch (err: any) {
-      error.value = err.message
+      console.error('[Provider] Accept job exception:', err)
+      error.value = err.message || 'เกิดข้อผิดพลาด'
       return { success: false, error: err.message }
     } finally {
       isLoading.value = false
@@ -133,50 +164,102 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
   }
 
   // Fetch current job details
-  async function fetchCurrentJob(requestId: string, requestType: ServiceType): Promise<void> {
-    const tableName = getTableName(requestType)
-    
-    const { data, error: fetchError } = await supabase
-      .from(tableName)
-      .select(`
-        *,
-        customer:users!user_id(id, first_name, last_name, phone_number)
-      `)
-      .eq('id', requestId)
-      .single()
+  async function fetchCurrentJob(requestId: string, requestType: ServiceType = 'ride'): Promise<void> {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('ride_requests')
+        .select(`
+          *,
+          customer:user_id (
+            id,
+            email,
+            profiles!inner (
+              first_name,
+              last_name,
+              phone_number
+            )
+          )
+        `)
+        .eq('id', requestId)
+        .maybeSingle()
 
-    if (fetchError) throw fetchError
-    
-    currentJob.value = { ...data, type: requestType } as JobRequest
-    
-    // Subscribe to current job updates
-    await subscribeToCurrentJob()
+      if (fetchError) {
+        console.error('[Provider] Fetch current job error:', fetchError)
+        throw fetchError
+      }
+      
+      if (!data) {
+        console.error('[Provider] Job not found:', requestId)
+        return
+      }
+
+      // Transform customer data
+      const customer = data.customer as any
+      const customerInfo: CustomerInfo = {
+        id: customer?.id || '',
+        first_name: customer?.profiles?.first_name || '',
+        last_name: customer?.profiles?.last_name || '',
+        phone_number: customer?.profiles?.phone_number || ''
+      }
+
+      currentJob.value = { 
+        ...data, 
+        type: requestType,
+        customer: customerInfo
+      } as JobRequest
+      
+      console.log('[Provider] Current job set:', currentJob.value)
+      
+      // Subscribe to current job updates
+      await subscribeToCurrentJob()
+    } catch (err) {
+      console.error('[Provider] fetchCurrentJob error:', err)
+      throw err
+    }
   }
 
   // Update job status
   async function updateJobStatus(status: RequestStatus): Promise<void> {
-    if (!currentJob.value) throw new AppError(ErrorType.REQUEST_NOT_FOUND, 'ไม่มีงานปัจจุบัน')
+    if (!currentJob.value) {
+      error.value = 'ไม่มีงานปัจจุบัน'
+      throw new Error('ไม่มีงานปัจจุบัน')
+    }
 
     isLoading.value = true
     error.value = null
 
     try {
-      const tableName = getTableName(currentJob.value.type)
       const timestampField = `${status}_at`
+      const updateData: Record<string, any> = {
+        status,
+        updated_at: new Date().toISOString()
+      }
 
-      const { error: updateError } = await supabase
-        .from(tableName)
-        .update({
-          status,
-          [timestampField]: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+      // Add timestamp for specific statuses
+      if (['accepted', 'arrived', 'in_progress', 'completed'].includes(status)) {
+        updateData[timestampField] = new Date().toISOString()
+      }
+
+      console.log('[Provider] Updating job status:', status, updateData)
+
+      const { data: updatedJob, error: updateError } = await supabase
+        .from('ride_requests')
+        .update(updateData)
         .eq('id', currentJob.value.id)
+        .select()
+        .maybeSingle()
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('[Provider] Update status error:', updateError)
+        throw updateError
+      }
 
-      currentJob.value.status = status
+      if (updatedJob) {
+        currentJob.value = { ...updatedJob, type: currentJob.value.type } as JobRequest
+        console.log('[Provider] ✓ Status updated:', status)
+      }
     } catch (err: any) {
+      console.error('[Provider] updateJobStatus error:', err)
       error.value = err.message
       throw err
     } finally {
@@ -186,25 +269,47 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
 
   // Complete job
   async function completeJob(actualFare?: number): Promise<CompleteResult> {
-    if (!currentJob.value) throw new AppError(ErrorType.REQUEST_NOT_FOUND, 'ไม่มีงานปัจจุบัน')
+    if (!currentJob.value) {
+      error.value = 'ไม่มีงานปัจจุบัน'
+      return { success: false }
+    }
 
     isLoading.value = true
     error.value = null
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new AppError(ErrorType.AUTH_REQUIRED)
+      if (!user) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return { success: false }
+      }
 
-      const functionName = getAtomicFunction(currentJob.value.type, 'complete')
-      const paramName = `p_${currentJob.value.type}_id`
+      console.log('[Provider] Completing job:', currentJob.value.id, 'actualFare:', actualFare)
 
-      const { data, error: rpcError } = await supabase.rpc(functionName, {
-        [paramName]: currentJob.value.id,
-        p_provider_id: user.id,
-        p_actual_fare: actualFare || null
-      })
+      // Update ride to completed status
+      const finalFare = actualFare || currentJob.value.estimated_fare
+      const { data: completedRide, error: updateError } = await supabase
+        .from('ride_requests')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          final_fare: finalFare,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentJob.value.id)
+        .select()
+        .maybeSingle()
 
-      if (rpcError) throw handleRpcError(rpcError)
+      if (updateError) {
+        console.error('[Provider] Complete job error:', updateError)
+        throw updateError
+      }
+
+      console.log('[Provider] ✓ Job completed successfully')
+
+      // Calculate earnings (simplified - 80% to provider, 20% platform fee)
+      const providerEarnings = Math.round(finalFare * 0.8)
+      const platformFee = finalFare - providerEarnings
 
       // Clear current job
       currentJob.value = null
@@ -212,12 +317,13 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
 
       return {
         success: true,
-        finalFare: data.final_fare,
-        providerEarnings: data.provider_earnings,
-        platformFee: data.platform_fee
+        finalFare,
+        providerEarnings,
+        platformFee
       }
     } catch (err: any) {
-      error.value = err.message
+      console.error('[Provider] Complete job exception:', err)
+      error.value = err.message || 'เกิดข้อผิดพลาด'
       return { success: false }
     } finally {
       isLoading.value = false
@@ -229,84 +335,108 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Get provider location - use maybeSingle() to avoid 406 error
+    // Get provider location from providers_v2 table
     const { data: provider } = await supabase
-      .from('service_providers')
-      .select('current_lat, current_lng, enabled_services')
-      .eq('id', user.id)
+      .from('providers_v2')
+      .select('current_lat, current_lng, service_types')
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (!provider) return
 
     providerLocation.value = {
-      lat: provider.current_lat,
-      lng: provider.current_lng
+      lat: provider.current_lat || 0,
+      lng: provider.current_lng || 0
     }
 
-    // Subscribe to each service type
-    for (const serviceType of serviceTypes) {
-      const tableName = getTableName(serviceType)
-      
-      const channel = supabase
-        .channel(`new_${serviceType}_jobs_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: tableName,
-            filter: 'status=eq.pending'
-          },
-          async (payload) => {
-            const newJob = payload.new as JobRequest
-            newJob.type = serviceType
+    // Subscribe to ride_requests table directly (main table used by customers)
+    const channel = supabase
+      .channel(`new_ride_jobs_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ride_requests',
+          filter: 'status=eq.pending'
+        },
+        async (payload) => {
+          const newJob = payload.new as any
+          console.log('[Provider] New ride request:', newJob)
 
-            // Calculate distance if provider has location
-            if (providerLocation.value && newJob.pickup_lat && newJob.pickup_lng) {
-              newJob.distance = calculateDistance(
-                providerLocation.value.lat,
-                providerLocation.value.lng,
-                newJob.pickup_lat,
-                newJob.pickup_lng
-              )
+          // Calculate distance if provider has location
+          if (providerLocation.value && newJob.pickup_lat && newJob.pickup_lng) {
+            const distance = calculateDistance(
+              providerLocation.value.lat,
+              providerLocation.value.lng,
+              newJob.pickup_lat,
+              newJob.pickup_lng
+            )
 
-              // Only show jobs within 5km radius
-              if (newJob.distance > 5) return
+            // Only show jobs within 10km radius
+            if (distance > 10) {
+              console.log('[Provider] Job too far:', distance, 'km')
+              return
             }
 
-            // Add to available jobs
-            availableJobs.value.push(newJob)
-            
-            // Play notification sound
-            playNotificationSound()
+            newJob.distance = distance
           }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: tableName
-          },
-          (payload) => {
-            const updated = payload.new as JobRequest
-            // Remove from available if no longer pending
-            if (updated.status !== 'pending') {
-              availableJobs.value = availableJobs.value.filter(j => j.id !== updated.id)
-            }
-          }
-        )
-        .subscribe()
 
-      realtimeChannels.value.push(channel)
-    }
+          // Transform to JobRequest format
+          const jobRequest: JobRequest = {
+            id: newJob.id,
+            tracking_id: newJob.tracking_id || newJob.id,
+            user_id: newJob.user_id,
+            status: newJob.status,
+            estimated_fare: newJob.estimated_fare || 0,
+            pickup_lat: newJob.pickup_lat,
+            pickup_lng: newJob.pickup_lng,
+            pickup_address: newJob.pickup_address,
+            destination_lat: newJob.destination_lat,
+            destination_lng: newJob.destination_lng,
+            destination_address: newJob.destination_address,
+            created_at: newJob.created_at,
+            type: 'ride',
+            distance: newJob.distance
+          }
+
+          // Add to available jobs
+          availableJobs.value.push(jobRequest)
+          
+          // Play notification sound
+          playNotificationSound()
+          
+          console.log('[Provider] Job added to available list:', jobRequest.id)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'ride_requests'
+        },
+        (payload) => {
+          const updated = payload.new as any
+          // Remove from available if no longer pending
+          if (updated.status !== 'pending') {
+            availableJobs.value = availableJobs.value.filter(j => j.id !== updated.id)
+            console.log('[Provider] Job removed from available list:', updated.id, 'status:', updated.status)
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Provider] Realtime subscription status:', status)
+      })
+
+    realtimeChannels.value.push(channel)
   }
 
   // Subscribe to current job updates
   async function subscribeToCurrentJob(): Promise<void> {
     if (!currentJob.value) return
 
-    const tableName = getTableName(currentJob.value.type)
+    console.log('[Provider] Subscribing to current job updates:', currentJob.value.id)
     
     const channel = supabase
       .channel(`provider_job:${currentJob.value.id}`)
@@ -315,16 +445,23 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
         {
           event: 'UPDATE',
           schema: 'public',
-          table: tableName,
+          table: 'ride_requests',
           filter: `id=eq.${currentJob.value.id}`
         },
         (payload) => {
+          console.log('[Provider] Job update received:', payload.new)
           if (currentJob.value) {
-            currentJob.value = { ...payload.new, type: currentJob.value.type } as JobRequest
+            currentJob.value = { 
+              ...payload.new, 
+              type: currentJob.value.type,
+              customer: currentJob.value.customer 
+            } as JobRequest
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[Provider] Current job subscription status:', status)
+      })
 
     realtimeChannels.value.push(channel)
   }
@@ -356,52 +493,71 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = getAllServiceTy
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Use maybeSingle() to avoid 406 error
+      console.log('[Provider] Loading available jobs...')
+
+      // Get provider location from providers_v2 table
       const { data: provider } = await supabase
-        .from('service_providers')
+        .from('providers_v2')
         .select('current_lat, current_lng')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle()
 
-      if (provider) {
-        providerLocation.value = { lat: provider.current_lat, lng: provider.current_lng }
+      if (provider && provider.current_lat && provider.current_lng) {
+        providerLocation.value = { 
+          lat: provider.current_lat, 
+          lng: provider.current_lng 
+        }
+        console.log('[Provider] Provider location:', providerLocation.value)
+      }
+
+      // Load pending ride requests
+      const { data: rides, error: ridesError } = await supabase
+        .from('ride_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .is('provider_id', null)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (ridesError) {
+        console.error('[Provider] Load jobs error:', ridesError)
+        throw ridesError
       }
 
       const jobs: JobRequest[] = []
 
-      for (const serviceType of serviceTypes) {
-        const tableName = getTableName(serviceType)
-        
-        const { data } = await supabase
-          .from(tableName)
-          .select('*')
-          .eq('status', 'pending')
-          .is('provider_id', null)
-          .order('created_at', { ascending: false })
-          .limit(20)
-
-        if (data) {
-          for (const job of data) {
-            const jobWithType = { ...job, type: serviceType } as JobRequest
+      if (rides) {
+        for (const ride of rides) {
+          const jobWithType: JobRequest = { 
+            ...ride, 
+            type: 'ride',
+            tracking_id: ride.tracking_id || ride.id
+          }
+          
+          // Calculate distance if provider has location
+          if (providerLocation.value && ride.pickup_lat && ride.pickup_lng) {
+            jobWithType.distance = calculateDistance(
+              providerLocation.value.lat,
+              providerLocation.value.lng,
+              ride.pickup_lat,
+              ride.pickup_lng
+            )
             
-            if (providerLocation.value && job.pickup_lat && job.pickup_lng) {
-              jobWithType.distance = calculateDistance(
-                providerLocation.value.lat,
-                providerLocation.value.lng,
-                job.pickup_lat,
-                job.pickup_lng
-              )
-              if (jobWithType.distance <= 5) {
-                jobs.push(jobWithType)
-              }
-            } else {
+            // Only include jobs within 10km radius
+            if (jobWithType.distance <= 10) {
               jobs.push(jobWithType)
             }
+          } else {
+            jobs.push(jobWithType)
           }
         }
       }
 
       availableJobs.value = jobs
+      console.log('[Provider] ✓ Loaded', jobs.length, 'available jobs')
+    } catch (err) {
+      console.error('[Provider] loadAvailableJobs error:', err)
+      error.value = 'ไม่สามารถโหลดงานได้'
     } finally {
       isLoading.value = false
     }

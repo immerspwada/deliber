@@ -2,9 +2,11 @@
 /**
  * Ride Tracking Map Component
  * แสดงตำแหน่ง Provider แบบ Realtime บนแผนที่
+ * Uses CachedTileLayer for offline support
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useProviderTracking } from '../../composables/useProviderTracking'
+import { cachedTileLayer } from '../../lib/CachedTileLayer'
 
 interface Props {
   rideId: string
@@ -83,10 +85,15 @@ async function initMap(): Promise<void> {
   // Create map centered on pickup
   map = L.map(mapContainer.value).setView([props.pickupLat, props.pickupLng], 15)
 
-  // Add tile layer
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map)
+  // Add cached tile layer for offline support
+  const tileLayer = cachedTileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      attribution: '© OpenStreetMap',
+      subdomains: 'abc'
+    }
+  )
+  tileLayer.addTo(map)
 
   // Custom icons
   const pickupIcon = L.divIcon({

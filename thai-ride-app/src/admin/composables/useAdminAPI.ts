@@ -322,100 +322,102 @@ export function useAdminAPI() {
     }
   }
 
-  // ============================================
-  // ORDERS
-  // ============================================
-
-  async function getOrders(
-    filters: OrderFilters = {},
+  // Enhanced Orders API
+  async function getOrdersEnhanced(
+    filters: OrderFilters & {
+      service_type?: string;
+      date_from?: string;
+      date_to?: string;
+      sortBy?: string;
+      sortOrder?: string;
+    } = {},
     pagination: PaginationParams = { page: 1, limit: 20 }
   ): Promise<PaginatedResult<Order>> {
     isLoading.value = true
     error.value = null
 
-    console.log('[Admin API] getOrders called with:', { filters, pagination })
+    console.log('[Admin API] getOrdersEnhanced called with:', { filters, pagination })
 
     try {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      console.log('[Admin API] Calling RPC get_all_orders_for_admin with:', {
-        p_type: filters.service_type || null,
-        p_status: filters.status || null,
-        p_limit: limit,
-        p_offset: offset
-      })
-
-      // Use RPC function to bypass RLS (works with demo mode)
+      // Use enhanced RPC function
       const { data, error: queryError } = await (supabase.rpc as any)('get_all_orders_for_admin', {
-        p_type: filters.service_type || null,
+        p_service_type: filters.service_type || null,
         p_status: filters.status || null,
         p_limit: limit,
-        p_offset: offset
+        p_offset: offset,
+        p_search: filters.search || null,
+        p_date_from: filters.date_from || null,
+        p_date_to: filters.date_to || null,
+        p_sort_by: filters.sortBy || 'created_at',
+        p_sort_order: filters.sortOrder || 'desc'
       }) as RpcResponse<any[]>
 
-      console.log('[Admin API] RPC get_all_orders_for_admin result:', { 
-        dataLength: data?.length, 
-        error: queryError,
-        firstItem: data?.[0]
-      })
-
       if (queryError) {
-        console.error('[Admin API] RPC error:', queryError)
+        console.error('[Admin API] Enhanced RPC error:', queryError)
         throw queryError
       }
 
-      // Get total count
+      // Get total count with same filters
       const { data: countData, error: countError } = await (supabase.rpc as any)('count_all_orders_for_admin', {
-        p_type: filters.service_type || null,
-        p_status: filters.status || null
+        p_service_type: filters.service_type || null,
+        p_status: filters.status || null,
+        p_search: filters.search || null,
+        p_date_from: filters.date_from || null,
+        p_date_to: filters.date_to || null
       }) as RpcResponse<number>
 
-      console.log('[Admin API] count_all_orders_for_admin result:', { countData, countError })
-
       if (countError) {
-        console.error('[Admin API] Count error:', countError)
+        console.error('[Admin API] Enhanced count error:', countError)
         throw countError
       }
 
       const total = countData || 0
 
-      // Map to Order type
+      // Map enhanced data to Order type
       const orders: Order[] = (data || []).map((o: any) => ({
         id: o.id,
-        tracking_id: o.tracking_id || o.id?.slice(0, 8).toUpperCase(),
-        service_type: o.type,
+        tracking_id: o.tracking_id,
+        service_type: o.service_type,
         status: o.status,
+        priority: o.priority || 'normal',
         customer_id: o.user_id,
         customer_name: o.user_name,
         customer_phone: o.user_phone,
+        customer_email: o.user_email,
         provider_id: o.provider_id,
         provider_name: o.provider_name,
-        provider_phone: null,
+        provider_phone: o.provider_phone,
+        provider_rating: o.provider_rating,
         pickup_address: o.pickup_address,
-        pickup_lat: null,
-        pickup_lng: null,
-        dropoff_address: o.destination_address,
-        dropoff_lat: null,
-        dropoff_lng: null,
-        base_fare: 0,
-        distance_fare: null,
-        surge_multiplier: null,
-        promo_discount: null,
-        tip_amount: null,
-        total_amount: o.amount || 0,
-        payment_method: 'cash',
-        payment_status: 'pending',
+        pickup_lat: o.pickup_lat,
+        pickup_lng: o.pickup_lng,
+        dropoff_address: o.dropoff_address,
+        dropoff_lat: o.dropoff_lat,
+        dropoff_lng: o.dropoff_lng,
+        estimated_amount: o.estimated_amount,
+        final_amount: o.final_amount,
+        total_amount: o.final_amount || o.estimated_amount || 0,
+        payment_method: o.payment_method || 'cash',
+        payment_status: o.payment_status || 'pending',
+        promo_code: o.promo_code,
+        promo_discount: o.promo_discount,
+        distance_km: o.distance_km,
+        duration_minutes: o.duration_minutes,
+        special_notes: o.special_notes,
         created_at: o.created_at,
-        matched_at: null,
-        started_at: null,
-        completed_at: null,
-        cancelled_at: null,
-        cancelled_by: null,
-        cancel_reason: null,
-        customer_rating: null,
-        provider_rating: null,
-        customer_notes: null
+        matched_at: o.matched_at,
+        started_at: o.started_at,
+        completed_at: o.completed_at,
+        cancelled_at: o.cancelled_at,
+        cancel_reason: o.cancel_reason,
+        cancelled_by: o.cancelled_by,
+        rating: o.rating,
+        feedback: o.feedback,
+        last_updated: o.last_updated,
+        base_fare: 0
       }))
 
       return {
@@ -426,82 +428,125 @@ export function useAdminAPI() {
         totalPages: Math.ceil(total / limit)
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch orders'
-      console.error('getOrders error:', e)
+      error.value = e instanceof Error ? e.message : 'Failed to fetch enhanced orders'
+      console.error('getOrdersEnhanced error:', e)
       return { data: [], total: 0, page: 1, limit: 20, totalPages: 0 }
     } finally {
       isLoading.value = false
     }
   }
 
-  async function updateOrderStatus(
-    orderId: string, 
-    status: string, 
-    options?: { 
-      cancelReason?: string;
-      serviceType?: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry';
+  async function getOrdersAnalytics(filters: {
+    date_from?: string;
+    date_to?: string;
+  } = {}): Promise<any> {
+    try {
+      const { data, error: queryError } = await (supabase.rpc as any)('get_orders_analytics_for_admin', {
+        p_date_from: filters.date_from || null,
+        p_date_to: filters.date_to || null
+      }) as RpcResponse<any>
+
+      if (queryError) throw queryError
+      return data
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch analytics'
+      console.error('getOrdersAnalytics error:', e)
+      return null
     }
+  }
+
+  async function bulkUpdateOrdersStatus(
+    serviceType: string,
+    orderIds: string[],
+    newStatus: string,
+    reason?: string
   ): Promise<boolean> {
     try {
-      const tableName = options?.serviceType ? `${options.serviceType}_requests` : 'ride_requests'
-      
-      // Build update object
-      const updateData: Record<string, any> = { status }
-      
-      // If cancelling, add cancellation details
-      if (status === 'cancelled') {
-        updateData.cancelled_at = new Date().toISOString()
-        updateData.cancelled_by = 'admin'
-        updateData.cancel_reason = options?.cancelReason || 'ยกเลิกโดย Admin'
-      }
-      
-      const { error: updateError } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', orderId)
+      const { data, error: queryError } = await (supabase.rpc as any)('bulk_update_orders_status', {
+        p_service_type: serviceType,
+        p_order_ids: orderIds,
+        p_new_status: newStatus,
+        p_reason: reason || null
+      }) as RpcResponse<any>
 
-      if (updateError) throw updateError
+      if (queryError) throw queryError
       
-      // Send notification to customer about status change
-      try {
-        // Get order details to find user_id
-        const { data: orderData } = await supabase
-          .from(tableName)
-          .select('user_id, tracking_id')
-          .eq('id', orderId)
-          .single()
-        
-        if (orderData?.user_id) {
-          const statusMessages: Record<string, string> = {
-            cancelled: `คำสั่ง ${orderData.tracking_id} ถูกยกเลิกแล้ว`,
-            completed: `คำสั่ง ${orderData.tracking_id} เสร็จสิ้นแล้ว`,
-            in_progress: `คำสั่ง ${orderData.tracking_id} กำลังดำเนินการ`,
-          }
-          
-          const message = statusMessages[status] || `สถานะคำสั่ง ${orderData.tracking_id} เปลี่ยนเป็น ${status}`
-          
-          // Map service type to notification type
-          const notificationType = options?.serviceType || 'ride'
-          
-          await supabase.from('user_notifications').insert({
-            user_id: orderData.user_id,
-            type: notificationType,
-            title: status === 'cancelled' ? 'คำสั่งถูกยกเลิก' : 'อัพเดทสถานะคำสั่ง',
-            message,
-            data: { order_id: orderId, tracking_id: orderData.tracking_id, status }
-          })
-        }
-      } catch (notifyError) {
-        console.error('Failed to send notification:', notifyError)
-        // Don't fail the whole operation if notification fails
-      }
-      
-      return true
+      return data?.success || false
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to update order'
+      error.value = e instanceof Error ? e.message : 'Failed to bulk update orders'
+      console.error('bulkUpdateOrdersStatus error:', e)
       return false
     }
   }
+
+    async function updateOrderStatus(
+      orderId: string, 
+      status: string, 
+      options?: { 
+        cancelReason?: string;
+        serviceType?: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry';
+      }
+    ): Promise<boolean> {
+      try {
+        const tableName = options?.serviceType ? `${options.serviceType}_requests` : 'ride_requests'
+        
+        // Build update object
+        const updateData: Record<string, any> = { status }
+        
+        // If cancelling, add cancellation details
+        if (status === 'cancelled') {
+          updateData.cancelled_at = new Date().toISOString()
+          updateData.cancelled_by = 'admin'
+          updateData.cancel_reason = options?.cancelReason || 'ยกเลิกโดย Admin'
+        }
+        
+        const { error: updateError } = await supabase
+          .from(tableName as any)
+          .update(updateData)
+          .eq('id', orderId)
+
+        if (updateError) throw updateError
+        
+        // Send notification to customer about status change
+        try {
+          // Get order details to find user_id
+          const { data: orderData } = await supabase
+            .from(tableName as any)
+            .select('user_id, tracking_id')
+            .eq('id', orderId)
+            .single()
+          
+          if (orderData?.user_id) {
+            const statusMessages: Record<string, string> = {
+              cancelled: `คำสั่ง ${orderData.tracking_id} ถูกยกเลิกแล้ว`,
+              completed: `คำสั่ง ${orderData.tracking_id} เสร็จสิ้นแล้ว`,
+              in_progress: `คำสั่ง ${orderData.tracking_id} กำลังดำเนินการ`,
+            }
+            
+            const message = statusMessages[status] || `สถานะคำสั่ง ${orderData.tracking_id} เปลี่ยนเป็น ${status}`
+            
+            // Map service type to notification type
+            const notificationType = options?.serviceType || 'ride'
+            
+            await supabase.from('user_notifications' as any).insert({
+              user_id: orderData.user_id,
+              type: notificationType,
+              title: status === 'cancelled' ? 'คำสั่งถูกยกเลิก' : 'อัพเดทสถานะคำสั่ง',
+              message,
+              data: { order_id: orderId, tracking_id: orderData.tracking_id, status }
+            })
+          }
+        } catch (notifyError) {
+          console.error('Failed to send notification:', notifyError)
+          // Don't fail the whole operation if notification fails
+        }
+        
+        return true
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Failed to update order'
+        return false
+      }
+    }
 
   // ============================================
   // DELIVERY
@@ -1179,6 +1224,225 @@ export function useAdminAPI() {
     }
   }
 
+  // ============================================
+  // ENHANCED PROVIDERS V2
+  // ============================================
+
+  async function getProvidersV2Enhanced(
+    filters: {
+      status?: string
+      serviceType?: string
+      isOnline?: boolean
+      search?: string
+    } = {},
+    pagination: PaginationParams = { page: 1, limit: 20 },
+    sorting: { sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}
+  ): Promise<PaginatedResult<any>> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const { page, limit } = pagination
+      const offset = (page - 1) * limit
+
+      console.log('[Admin API] getProvidersV2Enhanced called with:', { filters, pagination, sorting })
+
+      const { data, error: queryError } = await (supabase.rpc as any)('get_all_providers_v2_for_admin', {
+        p_status: filters.status || null,
+        p_service_type: filters.serviceType || null,
+        p_is_online: filters.isOnline ?? null,
+        p_limit: limit,
+        p_offset: offset,
+        p_search: filters.search || null,
+        p_sort_by: sorting.sortBy || 'created_at',
+        p_sort_order: sorting.sortOrder || 'desc'
+      }) as RpcResponse<any[]>
+
+      if (queryError) {
+        console.error('[Admin API] Enhanced RPC error:', queryError)
+        throw queryError
+      }
+
+      // Get total count
+      const { data: countData, error: countError } = await (supabase.rpc as any)('count_all_providers_v2_for_admin', {
+        p_status: filters.status || null,
+        p_service_type: filters.serviceType || null,
+        p_is_online: filters.isOnline ?? null,
+        p_search: filters.search || null
+      }) as RpcResponse<number>
+
+      if (countError) {
+        console.error('[Admin API] Count RPC error:', countError)
+        throw countError
+      }
+
+      const total = countData || 0
+
+      console.log('[Admin API] Enhanced providers result:', { 
+        dataLength: data?.length, 
+        total, 
+        totalPages: Math.ceil(total / limit),
+        firstItem: data?.[0]
+      })
+
+      return {
+        data: data || [],
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch enhanced providers'
+      console.error('getProvidersV2Enhanced error:', e)
+      return { data: [], total: 0, page: 1, limit: 20, totalPages: 0 }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function getProvidersV2Analytics(): Promise<any> {
+    try {
+      console.log('[Admin API] getProvidersV2Analytics called')
+
+      const { data, error: queryError } = await (supabase.rpc as any)('get_providers_v2_analytics_for_admin') as RpcResponse<any>
+
+      if (queryError) {
+        console.error('[Admin API] Analytics RPC error:', queryError)
+        throw queryError
+      }
+
+      console.log('[Admin API] Analytics result:', data)
+
+      return data || {
+        overview: {
+          total_providers: 0,
+          active_providers: 0,
+          pending_providers: 0,
+          approved_providers: 0,
+          suspended_providers: 0,
+          online_providers: 0,
+          new_this_month: 0,
+          approved_this_month: 0,
+          avg_rating: 0,
+          total_trips_all: 0,
+          total_earnings_all: 0
+        },
+        service_breakdown: [],
+        monthly_performance: []
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch provider analytics'
+      console.error('getProvidersV2Analytics error:', e)
+      return {
+        overview: {
+          total_providers: 0,
+          active_providers: 0,
+          pending_providers: 0,
+          approved_providers: 0,
+          suspended_providers: 0,
+          online_providers: 0,
+          new_this_month: 0,
+          approved_this_month: 0,
+          avg_rating: 0,
+          total_trips_all: 0,
+          total_earnings_all: 0
+        },
+        service_breakdown: [],
+        monthly_performance: []
+      }
+    }
+  }
+
+  async function approveProviderV2Enhanced(
+    providerId: string,
+    adminId?: string,
+    serviceTypes?: string[],
+    notes?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('[Admin API] approveProviderV2Enhanced called with:', { providerId, adminId, serviceTypes, notes })
+
+      const { data, error: queryError } = await (supabase.rpc as any)('approve_provider_v2_enhanced', {
+        p_provider_id: providerId,
+        p_admin_id: adminId || null,
+        p_service_types: serviceTypes || null,
+        p_notes: notes || null
+      }) as RpcResponse<any>
+
+      if (queryError) {
+        console.error('[Admin API] Approve RPC error:', queryError)
+        throw queryError
+      }
+
+      console.log('[Admin API] Approve result:', data)
+
+      return data || { success: false, error: 'No response data' }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to approve provider'
+      console.error('approveProviderV2Enhanced error:', e)
+      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+    }
+  }
+
+  async function rejectProviderV2Enhanced(
+    providerId: string,
+    adminId?: string,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('[Admin API] rejectProviderV2Enhanced called with:', { providerId, adminId, reason })
+
+      const { data, error: queryError } = await (supabase.rpc as any)('reject_provider_v2_enhanced', {
+        p_provider_id: providerId,
+        p_admin_id: adminId || null,
+        p_reason: reason || null
+      }) as RpcResponse<any>
+
+      if (queryError) {
+        console.error('[Admin API] Reject RPC error:', queryError)
+        throw queryError
+      }
+
+      console.log('[Admin API] Reject result:', data)
+
+      return data || { success: false, error: 'No response data' }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to reject provider'
+      console.error('rejectProviderV2Enhanced error:', e)
+      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+    }
+  }
+
+  async function suspendProviderV2Enhanced(
+    providerId: string,
+    adminId?: string,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('[Admin API] suspendProviderV2Enhanced called with:', { providerId, adminId, reason })
+
+      const { data, error: queryError } = await (supabase.rpc as any)('suspend_provider_v2_enhanced', {
+        p_provider_id: providerId,
+        p_admin_id: adminId || null,
+        p_reason: reason || null
+      }) as RpcResponse<any>
+
+      if (queryError) {
+        console.error('[Admin API] Suspend RPC error:', queryError)
+        throw queryError
+      }
+
+      console.log('[Admin API] Suspend result:', data)
+
+      return data || { success: false, error: 'No response data' }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to suspend provider'
+      console.error('suspendProviderV2Enhanced error:', e)
+      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+    }
+  }
+
   return {
     isLoading,
     error,
@@ -1189,8 +1453,17 @@ export function useAdminAPI() {
     getProviders,
     updateProviderStatus,
     getVerificationQueue,
+    // Enhanced Providers V2
+    getProvidersV2Enhanced,
+    getProvidersV2Analytics,
+    approveProviderV2Enhanced,
+    rejectProviderV2Enhanced,
+    suspendProviderV2Enhanced,
     // Orders
-    getOrders,
+    getOrders: getOrdersEnhanced, // Use enhanced version as default
+    getOrdersEnhanced,
+    getOrdersAnalytics,
+    bulkUpdateOrdersStatus,
     updateOrderStatus,
     // Services
     getDeliveries,
