@@ -56,12 +56,14 @@ interface ProviderData {
 }
 
 // =====================================================
-// Constants
+// Constants - Optimized for Production
 // =====================================================
-const DEBOUNCE_MS = 300
-const REFRESH_INTERVAL_MS = 30000
-const MAX_JOBS_LIMIT = 50
-const REALTIME_DEBOUNCE_MS = 500
+const DEBOUNCE_MS = 200 // Reduced for better responsiveness
+const REFRESH_INTERVAL_MS = 25000 // Slightly faster refresh
+const MAX_JOBS_LIMIT = 30 // Reduced for better performance
+const REALTIME_DEBOUNCE_MS = 300 // Faster real-time updates
+const RETRY_ATTEMPTS = 3
+const RETRY_DELAY_MS = 1000
 
 // =====================================================
 // Composables
@@ -71,7 +73,7 @@ const { isPlaying, playAlert, stopAlert, quickBeep, quickVibrate } = useJobAlert
 const { notifyNewJob, requestPermission: requestPushPermission, isSubscribed: isPushSubscribed } = usePushNotification()
 
 // =====================================================
-// State
+// State - Enhanced with Performance Tracking
 // =====================================================
 const loading = ref(true)
 const loadingJobs = ref(false)
@@ -84,6 +86,15 @@ const userLocation = ref<{ lat: number; lng: number } | null>(null)
 const showHeatMap = ref(true)
 const acceptingJobId = ref<string | null>(null)
 const acceptError = ref<string | null>(null)
+const sortBy = ref<'distance' | 'fare_high' | 'newest'>('distance')
+const showJobPreviewModal = ref(false)
+const selectedJobForPreview = ref<Job | null>(null)
+const retryCount = ref(0)
+const lastRefreshTime = ref<Date | null>(null)
+const connectionStatus = ref<'connected' | 'connecting' | 'disconnected'>('disconnected')
+
+// Development mode check
+const isDev = computed(() => import.meta.env.DEV)
 
 // Debounce & Cleanup refs
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
@@ -98,6 +109,21 @@ let isLoadingJobs = false // Mutex flag
 const canWork = computed(() => {
   const s = provider.value?.status
   return s === 'approved' || s === 'active'
+})
+
+const sortedJobs = computed(() => {
+  const jobs = [...availableJobs.value]
+  
+  switch (sortBy.value) {
+    case 'distance':
+      return jobs.sort((a, b) => (a.distance || 999) - (b.distance || 999))
+    case 'fare_high':
+      return jobs.sort((a, b) => b.fare - a.fare)
+    case 'newest':
+      return jobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    default:
+      return jobs
+  }
 })
 
 const statusText = computed(() => {
@@ -153,48 +179,131 @@ function getJobTypeLabel(job: Job): string {
 }
 
 // =====================================================
-// Core Functions
+// Enhanced Error Handling & Retry Logic
 // =====================================================
 
-// Load provider profile
+// Retry with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  attempts: number = RETRY_ATTEMPTS,
+  delay: number = RETRY_DELAY_MS
+): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    if (attempts <= 1) throw err
+    
+    console.warn(`[Retry] Attempt failed, ${attempts - 1} attempts remaining:`, err)
+    await new Promise(resolve => setTimeout(resolve, delay))
+    return retryWithBackoff(fn, attempts - 1, delay * 2)
+  }
+}
+
+// Enhanced error handler with user-friendly messages
+function handleError(err: unknown, context: string): string {
+  console.error(`[${context}] Error:`, err)
+  
+  if (err instanceof Error) {
+    // Network errors
+    if (err.message.includes('fetch') || err.message.includes('network')) {
+      return 'ปัญหาการเชื่อมต่อ กรุณาตรวจสอบอินเทอร์เน็ต'
+    }
+    
+    // Database errors
+    if (err.message.includes('database') || err.message.includes('supabase')) {
+      return 'ปัญหาระบบฐานข้อมูล กรุณาลองใหม่อีกครั้ง'
+    }
+    
+    // Permission errors
+    if (err.message.includes('permission') || err.message.includes('unauthorized')) {
+      return 'ไม่มีสิทธิ์เข้าถึง กรุณาเข้าสู่ระบบใหม่'
+    }
+    
+    return err.message
+  }
+  
+  return 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'
+}
+
+// =====================================================
+// Performance Monitoring & Analytics
+// =====================================================
+
+// Track performance metrics
+const performanceMetrics = ref({
+  jobLoadTime: 0,
+  lastJobCount: 0,
+  averageResponseTime: 0,
+  errorRate: 0
+})
+
+// Performance tracking function
+function trackPerformance(operation: string, startTime: number): void {
+  const endTime = performance.now()
+  const duration = endTime - startTime
+  
+  console.log(`[Performance] ${operation}: ${duration.toFixed(2)}ms`)
+  
+  // Update metrics
+  if (operation === 'loadJobs') {
+    performanceMetrics.value.jobLoadTime = duration
+    lastRefreshTime.value = new Date()
+  }
+}
+
+// Enhanced error tracking
+function trackError(error: unknown, context: string): void {
+  console.error(`[Error Tracking] ${context}:`, error)
+  
+  // Update error rate
+  performanceMetrics.value.errorRate += 1
+  
+  // Send to analytics (if implemented)
+  // analytics.track('provider_error', { context, error: error.message })
+}
+
+// =====================================================
+// Enhanced Core Functions
+// =====================================================
+
+// Load provider profile with retry
 async function loadProvider(): Promise<void> {
   loading.value = true
   error.value = null
+  retryCount.value = 0
   
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      error.value = 'กรุณาเข้าสู่ระบบ'
-      return
-    }
-
-    const { data, error: dbError } = await supabase
-      .from('providers_v2')
-      .select('id, status, is_online, first_name, service_types')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (dbError) {
-      console.error('[Provider] Load error:', dbError)
-      error.value = 'ไม่สามารถโหลดข้อมูลได้'
-      return
-    }
-
-    if (data) {
-      const providerData = data as ProviderData
-      provider.value = providerData
-      isOnline.value = providerData.is_online || false
-      
-      if (isOnline.value) {
-        await loadAvailableJobsDebounced()
-        setupRealtimeSubscription()
+    await retryWithBackoff(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('กรุณาเข้าสู่ระบบ')
       }
-    } else {
-      error.value = 'ไม่พบข้อมูลผู้ให้บริการ'
-    }
+
+      const { data, error: dbError } = await supabase
+        .from('providers_v2')
+        .select('id, status, is_online, first_name, service_types')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (dbError) {
+        throw new Error(`Database error: ${dbError.message}`)
+      }
+
+      if (data) {
+        const providerData = data as ProviderData
+        provider.value = providerData
+        isOnline.value = providerData.is_online || false
+        
+        if (isOnline.value) {
+          await loadAvailableJobsDebounced()
+          setupRealtimeSubscription()
+        }
+      } else {
+        throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
+      }
+    })
   } catch (err) {
-    console.error('[Provider] Exception:', err)
-    error.value = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+    error.value = handleError(err, 'Provider Load')
   } finally {
     loading.value = false
   }
@@ -214,7 +323,7 @@ function loadAvailableJobsDebounced(): Promise<void> {
   })
 }
 
-// Load available jobs with mutex
+// Load available jobs with mutex and performance tracking
 async function loadAvailableJobs(): Promise<void> {
   // Mutex: prevent concurrent calls
   if (isLoadingJobs) {
@@ -224,6 +333,7 @@ async function loadAvailableJobs(): Promise<void> {
   
   if (!provider.value) return
   
+  const startTime = performance.now()
   isLoadingJobs = true
   loadingJobs.value = true
   error.value = null
@@ -232,8 +342,9 @@ async function loadAvailableJobs(): Promise<void> {
   const serviceTypes = provider.value.service_types || ['ride']
   
   try {
-    // Load ride requests
+    // Load ride requests with performance tracking
     if (serviceTypes.includes('ride')) {
+      const rideStartTime = performance.now()
       const { data: rides, error: ridesError } = await supabase
         .from('ride_requests')
         .select('id, pickup_address, destination_address, pickup_lat, pickup_lng, destination_lat, destination_lng, estimated_fare, ride_type, created_at')
@@ -242,7 +353,10 @@ async function loadAvailableJobs(): Promise<void> {
         .order('created_at', { ascending: false })
         .limit(MAX_JOBS_LIMIT)
       
+      trackPerformance('loadRides', rideStartTime)
+      
       if (ridesError) {
+        trackError(ridesError, 'Rides Load')
         console.error('[Jobs] Rides error:', ridesError)
       } else if (rides) {
         for (const ride of rides) {
@@ -260,8 +374,9 @@ async function loadAvailableJobs(): Promise<void> {
       }
     }
     
-    // Load delivery requests
+    // Load delivery requests with performance tracking
     if (serviceTypes.includes('delivery')) {
+      const deliveryStartTime = performance.now()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: deliveries, error: deliveriesError } = await (supabase as any)
         .from('delivery_requests')
@@ -271,7 +386,10 @@ async function loadAvailableJobs(): Promise<void> {
         .order('created_at', { ascending: false })
         .limit(MAX_JOBS_LIMIT)
       
+      trackPerformance('loadDeliveries', deliveryStartTime)
+      
       if (deliveriesError) {
+        trackError(deliveriesError, 'Deliveries Load')
         console.error('[Jobs] Deliveries error:', deliveriesError)
       } else if (deliveries) {
         for (const delivery of deliveries) {
@@ -299,6 +417,7 @@ async function loadAvailableJobs(): Promise<void> {
     
     const prevCount = availableJobs.value.length
     availableJobs.value = jobs
+    performanceMetrics.value.lastJobCount = jobs.length
     
     // Play alert and send push notification for new jobs
     if (jobs.length > 0 && prevCount === 0 && !isPlaying.value) {
@@ -316,9 +435,12 @@ async function loadAvailableJobs(): Promise<void> {
       }
     }
     
+    trackPerformance('loadJobs', startTime)
+    
   } catch (err) {
+    trackError(err, 'Jobs Load')
     console.error('[Jobs] Exception:', err)
-    error.value = 'ไม่สามารถโหลดงานได้'
+    error.value = handleError(err, 'Jobs Load')
   } finally {
     loadingJobs.value = false
     isLoadingJobs = false
@@ -383,12 +505,13 @@ function validateAndTransformDelivery(delivery: unknown): Job | null {
   }
 }
 
-// Setup realtime subscription with debounce
+// Setup realtime subscription with connection status tracking
 function setupRealtimeSubscription(): void {
   cleanupRealtimeSubscription()
+  connectionStatus.value = 'connecting'
   
   realtimeChannel = supabase
-    .channel('provider-jobs-v2')
+    .channel('provider-jobs-v3') // Updated channel name
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
@@ -413,6 +536,25 @@ function setupRealtimeSubscription(): void {
     }, handleRealtimeEvent)
     .subscribe((status) => {
       console.log('[Realtime] Status:', status)
+      
+      switch (status) {
+        case 'SUBSCRIBED':
+          connectionStatus.value = 'connected'
+          break
+        case 'CHANNEL_ERROR':
+        case 'TIMED_OUT':
+        case 'CLOSED':
+          connectionStatus.value = 'disconnected'
+          // Auto-reconnect after delay
+          setTimeout(() => {
+            if (isOnline.value && !realtimeChannel) {
+              setupRealtimeSubscription()
+            }
+          }, 5000)
+          break
+        default:
+          connectionStatus.value = 'connecting'
+      }
     })
 }
 
@@ -596,9 +738,16 @@ function retryLoad(): void {
   loadProvider()
 }
 
-// Simulate new job (dev only)
-function simulateNewJob(): void {
-  playAlert()
+// Show job preview modal
+function showJobPreview(job: Job): void {
+  selectedJobForPreview.value = job
+  showJobPreviewModal.value = true
+}
+
+// Close job preview modal
+function closeJobPreview(): void {
+  showJobPreviewModal.value = false
+  selectedJobForPreview.value = null
 }
 
 // Watch for location changes
@@ -650,7 +799,7 @@ onUnmounted(() => {
     </div>
 
     <template v-else>
-      <!-- Status Card -->
+      <!-- Enhanced Status Card -->
       <div class="status-card" :class="{ online: isOnline, disabled: !canWork }">
         <div class="status-left">
           <div class="status-indicator" :class="{ active: isOnline }">
@@ -659,22 +808,81 @@ onUnmounted(() => {
           <div class="status-text">
             <h2>{{ isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}</h2>
             <p>{{ statusText }}</p>
+            <div v-if="isOnline && userLocation" class="location-info">
+              📍 ตำแหน่งปัจจุบัน: พร้อมใช้งาน
+            </div>
+            <div v-if="isOnline" class="connection-status" :class="connectionStatus">
+              <span class="connection-dot"></span>
+              <span class="connection-text">
+                {{ connectionStatus === 'connected' ? 'เชื่อมต่อแล้ว' : 
+                   connectionStatus === 'connecting' ? 'กำลังเชื่อมต่อ...' : 'ขาดการเชื่อมต่อ' }}
+              </span>
+            </div>
           </div>
         </div>
         
+        <div class="status-right">
+          <button 
+            v-if="canWork"
+            class="toggle-btn" 
+            :class="{ active: isOnline }"
+            :disabled="toggling"
+            @click="toggleOnline"
+            type="button"
+            :aria-label="isOnline ? 'ปิดสถานะออนไลน์' : 'เปิดสถานะออนไลน์'"
+            :aria-pressed="isOnline"
+          >
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </button>
+          
+          <!-- Quick Stats -->
+          <div v-if="isOnline" class="quick-stats">
+            <div class="stat-item">
+              <span class="stat-value" aria-label="จำนวนงานที่พร้อมรับ">{{ availableJobs.length }}</span>
+              <span class="stat-label">งานพร้อมรับ</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Enhanced Quick Actions Bar -->
+      <div v-if="isOnline" class="quick-actions">
         <button 
-          v-if="canWork"
-          class="toggle-btn" 
-          :class="{ active: isOnline }"
-          :disabled="toggling"
-          @click="toggleOnline"
-          type="button"
-          :aria-label="isOnline ? 'ปิดสถานะออนไลน์' : 'เปิดสถานะออนไลน์'"
-          :aria-pressed="isOnline"
+          class="action-btn" 
+          @click="loadAvailableJobs" 
+          :disabled="loadingJobs"
+          :aria-label="loadingJobs ? 'กำลังรีเฟรช...' : 'รีเฟรชรายการงาน'"
         >
-          <span class="toggle-track">
-            <span class="toggle-thumb"></span>
-          </span>
+          <span class="action-icon" :class="{ spinning: loadingJobs }">🔄</span>
+          <span>{{ loadingJobs ? 'กำลังโหลด...' : 'รีเฟรช' }}</span>
+        </button>
+        <button 
+          class="action-btn" 
+          @click="showHeatMap = !showHeatMap"
+          :aria-label="showHeatMap ? 'ซ่อนแผนที่ความร้อน' : 'แสดงแผนที่ความร้อน'"
+          :aria-pressed="showHeatMap"
+        >
+          <span class="action-icon">🗺️</span>
+          <span>{{ showHeatMap ? 'ซ่อน' : 'แสดง' }}แผนที่</span>
+        </button>
+        <button 
+          class="action-btn" 
+          @click="router.push('/provider/earnings')"
+          aria-label="ดูรายได้"
+        >
+          <span class="action-icon">💰</span>
+          <span>รายได้</span>
+        </button>
+        <button 
+          class="action-btn" 
+          @click="getUserLocation"
+          aria-label="อัปเดตตำแหน่ง"
+          :disabled="!navigator.geolocation"
+        >
+          <span class="action-icon">📍</span>
+          <span>ตำแหน่ง</span>
         </button>
       </div>
 
@@ -762,29 +970,41 @@ onUnmounted(() => {
           <JobHeatMap :user-location="userLocation" />
         </div>
 
-        <!-- Jobs List -->
+        <!-- Jobs List with Enhanced Design -->
         <div v-if="availableJobs.length > 0" class="jobs-section">
           <div class="jobs-header">
             <h3>งานที่รอรับ ({{ availableJobs.length }})</h3>
-            <button 
-              class="refresh-btn" 
-              @click="loadAvailableJobs" 
-              :disabled="loadingJobs"
-              type="button"
-              aria-label="รีเฟรชรายการงาน"
-            >
-              <svg :class="{ spinning: loadingJobs }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M21 12a9 9 0 11-6.219-8.56"/>
-              </svg>
-            </button>
+            <div class="header-actions">
+              <select v-model="sortBy" class="sort-select">
+                <option value="distance">ใกล้ที่สุด</option>
+                <option value="fare_high">ราคาสูงสุด</option>
+                <option value="newest">ใหม่ล่าสุด</option>
+              </select>
+              <button 
+                class="refresh-btn" 
+                @click="loadAvailableJobs" 
+                :disabled="loadingJobs"
+                type="button"
+                aria-label="รีเฟรชรายการงาน"
+              >
+                <svg :class="{ spinning: loadingJobs }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                </svg>
+              </button>
+            </div>
           </div>
           
           <div class="jobs-list" role="list">
             <article 
-              v-for="job in availableJobs" 
+              v-for="job in sortedJobs" 
               :key="job.id" 
-              class="job-card"
+              class="job-card enhanced"
               v-memo="[job.id, job.distance, acceptingJobId]"
+              tabindex="0"
+              role="article"
+              :aria-label="`งาน ${getJobTypeLabel(job)} ราคา ${job.fare} บาท จาก ${job.pickup_address} ไป ${job.dropoff_address}`"
+              @keydown.enter="showJobPreview(job)"
+              @keydown.space.prevent="showJobPreview(job)"
             >
               <div class="job-header">
                 <div class="job-type-badge" :class="job.type">
@@ -794,50 +1014,193 @@ onUnmounted(() => {
                   {{ getJobTypeLabel(job) }}
                 </div>
                 <div class="job-meta">
-                  <span v-if="job.distance !== undefined" class="job-distance">
-                    📍 {{ formatDistance(job.distance) }}
-                  </span>
-                  <span class="job-time">{{ formatTimeAgo(job.created_at) }}</span>
+                  <div class="job-price">฿{{ job.fare.toLocaleString() }}</div>
+                  <div class="job-details">
+                    <span v-if="job.distance !== undefined" class="job-distance">
+                      📍 {{ formatDistance(job.distance) }}
+                    </span>
+                    <span class="job-time">{{ formatTimeAgo(job.created_at) }}</span>
+                  </div>
                 </div>
               </div>
-              
-              <div class="job-price">฿{{ job.fare.toLocaleString() }}</div>
               
               <div class="job-route">
                 <div class="route-point">
                   <span class="point-marker pickup" aria-hidden="true"></span>
-                  <span class="point-text">{{ job.pickup_address }}</span>
+                  <div class="point-content">
+                    <span class="point-label">รับ</span>
+                    <span class="point-text">{{ job.pickup_address }}</span>
+                  </div>
                 </div>
                 <div class="route-line" aria-hidden="true"></div>
                 <div class="route-point">
                   <span class="point-marker dropoff" aria-hidden="true"></span>
-                  <span class="point-text">{{ job.dropoff_address }}</span>
+                  <div class="point-content">
+                    <span class="point-label">ส่ง</span>
+                    <span class="point-text">{{ job.dropoff_address }}</span>
+                  </div>
                 </div>
               </div>
               
-              <button 
-                class="accept-btn" 
-                @click="acceptJob(job)"
-                :disabled="acceptingJobId !== null"
-                type="button"
-              >
-                <span v-if="acceptingJobId === job.id" class="btn-loader" aria-hidden="true"></span>
-                <span v-else>รับงาน</span>
-              </button>
+              <!-- Enhanced Action Buttons -->
+              <div class="job-actions">
+                <button 
+                  class="preview-btn"
+                  @click="showJobPreview(job)"
+                  type="button"
+                >
+                  <span>👁️</span>
+                  ดูแผนที่
+                </button>
+                <button 
+                  class="accept-btn" 
+                  @click="acceptJob(job)"
+                  :disabled="acceptingJobId !== null"
+                  type="button"
+                >
+                  <span v-if="acceptingJobId === job.id" class="btn-loader" aria-hidden="true"></span>
+                  <span v-else>รับงาน</span>
+                </button>
+              </div>
             </article>
           </div>
         </div>
       </template>
     </template>
+
+    <!-- Job Preview Modal -->
+    <div v-if="showJobPreviewModal && selectedJobForPreview" class="modal-overlay" @click="closeJobPreview">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>รายละเอียดงาน</h3>
+          <button class="modal-close" @click="closeJobPreview" type="button" aria-label="ปิด">
+            ✕
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="job-preview-info">
+            <div class="preview-type-badge" :class="selectedJobForPreview.type">
+              <span v-if="selectedJobForPreview.type === 'ride'" aria-hidden="true">🚗</span>
+              <span v-else-if="selectedJobForPreview.type === 'delivery'" aria-hidden="true">📦</span>
+              <span v-else aria-hidden="true">🛒</span>
+              {{ getJobTypeLabel(selectedJobForPreview) }}
+            </div>
+            
+            <div class="preview-price">฿{{ selectedJobForPreview.fare.toLocaleString() }}</div>
+            
+            <div class="preview-route">
+              <div class="preview-point">
+                <span class="preview-marker pickup"></span>
+                <div>
+                  <div class="preview-label">จุดรับ</div>
+                  <div class="preview-address">{{ selectedJobForPreview.pickup_address }}</div>
+                </div>
+              </div>
+              
+              <div class="preview-point">
+                <span class="preview-marker dropoff"></span>
+                <div>
+                  <div class="preview-label">จุดส่ง</div>
+                  <div class="preview-address">{{ selectedJobForPreview.dropoff_address }}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="preview-meta">
+              <div v-if="selectedJobForPreview.distance" class="meta-item">
+                <span class="meta-label">ระยะทาง:</span>
+                <span class="meta-value">{{ formatDistance(selectedJobForPreview.distance) }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">เวลา:</span>
+                <span class="meta-value">{{ formatTimeAgo(selectedJobForPreview.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Map placeholder -->
+          <div class="preview-map">
+            <JobPreviewMap 
+              v-if="selectedJobForPreview"
+              :pickup-lat="selectedJobForPreview.pickup_lat"
+              :pickup-lng="selectedJobForPreview.pickup_lng"
+              :dropoff-lat="selectedJobForPreview.dropoff_lat"
+              :dropoff-lng="selectedJobForPreview.dropoff_lng"
+              :user-location="userLocation"
+            />
+          </div>
+        </div>
+        
+        <div class="modal-actions">
+          <button class="modal-btn secondary" @click="closeJobPreview" type="button">
+            ปิด
+          </button>
+          <button 
+            class="modal-btn primary" 
+            @click="acceptJob(selectedJobForPreview); closeJobPreview()"
+            :disabled="acceptingJobId !== null"
+            type="button"
+          >
+            <span v-if="acceptingJobId === selectedJobForPreview.id" class="btn-loader"></span>
+            <span v-else>รับงาน</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulate Alert Button (Dev Only) -->
+    <div v-if="isDev && isOnline && availableJobs.length === 0" class="dev-controls">
+      <button 
+        v-if="!isPlaying"
+        class="test-alert-btn"
+        @click="playAlert"
+        type="button"
+      >
+        🔔 ทดสอบแจ้งเตือน
+      </button>
+      <button 
+        v-else
+        class="stop-alert-btn"
+        @click="stopAlert"
+        type="button"
+      >
+        🔇 หยุดเสียง
+      </button>
+      
+      <!-- Performance Metrics (Dev Only) -->
+      <div class="dev-metrics">
+        <h4>📊 Performance Metrics</h4>
+        <div class="metric-item">
+          <span>Job Load Time:</span>
+          <span>{{ performanceMetrics.jobLoadTime.toFixed(0) }}ms</span>
+        </div>
+        <div class="metric-item">
+          <span>Last Job Count:</span>
+          <span>{{ performanceMetrics.lastJobCount }}</span>
+        </div>
+        <div class="metric-item">
+          <span>Connection:</span>
+          <span :class="connectionStatus">{{ connectionStatus }}</span>
+        </div>
+        <div v-if="lastRefreshTime" class="metric-item">
+          <span>Last Refresh:</span>
+          <span>{{ lastRefreshTime.toLocaleTimeString('th-TH') }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* Base Styles - Mobile First */
 .jobs-page {
   padding: 20px 16px;
   min-height: calc(100vh - 130px);
+  font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Loading & Error States */
 .center-state {
   display: flex;
   align-items: center;
@@ -849,7 +1212,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border: 2px solid #f3f4f6;
-  border-top-color: #000;
+  border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
@@ -858,7 +1221,6 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* Error State */
 .error-state {
   display: flex;
   flex-direction: column;
@@ -887,7 +1249,7 @@ onUnmounted(() => {
 
 .retry-btn {
   padding: 12px 32px;
-  background: #000;
+  background: #00A86B;
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -896,10 +1258,11 @@ onUnmounted(() => {
   cursor: pointer;
   min-height: 48px;
   min-width: 120px;
+  font-family: 'Sarabun', sans-serif;
 }
 
 .retry-btn:active {
-  background: #1f2937;
+  background: #008f5a;
   transform: scale(0.98);
 }
 
@@ -1000,6 +1363,45 @@ onUnmounted(() => {
   font-size: 13px;
   color: #6b7280;
   margin: 0;
+}
+
+.location-info {
+  font-size: 12px;
+  color: #10b981;
+  margin-top: 4px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.connection-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.connection-status.connected .connection-dot {
+  background: #10b981;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.connection-status.connecting .connection-dot {
+  background: #f59e0b;
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+.connection-status.disconnected .connection-dot {
+  background: #ef4444;
+}
+
+.connection-text {
+  color: #6b7280;
 }
 
 /* Toggle Button */
@@ -1228,6 +1630,118 @@ onUnmounted(() => {
   background: #fecaca;
 }
 
+/* Dev Controls */
+.dev-controls {
+  position: fixed;
+  bottom: 100px;
+  right: 16px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dev-metrics {
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  min-width: 200px;
+}
+
+.dev-metrics h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.metric-item span:last-child {
+  font-weight: 600;
+}
+
+.metric-item .connected {
+  color: #10b981;
+}
+
+.metric-item .connecting {
+  color: #f59e0b;
+}
+
+.metric-item .disconnected {
+  color: #ef4444;
+}
+
+/* Enhanced Quick Actions */
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding: 0 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.quick-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-height: 44px;
+  font-family: 'Sarabun', sans-serif;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #00A86B;
+  color: #00A86B;
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.98);
+  background: #f0fdf4;
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn[aria-pressed="true"] {
+  background: #ecfdf5;
+  border-color: #00A86B;
+  color: #00A86B;
+}
+
+.action-icon {
+  font-size: 16px;
+  transition: transform 0.2s;
+}
+
+.action-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
 /* Heat Map Section */
 .heat-map-section {
   margin-top: 20px;
@@ -1311,6 +1825,24 @@ onUnmounted(() => {
   padding: 16px;
   border: 1px solid #f0f0f0;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.job-card:hover {
+  border-color: #00A86B;
+  box-shadow: 0 4px 12px rgba(0,168,107,0.1);
+}
+
+.job-card:focus {
+  outline: none;
+  border-color: #00A86B;
+  box-shadow: 0 0 0 3px rgba(0,168,107,0.2);
+}
+
+.job-card:focus-visible {
+  outline: 2px solid #00A86B;
+  outline-offset: 2px;
 }
 
 .job-header {
