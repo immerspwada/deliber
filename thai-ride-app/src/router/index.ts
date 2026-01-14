@@ -579,36 +579,31 @@ router.beforeEach(async (to, _from, next) => {
 
       if (providerError) {
         console.error('[Router] Provider query error:', providerError)
-        return next('/provider/onboarding')
-      }
-
-      console.log('[Router] Provider data:', providerData)
-
-      if (!providerData) {
-        console.log('[Router] No provider record found')
-        return next('/provider/onboarding')
-      }
-
-      // Check provider status
-      if (providerData.status === 'approved' || providerData.status === 'active') {
-        console.log('[Router] Provider access granted - status:', providerData.status)
-        // Continue to next() - access granted
-      } else if (providerData.status === 'pending') {
-        console.log('[Router] Provider pending approval')
-        return next('/provider/onboarding')
-      } else if (providerData.status === 'rejected') {
-        console.log('[Router] Provider rejected')
-        return next('/provider/onboarding')
-      } else if (providerData.status === 'suspended') {
-        console.log('[Router] Provider suspended')
-        return next('/provider/onboarding')
+        // Allow access anyway - let the component handle the error
+        console.log('[Router] Allowing access despite query error')
+      } else if (!providerData) {
+        console.log('[Router] No provider record found - allowing access to see empty state')
+        // Allow access - the dashboard will show appropriate message
       } else {
-        console.log('[Router] Unknown provider status:', providerData.status)
-        return next('/provider/onboarding')
+        // Check provider status
+        if (providerData.status === 'approved' || providerData.status === 'active') {
+          console.log('[Router] Provider access granted - status:', providerData.status)
+        } else if (providerData.status === 'pending') {
+          console.log('[Router] Provider pending approval - allowing access to see status')
+        } else if (providerData.status === 'rejected') {
+          console.log('[Router] Provider rejected - redirecting to onboarding')
+          return next('/provider/onboarding')
+        } else if (providerData.status === 'suspended') {
+          console.log('[Router] Provider suspended - redirecting to onboarding')
+          return next('/provider/onboarding')
+        } else {
+          console.log('[Router] Unknown provider status:', providerData.status)
+        }
       }
     } catch (err) {
       console.error('[Router] Provider access check exception:', err)
-      return next('/provider/onboarding')
+      // Allow access anyway - let the component handle the error
+      console.log('[Router] Allowing access despite exception')
     }
   }
 

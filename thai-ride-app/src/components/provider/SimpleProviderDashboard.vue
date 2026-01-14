@@ -2,7 +2,7 @@
   <div class="simple-provider-dashboard">
     <!-- Header -->
     <div class="dashboard-header">
-      <h1 class="dashboard-title">🚗 Provider Dashboard (Simple)</h1>
+      <h1 class="dashboard-title">🚗 Provider Dashboard</h1>
       <div class="status-indicator" :class="{ online: isOnline }">
         <div class="status-dot"></div>
         <span>{{ isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}</span>
@@ -240,7 +240,10 @@ function showNotification(message: string, type: 'success' | 'error' = 'success'
 // Initialize
 onMounted(() => {
   console.log('[SimpleProvider] Component mounted')
-  // Don't auto-start - let user toggle online manually
+  // Auto-start online and load jobs
+  isOnline.value = true
+  loadAvailableJobs()
+  subscribeToNewJobs()
 })
 </script>
 

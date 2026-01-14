@@ -126,11 +126,15 @@
 
         <!-- System Config Tab -->
         <div v-if="activeTab === 'config'" class="space-y-6">
-          <SystemConfigManager
+          <div class="text-center py-12">
+            <p class="text-gray-500">System Config Manager - Coming Soon</p>
+            <p class="text-sm text-gray-400 mt-2">This feature is under development</p>
+          </div>
+          <!-- <SystemConfigManager
             :config="systemConfig"
             :is-loading="isLoading"
             @update="updateSystemConfig"
-          />
+          /> -->
         </div>
       </div>
     </div>
@@ -156,7 +160,7 @@ import {
 import JobPriorityConfig from '@/admin/components/JobPriorityConfig.vue'
 import AutoAcceptRulesManager from '@/admin/components/AutoAcceptRulesManager.vue'
 import JobHeatMapManager from '@/admin/components/JobHeatMapManager.vue'
-import SystemConfigManager from '@/admin/components/SystemConfigManager.vue'
+// import SystemConfigManager from '@/admin/components/SystemConfigManager.vue' // TODO: Create this component
 
 // Types
 interface PriorityConfig {

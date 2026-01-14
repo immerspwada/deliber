@@ -368,7 +368,9 @@ export type Database = {
       }
       ride_requests: {
         Row: {
+          accepted_at: string | null
           actual_fare: number | null
+          arrived_at: string | null
           cancel_reason: string | null
           cancellation_fee: number | null
           cancelled_at: string | null
@@ -409,7 +411,9 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          accepted_at?: string | null
           actual_fare?: number | null
+          arrived_at?: string | null
           cancel_reason?: string | null
           cancellation_fee?: number | null
           cancelled_at?: string | null
@@ -450,7 +454,9 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          accepted_at?: string | null
           actual_fare?: number | null
+          arrived_at?: string | null
           cancel_reason?: string | null
           cancellation_fee?: number | null
           cancelled_at?: string | null

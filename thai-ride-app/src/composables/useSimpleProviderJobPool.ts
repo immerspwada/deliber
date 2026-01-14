@@ -83,7 +83,7 @@ export function useSimpleProviderJobPool() {
         .from('ride_requests')
         .update({
           provider_id: providerId,
-          status: 'accepted',
+          status: 'matched',
           accepted_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
