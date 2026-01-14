@@ -383,6 +383,8 @@ function downloadPDF(data: unknown[]): void {
 
 <style scoped>
 .report-generator {
-  @apply max-w-2xl mx-auto;
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 </style>

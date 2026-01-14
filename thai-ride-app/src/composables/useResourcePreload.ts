@@ -123,10 +123,10 @@ export function useResourcePreload() {
     preconnect('https://fonts.googleapis.com')
     preconnect('https://fonts.gstatic.com', true)
 
-    // Map tiles
-    preconnect('https://a.basemaps.cartocdn.com')
-    preconnect('https://b.basemaps.cartocdn.com')
-    preconnect('https://c.basemaps.cartocdn.com')
+    // Map tiles (OpenStreetMap)
+    preconnect('https://a.tile.openstreetmap.org')
+    preconnect('https://b.tile.openstreetmap.org')
+    preconnect('https://c.tile.openstreetmap.org')
   }
 
   /**

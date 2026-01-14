@@ -12,7 +12,7 @@
           :disabled="isLoading"
           class="btn-secondary"
         >
-          <RefreshIcon class="w-4 h-4 mr-2" />
+          <ArrowPathIcon class="w-4 h-4 mr-2" />
           Refresh
         </button>
       </div>
@@ -150,7 +150,7 @@ import {
   CogIcon,
   MapIcon,
   ClockIcon,
-  RefreshIcon,
+  ArrowPathIcon,
   AdjustmentsHorizontalIcon,
   FireIcon,
   WrenchScrewdriverIcon

@@ -354,6 +354,8 @@ onMounted(async () => {
 
 <style scoped>
 .admin-analytics-dashboard {
-  @apply max-w-7xl mx-auto;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 </style>

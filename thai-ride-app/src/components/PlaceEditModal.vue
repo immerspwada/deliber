@@ -282,86 +282,228 @@ async function handleSubmit() {
 
 <style scoped>
 .modal-overlay {
-  @apply fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+}
+
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
+  }
 }
 
 .modal-content {
-  @apply bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-hidden flex flex-col;
+  background-color: white;
+  width: 100%;
+  max-width: 28rem;
+  border-radius: 1rem 1rem 0 0;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 640px) {
+  .modal-content {
+    border-radius: 1rem;
+  }
 }
 
 .modal-header {
-  @apply flex items-center justify-between p-4 border-b border-gray-100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .close-btn {
-  @apply p-1 text-gray-400 hover:text-gray-600;
+  padding: 0.25rem;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  color: #4b5563;
 }
 
 .modal-body {
-  @apply p-4 overflow-y-auto flex-1 space-y-4;
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .form-group {
-  @apply space-y-2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .form-label {
-  @apply block text-sm font-medium text-gray-700;
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
 }
 
 .form-input {
-  @apply w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.form-input:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: var(--color-primary-500, #3b82f6);
+  border-color: transparent;
 }
 
 .type-selector {
-  @apply flex gap-2;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .type-btn {
-  @apply flex-1 py-2 px-3 text-sm font-medium rounded-lg border border-gray-200 text-gray-700 transition-all;
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  transition: all 0.2s;
+  background: white;
+  cursor: pointer;
 }
 
 .type-btn.active {
-  @apply bg-primary-50 border-primary-500 text-primary-700;
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
 }
 
 .type-btn:disabled {
-  @apply opacity-50 cursor-not-allowed;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .search-input-wrapper {
-  @apply relative;
+  position: relative;
 }
 
 .search-spinner {
-  @apply absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin;
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #9ca3af;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: translateY(-50%) rotate(0deg); }
+  to { transform: translateY(-50%) rotate(360deg); }
 }
 
 .search-results {
-  @apply mt-2 bg-white border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto;
+  margin-top: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  max-height: 12rem;
+  overflow-y: auto;
 }
 
 .search-result-item {
-  @apply flex items-start gap-3 p-3 hover:bg-gray-50 w-full text-left border-b border-gray-100 last:border-0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  width: 100%;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background-color: #f9fafb;
 }
 
 .selected-location {
-  @apply space-y-3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .location-preview {
-  @apply flex items-start gap-3 p-3 bg-green-50 rounded-xl;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f0fdf4;
+  border-radius: 0.75rem;
 }
 
 .no-location {
-  @apply text-center py-4;
+  text-align: center;
+  padding: 1rem 0;
 }
 
 .map-picker-btn {
-  @apply flex items-center justify-center gap-2 w-full py-2.5 text-primary-600 font-medium border border-primary-200 rounded-xl hover:bg-primary-50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.625rem;
+  color: var(--color-primary-600, #2563eb);
+  font-weight: 500;
+  border: 1px solid var(--color-primary-200, #bfdbfe);
+  border-radius: 0.75rem;
+  background: white;
+  cursor: pointer;
+}
+
+.map-picker-btn:hover {
+  background-color: var(--color-primary-50, #eff6ff);
 }
 
 .submit-btn {
-  @apply w-full py-3 bg-primary-600 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed;
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--color-primary-600, #2563eb);
+  color: white;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

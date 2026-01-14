@@ -146,66 +146,126 @@ function handleDelete() {
 
 <style scoped>
 .place-card {
-  @apply relative flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 cursor-pointer transition-all;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: white;
+  border-radius: 0.75rem;
+  border: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .place-card:active {
-  @apply bg-gray-50 scale-[0.98];
+  background-color: #f9fafb;
+  transform: scale(0.98);
 }
 
 .place-card--empty {
-  @apply border-dashed border-gray-300 bg-gray-50;
+  border-style: dashed;
+  border-color: #d1d5db;
+  background-color: #f9fafb;
 }
 
 .place-icon {
-  @apply w-10 h-10 rounded-full flex items-center justify-center text-lg;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
 }
 
 .icon-home {
-  @apply bg-blue-100 text-blue-600;
+  background-color: #dbeafe;
+  color: #2563eb;
 }
 
 .icon-work {
-  @apply bg-purple-100 text-purple-600;
+  background-color: #f3e8ff;
+  color: #9333ea;
 }
 
 .icon-favorite {
-  @apply bg-amber-100 text-amber-600;
+  background-color: #fef3c7;
+  color: #f59e0b;
 }
 
 .place-card--empty .place-icon {
-  @apply bg-gray-200 text-gray-400;
+  background-color: #e5e7eb;
+  color: #9ca3af;
 }
 
 .place-content {
-  @apply flex-1 min-w-0;
+  flex: 1;
+  min-width: 0;
 }
 
 .place-name {
-  @apply font-medium text-gray-900 truncate;
+  font-weight: 500;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .place-card--empty .place-name {
-  @apply text-gray-500;
+  color: #6b7280;
 }
 
 .place-address {
-  @apply text-sm text-gray-500 truncate;
+  font-size: 0.875rem;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actions-menu {
-  @apply absolute right-2 top-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-20;
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #f3f4f6;
+  overflow: hidden;
+  z-index: 20;
 }
 
 .action-btn {
-  @apply flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 w-full;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  color: #374151;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  background-color: #f9fafb;
 }
 
 .action-btn--danger {
-  @apply text-red-600 hover:bg-red-50;
+  color: #dc2626;
+}
+
+.action-btn--danger:hover {
+  background-color: #fef2f2;
 }
 
 .actions-backdrop {
-  @apply fixed inset-0 z-10;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
 }
 </style>

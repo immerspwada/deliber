@@ -232,46 +232,78 @@ watch(showAddModal, (val) => {
 
 <style scoped>
 .saved-places-manager {
-  @apply p-4;
+  padding: 1rem;
 }
 
 .manager-header {
-  @apply flex items-center justify-between mb-4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
 }
 
 .add-btn {
-  @apply flex items-center gap-1 px-3 py-1.5 bg-primary-600 text-white text-sm font-medium rounded-lg;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  background-color: var(--color-primary-600, #2563eb);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
 }
 
 .loading-state {
-  @apply py-4;
+  padding: 1rem 0;
 }
 
 .special-places {
-  @apply grid grid-cols-2 gap-3 mb-6;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .favorites-section {
-  @apply mt-4;
+  margin-top: 1rem;
 }
 
 .section-header {
-  @apply mb-3;
+  margin-bottom: 0.75rem;
 }
 
 .empty-favorites {
-  @apply text-center py-8 bg-gray-50 rounded-xl;
+  text-align: center;
+  padding: 2rem 0;
+  background-color: #f9fafb;
+  border-radius: 0.75rem;
 }
 
 .favorites-list {
-  @apply space-y-2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .modal-overlay {
-  @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1rem;
 }
 
 .delete-confirm-modal {
-  @apply bg-white rounded-2xl p-6 w-full max-w-sm;
+  background-color: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 24rem;
 }
 </style>
