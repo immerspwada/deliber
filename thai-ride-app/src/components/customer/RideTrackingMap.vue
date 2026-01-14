@@ -332,16 +332,56 @@ onUnmounted(() => {
   color: #374151;
 }
 
-/* Map */
+/* Map - CRITICAL: Must allow interaction */
 .map-wrapper {
   flex: 1;
   position: relative;
   min-height: 300px;
+  /* CRITICAL: Enable pointer events */
+  pointer-events: auto !important;
+  z-index: 1;
 }
 
 .map-container {
   width: 100%;
   height: 100%;
+  /* CRITICAL: Enable pointer events */
+  pointer-events: auto !important;
+}
+
+/* Ensure all Leaflet layers are visible */
+.map-container :deep(.leaflet-container) {
+  background: #f5f5f5 !important;
+  z-index: 0 !important;
+}
+
+.map-container :deep(.leaflet-tile-pane) {
+  z-index: 200 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.map-container :deep(.leaflet-tile),
+.map-container :deep(.osm-tiles) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+.map-container :deep(.leaflet-overlay-pane) {
+  z-index: 400 !important;
+}
+
+.map-container :deep(.leaflet-marker-pane) {
+  z-index: 600 !important;
+}
+
+.map-container :deep(.leaflet-popup-pane) {
+  z-index: 700 !important;
+}
+
+.map-container :deep(.leaflet-control-container) {
+  z-index: 800 !important;
 }
 
 .map-loading {
@@ -354,6 +394,8 @@ onUnmounted(() => {
   background: #f9fafb;
   gap: 12px;
   z-index: 10;
+  /* CRITICAL: Loading overlay should not block map after it loads */
+  pointer-events: none !important;
 }
 
 .loader {

@@ -226,12 +226,60 @@ onMounted(() => {
   background: #f5f5f5;
 }
 
-/* Map Area */
+/* Map Area - CRITICAL: Must allow map interaction */
 .map-area {
   flex: 1;
   min-height: 45vh;
   background: #e8f5ef;
   position: relative;
+  /* CRITICAL: Enable pointer events for map */
+  pointer-events: auto !important;
+  /* Ensure proper stacking */
+  z-index: 1;
+  /* Force GPU acceleration */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* Ensure MapView inside map-area is interactive */
+.map-area :deep(.map-wrapper),
+.map-area :deep(.map-container) {
+  pointer-events: auto !important;
+}
+
+/* Ensure all Leaflet layers are visible and interactive */
+.map-area :deep(.leaflet-container) {
+  background: #e8f5ef !important;
+  z-index: 0 !important;
+}
+
+.map-area :deep(.leaflet-tile-pane) {
+  z-index: 200 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.map-area :deep(.leaflet-tile),
+.map-area :deep(.osm-tiles) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+.map-area :deep(.leaflet-overlay-pane) {
+  z-index: 400 !important;
+}
+
+.map-area :deep(.leaflet-marker-pane) {
+  z-index: 600 !important;
+}
+
+.map-area :deep(.leaflet-popup-pane) {
+  z-index: 700 !important;
+}
+
+.map-area :deep(.leaflet-control-container) {
+  z-index: 800 !important;
 }
 
 /* Driver Card */
@@ -380,7 +428,7 @@ onMounted(() => {
   padding: 0 4px;
 }
 
-/* ETA Badge */
+/* ETA Badge - CRITICAL: Must not block map */
 .eta-badge {
   position: absolute;
   top: 16px;
@@ -392,7 +440,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  z-index: 10;
+  z-index: 1000;
+  /* CRITICAL: Badge should not block map clicks */
+  pointer-events: none !important;
 }
 
 .eta-time {
