@@ -451,7 +451,9 @@ export function useLeafletMap() {
       zoomControl: true,
       attributionControl: true,
       preferCanvas: false, // Use SVG for better compatibility
-      zoomAnimation: true
+      zoomAnimation: true,
+      fadeAnimation: true,
+      markerZoomAnimation: true
     })
 
     console.log('[MapView] 📦 Map instance created')
@@ -466,7 +468,10 @@ export function useLeafletMap() {
       updateWhenIdle: false,
       updateWhenZooming: true,
       keepBuffer: 2,
-      className: 'osm-tiles'
+      className: 'osm-tiles',
+      // CRITICAL: Prevent tile loading issues
+      errorTileUrl: '', // Don't show error tiles
+      detectRetina: false // Disable retina detection to prevent scaling issues
     })
 
     // Track tile loading
@@ -511,6 +516,24 @@ export function useLeafletMap() {
         if (map) {
           map.invalidateSize({ pan: false })
           console.log('[MapView] 🔄 Map size invalidated and redrawn')
+          
+          // CRITICAL: Force tile pane to be visible
+          const container = map.getContainer()
+          const tilePane = container.querySelector('.leaflet-tile-pane') as HTMLElement
+          if (tilePane) {
+            tilePane.style.opacity = '1'
+            tilePane.style.visibility = 'visible'
+            tilePane.style.zIndex = '200'
+            console.log('[MapView] 🎨 Tile pane visibility forced')
+          }
+          
+          // Force all tile containers to be visible
+          const tileContainers = container.querySelectorAll('.leaflet-tile-container') as NodeListOf<HTMLElement>
+          tileContainers.forEach((container, index) => {
+            container.style.opacity = '1'
+            container.style.visibility = 'visible'
+            console.log(`[MapView] 🎨 Tile container ${index} visibility forced`)
+          })
         }
       }, 100)
     })

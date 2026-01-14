@@ -539,6 +539,22 @@ onMounted(async () => {
   height: 256px !important;
 }
 
+/* ✅ CRITICAL: Fix tile container scaling issues */
+.map-container :deep(.leaflet-tile-container) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  position: absolute !important;
+  /* Prevent extreme scaling that makes tiles invisible */
+  will-change: transform;
+}
+
+/* ✅ Ensure tile layer is visible */
+.map-container :deep(.leaflet-layer) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
 /* ✅ CRITICAL: Ensure tile containers are visible */
 .map-container :deep(.leaflet-tile-container) {
   opacity: 1 !important;
