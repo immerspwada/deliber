@@ -86,12 +86,7 @@ export const routes: RouteRecordRaw[] = [
   },
   
   // Demo Routes
-  {
-    path: '/demo/floating-action-bar',
-    name: 'FloatingActionBarDemo',
-    component: () => import('../components/FloatingActionBarDemo.vue'),
-    meta: { public: true, hideNavigation: true }
-  },
+  // Demo routes removed - FloatingActionBarDemo deleted
   
   // Provider Routes - Onboarding (accessible by all roles)
   {

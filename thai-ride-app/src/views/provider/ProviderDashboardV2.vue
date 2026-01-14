@@ -48,6 +48,9 @@ const firstName = computed(() => {
   return (provider.value?.first_name as string) || 'P'
 })
 
+// Development mode check
+const isDevelopment = import.meta.env.DEV
+
 const statusInfo = computed(() => {
   if (!provider.value) return { text: '', class: '', icon: '' }
   const s = provider.value.status as string
@@ -451,7 +454,7 @@ onUnmounted(() => {
       />
 
       <!-- Debug Info (Development Only) -->
-      <div v-if="!import.meta.env.PROD" class="debug-info">
+      <div v-if="isDevelopment" class="debug-info">
         <details>
           <summary>🔧 Debug Info (Simple Mode)</summary>
           <div class="debug-content">

@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
+    "@heroicons/vue": "^2.2.0",
     "@sentry/vue": "^10.31.0",
     "@supabase/supabase-js": "^2.87.1",
     "@tailwindcss/typography": "^0.5.19",
