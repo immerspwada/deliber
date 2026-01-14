@@ -242,9 +242,16 @@ onMounted(() => {
 }
 
 /* Ensure MapView inside map-area is interactive */
-.map-area :deep(.map-wrapper),
+.map-area :deep(.map-wrapper) {
+  pointer-events: auto !important;
+  /* CRITICAL FIX: Ensure wrapper inherits height from parent */
+  height: 100% !important;
+  min-height: 300px !important;
+}
+
 .map-area :deep(.map-container) {
   pointer-events: auto !important;
+  height: 100% !important;
 }
 
 /* Ensure all Leaflet layers are visible and interactive */

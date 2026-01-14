@@ -337,6 +337,8 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   min-height: 300px;
+  /* CRITICAL FIX: Ensure wrapper has height */
+  height: 100%;
   /* CRITICAL: Enable pointer events */
   pointer-events: auto !important;
   z-index: 1;
@@ -345,6 +347,8 @@ onUnmounted(() => {
 .map-container {
   width: 100%;
   height: 100%;
+  /* CRITICAL FIX: Ensure container has minimum height */
+  min-height: 300px;
   /* CRITICAL: Enable pointer events */
   pointer-events: auto !important;
 }

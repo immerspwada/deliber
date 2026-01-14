@@ -464,12 +464,17 @@ onMounted(async () => {
 .map-wrapper {
   position: relative;
   width: 100%;
+  /* CRITICAL FIX: Ensure wrapper has height */
+  height: 100%;
+  min-height: 200px;
   border-radius: 16px;
   overflow: hidden;
   background-color: #f5f5f5;
   pointer-events: auto !important;
   /* Ensure proper stacking */
   z-index: 1;
+  /* Force layout */
+  display: block;
 }
 
 .map-container {
