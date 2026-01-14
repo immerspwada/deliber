@@ -85,6 +85,14 @@ export const routes: RouteRecordRaw[] = [
     redirect: '/provider/onboarding'
   },
   
+  // Demo Routes
+  {
+    path: '/demo/floating-action-bar',
+    name: 'FloatingActionBarDemo',
+    component: () => import('../components/FloatingActionBarDemo.vue'),
+    meta: { public: true, hideNavigation: true }
+  },
+  
   // Provider Routes - Onboarding (accessible by all roles)
   {
     path: '/provider/onboarding',
@@ -293,6 +301,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {
+        path: 'topup-requests',
+        name: 'AdminTopupRequests',
+        component: () => import('../views/admin/AdminTopupRequestsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
         path: 'refunds',
         name: 'AdminRefunds',
         component: () => import('../views/admin/AdminPlaceholderView.vue'),
@@ -302,12 +316,6 @@ export const routes: RouteRecordRaw[] = [
         path: 'wallets',
         name: 'AdminWallets',
         component: () => import('../admin/views/WalletsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'topup-requests',
-        name: 'AdminTopupRequests',
-        component: () => import('../views/admin/AdminPlaceholderView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {

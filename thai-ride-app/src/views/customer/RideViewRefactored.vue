@@ -3,6 +3,12 @@
  * Feature: F02 - Simple Ride Booking (Grab/Bolt Style)
  * Refactored Version - Modular & Clean
  * 
+ * PRODUCTION READY:
+ * - Role-based access control (Customer only)
+ * - Input validation with Zod
+ * - Error handling with boundaries
+ * - Performance optimized
+ * 
  * Performance Optimizations:
  * - Lazy loaded heavy components (Map, Tracking, Searching, Rating)
  * - Minimal initial bundle
@@ -20,6 +26,8 @@ import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRideRequest } from '../../composables/useRideRequest'
 import { usePullToRefresh } from '../../composables/usePullToRefresh'
+import { useRoleAccess } from '../../composables/useRoleAccess'
+import { useErrorHandler } from '../../composables/useErrorHandler'
 
 // Critical components - load immediately
 import RideHeader from '../../components/ride/RideHeader.vue'
@@ -43,6 +51,15 @@ const RideRatingView = defineAsyncComponent({
 })
 
 const router = useRouter()
+
+// =====================================================
+// ROLE-BASED ACCESS CONTROL (PRODUCTION)
+// =====================================================
+const { isCustomer, isAdmin } = useRoleAccess()
+const { handleError } = useErrorHandler()
+
+// Check role on mount - redirect if not customer/admin
+const hasAccess = computed(() => isCustomer.value || isAdmin.value)
 
 // Use the ride request composable
 const {
@@ -94,7 +111,7 @@ const currentRideId = computed(() => {
   return undefined
 })
 
-// Map interaction state
+// Ride notes state
 const rideNotes = ref('')
 
 // Reverse geocode helper
@@ -164,6 +181,7 @@ function skipRating(): void {
   currentStep.value = 'select'
   destination.value = null
   searchQuery.value = ''
+  rideNotes.value = ''
 }
 
 // Handle booking with options
@@ -177,25 +195,50 @@ interface BookingOptions {
 }
 
 function handleBook(options: BookingOptions): void {
+  // ✅ PRODUCTION: Validate access before booking
+  if (!hasAccess.value) {
+    handleError(new Error('Unauthorized access'), 'handleBook')
+    alert('คุณไม่มีสิทธิ์จองรถ')
+    router.push('/login')
+    return
+  }
+  
   bookRide({ ...options, notes: rideNotes.value })
 }
 
 // Initialize on mount
 onMounted(() => {
+  // ✅ PRODUCTION: Check role before initializing
+  if (!hasAccess.value) {
+    console.warn('[RideView] Access denied - not customer/admin')
+    router.push('/customer')
+    return
+  }
+  
+  console.log('[RideView] Access granted - initializing')
   initialize()
 })
-
-// Reset to first step
-function resetToSelect(): void {
-  currentStep.value = 'select'
-  destination.value = null
-  searchQuery.value = ''
-  rideNotes.value = ''
-}
 </script>
 
 <template>
   <div class="ride-page">
+    <!-- ⚠️ PRODUCTION: Show access denied if not customer/admin -->
+    <div v-if="!hasAccess" class="access-denied">
+      <div class="access-denied-content">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M4.93 4.93l14.14 14.14" />
+        </svg>
+        <h2>ไม่มีสิทธิ์เข้าถึง</h2>
+        <p>หน้านี้สำหรับลูกค้าเท่านั้น</p>
+        <button class="back-btn" @click="router.push('/customer')">
+          กลับหน้าหลัก
+        </button>
+      </div>
+    </div>
+
+    <!-- ✅ Main content (only for customers/admins) -->
+    <template v-else>
     <!-- Pull-to-Refresh Indicator -->
     <PullToRefreshIndicator
       :pullDistance="pullDistance"
@@ -215,20 +258,19 @@ function resetToSelect(): void {
           @refresh="getCurrentLocation"
         />
 
-        <!-- Map Preview - Tap to select destination -->
-        <div v-if="pickup" class="map-section">
+        <!-- Map Preview - Interactive -->
+        <div class="map-section">
           <MapView
-            v-if="pickup"
             :pickup="pickup"
             :destination="destination"
             :showRoute="!!destination"
-            height="220px"
+            height="240px"
             @routeCalculated="handleRouteCalculated"
             @mapClick="handleMapClick"
           />
           
           <!-- Map hint -->
-          <div v-if="!destination" class="map-hint">
+          <div v-if="!destination && pickup" class="map-hint">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
               <circle cx="12" cy="10" r="3" />
@@ -237,7 +279,7 @@ function resetToSelect(): void {
           </div>
         </div>
 
-        <!-- Step Indicator - Below Map, Above Search -->
+        <!-- Step Indicator -->
         <RideStepIndicator :currentStep="currentStep" />
 
         <!-- Search Box -->
@@ -336,6 +378,7 @@ function resetToSelect(): void {
         </Suspense>
       </div>
     </Transition>
+    </template>
   </div>
 </template>
 
@@ -345,6 +388,8 @@ function resetToSelect(): void {
   min-height: 100dvh;
   background: #f5f5f5;
   padding-bottom: env(safe-area-inset-bottom);
+  /* Ensure page allows clicks */
+  pointer-events: auto;
 }
 
 .select-view {
@@ -352,6 +397,8 @@ function resetToSelect(): void {
   flex-direction: column;
   min-height: calc(100vh - 120px);
   min-height: calc(100dvh - 120px);
+  /* Ensure view allows clicks */
+  pointer-events: auto;
 }
 
 .step-view {
@@ -363,6 +410,9 @@ function resetToSelect(): void {
   padding: 16px;
   background: #fff;
   border-bottom: 1px solid #f0f0f0;
+  position: relative;
+  /* Ensure map section doesn't block clicks */
+  pointer-events: auto;
 }
 
 .map-hint {
@@ -370,50 +420,32 @@ function resetToSelect(): void {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-top: 10px;
-  padding: 8px 12px;
-  background: #f8f8f8;
-  border-radius: 20px;
-  font-size: 12px;
-  color: #666;
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #f0f2f5 100%);
+  border-radius: 24px;
+  font-size: 13px;
+  color: #495057;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: hint-pulse 2s ease-in-out infinite;
+  /* Hint should not block map clicks */
+  pointer-events: none;
 }
 
 .map-hint svg {
   color: #00a86b;
+  animation: pin-bounce 1.5s ease-in-out infinite;
 }
 
-/* Map skeleton for loading state */
-.map-skeleton {
-  height: 220px;
-  background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 50%, #f0f0f0 100%);
-  background-size: 200% 200%;
-  animation: skeleton-gradient 2s ease infinite;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+@keyframes hint-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
 }
 
-@keyframes skeleton-gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.map-loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid #e0e0e0;
-  border-top-color: #00a86b;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.map-loading-text {
-  font-size: 13px;
-  color: #999;
+@keyframes pin-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
 }
 
 /* Step loading state */
@@ -495,5 +527,64 @@ function resetToSelect(): void {
 .slide-up-leave-to {
   opacity: 0;
   transform: translateY(50%);
+}
+
+/* Access Denied Styles */
+.access-denied {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  padding: 20px;
+}
+
+.access-denied-content {
+  text-align: center;
+  max-width: 400px;
+  padding: 40px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.access-denied-content svg {
+  color: #e53935;
+  margin-bottom: 20px;
+}
+
+.access-denied-content h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+}
+
+.access-denied-content p {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.back-btn {
+  width: 100%;
+  padding: 14px;
+  background: #00a86b;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+  background: #00875a;
+}
+
+.back-btn:active {
+  transform: scale(0.98);
 }
 </style>

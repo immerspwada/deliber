@@ -80,9 +80,8 @@ async function initMap() {
     return
   }
 
-  // Dynamic import Leaflet
+  // Dynamic import Leaflet (CSS already loaded via CDN in index.html)
   const L = await import('leaflet')
-  await import('leaflet/dist/leaflet.css')
 
   // Default center (Bangkok)
   const center: [number, number] = props.userLocation 

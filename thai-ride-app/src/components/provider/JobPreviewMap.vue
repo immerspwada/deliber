@@ -83,7 +83,7 @@ async function initMap() {
   
   try {
     const L = await import('leaflet')
-    await import('leaflet/dist/leaflet.css')
+    // Note: Leaflet CSS already loaded via CDN in index.html
     
     // Calculate center and bounds
     const centerLat = (props.pickupLat + props.dropoffLat) / 2

@@ -78,9 +78,8 @@ const statusMessage = computed(() => {
 async function initMap(): Promise<void> {
   if (!mapContainer.value) return
 
-  // Dynamic import Leaflet
+  // Dynamic import Leaflet (CSS already loaded via CDN in index.html)
   const L = await import('leaflet')
-  await import('leaflet/dist/leaflet.css')
 
   // Create map centered on pickup
   map = L.map(mapContainer.value).setView([props.pickupLat, props.pickupLng], 15)

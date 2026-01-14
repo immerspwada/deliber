@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Admin Top-up Requests</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="min-h-screen p-4 md:p-6">
+    <!-- Header -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">จัดการคำขอเติมเงิน (Test)</h1>
+      <p class="text-sm text-gray-600 mt-1">ทดสอบ UI และ Logic</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg p-4 shadow-sm">
+        <div class="text-sm text-gray-600">รอดำเนินการ</div>
+        <div class="text-2xl font-bold text-orange-600 mt-1" id="pending-count">0</div>
+        <div class="text-xs text-gray-500 mt-1" id="pending-amount">฿0.00</div>
+      </div>
+
+      <div class="bg-white rounded-lg p-4 shadow-sm">
+        <div class="text-sm text-gray-600">อนุมัติแล้ว</div>
+        <div class="text-2xl font-bold text-green-600 mt-1" id="approved-count">0</div>
+        <div class="text-xs text-gray-500 mt-1" id="approved-amount">฿0.00</div>
+      </div>
+
+      <div class="bg-white rounded-lg p-4 shadow-sm">
+        <div class="text-sm text-gray-600">ปฏิเสธ</div>
+        <div class="text-2xl font-bold text-red-600 mt-1" id="rejected-count">0</div>
+      </div>
+
+      <div class="bg-white rounded-lg p-4 shadow-sm">
+        <div class="text-sm text-gray-600">เวลาเฉลี่ย</div>
+        <div class="text-2xl font-bold text-blue-600 mt-1" id="avg-time">0</div>
+        <div class="text-xs text-gray-500 mt-1">นาที</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+      <div class="flex flex-col md:flex-row gap-4">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="ค้นหา (รหัส, ชื่อ, เบอร์โทร)"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <select
+          id="status-filter"
+          class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="all">ทั้งหมด</option>
+          <option value="pending">รอดำเนินการ</option>
+          <option value="approved">อนุมัติแล้ว</option>
+          <option value="rejected">ปฏิเสธแล้ว</option>
+        </select>
+        <button
+          id="refresh-btn"
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          รีเฟรช
+        </button>
+      </div>
+    </div>
+
+    <!-- Requests List -->
+    <div id="requests-list" class="space-y-4">
+      <!-- Will be populated by JavaScript -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="text-center py-12 hidden">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <p class="text-gray-600 mt-2">ไม่พบคำขอเติมเงิน</p>
+    </div>
+  </div>
+
+  <!-- Reject Modal -->
+  <div id="reject-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 hidden">
+    <div class="bg-white rounded-lg max-w-md w-full p-6">
+      <h3 class="text-lg font-semibold mb-4">ปฏิเสธคำขอเติมเงิน</h3>
+      <p class="text-sm text-gray-600 mb-4">
+        รหัส: <span id="reject-tracking-id" class="font-mono font-semibold"></span>
+      </p>
+      <textarea
+        id="reject-note"
+        placeholder="ระบุเหตุผลในการปฏิเสธ (จำเป็น)"
+        rows="4"
+        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+      ></textarea>
+      <div class="flex gap-2 mt-4">
+        <button
+          id="confirm-reject-btn"
+          class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+        >
+          ยืนยันปฏิเสธ
+        </button>
+        <button
+          id="cancel-reject-btn"
+          class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+        >
+          ยกเลิก
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Mock data
+    const mockRequests = [
+      {
+        id: '1',
+        tracking_id: 'TOP-20260114-001234',
+        user_name: 'สมชาย ใจดี',
+        user_phone: '0812345678',
+        user_member_uid: 'MEM001',
+        amount: 500,
+        payment_method: 'promptpay',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        slip_url: 'https://via.placeholder.com/400x600?text=Slip'
+      },
+      {
+        id: '2',
+        tracking_id: 'TOP-20260114-001235',
+        user_name: 'สมหญิง รักดี',
+        user_phone: '0823456789',
+        user_member_uid: 'MEM002',
+        amount: 1000,
+        payment_method: 'bank_transfer',
+        status: 'pending',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        slip_url: 'https://via.placeholder.com/400x600?text=Slip'
+      },
+      {
+        id: '3',
+        tracking_id: 'TOP-20260113-001236',
+        user_name: 'สมศรี มีสุข',
+        user_phone: '0834567890',
+        user_member_uid: 'MEM003',
+        amount: 2000,
+        payment_method: 'promptpay',
+        status: 'approved',
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+        approved_at: new Date(Date.now() - 82800000).toISOString(),
+        admin_note: 'ตรวจสอบแล้ว ถูกต้อง'
+      },
+      {
+        id: '4',
+        tracking_id: 'TOP-20260113-001237',
+        user_name: 'สมปอง ดีงาม',
+        user_phone: '0845678901',
+        user_member_uid: 'MEM004',
+        amount: 300,
+        payment_method: 'bank_transfer',
+        status: 'rejected',
+        created_at: new Date(Date.now() - 172800000).toISOString(),
+        rejected_at: new Date(Date.now() - 169200000).toISOString(),
+        admin_note: 'สลิปไม่ชัดเจน'
+      }
+    ];
+
+    let requests = [...mockRequests];
+    let currentRejectRequest = null;
+
+    // Update stats
+    function updateStats() {
+      const pending = requests.filter(r => r.status === 'pending');
+      const approved = requests.filter(r => r.status === 'approved');
+      const rejected = requests.filter(r => r.status === 'rejected');
+
+      document.getElementById('pending-count').textContent = pending.length;
+      document.getElementById('approved-count').textContent = approved.length;
+      document.getElementById('rejected-count').textContent = rejected.length;
+
+      const pendingAmount = pending.reduce((sum, r) => sum + r.amount, 0);
+      const approvedAmount = approved.reduce((sum, r) => sum + r.amount, 0);
+
+      document.getElementById('pending-amount').textContent = `฿${pendingAmount.toFixed(2)}`;
+      document.getElementById('approved-amount').textContent = `฿${approvedAmount.toFixed(2)}`;
+
+      // Calculate avg processing time
+      const processed = requests.filter(r => r.approved_at || r.rejected_at);
+      if (processed.length > 0) {
+        const totalMinutes = processed.reduce((sum, r) => {
+          const created = new Date(r.created_at);
+          const processed = new Date(r.approved_at || r.rejected_at);
+          return sum + (processed - created) / 60000;
+        }, 0);
+        document.getElementById('avg-time').textContent = Math.round(totalMinutes / processed.length);
+      }
+    }
+
+    // Render requests
+    function renderRequests() {
+      const searchQuery = document.getElementById('search-input').value.toLowerCase();
+      const statusFilter = document.getElementById('status-filter').value;
+
+      let filtered = requests;
+
+      // Filter by status
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(r => r.status === statusFilter);
+      }
+
+      // Filter by search
+      if (searchQuery) {
+        filtered = filtered.filter(r =>
+          r.tracking_id.toLowerCase().includes(searchQuery) ||
+          r.user_name.toLowerCase().includes(searchQuery) ||
+          r.user_phone.includes(searchQuery) ||
+          r.user_member_uid.toLowerCase().includes(searchQuery)
+        );
+      }
+
+      const listEl = document.getElementById('requests-list');
+      const emptyEl = document.getElementById('empty-state');
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      listEl.innerHTML = filtered.map(request => `
+        <div class="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="font-mono text-sm font-semibold text-gray-900">${request.tracking_id}</span>
+                <span class="px-2 py-1 text-xs font-medium rounded-full ${getStatusClass(request.status)}">
+                  ${getStatusText(request.status)}
+                </span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                <div><span class="text-gray-600">ลูกค้า:</span> <span class="font-medium ml-1">${request.user_name}</span></div>
+                <div><span class="text-gray-600">เบอร์:</span> <span class="font-medium ml-1">${request.user_phone}</span></div>
+                <div><span class="text-gray-600">Member UID:</span> <span class="font-medium ml-1">${request.user_member_uid}</span></div>
+                <div><span class="text-gray-600">จำนวน:</span> <span class="font-bold text-lg text-green-600 ml-1">฿${request.amount.toFixed(2)}</span></div>
+                <div><span class="text-gray-600">ช่องทาง:</span> <span class="ml-1">${request.payment_method}</span></div>
+                <div><span class="text-gray-600">เวลา:</span> <span class="ml-1">${formatDateTime(request.created_at)}</span></div>
+              </div>
+              ${request.slip_url ? `
+                <div class="mt-3">
+                  <a href="${request.slip_url}" target="_blank" class="text-sm text-blue-600 hover:text-blue-700 underline">
+                    ดูสลิปการโอน
+                  </a>
+                </div>
+              ` : ''}
+              ${request.admin_note ? `
+                <div class="mt-2 text-sm">
+                  <span class="text-gray-600">หมายเหตุ:</span>
+                  <span class="ml-1 text-gray-800">${request.admin_note}</span>
+                </div>
+              ` : ''}
+            </div>
+            ${request.status === 'pending' ? `
+              <div class="flex gap-2">
+                <button
+                  onclick="handleApprove('${request.id}')"
+                  class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  อนุมัติ
+                </button>
+                <button
+                  onclick="handleReject('${request.id}')"
+                  class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  ปฏิเสธ
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getStatusClass(status) {
+      const classes = {
+        pending: 'bg-orange-100 text-orange-700',
+        approved: 'bg-green-100 text-green-700',
+        rejected: 'bg-red-100 text-red-700'
+      };
+      return classes[status] || 'bg-gray-100 text-gray-700';
+    }
+
+    function getStatusText(status) {
+      const texts = {
+        pending: 'รอดำเนินการ',
+        approved: 'อนุมัติแล้ว',
+        rejected: 'ปฏิเสธแล้ว'
+      };
+      return texts[status] || status;
+    }
+
+    function formatDateTime(dateString) {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('th-TH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    }
+
+    function handleApprove(id) {
+      const request = requests.find(r => r.id === id);
+      if (!request) return;
+
+      if (confirm(`ยืนยันการอนุมัติคำขอเติมเงิน ${request.tracking_id} จำนวน ฿${request.amount}?`)) {
+        request.status = 'approved';
+        request.approved_at = new Date().toISOString();
+        request.admin_note = 'อนุมัติโดยระบบทดสอบ';
+        
+        updateStats();
+        renderRequests();
+        alert('อนุมัติคำขอเติมเงินสำเร็จ');
+      }
+    }
+
+    function handleReject(id) {
+      const request = requests.find(r => r.id === id);
+      if (!request) return;
+
+      currentRejectRequest = request;
+      document.getElementById('reject-tracking-id').textContent = request.tracking_id;
+      document.getElementById('reject-note').value = '';
+      document.getElementById('reject-modal').classList.remove('hidden');
+    }
+
+    function closeRejectModal() {
+      currentRejectRequest = null;
+      document.getElementById('reject-modal').classList.add('hidden');
+    }
+
+    function confirmReject() {
+      const note = document.getElementById('reject-note').value.trim();
+      if (!note) {
+        alert('กรุณาระบุเหตุผลในการปฏิเสธ');
+        return;
+      }
+
+      if (currentRejectRequest) {
+        currentRejectRequest.status = 'rejected';
+        currentRejectRequest.rejected_at = new Date().toISOString();
+        currentRejectRequest.admin_note = note;
+        
+        updateStats();
+        renderRequests();
+        closeRejectModal();
+        alert('ปฏิเสธคำขอเติมเงินสำเร็จ');
+      }
+    }
+
+    // Event listeners
+    document.getElementById('search-input').addEventListener('input', renderRequests);
+    document.getElementById('status-filter').addEventListener('change', renderRequests);
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+      requests = [...mockRequests];
+      updateStats();
+      renderRequests();
+      alert('รีเฟรชข้อมูลสำเร็จ');
+    });
+    document.getElementById('cancel-reject-btn').addEventListener('click', closeRejectModal);
+    document.getElementById('confirm-reject-btn').addEventListener('click', confirmReject);
+
+    // Make functions global
+    window.handleApprove = handleApprove;
+    window.handleReject = handleReject;
+
+    // Initial render
+    updateStats();
+    renderRequests();
+
+    console.log('✅ Admin Top-up Requests Test Page Loaded');
+    console.log('📊 Mock Requests:', requests);
+  </script>
+</body>
+</html>

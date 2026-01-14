@@ -2,8 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
 import './styles/transitions.css'
-// Leaflet CSS - must be imported before components that use it
-import 'leaflet/dist/leaflet.css'
+// Note: Leaflet CSS loaded via CDN in index.html (no need to import here)
 // Leaflet fixes - override any conflicting styles
 import './styles/leaflet-fix.css'
 // NO ANIMATIONS - กดปุ๊บ มาปั๊บ (import LAST but uses specific selectors, not *)

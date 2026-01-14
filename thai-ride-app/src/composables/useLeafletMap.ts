@@ -1,6 +1,6 @@
 import { ref, onUnmounted, type Ref } from 'vue'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+// Note: Leaflet CSS loaded via CDN in index.html
 
 // Fix default marker icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -442,24 +442,123 @@ export function useLeafletMap() {
     const center = options.center || { lat: 13.7563, lng: 100.5018 }
     const zoom = options.zoom || 14
 
+    console.log('[MapView] 🚀 Initializing map at:', center, 'zoom:', zoom)
+
+    // Create map instance
     const map = L.map(element, {
       center: [center.lat, center.lng],
       zoom,
       zoomControl: true,
-      attributionControl: true
+      attributionControl: true,
+      preferCanvas: false, // Use SVG for better compatibility
+      zoomAnimation: true
     })
 
-    // CartoDB Positron (Light) - Uber-style clean map with offline caching
-    const tileLayer = new CachedTileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
+    console.log('[MapView] 📦 Map instance created')
+
+    // Create tile layer with proper configuration
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      subdomains: ['a', 'b', 'c'],
+      maxZoom: 19,
+      minZoom: 1,
+      tileSize: 256,
+      updateWhenIdle: false,
+      updateWhenZooming: true,
+      keepBuffer: 2,
+      className: 'osm-tiles'
     })
-    tileLayer.initializeCache() // Initialize cache (non-blocking)
+
+    // Track tile loading
+    let tilesLoading = 0
+    let tilesLoaded = 0
+    let tilesFailed = 0
+
+    tileLayer.on('loading', () => {
+      console.log('[MapView] 🔄 Tile layer started loading')
+      tilesLoading = 0
+      tilesLoaded = 0
+      tilesFailed = 0
+    })
+
+    tileLayer.on('tileloadstart', () => {
+      tilesLoading++
+      console.log('[MapView] 📥 Tile load started (total loading:', tilesLoading, ')')
+    })
+
+    tileLayer.on('tileload', (e) => {
+      tilesLoaded++
+      console.log('[MapView] ✅ Tile loaded:', e.coords, '(total loaded:', tilesLoaded, ')')
+    })
+
+    tileLayer.on('tileerror', (error) => {
+      tilesFailed++
+      console.error('[MapView] ❌ Tile load error:', {
+        coords: error.coords,
+        url: (error.tile as HTMLImageElement)?.src,
+        total_failed: tilesFailed
+      })
+    })
+
+    tileLayer.on('load', () => {
+      console.log('[MapView] ✅ All tiles loaded successfully!', {
+        loaded: tilesLoaded,
+        failed: tilesFailed
+      })
+      
+      // Force map to recalculate size and redraw
+      setTimeout(() => {
+        if (map) {
+          map.invalidateSize({ pan: false })
+          console.log('[MapView] 🔄 Map size invalidated and redrawn')
+        }
+      }, 100)
+    })
+
+    // Add tile layer to map
     tileLayer.addTo(map)
+    console.log('[MapView] 📍 Tile layer added to map')
+
+    // Check if tiles are actually visible after a delay
+    setTimeout(() => {
+      const container = map.getContainer()
+      const tilePane = container.querySelector('.leaflet-tile-pane')
+      const tiles = tilePane?.querySelectorAll('img.leaflet-tile')
+      
+      console.log('[MapView] 🔍 Tile check:', {
+        container_exists: !!container,
+        tile_pane_exists: !!tilePane,
+        tile_count: tiles?.length || 0,
+        tile_pane_styles: tilePane ? {
+          opacity: window.getComputedStyle(tilePane).opacity,
+          visibility: window.getComputedStyle(tilePane).visibility,
+          display: window.getComputedStyle(tilePane).display,
+          zIndex: window.getComputedStyle(tilePane).zIndex
+        } : null
+      })
+
+      if (tiles && tiles.length > 0) {
+        const firstTile = tiles[0] as HTMLImageElement
+        console.log('[MapView] 🖼️ First tile details:', {
+          src: firstTile.src,
+          complete: firstTile.complete,
+          naturalWidth: firstTile.naturalWidth,
+          naturalHeight: firstTile.naturalHeight,
+          width: firstTile.width,
+          height: firstTile.height,
+          opacity: window.getComputedStyle(firstTile).opacity,
+          visibility: window.getComputedStyle(firstTile).visibility
+        })
+      } else {
+        console.warn('[MapView] ⚠️ No tiles found in DOM!')
+      }
+    }, 1000)
 
     mapInstance.value = map
     isMapReady.value = true
+    
+    console.log('[MapView] ✅ Map initialization complete, isMapReady:', isMapReady.value)
+    
     return map
   }
 

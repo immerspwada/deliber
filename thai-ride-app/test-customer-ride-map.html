@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Customer Ride Map - Debug</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: #1a1a1a;
+    }
+    
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    
+    .status.info {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+    
+    .status.success {
+      background: #e8f5e9;
+      color: #388e3c;
+    }
+    
+    .status.error {
+      background: #ffebee;
+      color: #d32f2f;
+    }
+    
+    .map-wrapper {
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 16px;
+    }
+    
+    #map {
+      width: 100%;
+      height: 400px;
+    }
+    
+    .controls {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #00a86b;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      background: #00875a;
+    }
+    
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    button.secondary {
+      background: #6c757d;
+    }
+    
+    button.secondary:hover {
+      background: #5a6268;
+    }
+    
+    .log {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .log h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #1a1a1a;
+    }
+    
+    .log-entry {
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      background: #f8f9fa;
+      color: #495057;
+    }
+    
+    .log-entry.error {
+      background: #ffebee;
+      color: #d32f2f;
+    }
+    
+    .log-entry.success {
+      background: #e8f5e9;
+      color: #388e3c;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗺️ Test Customer Ride Map</h1>
+    
+    <div id="status" class="status info">
+      กำลังโหลด Leaflet...
+    </div>
+    
+    <div class="map-wrapper">
+      <div id="map"></div>
+    </div>
+    
+    <div class="controls">
+      <button onclick="testCurrentLocation()">📍 ทดสอบตำแหน่งปัจจุบัน</button>
+      <button onclick="testAddMarkers()">📌 เพิ่ม Markers</button>
+      <button onclick="testRoute()">🛣️ ทดสอบเส้นทาง</button>
+      <button onclick="testMapClick()">👆 ทดสอบคลิกแผนที่</button>
+      <button class="secondary" onclick="clearMap()">🗑️ ล้างแผนที่</button>
+    </div>
+    
+    <div class="log">
+      <h3>📋 Debug Log</h3>
+      <div id="log-container"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map = null;
+    let markers = [];
+    let routeLine = null;
+    let clickEnabled = false;
+    
+    function log(message, type = 'info') {
+      const container = document.getElementById('log-container');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString('th-TH')}] ${message}`;
+      container.insertBefore(entry, container.firstChild);
+      console.log(message);
+    }
+    
+    function updateStatus(message, type = 'info') {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = `status ${type}`;
+    }
+    
+    // Initialize map
+    function initMap() {
+      try {
+        log('กำลังสร้างแผนที่...', 'info');
+        
+        // Default center (Bangkok)
+        const center = [13.7563, 100.5018];
+        
+        map = L.map('map', {
+          center: center,
+          zoom: 14,
+          zoomControl: true,
+          attributionControl: true
+        });
+        
+        log('เพิ่ม Tile Layer...', 'info');
+        
+        // CartoDB Positron (Light) - Same as production
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: 'abcd',
+          maxZoom: 20
+        }).addTo(map);
+        
+        log('แผนที่พร้อมใช้งาน!', 'success');
+        updateStatus('✅ แผนที่โหลดสำเร็จ', 'success');
+        
+        // Add click handler
+        map.on('click', function(e) {
+          if (clickEnabled) {
+            log(`คลิกที่: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`, 'success');
+            addMarker(e.latlng.lat, e.latlng.lng, 'คลิกที่นี่');
+          }
+        });
+        
+      } catch (error) {
+        log(`ERROR: ${error.message}`, 'error');
+        updateStatus('❌ เกิดข้อผิดพลาดในการโหลดแผนที่', 'error');
+        console.error('Map init error:', error);
+      }
+    }
+    
+    function testCurrentLocation() {
+      log('กำลังขอตำแหน่งปัจจุบัน...', 'info');
+      updateStatus('🔍 กำลังค้นหาตำแหน่ง...', 'info');
+      
+      if (!navigator.geolocation) {
+        log('ERROR: Geolocation ไม่รองรับ', 'error');
+        updateStatus('❌ เบราว์เซอร์ไม่รองรับ Geolocation', 'error');
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
+          log(`ตำแหน่งปัจจุบัน: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'success');
+          updateStatus('✅ พบตำแหน่งแล้ว', 'success');
+          
+          map.setView([lat, lng], 16);
+          addMarker(lat, lng, 'ตำแหน่งของคุณ', 'pickup');
+        },
+        (error) => {
+          log(`ERROR: ${error.message}`, 'error');
+          updateStatus('❌ ไม่สามารถหาตำแหน่งได้', 'error');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+    
+    function addMarker(lat, lng, title, type = 'default') {
+      if (!map) {
+        log('ERROR: แผนที่ยังไม่พร้อม', 'error');
+        return;
+      }
+      
+      const marker = L.marker([lat, lng]).addTo(map);
+      marker.bindPopup(title);
+      markers.push(marker);
+      
+      log(`เพิ่ม Marker: ${title} (${lat.toFixed(6)}, ${lng.toFixed(6)})`, 'success');
+    }
+    
+    function testAddMarkers() {
+      log('เพิ่ม Test Markers...', 'info');
+      
+      // Pickup (Bangkok)
+      addMarker(13.7563, 100.5018, '📍 จุดรับ', 'pickup');
+      
+      // Destination (nearby)
+      addMarker(13.7463, 100.5318, '🏁 จุดหมาย', 'destination');
+      
+      // Fit bounds
+      if (markers.length >= 2) {
+        const bounds = L.latLngBounds(markers.map(m => m.getLatLng()));
+        map.fitBounds(bounds, { padding: [50, 50] });
+        log('ปรับมุมมองแผนที่ให้เห็น Markers ทั้งหมด', 'success');
+      }
+      
+      updateStatus('✅ เพิ่ม Markers สำเร็จ', 'success');
+    }
+    
+    async function testRoute() {
+      if (markers.length < 2) {
+        log('ERROR: ต้องมี Markers อย่างน้อย 2 จุด', 'error');
+        updateStatus('❌ กรุณาเพิ่ม Markers ก่อน', 'error');
+        return;
+      }
+      
+      log('กำลังคำนวณเส้นทาง...', 'info');
+      updateStatus('🔄 กำลังคำนวณเส้นทาง...', 'info');
+      
+      const start = markers[0].getLatLng();
+      const end = markers[markers.length - 1].getLatLng();
+      
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+        
+        log(`OSRM URL: ${url}`, 'info');
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.code !== 'Ok' || !data.routes[0]) {
+          throw new Error('ไม่พบเส้นทาง');
+        }
+        
+        const route = data.routes[0];
+        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        
+        // Draw route
+        if (routeLine) {
+          map.removeLayer(routeLine);
+        }
+        
+        routeLine = L.polyline(coordinates, {
+          color: '#000000',
+          weight: 4,
+          opacity: 0.8
+        }).addTo(map);
+        
+        map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+        
+        const distance = (route.distance / 1000).toFixed(1);
+        const duration = Math.ceil(route.duration / 60);
+        
+        log(`เส้นทาง: ${distance} กม., ${duration} นาที`, 'success');
+        updateStatus(`✅ เส้นทาง: ${distance} กม., ${duration} นาที`, 'success');
+        
+      } catch (error) {
+        log(`ERROR: ${error.message}`, 'error');
+        updateStatus('❌ ไม่สามารถคำนวณเส้นทางได้', 'error');
+      }
+    }
+    
+    function testMapClick() {
+      clickEnabled = !clickEnabled;
+      
+      if (clickEnabled) {
+        log('เปิดใช้งานคลิกแผนที่', 'success');
+        updateStatus('👆 คลิกบนแผนที่เพื่อเพิ่ม Marker', 'info');
+      } else {
+        log('ปิดใช้งานคลิกแผนที่', 'info');
+        updateStatus('✅ แผนที่พร้อมใช้งาน', 'success');
+      }
+    }
+    
+    function clearMap() {
+      log('ล้างแผนที่...', 'info');
+      
+      // Remove markers
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      
+      // Remove route
+      if (routeLine) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+      }
+      
+      clickEnabled = false;
+      
+      log('ล้างแผนที่สำเร็จ', 'success');
+      updateStatus('✅ ล้างแผนที่สำเร็จ', 'success');
+    }
+    
+    // Initialize on load
+    window.addEventListener('load', () => {
+      log('เริ่มต้นระบบ...', 'info');
+      setTimeout(initMap, 100);
+    });
+  </script>
+</body>
+</html>

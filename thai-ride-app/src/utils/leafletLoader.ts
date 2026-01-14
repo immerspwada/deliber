@@ -1,6 +1,7 @@
 /**
  * Centralized Leaflet Loader - Prevents CSS Import Duplication
  * MUNEEF Design System - Performance Optimized
+ * Note: Leaflet CSS is loaded via CDN in index.html
  */
 
 let leafletLoaded = false
@@ -12,8 +13,8 @@ export interface LeafletLoader {
 }
 
 /**
- * Load Leaflet library and CSS only once
- * Prevents duplicate CSS imports and improves performance
+ * Load Leaflet library only once (CSS already loaded via CDN)
+ * Prevents duplicate imports and improves performance
  */
 export async function loadLeaflet(): Promise<LeafletLoader> {
   if (leafletLoaded && leafletPromise) {
@@ -22,10 +23,8 @@ export async function loadLeaflet(): Promise<LeafletLoader> {
   }
 
   if (!leafletPromise) {
-    // Import CSS first to ensure styles are loaded
-    leafletPromise = import('leaflet/dist/leaflet.css').then(() => {
-      return import('leaflet')
-    }).then((leafletModule) => {
+    // Import Leaflet JS only (CSS already in index.html)
+    leafletPromise = import('leaflet').then((leafletModule) => {
       leafletLoaded = true
       return leafletModule
     })

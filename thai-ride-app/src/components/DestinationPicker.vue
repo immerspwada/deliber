@@ -40,7 +40,6 @@ const emit = defineEmits<{
 // Composables
 const { 
   results: searchResults, 
-  groupedResults,
   loading: searchLoading, 
   searchPlaces, 
   clearResults 
@@ -68,14 +67,14 @@ const showPreview = ref(false)
 const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const LONG_PRESS_DURATION = 500 // ms
 
-// Popular places in Bangkok
+// Popular places in Bangkok with cute emojis
 const popularPlaces = [
-  { id: 'central', name: 'เซ็นทรัลเวิลด์', address: 'ราชดำริ, ปทุมวัน', lat: 13.7466, lng: 100.5391, icon: 'shopping' },
-  { id: 'siam', name: 'สยามพารากอน', address: 'พระราม 1, ปทุมวัน', lat: 13.7461, lng: 100.5347, icon: 'shopping' },
-  { id: 'terminal21', name: 'เทอร์มินอล 21', address: 'สุขุมวิท, วัฒนา', lat: 13.7377, lng: 100.5603, icon: 'shopping' },
-  { id: 'suvarnabhumi', name: 'สนามบินสุวรรณภูมิ', address: 'บางพลี, สมุทรปราการ', lat: 13.69, lng: 100.7501, icon: 'airport' },
-  { id: 'donmuang', name: 'สนามบินดอนเมือง', address: 'ดอนเมือง, กรุงเทพฯ', lat: 13.9126, lng: 100.6068, icon: 'airport' },
-  { id: 'mochit', name: 'หมอชิต', address: 'จตุจักร, กรุงเทพฯ', lat: 13.8022, lng: 100.553, icon: 'transport' },
+  { id: 'central', name: 'เซ็นทรัลเวิลด์', address: 'ราชดำริ, ปทุมวัน', lat: 13.7466, lng: 100.5391, icon: 'shopping', emoji: '🛍️' },
+  { id: 'siam', name: 'สยามพารากอน', address: 'พระราม 1, ปทุมวัน', lat: 13.7461, lng: 100.5347, icon: 'shopping', emoji: '✨' },
+  { id: 'terminal21', name: 'เทอร์มินอล 21', address: 'สุขุมวิท, วัฒนา', lat: 13.7377, lng: 100.5603, icon: 'shopping', emoji: '🎪' },
+  { id: 'suvarnabhumi', name: 'สนามบินสุวรรณภูมิ', address: 'บางพลี, สมุทรปราการ', lat: 13.69, lng: 100.7501, icon: 'airport', emoji: '✈️' },
+  { id: 'donmuang', name: 'สนามบินดอนเมือง', address: 'ดอนเมือง, กรุงเทพฯ', lat: 13.9126, lng: 100.6068, icon: 'airport', emoji: '🛫' },
+  { id: 'mochit', name: 'หมอชิต', address: 'จตุจักร, กรุงเทพฯ', lat: 13.8022, lng: 100.553, icon: 'transport', emoji: '🚌' },
 ]
 
 // Show mode: 'suggestions' | 'search'
@@ -404,7 +403,10 @@ watch(() => searchQuery.value, () => {
 
         <!-- Quick Destinations (Home/Work) -->
         <div v-if="quickSuggestions.length > 0" class="section">
-          <h3 class="section-title">ไปบ่อย</h3>
+          <h3 class="section-title">
+            <span class="title-emoji">⚡</span>
+            ไปบ่อย
+          </h3>
           <div class="quick-chips">
             <button
               v-if="homePlace"
@@ -412,10 +414,7 @@ watch(() => searchQuery.value, () => {
               @click="selectPlace({ name: 'บ้าน', address: homePlace.address, lat: homePlace.lat, lng: homePlace.lng })"
             >
               <div class="chip-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                  <polyline points="9,22 9,12 15,12 15,22" />
-                </svg>
+                <span class="chip-emoji">🏠</span>
               </div>
               <div class="chip-text">
                 <span class="chip-label">บ้าน</span>
@@ -429,10 +428,7 @@ watch(() => searchQuery.value, () => {
               @click="selectPlace({ name: 'ที่ทำงาน', address: workPlace.address, lat: workPlace.lat, lng: workPlace.lng })"
             >
               <div class="chip-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="7" width="20" height="14" rx="2" />
-                  <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
-                </svg>
+                <span class="chip-emoji">💼</span>
               </div>
               <div class="chip-text">
                 <span class="chip-label">ที่ทำงาน</span>
@@ -444,7 +440,10 @@ watch(() => searchQuery.value, () => {
 
         <!-- Recent Destinations -->
         <div v-if="recentDestinations.length > 0" class="section">
-          <h3 class="section-title">ไปเมื่อเร็วๆ นี้</h3>
+          <h3 class="section-title">
+            <span class="title-emoji">🕐</span>
+            ไปเมื่อเร็วๆ นี้
+          </h3>
           <div class="places-list">
             <button
               v-for="place in recentDestinations.slice(0, 5)"
@@ -480,7 +479,10 @@ watch(() => searchQuery.value, () => {
 
         <!-- Favorite Places -->
         <div v-if="favoritePlaces.length > 0" class="section">
-          <h3 class="section-title">สถานที่โปรด</h3>
+          <h3 class="section-title">
+            <span class="title-emoji">⭐</span>
+            สถานที่โปรด
+          </h3>
           <div class="places-list">
             <button
               v-for="place in favoritePlaces.slice(0, 5)"
@@ -509,7 +511,10 @@ watch(() => searchQuery.value, () => {
 
         <!-- Popular Destinations -->
         <div class="section">
-          <h3 class="section-title">สถานที่ยอดนิยม</h3>
+          <h3 class="section-title">
+            <span class="title-emoji">🌟</span>
+            สถานที่ยอดนิยม
+          </h3>
           <div class="popular-grid">
             <button
               v-for="place in popularPlaces"
@@ -517,22 +522,7 @@ watch(() => searchQuery.value, () => {
               class="popular-item"
               @click="selectPlace(place)"
             >
-              <div :class="['popular-icon', place.icon]">
-                <svg v-if="place.icon === 'shopping'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <path d="M16 10a4 4 0 01-8 0" />
-                </svg>
-                <svg v-else-if="place.icon === 'airport'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="1" y="3" width="15" height="13" rx="2" />
-                  <path d="M16 8h4a2 2 0 012 2v6a2 2 0 01-2 2h-4" />
-                  <circle cx="5.5" cy="18.5" r="2.5" />
-                  <circle cx="18.5" cy="18.5" r="2.5" />
-                </svg>
-              </div>
+              <div class="popular-emoji">{{ place.emoji }}</div>
               <span class="popular-name">{{ place.name }}</span>
             </button>
           </div>
@@ -781,12 +771,20 @@ watch(() => searchQuery.value, () => {
 }
 
 .section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   color: #888;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 12px;
+}
+
+.title-emoji {
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* Quick Chips */
@@ -815,7 +813,7 @@ watch(() => searchQuery.value, () => {
   background: #f0fdf4;
 }
 
-.quick-chip .chip-icon {
+.chip-icon {
   width: 44px;
   height: 44px;
   display: flex;
@@ -825,14 +823,17 @@ watch(() => searchQuery.value, () => {
   flex-shrink: 0;
 }
 
+.chip-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+
 .quick-chip.home .chip-icon {
-  background: #FEF3C7;
-  color: #D97706;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
 }
 
 .quick-chip.work .chip-icon {
-  background: #DBEAFE;
-  color: #2563EB;
+  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
 }
 
 .chip-icon svg {
@@ -945,47 +946,25 @@ watch(() => searchQuery.value, () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 16px 8px;
-  background: #f8f9fa;
-  border: none;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 18px 12px;
+  background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%);
+  border: 2px solid transparent;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .popular-item:active {
   transform: scale(0.95);
-  background: #f0f0f0;
+  background: linear-gradient(135deg, #F5F5F5 0%, #EFEFEF 100%);
+  border-color: #00A86B;
 }
 
-.popular-icon {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-}
-
-.popular-icon.shopping {
-  background: #FCE7F3;
-  color: #DB2777;
-}
-
-.popular-icon.airport {
-  background: #DBEAFE;
-  color: #2563EB;
-}
-
-.popular-icon.transport {
-  background: #D1FAE5;
-  color: #059669;
-}
-
-.popular-icon svg {
-  width: 22px;
-  height: 22px;
+.popular-emoji {
+  font-size: 32px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 .popular-name {

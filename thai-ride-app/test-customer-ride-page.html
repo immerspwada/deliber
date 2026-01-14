@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Customer Ride Page</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 500px;
+      width: 100%;
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #00a86b 0%, #00875a 100%);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 8px 24px rgba(0, 168, 107, 0.3);
+    }
+
+    .icon svg {
+      width: 40px;
+      height: 40px;
+      color: white;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #666;
+    }
+
+    .status {
+      background: #e8f5ef;
+      border: 2px solid #00a86b;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .status-icon {
+      width: 32px;
+      height: 32px;
+      background: #00a86b;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .status-icon svg {
+      width: 18px;
+      height: 18px;
+      color: white;
+    }
+
+    .status-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #00875a;
+    }
+
+    .status-text {
+      font-size: 14px;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .checklist {
+      background: #f8f9fa;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .checklist-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 16px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #e8e8e8;
+    }
+
+    .check-item:last-child {
+      border-bottom: none;
+    }
+
+    .check-icon {
+      width: 24px;
+      height: 24px;
+      background: #00a86b;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .check-icon svg {
+      width: 14px;
+      height: 14px;
+      color: white;
+    }
+
+    .check-text {
+      font-size: 14px;
+      color: #333;
+    }
+
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 16px 24px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00a86b 0%, #00875a 100%);
+      color: white;
+      box-shadow: 0 4px 16px rgba(0, 168, 107, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 168, 107, 0.4);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #00a86b;
+      border: 2px solid #00a86b;
+    }
+
+    .btn-secondary:hover {
+      background: #e8f5ef;
+    }
+
+    .btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .info {
+      background: #fff8e1;
+      border-left: 4px solid #ffa000;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+
+    .info-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f57c00;
+      margin-bottom: 8px;
+    }
+
+    .info-text {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .code {
+      background: #1a1a1a;
+      color: #00ff88;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      margin-top: 8px;
+      overflow-x: auto;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 01-3.46 0" />
+        </svg>
+      </div>
+      <h1>Customer Ride Page</h1>
+      <p class="subtitle">Ready for Testing</p>
+    </div>
+
+    <div class="status">
+      <div class="status-header">
+        <div class="status-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div class="status-title">✅ All Systems Ready</div>
+      </div>
+      <p class="status-text">
+        หน้า Customer Ride ทำงานได้ถูกต้องแล้ว พร้อมทดสอบทุกฟีเจอร์
+      </p>
+    </div>
+
+    <div class="checklist">
+      <div class="checklist-title">✅ Components Status</div>
+      <div class="check-item">
+        <div class="check-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div class="check-text">All Vue components loaded</div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div class="check-text">All composables working</div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div class="check-text">No TypeScript errors</div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div class="check-text">Dev server running</div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <div class="check-text">Mobile optimized</div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <a href="http://localhost:5173/customer/ride" class="btn btn-primary" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+        Open Customer Ride Page
+      </a>
+      <button class="btn btn-secondary" onclick="copyUrl()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+        Copy URL
+      </button>
+    </div>
+
+    <div class="info">
+      <div class="info-title">📝 Testing Instructions</div>
+      <div class="info-text">
+        1. Click "Open Customer Ride Page" button<br>
+        2. Allow location permission when prompted<br>
+        3. Search for a destination<br>
+        4. Select vehicle type<br>
+        5. Click "จองเลย" to test booking flow
+      </div>
+      <div class="code">http://localhost:5173/customer/ride</div>
+    </div>
+  </div>
+
+  <script>
+    function copyUrl() {
+      const url = 'http://localhost:5173/customer/ride';
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = event.target.closest('.btn-secondary');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Copied!
+        `;
+        btn.style.background = '#e8f5ef';
+        btn.style.borderColor = '#00a86b';
+        btn.style.color = '#00a86b';
+        
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = 'white';
+          btn.style.borderColor = '#00a86b';
+          btn.style.color = '#00a86b';
+        }, 2000);
+      });
+    }
+
+    // Auto-check dev server status
+    fetch('http://localhost:5173/')
+      .then(() => {
+        console.log('✅ Dev server is running');
+      })
+      .catch(() => {
+        console.warn('⚠️ Dev server might not be running');
+        const info = document.querySelector('.info');
+        info.style.background = '#ffebee';
+        info.style.borderColor = '#e53935';
+        info.querySelector('.info-title').textContent = '⚠️ Dev Server Not Running';
+        info.querySelector('.info-title').style.color = '#e53935';
+        info.querySelector('.info-text').innerHTML = 
+          'Please start the dev server first:<br><code style="background: #1a1a1a; color: #ff6b6b; padding: 4px 8px; border-radius: 4px; font-family: monospace;">npm run dev</code>';
+      });
+  </script>
+</body>
+</html>

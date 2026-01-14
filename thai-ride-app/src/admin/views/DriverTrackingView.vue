@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { supabase } from '../../lib/supabase'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+// Note: Leaflet CSS loaded via CDN in index.html
 
 interface ProviderLocation {
   id: string

@@ -287,10 +287,7 @@ onUnmounted(() => {
             @click="selectPlace({ name: 'บ้าน', address: homePlace.address, lat: homePlace.lat, lng: homePlace.lng })"
           >
             <div class="quick-icon home">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9,22 9,12 15,12 15,22" />
-              </svg>
+              <span class="quick-emoji">🏠</span>
             </div>
             <span class="quick-label">บ้าน</span>
           </button>
@@ -301,10 +298,7 @@ onUnmounted(() => {
             @click="selectPlace({ name: 'ที่ทำงาน', address: workPlace.address, lat: workPlace.lat, lng: workPlace.lng })"
           >
             <div class="quick-icon work">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="7" width="20" height="14" rx="2" />
-                <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
-              </svg>
+              <span class="quick-emoji">💼</span>
             </div>
             <span class="quick-label">ที่ทำงาน</span>
           </button>
@@ -312,7 +306,10 @@ onUnmounted(() => {
 
         <!-- Recent Pickup Places -->
         <div v-if="recentPickups.length > 0" class="section">
-          <h3 class="section-title">รับเมื่อเร็วๆ นี้</h3>
+          <h3 class="section-title">
+            <span class="title-emoji">🕐</span>
+            รับเมื่อเร็วๆ นี้
+          </h3>
           <div class="places-list">
             <button
               v-for="place in recentPickups.slice(0, 5)"
@@ -622,19 +619,22 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
+.quick-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+
 .quick-icon.map {
   background: linear-gradient(135deg, #00A86B 0%, #00875A 100%);
   color: #fff;
 }
 
 .quick-icon.home {
-  background: #FEF3C7;
-  color: #D97706;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
 }
 
 .quick-icon.work {
-  background: #DBEAFE;
-  color: #2563EB;
+  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
 }
 
 .quick-icon svg {
@@ -655,12 +655,20 @@ onUnmounted(() => {
 }
 
 .section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   color: #888;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 10px;
+}
+
+.title-emoji {
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* Places List */

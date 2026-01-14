@@ -7,7 +7,7 @@
  */
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+// Note: Leaflet CSS loaded via CDN in index.html
 import { useServices, type SavedPlace } from '../composables/useServices'
 
 // Fix default marker icons
