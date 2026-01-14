@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Map Display - Thai Ride App</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .test-section {
+      margin-bottom: 30px;
+    }
+    
+    .test-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #666;
+    }
+    
+    #map1, #map2, #map3 {
+      width: 100%;
+      height: 220px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #e0e0e0;
+    }
+    
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    
+    .status.loading {
+      background: #fff3cd;
+      color: #856404;
+    }
+    
+    .info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e7f3ff;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    
+    .info strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗺️ ทดสอบการแสดงผลแผนที่</h1>
+    
+    <!-- Test 1: Basic Map -->
+    <div class="test-section">
+      <div class="test-title">Test 1: แผนที่พื้นฐาน (Su-ngai Kolok)</div>
+      <div id="map1"></div>
+      <div id="status1" class="status loading">กำลังโหลด...</div>
+    </div>
+    
+    <!-- Test 2: Map with Marker -->
+    <div class="test-section">
+      <div class="test-title">Test 2: แผนที่ + Marker</div>
+      <div id="map2"></div>
+      <div id="status2" class="status loading">กำลังโหลด...</div>
+    </div>
+    
+    <!-- Test 3: Map with Route -->
+    <div class="test-section">
+      <div class="test-title">Test 3: แผนที่ + เส้นทาง</div>
+      <div id="map3"></div>
+      <div id="status3" class="status loading">กำลังโหลด...</div>
+    </div>
+    
+    <div class="info">
+      <strong>วิธีตรวจสอบ:</strong>
+      1. เปิด Browser Console (F12)<br>
+      2. ดูว่ามี error สีแดงหรือไม่<br>
+      3. ตรวจสอบ Network tab ว่า tile images โหลดสำเร็จหรือไม่<br>
+      4. ถ้าแผนที่แสดงผล = ✅ ไม่มีปัญหา<br>
+      5. ถ้าแผนที่ไม่แสดง = ❌ ดู Console error
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Su-ngai Kolok coordinates
+    const SUNGAI_KOLOK = { lat: 6.0296, lng: 101.9653 };
+    
+    // Test 1: Basic Map
+    try {
+      const map1 = L.map('map1').setView([SUNGAI_KOLOK.lat, SUNGAI_KOLOK.lng], 14);
+      
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map1);
+      
+      setTimeout(() => {
+        document.getElementById('status1').className = 'status success';
+        document.getElementById('status1').textContent = '✅ แผนที่โหลดสำเร็จ';
+      }, 1000);
+    } catch (error) {
+      document.getElementById('status1').className = 'status error';
+      document.getElementById('status1').textContent = '❌ Error: ' + error.message;
+      console.error('Map 1 Error:', error);
+    }
+    
+    // Test 2: Map with Marker
+    try {
+      const map2 = L.map('map2').setView([SUNGAI_KOLOK.lat, SUNGAI_KOLOK.lng], 15);
+      
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map2);
+      
+      // Add marker
+      const marker = L.marker([SUNGAI_KOLOK.lat, SUNGAI_KOLOK.lng]).addTo(map2);
+      marker.bindPopup('Su-ngai Kolok').openPopup();
+      
+      setTimeout(() => {
+        document.getElementById('status2').className = 'status success';
+        document.getElementById('status2').textContent = '✅ แผนที่ + Marker โหลดสำเร็จ';
+      }, 1000);
+    } catch (error) {
+      document.getElementById('status2').className = 'status error';
+      document.getElementById('status2').textContent = '❌ Error: ' + error.message;
+      console.error('Map 2 Error:', error);
+    }
+    
+    // Test 3: Map with Route
+    try {
+      const map3 = L.map('map3').setView([SUNGAI_KOLOK.lat, SUNGAI_KOLOK.lng], 14);
+      
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map3);
+      
+      // Add route
+      const pickup = [SUNGAI_KOLOK.lat, SUNGAI_KOLOK.lng];
+      const destination = [SUNGAI_KOLOK.lat + 0.01, SUNGAI_KOLOK.lng + 0.01];
+      
+      L.marker(pickup).addTo(map3).bindPopup('จุดรับ');
+      L.marker(destination).addTo(map3).bindPopup('จุดหมาย');
+      
+      const route = L.polyline([pickup, destination], {
+        color: '#000',
+        weight: 4,
+        opacity: 0.8
+      }).addTo(map3);
+      
+      map3.fitBounds(route.getBounds(), { padding: [50, 50] });
+      
+      setTimeout(() => {
+        document.getElementById('status3').className = 'status success';
+        document.getElementById('status3').textContent = '✅ แผนที่ + เส้นทาง โหลดสำเร็จ';
+      }, 1000);
+    } catch (error) {
+      document.getElementById('status3').className = 'status error';
+      document.getElementById('status3').textContent = '❌ Error: ' + error.message;
+      console.error('Map 3 Error:', error);
+    }
+    
+    // Log Leaflet version
+    console.log('Leaflet Version:', L.version);
+    console.log('Test Location:', SUNGAI_KOLOK);
+  </script>
+</body>
+</html>

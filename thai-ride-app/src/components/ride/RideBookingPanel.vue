@@ -12,6 +12,7 @@ import RidePaymentMethod, { type PaymentMethod } from './RidePaymentMethod.vue'
 import RideSchedulePicker from './RideSchedulePicker.vue'
 import RideMultiStop from './RideMultiStop.vue'
 import NotesInput from './NotesInput.vue'
+import SmartPromoSuggestion from '@/components/customer/SmartPromoSuggestion.vue'
 
 const props = defineProps<{
   pickup: GeoLocation | null
@@ -111,7 +112,7 @@ function handleSelectVehicle(vehicleId: string): void {
   }, 80)
 }
 
-// Handle promo code
+// Handle promo code from manual input
 async function handleApplyPromo(code: string): Promise<void> {
   isValidatingPromo.value = true
   
@@ -136,6 +137,13 @@ async function handleApplyPromo(code: string): Promise<void> {
   }
   
   isValidatingPromo.value = false
+}
+
+// Handle promo from Smart Promo component
+function handleSmartPromoApplied(result: { code: string; discount: number; finalFare: number }): void {
+  triggerHaptic('medium')
+  promoCode.value = result.code
+  promoDiscount.value = result.discount
 }
 
 function handleRemovePromo(): void {
@@ -290,14 +298,40 @@ function getVehicleIcon(icon: string): string {
       placeholder="เพิ่มข้อความถึงคนขับ เช่น รอที่ล็อบบี้, โทรเมื่อถึง..."
     />
 
-    <!-- Promo Code Input -->
+    <!-- Smart Promo Suggestion (AI-powered) -->
+    <SmartPromoSuggestion
+      v-if="!promoCode && estimatedFare > 0"
+      service-type="ride"
+      :estimated-fare="estimatedFare"
+      :pickup="pickup"
+      @applied="handleSmartPromoApplied"
+    />
+
+    <!-- Manual Promo Code Input (fallback) -->
     <RidePromoInput
+      v-if="!promoCode"
       :applied-code="promoCode ?? undefined"
       :discount="promoDiscount"
       :is-validating="isValidatingPromo"
       @apply="handleApplyPromo"
       @remove="handleRemovePromo"
     />
+    
+    <!-- Applied Promo Display -->
+    <div v-else class="applied-promo-badge">
+      <div class="promo-info">
+        <span class="promo-icon">🎁</span>
+        <div class="promo-details">
+          <span class="promo-code">{{ promoCode }}</span>
+          <span class="promo-savings">ประหยัด ฿{{ promoDiscount.toLocaleString() }}</span>
+        </div>
+      </div>
+      <button class="remove-promo-btn" @click="handleRemovePromo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
 
     <!-- Payment Method -->
     <RidePaymentMethod
@@ -760,5 +794,87 @@ function getVehicleIcon(icon: string): string {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(8px);
+}
+
+/* Applied Promo Badge */
+.applied-promo-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #e8f5ef 0%, #d4edda 100%);
+  border: 2px solid #00a86b;
+  border-radius: 14px;
+  margin-bottom: 14px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.promo-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.promo-icon {
+  font-size: 28px;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.promo-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.promo-code {
+  font-size: 15px;
+  font-weight: 700;
+  color: #00875a;
+  letter-spacing: 0.5px;
+}
+
+.promo-savings {
+  font-size: 13px;
+  color: #00a86b;
+  font-weight: 600;
+}
+
+.remove-promo-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #666;
+}
+
+.remove-promo-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+.remove-promo-btn:active {
+  transform: scale(0.9);
 }
 </style>

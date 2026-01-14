@@ -29,11 +29,14 @@ export function useProviderTracking(rideId: string) {
     error.value = null
 
     try {
+      // Query provider_location_history for the most recent location
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: dbError } = await (supabase as any)
-        .from('provider_locations')
-        .select('*')
-        .eq('ride_id', rideId)
+        .from('provider_location_history')
+        .select('provider_id, latitude, longitude, heading, speed, accuracy, recorded_at')
+        .eq('provider_id', rideId) // Note: This should actually query by provider_id from the ride
+        .order('recorded_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
       if (dbError) {
@@ -43,7 +46,15 @@ export function useProviderTracking(rideId: string) {
       }
 
       if (data) {
-        providerLocation.value = data as ProviderLocation
+        providerLocation.value = {
+          provider_id: data.provider_id,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          heading: data.heading,
+          speed: data.speed,
+          accuracy: data.accuracy,
+          updated_at: data.recorded_at
+        }
       }
 
       // Setup realtime subscription

@@ -28,21 +28,12 @@ import RidePlacesList from '../../components/ride/RidePlacesList.vue'
 import RideBookingPanel from '../../components/ride/RideBookingPanel.vue'
 import RideStepIndicator from '../../components/ride/RideStepIndicator.vue'
 import PullToRefreshIndicator from '../../components/PullToRefreshIndicator.vue'
+import MapView from '../../components/MapView.vue'
+import RideTrackingView from '../../components/ride/RideTrackingView.vue'
 
 // Heavy components - lazy load
-const MapView = defineAsyncComponent({
-  loader: () => import('../../components/MapView.vue'),
-  delay: 0,
-  timeout: 10000
-})
-
 const RideSearchingView = defineAsyncComponent({
   loader: () => import('../../components/ride/RideSearchingView.vue'),
-  delay: 0
-})
-
-const RideTrackingView = defineAsyncComponent({
-  loader: () => import('../../components/ride/RideTrackingView.vue'),
   delay: 0
 })
 
@@ -226,22 +217,15 @@ function resetToSelect(): void {
 
         <!-- Map Preview - Tap to select destination -->
         <div v-if="pickup" class="map-section">
-          <Suspense>
-            <MapView
-              :pickup="pickup"
-              :destination="destination"
-              :showRoute="!!destination"
-              height="220px"
-              @routeCalculated="handleRouteCalculated"
-              @mapClick="handleMapClick"
-            />
-            <template #fallback>
-              <div class="map-skeleton">
-                <div class="map-loading-spinner"></div>
-                <span class="map-loading-text">กำลังโหลดแผนที่...</span>
-              </div>
-            </template>
-          </Suspense>
+          <MapView
+            v-if="pickup"
+            :pickup="pickup"
+            :destination="destination"
+            :showRoute="!!destination"
+            height="220px"
+            @routeCalculated="handleRouteCalculated"
+            @mapClick="handleMapClick"
+          />
           
           <!-- Map hint -->
           <div v-if="!destination" class="map-hint">
@@ -320,26 +304,18 @@ function resetToSelect(): void {
         </Suspense>
       </div>
 
-      <!-- STEP 3: TRACKING RIDE - Lazy loaded -->
+      <!-- STEP 3: TRACKING RIDE -->
       <div v-else-if="currentStep === 'tracking'" key="tracking" class="step-view">
-        <Suspense>
-          <RideTrackingView
-            :pickup="pickup"
-            :destination="destination"
-            :matchedDriver="matchedDriver"
-            :statusText="statusText"
-            :rideId="currentRideId"
-            @callDriver="callDriver"
-            @callEmergency="callEmergency"
-            @cancel="cancelRide"
-          />
-          <template #fallback>
-            <div class="step-loading">
-              <div class="loading-spinner"></div>
-              <p>กำลังโหลด...</p>
-            </div>
-          </template>
-        </Suspense>
+        <RideTrackingView
+          :pickup="pickup"
+          :destination="destination"
+          :matchedDriver="matchedDriver"
+          :statusText="statusText"
+          :rideId="currentRideId"
+          @callDriver="callDriver"
+          @callEmergency="callEmergency"
+          @cancel="cancelRide"
+        />
       </div>
 
       <!-- STEP 4: RATING - Lazy loaded -->

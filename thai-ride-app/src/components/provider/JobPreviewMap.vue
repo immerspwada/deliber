@@ -101,7 +101,7 @@ async function initMap() {
       maxZoom: 19
     }).addTo(map)
     
-    // Custom pickup icon (green)
+    // Custom pickup icon (green) - SVG circle marker
     const pickupIcon = L.divIcon({
       className: 'custom-marker',
       html: `
@@ -114,14 +114,16 @@ async function initMap() {
           box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
           display: flex; align-items: center; justify-content: center;
         ">
-          <span style="transform: rotate(45deg); color: #fff; font-size: 14px;">📍</span>
+          <svg style="transform: rotate(45deg); width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3">
+            <circle cx="12" cy="12" r="4"/>
+          </svg>
         </div>
       `,
       iconSize: [32, 32],
       iconAnchor: [16, 32]
     })
     
-    // Custom dropoff icon (red)
+    // Custom dropoff icon (red) - SVG flag marker
     const dropoffIcon = L.divIcon({
       className: 'custom-marker',
       html: `
@@ -134,7 +136,10 @@ async function initMap() {
           box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
           display: flex; align-items: center; justify-content: center;
         ">
-          <span style="transform: rotate(45deg); color: #fff; font-size: 14px;">🏁</span>
+          <svg style="transform: rotate(45deg); width: 14px; height: 14px;" viewBox="0 0 24 24" fill="#fff" stroke="none">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+            <line x1="4" y1="22" x2="4" y2="15" stroke="#fff" stroke-width="2"/>
+          </svg>
         </div>
       `,
       iconSize: [32, 32],
@@ -248,7 +253,10 @@ onUnmounted(() => {
     <!-- Route Info -->
     <div class="route-info">
       <div class="route-stat">
-        <span class="stat-icon">📏</span>
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
         <div class="stat-content">
           <span class="stat-label">ระยะทาง</span>
           <span class="stat-value">{{ formattedDistance }}</span>
@@ -256,7 +264,10 @@ onUnmounted(() => {
       </div>
       <div class="route-divider"></div>
       <div class="route-stat">
-        <span class="stat-icon">⏱️</span>
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
         <div class="stat-content">
           <span class="stat-label">เวลาโดยประมาณ</span>
           <span class="stat-value">{{ estimatedTime }}</span>
@@ -395,7 +406,10 @@ onUnmounted(() => {
 }
 
 .stat-icon {
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #6b7280;
 }
 
 .stat-content {
