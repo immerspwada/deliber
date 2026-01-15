@@ -291,17 +291,17 @@ onUnmounted(() => {
         <PhotoEvidence
           v-if="showPickupPhoto"
           type="pickup"
-          :job-id="job.id"
+          :ride-id="job.id"
           :existing-photo="job.pickup_photo"
-          @uploaded="(url) => handlePhotoUploaded('pickup', url)"
+          @uploaded="(url: string) => handlePhotoUploaded('pickup', url)"
         />
         
         <PhotoEvidence
           v-if="showDropoffPhoto"
           type="dropoff"
-          :job-id="job.id"
+          :ride-id="job.id"
           :existing-photo="job.dropoff_photo"
-          @uploaded="(url) => handlePhotoUploaded('dropoff', url)"
+          @uploaded="(url: string) => handlePhotoUploaded('dropoff', url)"
         />
       </div>
 
