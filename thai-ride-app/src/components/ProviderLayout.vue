@@ -77,6 +77,11 @@ const isActive = (path: string) => {
   return route.path === path;
 };
 
+// Hide navigation bar on job detail pages
+const hideNavBar = computed(() => {
+  return route.path.startsWith('/provider/job/') || route.path.startsWith('/provider/job-enhanced/')
+});
+
 const navigateTo = (path: string) => {
   router.push(path);
 };
@@ -302,7 +307,7 @@ const logout = async () => {
     </main>
 
     <!-- Bottom Navigation -->
-    <nav class="provider-nav">
+    <nav v-if="!hideNavBar" class="provider-nav">
       <div class="nav-container">
         <button
           v-for="item in navItems"

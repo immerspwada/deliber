@@ -1,249 +1,521 @@
 /**
- * Feature: F43 - Provider Heat Map
- * Tables: service_providers
+ * Composable: useProviderHeatmap
+ * จัดการข้อมูล provider location heatmap
  * 
- * ระบบแสดง heat map ตำแหน่ง providers
- * - แสดงความหนาแน่นของ providers
- * - Realtime updates
- * - Filter by provider type
+ * Features:
+ * - Load provider locations with filters
+ * - Real-time updates via Supabase subscriptions
+ * - Time-lapse playback functionality
+ * - Density area analysis
  */
 
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, type Ref } from 'vue'
 import { supabase } from '../lib/supabase'
+import { useErrorHandler } from './useErrorHandler'
 
+// Types
 export interface ProviderLocation {
   id: string
-  lat: number
-  lng: number
-  provider_type: 'driver' | 'rider'
+  provider_type: string
+  current_lat: number
+  current_lng: number
+  is_online: boolean
   is_available: boolean
-  last_update: string
+  last_updated: string
 }
 
 export interface HeatmapPoint {
   lat: number
   lng: number
-  intensity: number
+  intensity: number // 0-1
+  provider_count: number
 }
 
-export function useProviderHeatmap() {
+export interface AreaStats {
+  area_name: string
+  center_lat: number
+  center_lng: number
+  provider_count: number
+  coverage_level: 'high' | 'medium' | 'low'
+  is_high_density: boolean
+}
+
+export interface HeatmapFilters {
+  provider_type: string | null
+  is_online: boolean | null
+  time_range: { start: Date; end: Date } | null
+}
+
+export interface HeatmapStats {
+  total: number
+  online: number
+  available: number
+  avg_per_area: number
+}
+
+export interface UseProviderHeatmapReturn {
+  // State
+  providers: Ref<ProviderLocation[]>
+  heatmapPoints: Ref<HeatmapPoint[]>
+  stats: Ref<HeatmapStats>
+  highDensityAreas: Ref<AreaStats[]>
+  lowDensityAreas: Ref<AreaStats[]>
+  loading: Ref<boolean>
+  error: Ref<string | null>
+  
+  // Filters
+  filters: Ref<HeatmapFilters>
+  
+  // Time-lapse
+  isTimeLapseMode: Ref<boolean>
+  timeLapseDuration: Ref<'1h' | '6h' | '24h'>
+  timeLapseProgress: Ref<number>
+  currentTimestamp: Ref<Date>
+  timeLapseSnapshots: Ref<HeatmapPoint[][]>
+  
+  // Actions
+  loadProviders: () => Promise<void>
+  loadHeatmapData: () => Promise<void>
+  loadDensityAreas: () => Promise<void>
+  loadStats: () => Promise<void>
+  applyFilters: (newFilters: Partial<HeatmapFilters>) => void
+  clearFilters: () => void
+  startTimeLapse: () => void
+  pauseTimeLapse: () => void
+  stopTimeLapse: () => void
+  setTimeLapseSpeed: (speed: number) => void
+  setTimeLapseDuration: (duration: '1h' | '6h' | '24h') => void
+  getAreaDetails: (lat: number, lng: number) => Promise<AreaStats | null>
+}
+
+// Realtime subscription
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
+
+export function useProviderHeatmap(): UseProviderHeatmapReturn {
+  const { handle } = useErrorHandler()
+  
+  // State
+  const providers = ref<ProviderLocation[]>([])
+  const heatmapPoints = ref<HeatmapPoint[]>([])
+  const stats = ref<HeatmapStats>({
+    total: 0,
+    online: 0,
+    available: 0,
+    avg_per_area: 0
+  })
+  const highDensityAreas = ref<AreaStats[]>([])
+  const lowDensityAreas = ref<AreaStats[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const providers = ref<ProviderLocation[]>([])
-  const heatmapData = ref<HeatmapPoint[]>([])
   
-  let subscription: any = null
-
-  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
-
-  // Generate demo provider locations around Bangkok
-  const generateDemoProviders = (): ProviderLocation[] => {
-    const baseLocations = [
-      { lat: 13.7563, lng: 100.5018 }, // Central Bangkok
-      { lat: 13.7466, lng: 100.5347 }, // Siam
-      { lat: 13.7377, lng: 100.5603 }, // Terminal 21
-      { lat: 13.7280, lng: 100.5340 }, // Silom
-      { lat: 13.8060, lng: 100.5610 }, // Ladprao
-      { lat: 13.7210, lng: 100.5290 }, // Sathorn
-      { lat: 13.7580, lng: 100.5740 }, // Ratchada
-      { lat: 13.7314, lng: 100.5697 }, // Emquartier
-    ]
-
-    const providers: ProviderLocation[] = []
-    
-    // Generate 50 random providers
-    for (let i = 0; i < 50; i++) {
-      const base = baseLocations[Math.floor(Math.random() * baseLocations.length)]
-      if (!base) continue
-      
-      providers.push({
-        id: `provider-${i}`,
-        lat: base.lat + (Math.random() - 0.5) * 0.05,
-        lng: base.lng + (Math.random() - 0.5) * 0.05,
-        provider_type: Math.random() > 0.3 ? 'driver' : 'rider',
-        is_available: Math.random() > 0.3,
-        last_update: new Date().toISOString()
-      })
-    }
-
-    return providers
-  }
-
-  // Convert providers to heatmap data
-  const generateHeatmapData = (providerList: ProviderLocation[]): HeatmapPoint[] => {
-    // Group by grid cells
-    const gridSize = 0.005 // ~500m
-    const grid = new Map<string, { lat: number; lng: number; count: number }>()
-
-    providerList.forEach(p => {
-      if (!p.is_available) return
-      
-      const gridLat = Math.floor(p.lat / gridSize) * gridSize
-      const gridLng = Math.floor(p.lng / gridSize) * gridSize
-      const key = `${gridLat},${gridLng}`
-
-      const existing = grid.get(key)
-      if (existing) {
-        existing.count++
-      } else {
-        grid.set(key, { lat: gridLat + gridSize / 2, lng: gridLng + gridSize / 2, count: 1 })
-      }
-    })
-
-    // Convert to heatmap points with intensity
-    const maxCount = Math.max(...Array.from(grid.values()).map(g => g.count), 1)
-    
-    return Array.from(grid.values()).map(g => ({
-      lat: g.lat,
-      lng: g.lng,
-      intensity: g.count / maxCount
-    }))
-  }
-
-  // Fetch provider locations
-  const fetchProviders = async (filter?: { type?: 'driver' | 'rider'; availableOnly?: boolean }) => {
-    loading.value = true
-    error.value = null
-
+  // Filters
+  const filters = ref<HeatmapFilters>({
+    provider_type: null,
+    is_online: null,
+    time_range: null
+  })
+  
+  // Time-lapse
+  const isTimeLapseMode = ref(false)
+  const timeLapseDuration = ref<'1h' | '6h' | '24h'>('24h')
+  const timeLapseProgress = ref(0)
+  const currentTimestamp = ref(new Date())
+  const timeLapseSnapshots = ref<HeatmapPoint[][]>([])
+  const timeLapseSpeed = ref(1) // 1x speed
+  const timeLapseInterval = ref<number | null>(null)
+  const timeLapseCurrentIndex = ref(0)
+  
+  /**
+   * Load provider locations (for map markers)
+   */
+  async function loadProviders(): Promise<void> {
     try {
-      if (isDemoMode()) {
-        let demoProviders = generateDemoProviders()
-        
-        if (filter?.type) {
-          demoProviders = demoProviders.filter(p => p.provider_type === filter.type)
-        }
-        if (filter?.availableOnly) {
-          demoProviders = demoProviders.filter(p => p.is_available)
-        }
-
-        providers.value = demoProviders
-        heatmapData.value = generateHeatmapData(demoProviders)
-        return providers.value
-      }
-
-      let query = (supabase
-        .from('service_providers') as any)
-        .select('id, current_lat, current_lng, provider_type, is_available, last_location_update')
+      let query = supabase
+        .from('providers_v2')
+        .select('id, provider_type, current_lat, current_lng, is_online, is_available, updated_at')
+        .eq('status', 'approved')
         .not('current_lat', 'is', null)
         .not('current_lng', 'is', null)
-
-      if (filter?.type) {
-        query = query.eq('provider_type', filter.type)
+      
+      if (filters.value.provider_type) {
+        query = query.eq('provider_type', filters.value.provider_type)
       }
-      if (filter?.availableOnly) {
-        query = query.eq('is_available', true)
+      
+      if (filters.value.is_online !== null) {
+        query = query.eq('is_online', filters.value.is_online)
       }
-
-      const { data, error: fetchError } = await query
-
-      if (fetchError) throw fetchError
-
-      providers.value = (data || []).map((p: any) => ({
+      
+      const { data, error: queryError } = await query
+      
+      if (queryError) throw queryError
+      
+      providers.value = (data || []).map(p => ({
         id: p.id,
-        lat: p.current_lat,
-        lng: p.current_lng,
-        provider_type: p.provider_type || 'driver',
+        provider_type: p.provider_type,
+        current_lat: p.current_lat,
+        current_lng: p.current_lng,
+        is_online: p.is_online,
         is_available: p.is_available,
-        last_update: p.last_location_update
+        last_updated: p.updated_at
       }))
-
-      heatmapData.value = generateHeatmapData(providers.value)
-      return providers.value
-    } catch (e: any) {
-      error.value = e.message
-      // Fallback to demo data
-      providers.value = generateDemoProviders()
-      heatmapData.value = generateHeatmapData(providers.value)
-      return providers.value
+    } catch (err) {
+      console.error('[useProviderHeatmap] Error loading providers:', err)
+      handle(err, 'useProviderHeatmap.loadProviders')
+    }
+  }
+  
+  /**
+   * Load heatmap data (aggregated points)
+   */
+  async function loadHeatmapData(): Promise<void> {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_provider_heatmap_data', {
+          p_provider_type: filters.value.provider_type,
+          p_is_online: filters.value.is_online,
+          p_start_time: filters.value.time_range?.start.toISOString() || null,
+          p_end_time: filters.value.time_range?.end.toISOString() || null
+        })
+      
+      if (rpcError) throw rpcError
+      
+      heatmapPoints.value = (data || []).map(point => ({
+        lat: point.lat,
+        lng: point.lng,
+        provider_count: point.provider_count,
+        intensity: point.intensity
+      }))
+    } catch (err) {
+      console.error('[useProviderHeatmap] Error loading heatmap data:', err)
+      error.value = 'ไม่สามารถโหลดข้อมูล heatmap ได้'
+      handle(err, 'useProviderHeatmap.loadHeatmapData')
     } finally {
       loading.value = false
     }
   }
-
-  // Subscribe to realtime updates
-  const subscribeToUpdates = () => {
-    if (isDemoMode()) {
-      // Simulate realtime updates in demo mode
-      const interval = setInterval(() => {
-        providers.value = generateDemoProviders()
-        heatmapData.value = generateHeatmapData(providers.value)
-      }, 5000)
-
-      return () => clearInterval(interval)
+  
+  /**
+   * Load density areas (high/low coverage)
+   */
+  async function loadDensityAreas(): Promise<void> {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_provider_density_areas', {
+          p_limit: 5
+        })
+      
+      if (rpcError) throw rpcError
+      
+      const areas = (data || []) as AreaStats[]
+      
+      highDensityAreas.value = areas
+        .filter(a => a.is_high_density)
+        .sort((a, b) => b.provider_count - a.provider_count)
+      
+      lowDensityAreas.value = areas
+        .filter(a => !a.is_high_density)
+        .sort((a, b) => a.provider_count - b.provider_count)
+    } catch (err) {
+      console.error('[useProviderHeatmap] Error loading density areas:', err)
+      handle(err, 'useProviderHeatmap.loadDensityAreas')
     }
-
-    subscription = supabase
+  }
+  
+  /**
+   * Load summary statistics
+   */
+  async function loadStats(): Promise<void> {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_provider_heatmap_stats')
+      
+      if (rpcError) throw rpcError
+      
+      if (data && data.length > 0) {
+        const result = data[0]
+        stats.value = {
+          total: result.total_providers || 0,
+          online: result.online_providers || 0,
+          available: result.available_providers || 0,
+          avg_per_area: result.avg_providers_per_area || 0
+        }
+      }
+    } catch (err) {
+      console.error('[useProviderHeatmap] Error loading stats:', err)
+      handle(err, 'useProviderHeatmap.loadStats')
+    }
+  }
+  
+  /**
+   * Apply filters and reload data
+   */
+  function applyFilters(newFilters: Partial<HeatmapFilters>): void {
+    filters.value = {
+      ...filters.value,
+      ...newFilters
+    }
+    
+    // Reload all data with new filters
+    loadHeatmapData()
+    loadProviders()
+    loadDensityAreas()
+    loadStats()
+  }
+  
+  /**
+   * Clear all filters
+   */
+  function clearFilters(): void {
+    filters.value = {
+      provider_type: null,
+      is_online: null,
+      time_range: null
+    }
+    
+    loadHeatmapData()
+    loadProviders()
+    loadDensityAreas()
+    loadStats()
+  }
+  
+  /**
+   * Load time-lapse snapshots
+   */
+  async function loadTimeLapseData(): Promise<void> {
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_provider_location_timelapse', {
+          p_duration: timeLapseDuration.value,
+          p_interval_minutes: 15,
+          p_provider_type: filters.value.provider_type
+        })
+      
+      if (rpcError) throw rpcError
+      
+      // Group by timestamp
+      const snapshotMap = new Map<string, HeatmapPoint[]>()
+      
+      for (const record of data || []) {
+        const timestamp = record.snapshot_time
+        if (!snapshotMap.has(timestamp)) {
+          snapshotMap.set(timestamp, [])
+        }
+        
+        snapshotMap.get(timestamp)!.push({
+          lat: record.lat,
+          lng: record.lng,
+          provider_count: record.provider_count,
+          intensity: Math.min(record.provider_count / 10, 1)
+        })
+      }
+      
+      // Convert to array sorted by time
+      timeLapseSnapshots.value = Array.from(snapshotMap.entries())
+        .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+        .map(([_, points]) => points)
+    } catch (err) {
+      console.error('[useProviderHeatmap] Error loading time-lapse data:', err)
+      handle(err, 'useProviderHeatmap.loadTimeLapseData')
+    }
+  }
+  
+  /**
+   * Start time-lapse playback
+   */
+  async function startTimeLapse(): Promise<void> {
+    if (isTimeLapseMode.value && timeLapseInterval.value) {
+      // Already playing, just resume
+      return
+    }
+    
+    isTimeLapseMode.value = true
+    timeLapseCurrentIndex.value = 0
+    timeLapseProgress.value = 0
+    
+    // Load time-lapse data
+    await loadTimeLapseData()
+    
+    if (timeLapseSnapshots.value.length === 0) {
+      error.value = 'ไม่มีข้อมูลสำหรับ time-lapse'
+      isTimeLapseMode.value = false
+      return
+    }
+    
+    // Start playback
+    const intervalMs = 1000 / timeLapseSpeed.value
+    
+    timeLapseInterval.value = window.setInterval(() => {
+      if (timeLapseCurrentIndex.value >= timeLapseSnapshots.value.length - 1) {
+        // Loop back to start
+        timeLapseCurrentIndex.value = 0
+      } else {
+        timeLapseCurrentIndex.value++
+      }
+      
+      // Update heatmap with current snapshot
+      heatmapPoints.value = timeLapseSnapshots.value[timeLapseCurrentIndex.value] || []
+      
+      // Update progress
+      timeLapseProgress.value = (timeLapseCurrentIndex.value / (timeLapseSnapshots.value.length - 1)) * 100
+      
+      // Update timestamp (estimate based on duration)
+      const durationMs = timeLapseDuration.value === '1h' ? 3600000 : 
+                         timeLapseDuration.value === '6h' ? 21600000 : 86400000
+      const startTime = Date.now() - durationMs
+      const timePerSnapshot = durationMs / timeLapseSnapshots.value.length
+      currentTimestamp.value = new Date(startTime + (timeLapseCurrentIndex.value * timePerSnapshot))
+    }, intervalMs)
+  }
+  
+  /**
+   * Pause time-lapse playback
+   */
+  function pauseTimeLapse(): void {
+    if (timeLapseInterval.value) {
+      clearInterval(timeLapseInterval.value)
+      timeLapseInterval.value = null
+    }
+  }
+  
+  /**
+   * Stop time-lapse and return to live view
+   */
+  function stopTimeLapse(): void {
+    pauseTimeLapse()
+    isTimeLapseMode.value = false
+    timeLapseCurrentIndex.value = 0
+    timeLapseProgress.value = 0
+    timeLapseSnapshots.value = []
+    
+    // Reload live data
+    loadHeatmapData()
+  }
+  
+  /**
+   * Set time-lapse playback speed
+   */
+  function setTimeLapseSpeed(speed: number): void {
+    timeLapseSpeed.value = speed
+    
+    // Restart interval with new speed if playing
+    if (timeLapseInterval.value) {
+      pauseTimeLapse()
+      startTimeLapse()
+    }
+  }
+  
+  /**
+   * Set time-lapse duration
+   */
+  function setTimeLapseDuration(duration: '1h' | '6h' | '24h'): void {
+    timeLapseDuration.value = duration
+    
+    // Reload time-lapse data if in time-lapse mode
+    if (isTimeLapseMode.value) {
+      stopTimeLapse()
+      startTimeLapse()
+    }
+  }
+  
+  /**
+   * Get details for a specific area
+   */
+  async function getAreaDetails(lat: number, lng: number): Promise<AreaStats | null> {
+    try {
+      // Round to match density area calculation
+      const roundedLat = Math.round(lat * 100) / 100
+      const roundedLng = Math.round(lng * 100) / 100
+      
+      // Find in existing density areas
+      const area = [...highDensityAreas.value, ...lowDensityAreas.value].find(
+        a => Math.abs(a.center_lat - roundedLat) < 0.01 && 
+             Math.abs(a.center_lng - roundedLng) < 0.01
+      )
+      
+      return area || null
+    } catch (err) {
+      console.error('[useProviderHeatmap] Error getting area details:', err)
+      handle(err, 'useProviderHeatmap.getAreaDetails')
+      return null
+    }
+  }
+  
+  /**
+   * Setup realtime subscription for provider location updates
+   */
+  function setupRealtimeSubscription(): void {
+    realtimeChannel = supabase
       .channel('provider-locations')
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
-          table: 'service_providers'
+          table: 'providers_v2',
+          filter: 'status=eq.approved'
         },
-        (payload) => {
-          const updated = payload.new as any
-          if (!updated.current_lat || !updated.current_lng) return
-
-          const idx = providers.value.findIndex(p => p.id === updated.id)
-          const newProvider: ProviderLocation = {
-            id: updated.id,
-            lat: updated.current_lat,
-            lng: updated.current_lng,
-            provider_type: updated.provider_type || 'driver',
-            is_available: updated.is_available,
-            last_update: updated.last_location_update
+        () => {
+          // Reload data on any provider update
+          if (!isTimeLapseMode.value) {
+            loadHeatmapData()
+            loadProviders()
+            loadStats()
           }
-
-          if (idx !== -1) {
-            providers.value[idx] = newProvider
-          } else {
-            providers.value.push(newProvider)
-          }
-
-          heatmapData.value = generateHeatmapData(providers.value)
         }
       )
       .subscribe()
-
-    return () => {
-      if (subscription) {
-        subscription.unsubscribe()
-      }
-    }
   }
-
-  // Get statistics
-  const getStats = () => {
-    const total = providers.value.length
-    const available = providers.value.filter(p => p.is_available).length
-    const drivers = providers.value.filter(p => p.provider_type === 'driver').length
-    const riders = providers.value.filter(p => p.provider_type === 'rider').length
-
-    return {
-      total,
-      available,
-      busy: total - available,
-      drivers,
-      riders,
-      availabilityRate: total > 0 ? Math.round((available / total) * 100) : 0
-    }
-  }
-
-  // Cleanup
+  
+  /**
+   * Cleanup on unmount
+   */
   onUnmounted(() => {
-    if (subscription) {
-      subscription.unsubscribe()
+    pauseTimeLapse()
+    
+    if (realtimeChannel) {
+      supabase.removeChannel(realtimeChannel)
+      realtimeChannel = null
     }
   })
-
+  
+  // Setup realtime subscription
+  setupRealtimeSubscription()
+  
   return {
+    // State
+    providers,
+    heatmapPoints,
+    stats,
+    highDensityAreas,
+    lowDensityAreas,
     loading,
     error,
-    providers,
-    heatmapData,
-    fetchProviders,
-    subscribeToUpdates,
-    getStats
+    
+    // Filters
+    filters,
+    
+    // Time-lapse
+    isTimeLapseMode,
+    timeLapseDuration,
+    timeLapseProgress,
+    currentTimestamp,
+    timeLapseSnapshots,
+    
+    // Actions
+    loadProviders,
+    loadHeatmapData,
+    loadDensityAreas,
+    loadStats,
+    applyFilters,
+    clearFilters,
+    startTimeLapse,
+    pauseTimeLapse,
+    stopTimeLapse,
+    setTimeLapseSpeed,
+    setTimeLapseDuration,
+    getAreaDetails
   }
 }

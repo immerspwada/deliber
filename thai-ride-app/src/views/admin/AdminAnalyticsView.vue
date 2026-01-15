@@ -143,7 +143,7 @@
     </div>
 
     <!-- Recent Activity -->
-    <div class="bg-white rounded-lg shadow p-6">
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
       <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent System Activity</h3>
       <div class="space-y-3">
         <div v-for="activity in recentActivity" :key="activity.id" class="flex items-start">
@@ -155,12 +155,16 @@
         </div>
       </div>
     </div>
+
+    <!-- Share Link Analytics -->
+    <ShareLinkAnalytics />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { supabase } from '../../lib/supabase'
+import ShareLinkAnalytics from '../../admin/components/ShareLinkAnalytics.vue'
 
 interface Metrics {
   totalJobs: number
@@ -225,7 +229,7 @@ const loadAnalytics = async () => {
         .lte('created_at', dateRange.value.to)
       jobs = result.data || []
     } catch {
-      const result = await supabase
+      const result = await (supabase as any)
         .from('ride_requests')
         .select('*')
         .gte('created_at', dateRange.value.from)
@@ -273,7 +277,7 @@ const loadAnalytics = async () => {
     }
 
     // Load user count
-    const { count: userCount } = await supabase
+    const { count: userCount } = await (supabase as any)
       .from('users')
       .select('*', { count: 'exact', head: true })
 

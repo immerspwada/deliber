@@ -8,6 +8,7 @@ const props = defineProps<{
   pickup?: GeoLocation | null
   destination?: GeoLocation | null
   driverLocation?: { lat: number; lng: number; heading?: number } | null
+  locationHistory?: Array<{ lat: number; lng: number }> | null
   showRoute?: boolean
   height?: string
   draggable?: boolean
@@ -28,6 +29,7 @@ const {
   fitBounds,
   getDirections,
   clearDirections,
+  drawDriverPath,
   isMapReady,
   markers,
   mapInstance
@@ -36,6 +38,7 @@ const {
 const routeInfo = ref<{ distance: number; duration: number } | null>(null)
 const currentLocation = ref<{ lat: number; lng: number } | null>(null)
 const driverMarker = ref<L.Marker | null>(null)
+const historyPath = ref<L.Polyline | L.Polyline[] | null>(null)
 
 // ✅ CRITICAL: Watch isMapReady and enable pointer events
 watch(isMapReady, (ready) => {
@@ -189,7 +192,31 @@ watch([() => props.pickup, () => props.destination], () => {
   updateMarkers()
 }, { deep: true })
 
-// Watch driver location for realtime updates
+// Watch location history for drawing trail
+watch(() => props.locationHistory, (newHistory) => {
+  if (!isMapReady.value || !mapInstance.value) return
+  
+  // Clear old history path
+  if (historyPath.value) {
+    if (Array.isArray(historyPath.value)) {
+      historyPath.value.forEach(p => mapInstance.value?.removeLayer(p as unknown as L.Layer))
+    } else {
+      mapInstance.value.removeLayer(historyPath.value as unknown as L.Layer)
+    }
+    historyPath.value = null
+  }
+  
+  // Draw new history path
+  if (newHistory && newHistory.length > 1) {
+    historyPath.value = drawDriverPath(newHistory, {
+      color: '#22C55E',
+      fadeOut: true
+    })
+    console.log('[MapView] Location history trail drawn:', newHistory.length, 'points')
+  }
+}, { deep: true })
+
+// Watch driver location for real-time tracking
 watch(() => props.driverLocation, (newLocation) => {
   if (!isMapReady.value || !mapInstance.value) return
   
@@ -466,7 +493,7 @@ onMounted(async () => {
   width: 100%;
   /* CRITICAL FIX: Ensure wrapper has height */
   height: 100%;
-  min-height: 200px;
+  min-height: 500px;
   border-radius: 16px;
   overflow: hidden;
   background-color: #f5f5f5;

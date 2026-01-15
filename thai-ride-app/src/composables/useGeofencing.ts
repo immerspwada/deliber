@@ -1,154 +1,257 @@
 /**
- * useGeoFencing - Geo-Fencing System
- * Feature: F193 - Geo-Fencing
+ * Composable: useGeofencing
+ * ตรวจจับและแจ้งเตือนเมื่อ provider เข้าใกล้จุดหมาย
+ * 
+ * Role Impact:
+ * - Customer: รับ notification เมื่อคนขับใกล้ถึง
+ * - Provider: ไม่มีผลกระทบ
+ * - Admin: ดู geofence events ใน logs
  */
+import { ref, computed, watch } from 'vue'
+import type { Ref } from 'vue'
 
-import { ref, computed } from 'vue'
-import { supabase } from '../lib/supabase'
+interface Location {
+  lat: number
+  lng: number
+}
 
-export interface GeoFence {
-  id: string
+interface GeofenceZone {
+  center: Location
+  radius: number // meters
   name: string
-  name_th: string
-  fence_type: 'polygon' | 'circle' | 'rectangle'
-  coordinates: number[][] | { center: [number, number]; radius: number }
-  zone_type: 'service_area' | 'surge_zone' | 'restricted' | 'airport' | 'event'
-  properties?: { surge_multiplier?: number; min_fare?: number; special_instructions?: string }
-  is_active: boolean
-  valid_from?: string
-  valid_until?: string
-  created_at: string
 }
 
-export interface GeoFenceAlert {
-  id: string
-  fence_id: string
-  provider_id: string
-  alert_type: 'enter' | 'exit' | 'dwell'
-  triggered_at: string
-  location: { lat: number; lng: number }
+interface GeofenceEvent {
+  zone: string
+  type: 'enter' | 'exit'
+  timestamp: number
+  distance: number
 }
 
-export function useGeoFencing() {
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  const fences = ref<GeoFence[]>([])
-  const alerts = ref<GeoFenceAlert[]>([])
+interface GeofenceOptions {
+  checkInterval?: number // ms
+  enableNotifications?: boolean
+  enableHaptic?: boolean
+}
 
-  const activeFences = computed(() => fences.value.filter(f => f.is_active))
-  const surgeZones = computed(() => fences.value.filter(f => f.zone_type === 'surge_zone' && f.is_active))
-  const restrictedZones = computed(() => fences.value.filter(f => f.zone_type === 'restricted' && f.is_active))
+const DEFAULT_OPTIONS: Required<GeofenceOptions> = {
+  checkInterval: 3000, // Check every 3 seconds
+  enableNotifications: true,
+  enableHaptic: true
+}
 
-  const fetchFences = async () => {
-    loading.value = true
-    try {
-      const { data, error: err } = await supabase.from('geo_fences').select('*').order('name')
-      if (err) throw err
-      fences.value = data || []
-    } catch (e: any) { error.value = e.message }
-    finally { loading.value = false }
+// Predefined zones
+const ZONE_PRESETS = {
+  VERY_CLOSE: 100, // 100m
+  NEARBY: 300, // 300m
+  APPROACHING: 500, // 500m
+  AREA: 1000 // 1km
+}
+
+export function useGeofencing(
+  currentLocation: Ref<Location | null>,
+  zones: Ref<GeofenceZone[]>,
+  options: GeofenceOptions = {}
+) {
+  const config = { ...DEFAULT_OPTIONS, ...options }
+  
+  const events = ref<GeofenceEvent[]>([])
+  const activeZones = ref<Set<string>>(new Set())
+  const lastCheck = ref<number>(0)
+  let checkIntervalId: ReturnType<typeof setInterval> | null = null
+
+  // Calculate distance between two points (Haversine)
+  function calculateDistance(from: Location, to: Location): number {
+    const R = 6371000 // Earth radius in meters
+    const dLat = toRad(to.lat - from.lat)
+    const dLng = toRad(to.lng - from.lng)
+    
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
   }
 
-  const createFence = async (fence: Partial<GeoFence>): Promise<GeoFence | null> => {
-    try {
-      const { data, error: err } = await supabase.from('geo_fences').insert(fence as never).select().single()
-      if (err) throw err
-      fences.value.push(data)
-      return data
-    } catch (e: any) { error.value = e.message; return null }
+  function toRad(degrees: number): number {
+    return degrees * (Math.PI / 180)
   }
 
-  const updateFence = async (id: string, updates: Partial<GeoFence>): Promise<boolean> => {
-    try {
-      const { error: err } = await supabase.from('geo_fences').update(updates as never).eq('id', id)
-      if (err) throw err
-      const idx = fences.value.findIndex(f => f.id === id)
-      if (idx !== -1) fences.value[idx] = { ...fences.value[idx], ...updates }
-      return true
-    } catch (e: any) { error.value = e.message; return false }
+  // Check if location is inside zone
+  function isInsideZone(location: Location, zone: GeofenceZone): boolean {
+    const distance = calculateDistance(location, zone.center)
+    return distance <= zone.radius
   }
 
-  const deleteFence = async (id: string): Promise<boolean> => {
-    try {
-      const { error: err } = await supabase.from('geo_fences').delete().eq('id', id)
-      if (err) throw err
-      fences.value = fences.value.filter(f => f.id !== id)
-      return true
-    } catch (e: any) { error.value = e.message; return false }
-  }
+  // Trigger notification
+  function triggerNotification(event: GeofenceEvent): void {
+    if (!config.enableNotifications) return
 
-  const checkPointInFence = (lat: number, lng: number, fence: GeoFence): boolean => {
-    if (fence.fence_type === 'circle') {
-      const coords = fence.coordinates as { center: [number, number]; radius: number }
-      const distance = getDistanceKm(lat, lng, coords.center[0], coords.center[1])
-      return distance <= coords.radius
+    const messages: Record<string, string> = {
+      'very-close': '🚗 คนขับมาถึงแล้ว! (ใกล้มากๆ)',
+      'nearby': '🚗 คนขับใกล้ถึงแล้ว (300 ม.)',
+      'approaching': '🚗 คนขับกำลังมา (500 ม.)',
+      'area': '📍 คนขับเข้าพื้นที่แล้ว (1 กม.)'
     }
-    // For polygon, use ray casting algorithm
-    const polygon = fence.coordinates as number[][]
-    let inside = false
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i][0], yi = polygon[i][1]
-      const xj = polygon[j][0], yj = polygon[j][1]
-      if (((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi)) {
-        inside = !inside
+
+    const message = messages[event.zone] || `คนขับ${event.type === 'enter' ? 'เข้า' : 'ออก'}จาก ${event.zone}`
+
+    // Browser notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Thai Ride', {
+        body: message,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: `geofence-${event.zone}`,
+        requireInteraction: event.zone === 'very-close'
+      })
+    }
+
+    // Haptic feedback
+    if (config.enableHaptic && 'vibrate' in navigator) {
+      if (event.zone === 'very-close') {
+        navigator.vibrate([100, 50, 100, 50, 100]) // Strong pattern
+      } else if (event.zone === 'nearby') {
+        navigator.vibrate([100, 50, 100]) // Medium pattern
+      } else {
+        navigator.vibrate(100) // Single vibration
       }
     }
-    return inside
+
+    console.log('[Geofencing] Notification:', message)
   }
 
-  const getDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 6371
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLng = (lng2 - lng1) * Math.PI / 180
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2)
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  // Add event
+  function addEvent(zone: string, type: 'enter' | 'exit', distance: number): void {
+    const event: GeofenceEvent = {
+      zone,
+      type,
+      timestamp: Date.now(),
+      distance
+    }
+
+    events.value.push(event)
+    
+    // Keep only last 20 events
+    if (events.value.length > 20) {
+      events.value = events.value.slice(-20)
+    }
+
+    // Trigger notification for enter events
+    if (type === 'enter') {
+      triggerNotification(event)
+    }
+
+    console.log('[Geofencing] Event:', event)
   }
 
-  const getZoneTypeText = (type: string) => ({ service_area: 'พื้นที่บริการ', surge_zone: 'โซน Surge', restricted: 'พื้นที่ห้าม', airport: 'สนามบิน', event: 'งานอีเวนต์' }[type] || type)
+  // Check zones
+  function checkZones(): void {
+    if (!currentLocation.value || zones.value.length === 0) return
 
-  // ========================================
-  // Provider Tracking Integration
-  // ========================================
+    const now = Date.now()
+    if (now - lastCheck.value < config.checkInterval) return
+
+    lastCheck.value = now
+
+    for (const zone of zones.value) {
+      const isInside = isInsideZone(currentLocation.value, zone)
+      const wasInside = activeZones.value.has(zone.name)
+      const distance = calculateDistance(currentLocation.value, zone.center)
+
+      if (isInside && !wasInside) {
+        // Entered zone
+        activeZones.value.add(zone.name)
+        addEvent(zone.name, 'enter', distance)
+      } else if (!isInside && wasInside) {
+        // Exited zone
+        activeZones.value.delete(zone.name)
+        addEvent(zone.name, 'exit', distance)
+      }
+    }
+  }
+
+  // Start monitoring
+  function startMonitoring(): void {
+    if (checkIntervalId) return
+
+    checkIntervalId = setInterval(() => {
+      checkZones()
+    }, config.checkInterval)
+
+    console.log('[Geofencing] Monitoring started')
+  }
+
+  // Stop monitoring
+  function stopMonitoring(): void {
+    if (checkIntervalId) {
+      clearInterval(checkIntervalId)
+      checkIntervalId = null
+      console.log('[Geofencing] Monitoring stopped')
+    }
+  }
+
+  // Request notification permission
+  async function requestNotificationPermission(): Promise<boolean> {
+    if (!('Notification' in window)) return false
+
+    if (Notification.permission === 'granted') return true
+
+    if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission()
+      return permission === 'granted'
+    }
+
+    return false
+  }
+
+  // Watch for location changes
+  watch(currentLocation, () => {
+    checkZones()
+  }, { deep: true })
+
+  // Auto-start monitoring when zones are available
+  watch(zones, (newZones) => {
+    if (newZones.length > 0) {
+      startMonitoring()
+    } else {
+      stopMonitoring()
+    }
+  }, { immediate: true })
+
+  // Computed values
+  const isInAnyZone = computed(() => activeZones.value.size > 0)
   
-  // Service area center (Bangkok)
-  const SERVICE_AREA = {
-    center: { lat: 13.7563, lng: 100.5018 },
-    radius: 50 // 50 km radius
-  }
-  
-  const isInsideServiceArea = ref(true)
-  const distanceFromCenter = ref(0)
-  
-  /**
-   * Check if location is inside service area
-   * Used by useProviderTracking
-   */
-  const checkLocation = (lat: number, lng: number): boolean => {
-    const distance = getDistanceKm(lat, lng, SERVICE_AREA.center.lat, SERVICE_AREA.center.lng)
-    distanceFromCenter.value = distance
-    isInsideServiceArea.value = distance <= SERVICE_AREA.radius
-    return isInsideServiceArea.value
-  }
+  const closestZone = computed(() => {
+    if (!currentLocation.value || zones.value.length === 0) return null
 
-  return { 
-    loading, 
-    error, 
-    fences, 
-    alerts, 
-    activeFences, 
-    surgeZones, 
-    restrictedZones, 
-    fetchFences, 
-    createFence, 
-    updateFence, 
-    deleteFence, 
-    checkPointInFence, 
-    getDistanceKm, 
-    getZoneTypeText,
-    // Provider tracking integration
-    SERVICE_AREA,
-    isInsideServiceArea,
-    distanceFromCenter,
-    checkLocation
+    let closest: { zone: GeofenceZone; distance: number } | null = null
+
+    for (const zone of zones.value) {
+      const distance = calculateDistance(currentLocation.value, zone.center)
+      if (!closest || distance < closest.distance) {
+        closest = { zone, distance }
+      }
+    }
+
+    return closest
+  })
+
+  const recentEvents = computed(() => 
+    events.value.slice(-5).reverse()
+  )
+
+  return {
+    events,
+    recentEvents,
+    activeZones: computed(() => Array.from(activeZones.value)),
+    isInAnyZone,
+    closestZone,
+    startMonitoring,
+    stopMonitoring,
+    requestNotificationPermission,
+    ZONE_PRESETS
   }
 }

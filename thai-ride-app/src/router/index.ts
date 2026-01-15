@@ -19,6 +19,14 @@ export const routes: RouteRecordRaw[] = [
     meta: { hideNavigation: true, public: true }
   },
   
+  // Public tracking page (no auth required)
+  {
+    path: '/track/:token',
+    name: 'SharedRideTracking',
+    component: () => import('../views/public/SharedRideTrackingView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  
   // Root redirect
   {
     path: '/',
@@ -102,47 +110,70 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, hideNavigation: true, allowWithoutProvider: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker'] }
   },
   
-  // Provider Routes - With Layout (requires provider access)
+  // Provider Routes - New Design (Green Theme)
   {
     path: '/provider',
-    component: () => import('../components/ProviderLayout.vue'),
+    component: () => import('../components/ProviderLayoutNew.vue'),
     meta: { requiresAuth: true, hideNavigation: true, requiresProviderAccess: true },
     children: [
       {
         path: '',
-        name: 'ProviderJobs',
-        component: () => import('../components/provider/SimpleProviderDashboard.vue'),
+        name: 'ProviderHome',
+        component: () => import('../views/provider/ProviderHomeNew.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
-        path: 'my-jobs',
-        name: 'ProviderMyJobs',
-        component: () => import('../views/provider/ProviderMyJobsView.vue'),
+        path: 'orders',
+        name: 'ProviderOrders',
+        component: () => import('../views/provider/ProviderOrdersNew.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
-        path: 'job/:id',
-        name: 'ProviderJobDetail',
-        component: () => import('../views/provider/ProviderJobDetailView.vue'),
+        path: 'wallet',
+        name: 'ProviderWallet',
+        component: () => import('../views/provider/ProviderWalletNew.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
-        path: 'earnings',
-        name: 'ProviderEarnings',
-        component: () => import('../views/provider/ProviderEarningsView.vue'),
+        path: 'chat',
+        name: 'ProviderChat',
+        component: () => import('../views/provider/ProviderChatNew.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
         path: 'profile',
         name: 'ProviderProfile',
-        component: () => import('../views/provider/ProviderProfileView.vue'),
+        component: () => import('../views/provider/ProviderProfileNew.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
+        path: 'job/:id',
+        name: 'ProviderJobDetail',
+        component: () => import('../views/provider/ProviderJobDetailPro.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      {
+        path: 'job-minimal/:id',
+        name: 'ProviderJobDetailMinimal',
+        component: () => import('../views/provider/ProviderJobDetailMinimal.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      // Legacy routes (redirect to new)
+      {
+        path: 'job',
+        redirect: '/provider/orders'
+      },
+      {
+        path: 'my-jobs',
+        redirect: '/provider/orders'
+      },
+      {
+        path: 'earnings',
+        redirect: '/provider/wallet'
+      },
+      {
         path: 'dashboard',
-        name: 'ProviderDashboard',
-        component: () => import('../views/provider/ProviderDashboardV2.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        redirect: '/provider'
       }
     ]
   },
@@ -195,6 +226,18 @@ export const routes: RouteRecordRaw[] = [
         path: 'analytics',
         name: 'AdminAnalytics',
         component: () => import('../views/admin/AdminAnalyticsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'cron-jobs',
+        name: 'AdminCronJobs',
+        component: () => import('../admin/views/CronJobMonitoringView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'provider-heatmap',
+        name: 'AdminProviderHeatmap',
+        component: () => import('../admin/views/ProviderHeatmapView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {

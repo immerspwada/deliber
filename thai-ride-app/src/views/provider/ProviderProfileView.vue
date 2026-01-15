@@ -2,14 +2,25 @@
 /**
  * Provider Profile View - หน้าโปรไฟล์
  * Clean, Minimal Design
+ * 
+ * Features:
+ * - Avatar & Vehicle Photo Upload (Provider only)
+ * - Push Notification Toggle
+ * - Profile Stats
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
 import { usePushNotification } from '../../composables/usePushNotification'
+import { useProviderMedia } from '../../composables/useProviderMedia'
+import ProviderMediaUpload from '../../components/provider/ProviderMediaUpload.vue'
 
 const router = useRouter()
 const { isSupported: pushSupported, isSubscribed: pushEnabled, permission: pushPermission, loading: pushLoading, requestPermission, unsubscribe } = usePushNotification()
+
+// Media upload
+const { avatarUrl, fetchProviderMedia } = useProviderMedia()
+const showMediaUpload = ref(false)
 
 // State
 const loading = ref(true)
@@ -77,12 +88,28 @@ async function loadData() {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (data) provider.value = data
+    if (data) {
+      provider.value = data
+      // Fetch media URLs
+      await fetchProviderMedia()
+    }
   } catch (err) {
     console.error('Load error:', err)
   } finally {
     loading.value = false
   }
+}
+
+// Open media upload modal
+function openMediaUpload(): void {
+  showMediaUpload.value = true
+}
+
+// Close media upload modal
+function closeMediaUpload(): void {
+  showMediaUpload.value = false
+  // Refresh media URLs
+  fetchProviderMedia()
 }
 
 function goToCustomer() {
@@ -107,7 +134,18 @@ onMounted(loadData)
     <template v-else>
       <!-- Profile Header -->
       <div class="profile-header">
-        <div class="avatar">{{ initials }}</div>
+        <button type="button" class="avatar-btn" @click="openMediaUpload" aria-label="แก้ไขรูปโปรไฟล์">
+          <div class="avatar" :class="{ 'has-image': avatarUrl }">
+            <img v-if="avatarUrl" :src="avatarUrl" alt="รูปโปรไฟล์" class="avatar-img" />
+            <span v-else>{{ initials }}</span>
+          </div>
+          <div class="avatar-edit-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </div>
+        </button>
         <div class="profile-info">
           <h1 class="profile-name">{{ displayName }}</h1>
           <span class="profile-status" :class="statusInfo.class">
@@ -233,6 +271,24 @@ onMounted(loadData)
 
       <!-- Version -->
       <p class="version">GOBEAR Provider v1.0.0</p>
+
+      <!-- Media Upload Modal -->
+      <Teleport to="body">
+        <div v-if="showMediaUpload" class="modal-overlay" @click.self="closeMediaUpload">
+          <div class="modal-content media-modal">
+            <div class="modal-header">
+              <h3>จัดการรูปภาพ</h3>
+              <button type="button" class="close-btn" @click="closeMediaUpload" aria-label="ปิด">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <ProviderMediaUpload />
+          </div>
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>
@@ -275,6 +331,14 @@ onMounted(loadData)
   margin-bottom: 16px;
 }
 
+.avatar-btn {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 .avatar {
   width: 64px;
   height: 64px;
@@ -286,6 +350,37 @@ onMounted(loadData)
   justify-content: center;
   font-size: 22px;
   font-weight: 700;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.avatar.has-image {
+  border: 3px solid #10b981;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-btn:active .avatar {
+  transform: scale(0.95);
+}
+
+.avatar-edit-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 24px;
+  height: 24px;
+  background: #10b981;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
 }
 
 .profile-info {
@@ -606,5 +701,80 @@ onMounted(loadData)
   font-size: 12px;
   color: #9ca3af;
   margin: 0;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  padding: 0;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: slide-up 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+  margin: 0;
+}
+
+.close-btn {
+  width: 36px;
+  height: 36px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.close-btn:active {
+  background: #e5e7eb;
+  transform: scale(0.95);
+}
+
+.media-modal {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 </style>

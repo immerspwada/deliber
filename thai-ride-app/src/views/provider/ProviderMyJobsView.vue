@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase'
 // Types
 interface Job {
   id: string
+  tracking_id?: string
   type: 'ride' | 'delivery' | 'shopping'
   service_type: string
   status: string
@@ -63,7 +64,7 @@ async function loadData(): Promise<void> {
       .from('providers_v2')
       .select('id')
       .eq('user_id', user.id)
-      .maybeSingle()
+      .maybeSingle() as { data: { id: string } | null, error: Error | null }
 
     if (providerError) {
       console.error('[MyJobs] Provider error:', providerError)
@@ -71,21 +72,22 @@ async function loadData(): Promise<void> {
       return
     }
 
-    if (!providerData) {
+    if (!providerData?.id) {
       error.value = 'ไม่พบข้อมูลผู้ให้บริการ'
       return
     }
 
-    providerId.value = providerData.id
+    const provId = providerData.id
+    providerId.value = provId
 
     // Load jobs in parallel
     await Promise.all([
-      loadActiveJobs(providerData.id),
-      loadHistoryJobs(providerData.id)
+      loadActiveJobs(provId),
+      loadHistoryJobs(provId)
     ])
 
     // Setup realtime subscription
-    setupRealtimeSubscription(providerData.id)
+    setupRealtimeSubscription(provId)
 
   } catch (err) {
     console.error('[MyJobs] Exception:', err)
@@ -102,9 +104,9 @@ async function loadActiveJobs(provId: string): Promise<void> {
   const { data: rides, error: ridesError } = await supabase
     .from('ride_requests')
     .select(`
-      id, status, ride_type, pickup_address, destination_address,
+      id, tracking_id, status, ride_type, pickup_address, destination_address,
       estimated_fare, final_fare, created_at,
-      profiles:user_id(full_name, phone)
+      users:user_id(full_name, phone)
     `)
     .eq('provider_id', provId)
     .in('status', ACTIVE_STATUSES)
@@ -124,7 +126,7 @@ async function loadActiveJobs(provId: string): Promise<void> {
     .select(`
       id, status, package_type, sender_address, recipient_address,
       estimated_fee, final_fee, created_at,
-      profiles:user_id(full_name, phone)
+      users:user_id(full_name, phone)
     `)
     .eq('provider_id', provId)
     .in('status', ACTIVE_STATUSES)
@@ -150,7 +152,7 @@ async function loadHistoryJobs(provId: string): Promise<void> {
   const { data: rides, error: ridesError } = await supabase
     .from('ride_requests')
     .select(`
-      id, status, ride_type, pickup_address, destination_address,
+      id, tracking_id, status, ride_type, pickup_address, destination_address,
       estimated_fare, final_fare, created_at
     `)
     .eq('provider_id', provId)
@@ -192,9 +194,10 @@ async function loadHistoryJobs(provId: string): Promise<void> {
 }
 
 function transformRideToJob(ride: Record<string, unknown>): Job {
-  const profile = ride.profiles as Record<string, unknown> | null
+  const user = ride.users as Record<string, unknown> | null
   return {
     id: ride.id as string,
+    tracking_id: (ride.tracking_id as string) || (ride.id as string),
     type: 'ride',
     service_type: (ride.ride_type as string) || 'standard',
     status: ride.status as string,
@@ -202,13 +205,13 @@ function transformRideToJob(ride: Record<string, unknown>): Job {
     dropoff_address: (ride.destination_address as string) || '',
     fare: Number(ride.final_fare || ride.estimated_fare) || 0,
     created_at: ride.created_at as string,
-    customer_name: profile?.full_name as string | undefined,
-    customer_phone: profile?.phone as string | undefined
+    customer_name: user?.full_name as string | undefined,
+    customer_phone: user?.phone as string | undefined
   }
 }
 
 function transformDeliveryToJob(delivery: Record<string, unknown>): Job {
-  const profile = delivery.profiles as Record<string, unknown> | null
+  const user = delivery.users as Record<string, unknown> | null
   return {
     id: delivery.id as string,
     type: 'delivery',
@@ -218,8 +221,8 @@ function transformDeliveryToJob(delivery: Record<string, unknown>): Job {
     dropoff_address: (delivery.recipient_address as string) || '',
     fare: Number(delivery.final_fee || delivery.estimated_fee) || 0,
     created_at: delivery.created_at as string,
-    customer_name: profile?.full_name as string | undefined,
-    customer_phone: profile?.phone as string | undefined
+    customer_name: user?.full_name as string | undefined,
+    customer_phone: user?.phone as string | undefined
   }
 }
 
@@ -306,6 +309,16 @@ function formatDate(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function formatTrackingId(trackingId: string): string {
+  if (!trackingId) return '-'
+  // If it's RID-xxx format, show as-is
+  if (trackingId.startsWith('RID-')) {
+    return trackingId
+  }
+  // For UUID format, show shortened version
+  return trackingId.slice(-8).toUpperCase()
 }
 
 function goToJobDetail(job: Job): void {
@@ -399,6 +412,9 @@ onUnmounted(() => {
               <span v-else-if="job.type === 'delivery'" aria-hidden="true">📦</span>
               <span v-else aria-hidden="true">🛒</span>
               {{ getServiceTypeLabel(job) }}
+              <span v-if="job.tracking_id" class="tracking-badge" :title="job.tracking_id">
+                #{{ formatTrackingId(job.tracking_id) }}
+              </span>
             </span>
             <span class="job-date">{{ formatDate(job.created_at) }}</span>
           </div>
@@ -634,6 +650,18 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tracking-badge {
+  padding: 2px 6px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  letter-spacing: 0.3px;
 }
 
 .job-date {

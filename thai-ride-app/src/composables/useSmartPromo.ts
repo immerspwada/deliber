@@ -113,13 +113,14 @@ export function useSmartPromo(options: SmartPromoOptions) {
       // ตรวจสอบการใช้งานของ user
       const { data: userUsage, error: usageError } = await supabase
         .from('user_promo_usage')
-        .select('promo_code_id, count')
+        .select('promo_id')
         .eq('user_id', authStore.user.id)
 
       if (usageError) throw usageError
 
-      const usageMap = new Map(
-        userUsage?.map((u: { promo_code_id: string; count: number }) => [u.promo_code_id, u.count]) || []
+      // สร้าง Set ของ promo_id ที่ใช้แล้ว (schema ปัจจุบันเป็น UNIQUE per user/promo)
+      const usedPromoIds = new Set(
+        userUsage?.map((u: { promo_id: string }) => u.promo_id) || []
       )
 
       // กรองโปรโมชั่นที่ใช้ได้
@@ -134,12 +135,9 @@ export function useSmartPromo(options: SmartPromoOptions) {
           return false
         }
 
-        // ตรวจสอบ user usage limit
-        if (promo.user_usage_limit) {
-          const used = usageMap.get(promo.id) || 0
-          if (used >= promo.user_usage_limit) {
-            return false
-          }
+        // ตรวจสอบ user usage limit (schema ปัจจุบันเป็น 1 ครั้งต่อ promo)
+        if (usedPromoIds.has(promo.id)) {
+          return false
         }
 
         return true
@@ -206,13 +204,13 @@ export function useSmartPromo(options: SmartPromoOptions) {
       // ตรวจสอบการใช้งาน
       const { data: usage } = await supabase
         .from('user_promo_usage')
-        .select('count')
+        .select('id')
         .eq('user_id', authStore.user.id)
-        .eq('promo_code_id', promo.id)
-        .single()
+        .eq('promo_id', promo.id)
+        .maybeSingle()
 
-      if (promo.user_usage_limit && usage && usage.count >= promo.user_usage_limit) {
-        error.value = 'คุณใช้โค้ดนี้ครบจำนวนแล้ว'
+      if (usage) {
+        error.value = 'คุณใช้โค้ดนี้แล้ว'
         return null
       }
 

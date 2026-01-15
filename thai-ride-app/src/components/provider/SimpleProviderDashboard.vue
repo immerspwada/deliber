@@ -115,6 +115,10 @@
                 <circle cx="17" cy="17" r="2"/>
               </svg>
               <span>รับส่ง</span>
+              <!-- Order Number Badge -->
+              <span class="order-badge" :title="job.tracking_id">
+                #{{ formatTrackingId(job.tracking_id) }}
+              </span>
             </div>
             <div class="job-header-right">
               <!-- Customer Rating Badge -->
@@ -779,6 +783,16 @@ function formatRating(rating: number): string {
   return rating.toFixed(1)
 }
 
+function formatTrackingId(trackingId: string): string {
+  if (!trackingId) return '-'
+  // If it's a UUID, show last 8 chars; if it's RID-xxx format, show as-is
+  if (trackingId.startsWith('RID-')) {
+    return trackingId
+  }
+  // For UUID format, show shortened version
+  return trackingId.slice(-8).toUpperCase()
+}
+
 // ==================== HAPTIC FEEDBACK ====================
 
 function triggerHapticFeedback(type: 'light' | 'medium' | 'heavy' = 'medium'): void {
@@ -1243,6 +1257,18 @@ onUnmounted(() => {
 .type-icon {
   width: 18px;
   height: 18px;
+}
+
+/* Order Badge */
+.order-badge {
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  letter-spacing: 0.5px;
 }
 
 .job-time {

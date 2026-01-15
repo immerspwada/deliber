@@ -24,6 +24,9 @@ import { useJobAlert } from '../../composables/useJobAlert'
 import { useRoleAccess } from '../../composables/useRoleAccess'
 import { useErrorHandler } from '../../composables/useErrorHandler'
 import { useETA } from '../../composables/useETA'
+import { useNavigation } from '../../composables/useNavigation'
+import { useJobStatusFlow } from '../../composables/useJobStatusFlow'
+import { useURLTracking } from '../../composables/useURLTracking'
 import { ErrorCode, createAppError, handleSupabaseError } from '../../utils/errorHandler'
 import ChatDrawer from '../../components/ChatDrawer.vue'
 import PhotoEvidence from '../../components/provider/PhotoEvidence.vue'
@@ -36,6 +39,7 @@ const CancelReasonSchema = z.string().max(500, 'เหตุผลยาวเ�
 // Types
 interface JobDetail {
   id: string
+  tracking_id?: string
   type: 'ride' | 'delivery' | 'shopping'
   status: string
   service_type: string
@@ -48,21 +52,16 @@ interface JobDetail {
   fare: number
   notes?: string
   created_at: string
+  updated_at?: string
   pickup_photo?: string | null
   dropoff_photo?: string | null
+  provider_id?: string
   customer: {
     id: string
     name: string
     phone: string
     avatar_url?: string
   } | null
-}
-
-interface StatusStep {
-  key: string
-  label: string
-  icon: string
-  action?: string
 }
 
 // Route & Router
@@ -72,6 +71,24 @@ const { quickBeep, quickVibrate } = useJobAlert()
 const { canAccessProvider, providerId, checkingProvider, checkProviderRouteAccess } = useRoleAccess()
 const { handleAsync, clearError } = useErrorHandler()
 const { eta, startTracking, updateETA, stopTracking, arrivalTime } = useETA()
+const { navigate } = useNavigation()
+const { updateStep, updateAction, getCurrentTracking, migrateOldURL } = useURLTracking()
+
+// Job status from database
+const jobStatus = computed(() => job.value?.status)
+
+// Use status flow composable
+const {
+  STATUS_FLOW,
+  currentStatusIndex,
+  currentStep,
+  nextStep,
+  nextDbStatus,
+  canProgress,
+  isCompleted: isCompletedStatus,
+  isCancelled: isCancelledStatus,
+  debugInfo
+} = useJobStatusFlow(jobStatus)
 
 // State
 const loading = ref(true)
@@ -89,15 +106,6 @@ const photoError = ref<string | null>(null)
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
 let locationWatchId: number | null = null
 
-// Status flow
-const STATUS_FLOW: StatusStep[] = [
-  { key: 'matched', label: 'รับงานแล้ว', icon: '✅' },
-  { key: 'arriving', label: 'กำลังไปรับ', icon: '🚗', action: 'เริ่มเดินทาง' },
-  { key: 'pickup', label: 'ถึงจุดรับแล้ว', icon: '📍', action: 'ถึงจุดรับแล้ว' },
-  { key: 'in_progress', label: 'กำลังเดินทาง', icon: '🛣️', action: 'รับลูกค้าแล้ว' },
-  { key: 'completed', label: 'เสร็จสิ้น', icon: '🎉', action: 'เสร็จสิ้นงาน' }
-]
-
 // Computed
 const jobId = computed(() => {
   const id = route.params.id as string
@@ -106,35 +114,41 @@ const jobId = computed(() => {
   return result.success ? id : null
 })
 
-const currentStatusIndex = computed(() => {
-  if (!job.value) return -1
-  return STATUS_FLOW.findIndex(s => s.key === job.value!.status)
-})
-
-const nextStatus = computed(() => {
-  const idx = currentStatusIndex.value
-  if (idx < 0 || idx >= STATUS_FLOW.length - 1) return null
-  return STATUS_FLOW[idx + 1]
-})
-
 const canUpdateStatus = computed(() => {
-  return nextStatus.value !== null && !updating.value
+  const result = canProgress.value && !updating.value
+  
+  // Debug log
+  console.log('[JobDetail] canUpdateStatus check:', {
+    canProgress: canProgress.value,
+    updating: updating.value,
+    result,
+    jobStatus: job.value?.status,
+    currentIndex: currentStatusIndex.value,
+    nextStep: nextStep.value?.key,
+    nextDbStatus: nextDbStatus.value
+  })
+  
+  return result
 })
 
 const isCompleted = computed(() => {
-  return job.value?.status === 'completed'
+  return isCompletedStatus.value
 })
 
 const isCancelled = computed(() => {
-  return job.value?.status === 'cancelled'
+  return isCancelledStatus.value
+})
+
+const isDevelopment = computed(() => {
+  return import.meta.env.DEV
 })
 
 const googleMapsUrl = computed(() => {
   if (!job.value) return ''
   const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status } = job.value
   
-  // ถ้ายังไม่รับลูกค้า → navigate ไปจุดรับ
-  if (['matched', 'arriving'].includes(status)) {
+  // ถ้ายังไม่รับลูกค้า (matched) → navigate ไปจุดรับ
+  if (['matched', 'accepted', 'offered', 'confirmed'].includes(status)) {
     return `https://www.google.com/maps/dir/?api=1&destination=${pickup_lat},${pickup_lng}&travelmode=driving`
   }
   // ถ้ารับลูกค้าแล้ว → navigate ไปจุดส่ง
@@ -154,12 +168,12 @@ const etaDestination = computed(() => {
   if (!job.value) return null
   const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status } = job.value
   
-  // Before pickup: ETA to pickup
-  if (['matched', 'arriving'].includes(status)) {
+  // Before pickup: ETA to pickup (matched/pickup)
+  if (['matched', 'pickup', 'accepted', 'offered', 'confirmed', 'arrived'].includes(status)) {
     return { lat: pickup_lat, lng: pickup_lng, label: 'จุดรับ' }
   }
-  // After pickup: ETA to dropoff
-  if (['pickup', 'in_progress'].includes(status)) {
+  // After pickup: ETA to dropoff (in_progress)
+  if (['in_progress', 'picked_up', 'ongoing', 'started'].includes(status)) {
     return { lat: dropoff_lat, lng: dropoff_lng, label: 'จุดส่ง' }
   }
   return null
@@ -168,12 +182,14 @@ const etaDestination = computed(() => {
 // Show photo evidence based on status
 const showPickupPhoto = computed(() => {
   if (!job.value) return false
-  return ['pickup', 'in_progress', 'completed'].includes(job.value.status)
+  // Show after arriving at pickup (pickup or later)
+  return ['pickup', 'arrived', 'in_progress', 'picked_up', 'ongoing', 'started', 'completed', 'finished', 'done'].includes(job.value.status)
 })
 
 const showDropoffPhoto = computed(() => {
   if (!job.value) return false
-  return ['in_progress', 'completed'].includes(job.value.status)
+  // Show after picking up customer (in_progress or later)
+  return ['in_progress', 'picked_up', 'ongoing', 'started', 'completed', 'finished', 'done'].includes(job.value.status)
 })
 
 // Methods
@@ -193,9 +209,19 @@ function formatDistance(km: number): string {
   return `${km.toFixed(1)} กม.`
 }
 
+function formatTrackingId(trackingId: string): string {
+  if (!trackingId) return '-'
+  // If it's RID-xxx format, show as-is
+  if (trackingId.startsWith('RID-')) {
+    return trackingId
+  }
+  // For UUID format, show shortened version
+  return trackingId.slice(-8).toUpperCase()
+}
+
 /**
  * Check provider access before loading job
- * Wait for checkProviderRouteAccess to complete first
+ * Uses Promise.race to prevent timeout issues
  */
 async function checkAccess(): Promise<boolean> {
   console.log('[JobDetail] Checking access...', {
@@ -204,31 +230,71 @@ async function checkAccess(): Promise<boolean> {
     providerId: providerId.value
   })
   
-  // If still checking, wait for it to complete
-  if (checkingProvider.value) {
-    console.log('[JobDetail] Waiting for provider check to complete...')
-    let attempts = 0
-    while (checkingProvider.value && attempts < 30) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      attempts++
-    }
-  }
-  
-  // If canAccessProvider is still false, try checking again
-  if (!canAccessProvider.value) {
-    console.log('[JobDetail] canAccessProvider is false, checking again...')
-    const hasAccess = await checkProviderRouteAccess()
-    console.log('[JobDetail] checkProviderRouteAccess result:', hasAccess)
+  try {
+    // Create timeout promise
+    const timeoutPromise = new Promise<boolean>((_, reject) => {
+      setTimeout(() => reject(new Error('Access check timeout')), 5000)
+    })
+    
+    // Create access check promise
+    const accessCheckPromise = new Promise<boolean>(async (resolve) => {
+      // If still checking, wait for it to complete
+      if (checkingProvider.value) {
+        console.log('[JobDetail] Waiting for provider check to complete...')
+        let attempts = 0
+        while (checkingProvider.value && attempts < 50) {
+          await new Promise(r => setTimeout(r, 100))
+          attempts++
+        }
+      }
+      
+      // If canAccessProvider is still false, try checking again
+      if (!canAccessProvider.value) {
+        console.log('[JobDetail] canAccessProvider is false, checking again...')
+        const hasAccess = await checkProviderRouteAccess()
+        console.log('[JobDetail] checkProviderRouteAccess result:', hasAccess)
+        resolve(hasAccess)
+      } else {
+        resolve(true)
+      }
+    })
+    
+    // Race between timeout and access check
+    const hasAccess = await Promise.race([accessCheckPromise, timeoutPromise])
     
     if (!hasAccess) {
       accessDenied.value = true
       errorMessage.value = 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้'
       return false
     }
+    
+    console.log('[JobDetail] Access granted, providerId:', providerId.value)
+    return true
+    
+  } catch (error) {
+    console.error('[JobDetail] Access check error:', error)
+    accessDenied.value = true
+    errorMessage.value = 'ไม่สามารถตรวจสอบสิทธิ์ได้ กรุณาลองใหม่'
+    return false
   }
-  
-  console.log('[JobDetail] Access granted, providerId:', providerId.value)
-  return true
+}
+
+/**
+ * Get step number from status for URL
+ */
+function getStepFromStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    'accepted': '1-accepted',
+    'matched': '1-matched',
+    'offered': '1-offered',
+    'arrived': '2-arrived',
+    'pickup': '2-pickup',
+    'in_progress': '3-in-progress',
+    'picked_up': '3-picked-up',
+    'completed': '4-completed',
+    'cancelled': 'cancelled'
+  }
+  return statusMap[status] || 'unknown'
 }
 
 async function loadJob(): Promise<void> {
@@ -253,7 +319,7 @@ async function loadJob(): Promise<void> {
     const { data, error: dbError } = await supabase
       .from('ride_requests')
       .select(`
-        id, status, ride_type, pickup_address, destination_address,
+        id, tracking_id, status, ride_type, pickup_address, destination_address,
         pickup_lat, pickup_lng, destination_lat, destination_lng,
         estimated_fare, final_fare, notes, created_at, user_id, provider_id
       `)
@@ -308,6 +374,7 @@ async function loadJob(): Promise<void> {
 
   job.value = {
     id: result.id,
+    tracking_id: result.tracking_id || result.id,
     type: 'ride',
     status: result.status,
     service_type: result.ride_type || 'standard',
@@ -320,6 +387,7 @@ async function loadJob(): Promise<void> {
     fare: result.final_fare || result.estimated_fare || 0,
     notes: result.notes as string | undefined,
     created_at: result.created_at,
+    provider_id: result.provider_id,
     customer: customerProfile ? {
       id: customerProfile.id,
       name: customerProfile.full_name || 'ลูกค้า',
@@ -330,12 +398,23 @@ async function loadJob(): Promise<void> {
 
   // Setup realtime subscription
   setupRealtimeSubscription()
+  
+  // Update URL with current status AFTER job is loaded
+  // Update URL with current status (standardized)
+  // Convert database format (in_progress) to URL format (in-progress)
+  setTimeout(() => {
+    const urlStep = result.status.replace(/_/g, '-')
+    updateStep(urlStep as any, 'provider_job')
+  }, 100)
+  
   loading.value = false
 }
 
 function setupRealtimeSubscription(): void {
   if (!jobId.value) return
   cleanupRealtimeSubscription()
+
+  console.log('[JobDetail] Setting up realtime subscription for:', jobId.value)
 
   realtimeChannel = supabase
     .channel(`job-detail-${jobId.value}`)
@@ -347,14 +426,45 @@ function setupRealtimeSubscription(): void {
     }, (payload) => {
       if (job.value && payload.new) {
         const newData = payload.new as Record<string, unknown>
-        job.value.status = newData.status as string
-        // Update fare if changed
-        if (newData.final_fare) {
-          job.value.fare = newData.final_fare as number
+        
+        // Version checking to prevent race conditions
+        const currentUpdatedAt = job.value.updated_at ? new Date(job.value.updated_at).getTime() : 0
+        const newUpdatedAt = newData.updated_at ? new Date(newData.updated_at as string).getTime() : 0
+        
+        // Only update if new data is newer
+        if (newUpdatedAt >= currentUpdatedAt) {
+          console.log('[JobDetail] Realtime update received:', {
+            oldStatus: job.value.status,
+            newStatus: newData.status,
+            oldUpdatedAt: job.value.updated_at,
+            newUpdatedAt: newData.updated_at
+          })
+          
+          job.value.status = newData.status as string
+          job.value.updated_at = newData.updated_at as string
+          
+          // Update URL with new status (standardized)
+          // Convert database format to URL format
+          setTimeout(() => {
+            const urlStep = (newData.status as string).replace(/_/g, '-')
+            updateStep(urlStep as any, 'provider_job')
+          }, 100)
+          
+          // Update fare if changed
+          if (newData.final_fare) {
+            job.value.fare = newData.final_fare as number
+          }
+        } else {
+          console.warn('[JobDetail] Ignoring stale realtime update:', {
+            currentUpdatedAt: new Date(currentUpdatedAt).toISOString(),
+            newUpdatedAt: new Date(newUpdatedAt).toISOString()
+          })
         }
       }
     })
-    .subscribe()
+    .subscribe((status) => {
+      console.log('[JobDetail] Subscription status:', status)
+    })
 }
 
 function cleanupRealtimeSubscription(): void {
@@ -365,21 +475,65 @@ function cleanupRealtimeSubscription(): void {
 }
 
 async function updateStatus(): Promise<void> {
-  if (!job.value || !nextStatus.value || updating.value) return
+  if (!job.value || !nextDbStatus.value || updating.value) return
+
+  // Explicit validation checks
+  if (isCompleted.value) {
+    errorMessage.value = 'ไม่สามารถอัพเดทงานที่เสร็จสิ้นแล้ว'
+    return
+  }
+
+  if (isCancelled.value) {
+    errorMessage.value = 'ไม่สามารถอัพเดทงานที่ถูกยกเลิกแล้ว'
+    return
+  }
+
+  if (!canUpdateStatus.value) {
+    errorMessage.value = 'ไม่สามารถอัพเดทสถานะได้ในขณะนี้'
+    return
+  }
+
+  // Verify provider is still assigned
+  if (job.value.provider_id && providerId.value && job.value.provider_id !== providerId.value) {
+    errorMessage.value = 'งานนี้ไม่ได้มอบหมายให้คุณแล้ว'
+    return
+  }
+
+  console.log('[JobDetail] Updating status:', {
+    currentStatus: job.value.status,
+    nextDbStatus: nextDbStatus.value,
+    debugInfo: debugInfo.value
+  })
 
   updating.value = true
   errorMessage.value = null
 
   const result = await handleAsync(async () => {
-    const newStatus = nextStatus.value!.key
+    const newStatus = nextDbStatus.value!
+    
+    // Build update object with appropriate timestamps
+    const updateData: Record<string, unknown> = { 
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    }
+    
+    // Add timestamp based on status
+    // Database uses: matched, pickup, in_progress, completed
+    if (newStatus === 'pickup') {
+      updateData.arrived_at = new Date().toISOString()
+    } else if (newStatus === 'in_progress') {
+      updateData.started_at = new Date().toISOString()
+    } else if (newStatus === 'completed') {
+      updateData.completed_at = new Date().toISOString()
+    }
+    
+    console.log('[JobDetail] Updating with data:', updateData)
     
     const { error: updateError } = await supabase
       .from('ride_requests')
-      .update({ 
-        status: newStatus,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', job.value!.id)
+      .eq('provider_id', providerId.value) // Ensure provider still owns job
 
     if (updateError) {
       throw handleSupabaseError(updateError, 'UpdateStatus')
@@ -391,14 +545,41 @@ async function updateStatus(): Promise<void> {
   if (result) {
     // Update local state
     job.value!.status = result
+    job.value!.updated_at = new Date().toISOString()
+    
+    // Update URL with new status (standardized)
+    // Convert database format to URL format
+    setTimeout(() => {
+      const urlStep = result.replace(/_/g, '-')
+      updateStep(urlStep as any, 'provider_job')
+    }, 100)
+    
     quickBeep()
     quickVibrate()
 
-    // If completed, show success and go back
+    console.log('[JobDetail] Status updated successfully to:', result)
+
+    // If completed, notify customer for review and redirect
     if (result === 'completed') {
+      // Trigger customer review notification via realtime broadcast
+      try {
+        await supabase.channel(`ride-${job.value!.id}`).send({
+          type: 'broadcast',
+          event: 'ride_completed',
+          payload: {
+            ride_id: job.value!.id,
+            provider_id: providerId.value,
+            fare: job.value!.fare,
+            completed_at: new Date().toISOString()
+          }
+        })
+      } catch (e) {
+        console.warn('[JobDetail] Failed to send completion broadcast:', e)
+      }
+      
       setTimeout(() => {
         router.push('/provider/my-jobs')
-      }, 1500)
+      }, 2000)
     }
   } else {
     errorMessage.value = 'ไม่สามารถอัพเดทสถานะได้'
@@ -448,8 +629,24 @@ async function cancelJob(): Promise<void> {
 }
 
 function openNavigation(): void {
-  if (googleMapsUrl.value) {
-    window.open(googleMapsUrl.value, '_blank')
+  if (!job.value) return
+  
+  const { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status, pickup_address, dropoff_address } = job.value
+  
+  // ถ้ายังไม่รับลูกค้า (matched/pickup) → navigate ไปจุดรับ
+  if (['matched', 'pickup', 'accepted', 'offered', 'confirmed', 'arrived'].includes(status)) {
+    navigate({
+      lat: pickup_lat,
+      lng: pickup_lng,
+      label: pickup_address || 'จุดรับ'
+    })
+  } else {
+    // ถ้ารับลูกค้าแล้ว (in_progress) → navigate ไปจุดส่ง
+    navigate({
+      lat: dropoff_lat,
+      lng: dropoff_lng,
+      label: dropoff_address || 'จุดส่ง'
+    })
   }
 }
 
@@ -527,6 +724,11 @@ function goToUnauthorized(): void {
 
 // Lifecycle
 onMounted(() => {
+  console.log('[JobDetail] Component mounted, loading job...')
+  
+  // Migrate old URL format to new standardized format
+  migrateOldURL()
+  
   loadJob()
   startLocationTracking()
 })
@@ -539,9 +741,25 @@ onUnmounted(() => {
 // Watch for route changes
 watch(() => route.params.id, () => {
   if (route.params.id) {
+    console.log('[JobDetail] Route changed, reloading job:', route.params.id)
     loadJob()
   }
 })
+
+// Debug watch for status changes
+watch([jobStatus, debugInfo], ([status, debug]) => {
+  console.log('[JobDetail] Status Debug:', {
+    jobStatus: status,
+    currentIndex: currentStatusIndex.value,
+    currentStep: currentStep.value?.key,
+    nextStep: nextStep.value?.key,
+    nextDbStatus: nextDbStatus.value,
+    canProgress: canProgress.value,
+    canUpdateStatus: canUpdateStatus.value,
+    updating: updating.value,
+    fullDebug: debug
+  })
+}, { immediate: true, deep: true })
 </script>
 
 <template>
@@ -553,7 +771,12 @@ watch(() => route.params.id, () => {
           <path d="M15 18l-6-6 6-6"/>
         </svg>
       </button>
-      <h1>รายละเอียดงาน</h1>
+      <div class="header-title">
+        <h1>รายละเอียดงาน</h1>
+        <span v-if="job?.tracking_id" class="tracking-badge" :title="job.tracking_id">
+          #{{ formatTrackingId(job.tracking_id) }}
+        </span>
+      </div>
       <div class="header-spacer"></div>
     </header>
 
@@ -781,7 +1004,7 @@ watch(() => route.params.id, () => {
         <button 
           v-if="canUpdateStatus"
           class="status-btn"
-          :class="{ completing: nextStatus?.key === 'completed' }"
+          :class="{ completing: nextStep?.key === 'completed' }"
           @click="updateStatus"
           :disabled="updating"
           type="button"
@@ -789,8 +1012,24 @@ watch(() => route.params.id, () => {
         >
           <span v-if="updating" class="btn-loader" aria-hidden="true"></span>
           <span v-if="updating" class="sr-only">กำลังดำเนินการ...</span>
-          <span v-else>{{ nextStatus?.action }}</span>
+          <span v-else>{{ nextStep?.action }}</span>
         </button>
+      </div>
+
+      <!-- Debug Info (Development Only) -->
+      <div v-if="!isCompleted && !isCancelled && isDevelopment" class="debug-panel">
+        <details>
+          <summary>🔧 Debug Status Flow</summary>
+          <pre>{{ JSON.stringify(debugInfo, null, 2) }}</pre>
+          <button 
+            v-if="nextDbStatus"
+            @click="updateStatus"
+            class="debug-update-btn"
+            type="button"
+          >
+            Force Update to: {{ nextDbStatus }}
+          </button>
+        </details>
       </div>
 
       <!-- Cancel Button -->
@@ -928,6 +1167,24 @@ watch(() => route.params.id, () => {
   font-weight: 600;
   color: #111;
   margin: 0;
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.tracking-badge {
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  letter-spacing: 0.5px;
 }
 
 .header-spacer {
@@ -1595,5 +1852,50 @@ watch(() => route.params.id, () => {
 .toast-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(20px);
+}
+
+/* Debug Panel (Development Only) */
+.debug-panel {
+  margin: 0 16px 20px;
+  padding: 16px;
+  background: #fef3c7;
+  border: 2px dashed #f59e0b;
+  border-radius: 12px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.debug-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 12px;
+  user-select: none;
+}
+
+.debug-panel pre {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 12px 0;
+  color: #1f2937;
+}
+
+.debug-update-btn {
+  width: 100%;
+  padding: 12px;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.debug-update-btn:active {
+  background: #dc2626;
 }
 </style>

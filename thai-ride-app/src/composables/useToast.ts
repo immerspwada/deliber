@@ -1,73 +1,81 @@
 /**
- * useToast - Simple Toast Notification System
- * Feature: F67 - Toast Notifications
+ * useToast - Global toast notification system
  * 
  * Usage:
- * const { showToast, showSuccess, showError, showWarning } = useToast()
- * showSuccess('เปิดรับงานแล้ว')
- * showError('ไม่สามารถเปลี่ยนสถานะได้')
+ * const { showSuccess, showError, showWarning, showInfo } = useToast()
+ * showSuccess('บันทึกสำเร็จ')
+ * showError('เกิดข้อผิดพลาด')
  */
 
 import { ref, readonly } from 'vue'
 
-export interface Toast {
-  id: number
-  message: string
+export interface ToastItem {
+  id: string
   type: 'success' | 'error' | 'warning' | 'info'
+  message: string
   duration: number
 }
 
 // Global state (singleton)
-const toasts = ref<Toast[]>([])
+const toasts = ref<ToastItem[]>([])
 let toastId = 0
 
+function generateId(): string {
+  return `toast-${++toastId}-${Date.now()}`
+}
+
+function addToast(
+  type: ToastItem['type'],
+  message: string,
+  duration = 4000
+): string {
+  const id = generateId()
+  
+  toasts.value.push({
+    id,
+    type,
+    message,
+    duration
+  })
+  
+  // Limit to 5 toasts max
+  if (toasts.value.length > 5) {
+    toasts.value.shift()
+  }
+  
+  return id
+}
+
+function removeToast(id: string): void {
+  const index = toasts.value.findIndex(t => t.id === id)
+  if (index !== -1) {
+    toasts.value.splice(index, 1)
+  }
+}
+
+function clearAll(): void {
+  toasts.value = []
+}
+
 export function useToast() {
-  const showToast = (message: string, type: Toast['type'] = 'info', duration = 3000) => {
-    const id = ++toastId
-    const toast: Toast = { id, message, type, duration }
-    
-    toasts.value.push(toast)
-    
-    // Auto remove after duration
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id)
-      }, duration)
-    }
-    
-    return id
+  function showSuccess(message: string, duration?: number): string {
+    return addToast('success', message, duration)
   }
   
-  const removeToast = (id: number) => {
-    const index = toasts.value.findIndex(t => t.id === id)
-    if (index > -1) {
-      toasts.value.splice(index, 1)
-    }
+  function showError(message: string, duration?: number): string {
+    return addToast('error', message, duration ?? 6000) // Errors stay longer
   }
   
-  const showSuccess = (message: string, duration = 3000) => {
-    return showToast(message, 'success', duration)
+  function showWarning(message: string, duration?: number): string {
+    return addToast('warning', message, duration ?? 5000)
   }
   
-  const showError = (message: string, duration = 4000) => {
-    return showToast(message, 'error', duration)
-  }
-  
-  const showWarning = (message: string, duration = 3500) => {
-    return showToast(message, 'warning', duration)
-  }
-  
-  const showInfo = (message: string, duration = 3000) => {
-    return showToast(message, 'info', duration)
-  }
-  
-  const clearAll = () => {
-    toasts.value = []
+  function showInfo(message: string, duration?: number): string {
+    return addToast('info', message, duration)
   }
   
   return {
     toasts: readonly(toasts),
-    showToast,
     showSuccess,
     showError,
     showWarning,

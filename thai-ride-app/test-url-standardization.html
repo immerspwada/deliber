@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL Standardization Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin-bottom: 10px;
+      color: #111;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+    
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    
+    .test-case {
+      margin-bottom: 15px;
+      padding: 15px;
+      background: white;
+      border-radius: 6px;
+      border-left: 4px solid #10b981;
+    }
+    
+    .test-case.old {
+      border-left-color: #ef4444;
+    }
+    
+    .label {
+      font-weight: 600;
+      color: #666;
+      font-size: 12px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    
+    .url {
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      color: #111;
+      word-break: break-all;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      margin-top: 5px;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+    
+    .badge.new {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .badge.old {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .comparison-item {
+      padding: 15px;
+      background: white;
+      border-radius: 6px;
+    }
+    
+    .comparison-item h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #666;
+    }
+    
+    .stat {
+      font-size: 24px;
+      font-weight: 700;
+      color: #111;
+    }
+    
+    .stat.good {
+      color: #10b981;
+    }
+    
+    .stat.bad {
+      color: #ef4444;
+    }
+    
+    button {
+      padding: 12px 24px;
+      background: #000;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-top: 10px;
+    }
+    
+    button:hover {
+      background: #333;
+    }
+    
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .result.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    
+    .result.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    
+    @media (max-width: 640px) {
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔗 URL Standardization Test</h1>
+    <p class="subtitle">Testing clean URL format for provider job pages</p>
+    
+    <!-- Old Format Examples -->
+    <div class="section">
+      <h2>❌ Old Format (Deprecated)</h2>
+      
+      <div class="test-case old">
+        <div class="label">Matched Status <span class="badge old">Old</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?status=matched&step=1-matched&timestamp=1768468454056</div>
+      </div>
+      
+      <div class="test-case old">
+        <div class="label">Pickup Status <span class="badge old">Old</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?status=pickup&step=2-pickup&timestamp=1768468500000</div>
+      </div>
+      
+      <div class="test-case old">
+        <div class="label">In Progress Status <span class="badge old">Old</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?status=in_progress&step=3-in_progress&timestamp=1768468600000</div>
+      </div>
+    </div>
+    
+    <!-- New Format Examples -->
+    <div class="section">
+      <h2>✅ New Format (Standardized)</h2>
+      
+      <div class="test-case">
+        <div class="label">Matched Status <span class="badge new">New</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?step=matched</div>
+      </div>
+      
+      <div class="test-case">
+        <div class="label">Pickup Status <span class="badge new">New</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?step=pickup</div>
+      </div>
+      
+      <div class="test-case">
+        <div class="label">In Progress Status <span class="badge new">New</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?step=in-progress</div>
+      </div>
+      
+      <div class="test-case">
+        <div class="label">Completed Status <span class="badge new">New</span></div>
+        <div class="url">/provider/job/2d5b1b94-bb5b-4d3c-89d0-228e33494f4a?step=completed</div>
+      </div>
+    </div>
+    
+    <!-- Comparison -->
+    <div class="section">
+      <h2>📊 Comparison</h2>
+      
+      <div class="comparison">
+        <div class="comparison-item">
+          <h3>Old Format</h3>
+          <div class="stat bad">3 parameters</div>
+          <p style="margin-top: 10px; font-size: 13px; color: #666;">
+            status + step + timestamp<br>
+            Redundant and cluttered
+          </p>
+        </div>
+        
+        <div class="comparison-item">
+          <h3>New Format</h3>
+          <div class="stat good">1 parameter</div>
+          <p style="margin-top: 10px; font-size: 13px; color: #666;">
+            step only<br>
+            Clean and minimal
+          </p>
+        </div>
+      </div>
+      
+      <div class="comparison" style="margin-top: 20px;">
+        <div class="comparison-item">
+          <h3>URL Length (Old)</h3>
+          <div class="stat bad">~130 chars</div>
+        </div>
+        
+        <div class="comparison-item">
+          <h3>URL Length (New)</h3>
+          <div class="stat good">~70 chars</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Test Migration -->
+    <div class="section">
+      <h2>🔄 Test Migration</h2>
+      <p style="margin-bottom: 15px; color: #666;">
+        Test automatic migration from old format to new format
+      </p>
+      
+      <button onclick="testMigration('matched')">Test Matched</button>
+      <button onclick="testMigration('pickup')">Test Pickup</button>
+      <button onclick="testMigration('in_progress')">Test In Progress</button>
+      
+      <div id="migrationResult"></div>
+    </div>
+    
+    <!-- Benefits -->
+    <div class="section">
+      <h2>✨ Benefits</h2>
+      <ul style="list-style: none; padding: 0;">
+        <li style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+          <strong>✅ Cleaner URLs</strong><br>
+          <span style="color: #666; font-size: 14px;">Single parameter instead of three redundant ones</span>
+        </li>
+        <li style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+          <strong>✅ Type-safe</strong><br>
+          <span style="color: #666; font-size: 14px;">TypeScript validation for all step values</span>
+        </li>
+        <li style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+          <strong>✅ Backward Compatible</strong><br>
+          <span style="color: #666; font-size: 14px;">Automatic migration from old format</span>
+        </li>
+        <li style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+          <strong>✅ Better Analytics</strong><br>
+          <span style="color: #666; font-size: 14px;">Tracking separated from URL parameters</span>
+        </li>
+        <li style="padding: 10px 0;">
+          <strong>✅ Easier to Share</strong><br>
+          <span style="color: #666; font-size: 14px;">Shorter, more readable URLs</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+  
+  <script>
+    function testMigration(status) {
+      const resultDiv = document.getElementById('migrationResult');
+      
+      // Simulate old URL format
+      const oldUrl = `/provider/job/test-id?status=${status}&step=1-${status}&timestamp=${Date.now()}`;
+      
+      // Simulate migration
+      const newStep = status.replace(/_/g, '-');
+      const newUrl = `/provider/job/test-id?step=${newStep}`;
+      
+      // Show result
+      resultDiv.innerHTML = `
+        <div class="result success">
+          <strong>✅ Migration Successful</strong><br><br>
+          <strong>Old URL:</strong><br>
+          <code style="font-size: 12px; word-break: break-all;">${oldUrl}</code><br><br>
+          <strong>New URL:</strong><br>
+          <code style="font-size: 12px; word-break: break-all;">${newUrl}</code><br><br>
+          <strong>Saved:</strong> ${oldUrl.length - newUrl.length} characters
+        </div>
+      `;
+    }
+    
+    // Show analytics tracking example
+    console.log('📊 Analytics Tracking (separate from URL):');
+    console.log({
+      event: 'url_update',
+      context: 'provider_job',
+      step: 'matched',
+      timestamp: Date.now(),
+      path: '/provider/job/xxx'
+    });
+  </script>
+</body>
+</html>

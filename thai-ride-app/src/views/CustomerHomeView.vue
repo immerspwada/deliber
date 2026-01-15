@@ -303,7 +303,9 @@ const getStatusText = (type: string, status: string): string => {
     ride: {
       pending: "กำลังหาคนขับ",
       matched: "คนขับกำลังมา",
-      arrived: "คนขับถึงแล้ว",
+      arriving: "คนขับใกล้ถึงแล้ว",
+      arrived: "คนขับถึงจุดรับแล้ว",
+      picked_up: "กำลังเดินทาง",
       in_progress: "กำลังเดินทาง",
     },
     delivery: {
@@ -359,7 +361,7 @@ const fetchActiveOrders = async () => {
             "id, tracking_id, status, pickup_address, destination_address"
           )
           .eq("user_id", userId)
-          .in("status", ["pending", "matched", "arrived", "in_progress"])
+          .in("status", ["pending", "matched", "arriving", "arrived", "picked_up", "in_progress"])
           .limit(3),
         (supabase.from("delivery_requests") as any)
           .select("id, tracking_id, status, sender_address, recipient_address")

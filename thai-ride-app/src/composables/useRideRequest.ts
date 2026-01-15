@@ -26,6 +26,7 @@ export interface MatchedDriver {
   name: string
   phone?: string
   rating?: number
+  total_trips?: number
   vehicle_type?: string
   vehicle_color?: string
   vehicle_plate?: string
@@ -136,12 +137,19 @@ export function useRideRequest() {
   const statusText = computed(() => {
     if (!activeRide.value) return ''
     const s = activeRide.value.status as string
-    if (s === 'pending') return 'กำลังหาคนขับ...'
-    if (s === 'matched') return `คนขับมาถึงใน ${driverETA.value} นาที`
-    if (s === 'arriving') return 'คนขับใกล้ถึงแล้ว'
-    if (s === 'picked_up' || s === 'in_progress') return 'กำลังเดินทาง'
-    if (s === 'completed') return 'ถึงแล้ว!'
-    return s
+    const driverName = matchedDriver.value?.name || 'คนขับ'
+    const statusMap: Record<string, string> = {
+      'pending': 'กำลังหาคนขับ...',
+      'matched': matchedDriver.value ? `${driverName} กำลังมารับ (${driverETA.value || 5} นาที)` : 'พบคนขับแล้ว กำลังโหลดข้อมูล...',
+      'arriving': `${driverName} ใกล้ถึงแล้ว`,
+      'arrived': `${driverName} ถึงจุดรับแล้ว`,
+      'pickup': `${driverName} ถึงจุดรับแล้ว`,
+      'picked_up': 'กำลังเดินทาง',
+      'in_progress': 'กำลังเดินทาง',
+      'completed': 'ถึงแล้ว!',
+      'cancelled': 'ยกเลิกแล้ว'
+    }
+    return statusMap[s] || s
   })
 
   // Watch for status changes
@@ -387,44 +395,103 @@ export function useRideRequest() {
   async function checkActiveRide(): Promise<void> {
     if (!authStore.user?.id) return
     
-    // Query updated for providers_v2 schema
-    const { data, error } = await supabase
+    console.log('[RideRequest] Checking for active ride...')
+    
+    // Query updated for providers_v2 schema - include all active statuses
+    // Include vehicle info columns: vehicle_type, vehicle_plate, vehicle_color
+    // Include media: avatar_url, vehicle_photo_url
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from('ride_requests')
       .select(`
         *,
         provider:provider_id (
-          id, user_id, first_name, last_name, phone_number, rating, total_trips
+          id, user_id, first_name, last_name, phone_number, rating, total_trips,
+          vehicle_type, vehicle_plate, vehicle_color, avatar_url, vehicle_photo_url
         )
       `)
       .eq('user_id', authStore.user.id)
-      .in('status', ['pending', 'matched', 'arriving', 'picked_up', 'in_progress'])
+      .in('status', ['pending', 'matched', 'arrived', 'arriving', 'picked_up', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (error) return
+    if (error) {
+      console.error('[RideRequest] Error checking active ride:', error)
+      return
+    }
 
     if (data) {
-      activeRide.value = data
-      const provider = (data as Record<string, unknown>).provider as Record<string, unknown> | undefined
-      if (provider) {
-        // providers_v2 has first_name, last_name, phone_number directly
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rideData = data as any
+      console.log('[RideRequest] Found active ride:', rideData.id, 'status:', rideData.status)
+      activeRide.value = rideData
+      
+      // Set pickup and destination from active ride
+      if (rideData.pickup_lat && rideData.pickup_lng) {
+        pickup.value = {
+          lat: Number(rideData.pickup_lat),
+          lng: Number(rideData.pickup_lng),
+          address: String(rideData.pickup_address || 'จุดรับ')
+        }
+      }
+      if (rideData.destination_lat && rideData.destination_lng) {
+        destination.value = {
+          lat: Number(rideData.destination_lat),
+          lng: Number(rideData.destination_lng),
+          address: String(rideData.destination_address || 'จุดหมาย')
+        }
+      }
+      
+      // Set fare info
+      if (rideData.estimated_fare) {
+        estimatedFare.value = Number(rideData.estimated_fare)
+      }
+      
+      const provider = rideData.provider as Record<string, unknown> | undefined
+      if (provider && provider.id) {
+        // providers_v2 has first_name, last_name, phone_number, vehicle info directly
         const fullName = `${provider.first_name || ''} ${provider.last_name || ''}`.trim()
         matchedDriver.value = {
           id: String(provider.id),
           name: fullName || 'คนขับ',
           phone: String(provider.phone_number || ''),
           rating: Number(provider.rating) || 4.8,
-          vehicle_type: 'รถยนต์', // providers_v2 doesn't have vehicle info yet
-          vehicle_color: 'สีดำ',
-          vehicle_plate: '',
-          avatar_url: undefined,
+          total_trips: Number(provider.total_trips) || 0,
+          vehicle_type: String(provider.vehicle_type || ''),
+          vehicle_color: String(provider.vehicle_color || ''),
+          vehicle_plate: String(provider.vehicle_plate || ''),
+          avatar_url: provider.avatar_url ? String(provider.avatar_url) : undefined,
           current_lat: 0,
           current_lng: 0
         }
+        
+        // Fetch current provider location
+        fetchProviderLocation(String(provider.id))
+      } else if (rideData.provider_id) {
+        // Fallback: If JOIN didn't return provider data (RLS issue), fetch separately
+        console.log('[RideRequest] Provider JOIN returned null, fetching separately:', rideData.provider_id)
+        await fetchProviderInfo(String(rideData.provider_id))
       }
-      currentStep.value = (data as { status: string }).status === 'pending' ? 'searching' : 'tracking'
-      setupRealtimeTracking(String((data as { id: string }).id))
+      
+      // Set correct step based on status
+      const status = rideData.status as string
+      if (status === 'pending') {
+        currentStep.value = 'searching'
+        // Start searching timer
+        searchingSeconds.value = 0
+        searchingInterval = setInterval(() => { searchingSeconds.value++ }, 1000)
+      } else if (status === 'completed') {
+        currentStep.value = 'rating'
+      } else {
+        // matched, arrived, arriving, picked_up, in_progress -> tracking
+        currentStep.value = 'tracking'
+      }
+      
+      console.log('[RideRequest] Set step to:', currentStep.value)
+      setupRealtimeTracking(String(rideData.id))
+    } else {
+      console.log('[RideRequest] No active ride found')
     }
   }
 
@@ -438,14 +505,142 @@ export function useRideRequest() {
         schema: 'public',
         table: 'ride_requests',
         filter: `id=eq.${rideId}`
-      }, (payload) => {
+      }, async (payload) => {
+        console.log('[RideRequest] Realtime update received:', payload.new)
         activeRide.value = { ...activeRide.value, ...payload.new }
-        if (payload.new.status === 'completed') {
+        
+        const newStatus = payload.new.status as string
+        const newProviderId = payload.new.provider_id as string | null
+        
+        if (newStatus === 'completed') {
           currentStep.value = 'rating'
-        } else if (payload.new.status === 'cancelled') {
+          cleanupSearching()
+        } else if (newStatus === 'cancelled') {
           resetAll()
-        } else if (payload.new.status !== 'pending') {
+        } else if (newStatus !== 'pending') {
+          // Status changed to matched/arrived/in_progress etc.
           currentStep.value = 'tracking'
+          cleanupSearching()
+          
+          // If we have a provider_id but no matchedDriver, fetch provider info
+          if (newProviderId && !matchedDriver.value) {
+            console.log('[RideRequest] Fetching provider info for:', newProviderId)
+            await fetchProviderInfo(newProviderId)
+          }
+        }
+      })
+      // Listen for provider location updates
+      .on('broadcast', { event: 'provider_location' }, (payload) => {
+        console.log('[RideRequest] Provider location update:', payload)
+        if (matchedDriver.value && payload.payload) {
+          matchedDriver.value.current_lat = payload.payload.lat
+          matchedDriver.value.current_lng = payload.payload.lng
+        }
+      })
+      .subscribe()
+    
+    // Also subscribe to provider_locations table for realtime updates
+    if (activeRide.value) {
+      const providerId = (activeRide.value as Record<string, unknown>).provider_id
+      if (providerId) {
+        subscribeToProviderLocation(String(providerId))
+      }
+    }
+  }
+  
+  async function fetchProviderInfo(providerId: string): Promise<void> {
+    try {
+      console.log('[RideRequest] Fetching provider info via RPC for ride:', activeRide.value?.id)
+      
+      // First try using RPC function (bypasses RLS)
+      if (activeRide.value?.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rpcData, error: rpcError } = await (supabase as any)
+          .rpc('get_matched_provider_for_ride', { p_ride_id: activeRide.value.id })
+        
+        if (!rpcError && rpcData?.success && rpcData?.provider) {
+          const p = rpcData.provider
+          const fullName = `${p.first_name || ''} ${p.last_name || ''}`.trim()
+          matchedDriver.value = {
+            id: String(p.id),
+            name: fullName || 'คนขับ',
+            phone: String(p.phone_number || ''),
+            rating: Number(p.rating) || 4.8,
+            total_trips: Number(p.total_trips) || 0,
+            vehicle_type: String(p.vehicle_type || ''),
+            vehicle_color: String(p.vehicle_color || ''),
+            vehicle_plate: String(p.vehicle_plate || ''),
+            avatar_url: p.avatar_url ? String(p.avatar_url) : undefined,
+            current_lat: Number(p.current_lat) || 0,
+            current_lng: Number(p.current_lng) || 0
+          }
+          console.log('[RideRequest] Provider info loaded via RPC:', matchedDriver.value.name)
+          
+          // Subscribe to provider location updates
+          subscribeToProviderLocation(String(p.id))
+          fetchProviderLocation(String(p.id))
+          return
+        }
+        
+        console.log('[RideRequest] RPC failed or no data, trying direct query:', rpcError?.message || rpcData?.error)
+      }
+      
+      // Fallback: Direct query (may fail due to RLS)
+      console.log('[RideRequest] Trying direct provider query:', providerId)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('providers_v2')
+        .select('id, user_id, first_name, last_name, phone_number, rating, total_trips, vehicle_type, vehicle_plate, vehicle_color, avatar_url, vehicle_photo_url, current_lat, current_lng')
+        .eq('id', providerId)
+        .maybeSingle()
+      
+      if (error) {
+        console.error('[RideRequest] Error fetching provider:', error)
+        return
+      }
+      
+      if (data) {
+        const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim()
+        matchedDriver.value = {
+          id: String(data.id),
+          name: fullName || 'คนขับ',
+          phone: String(data.phone_number || ''),
+          rating: Number(data.rating) || 4.8,
+          total_trips: Number(data.total_trips) || 0,
+          vehicle_type: String(data.vehicle_type || ''),
+          vehicle_color: String(data.vehicle_color || ''),
+          vehicle_plate: String(data.vehicle_plate || ''),
+          avatar_url: data.avatar_url ? String(data.avatar_url) : undefined,
+          current_lat: Number(data.current_lat) || 0,
+          current_lng: Number(data.current_lng) || 0
+        }
+        console.log('[RideRequest] Provider info loaded via direct query:', matchedDriver.value.name)
+        
+        // Subscribe to provider location updates
+        subscribeToProviderLocation(providerId)
+        
+        // Also fetch from provider_locations table for more accurate location
+        fetchProviderLocation(providerId)
+      }
+    } catch (error) {
+      console.error('[RideRequest] Exception fetching provider:', error)
+    }
+  }
+  
+  function subscribeToProviderLocation(providerId: string): void {
+    supabase
+      .channel(`provider-location-${providerId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'provider_locations',
+        filter: `provider_id=eq.${providerId}`
+      }, (payload) => {
+        console.log('[RideRequest] Provider location from DB:', payload)
+        if (matchedDriver.value && payload.new) {
+          const loc = payload.new as Record<string, unknown>
+          matchedDriver.value.current_lat = Number(loc.latitude) || 0
+          matchedDriver.value.current_lng = Number(loc.longitude) || 0
         }
       })
       .subscribe()
@@ -548,6 +743,12 @@ export function useRideRequest() {
               searchingInterval = null
             }
             matchedDriver.value = driver
+            
+            // Fetch provider location after matching
+            if (driver.id) {
+              fetchProviderLocation(driver.id)
+            }
+            
             currentStep.value = 'tracking'
             console.log('[RideRequest] Driver matched:', driver.name)
           }
@@ -567,6 +768,32 @@ export function useRideRequest() {
       alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       isBooking.value = false
+    }
+  }
+  
+  async function fetchProviderLocation(providerId: string): Promise<void> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('provider_locations')
+        .select('latitude, longitude, heading, updated_at')
+        .eq('provider_id', providerId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (!error && data && matchedDriver.value) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const locData = data as any
+        matchedDriver.value.current_lat = Number(locData.latitude) || 0
+        matchedDriver.value.current_lng = Number(locData.longitude) || 0
+        console.log('[RideRequest] Provider location loaded:', {
+          lat: matchedDriver.value.current_lat,
+          lng: matchedDriver.value.current_lng
+        })
+      }
+    } catch (error) {
+      console.warn('[RideRequest] Failed to fetch provider location:', error)
     }
   }
   

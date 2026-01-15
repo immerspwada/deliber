@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Enhanced Provider Job Detail</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Enhanced Provider Job Detail Test Styles */
+        .test-container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: #f9fafb;
+            min-height: 100vh;
+        }
+        
+        .test-header {
+            background: #fff;
+            padding: 16px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: center;
+        }
+        
+        .test-section {
+            margin: 16px;
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .status-progress {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .status-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.4;
+            transition: all 0.3s;
+        }
+        
+        .status-step.active {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+        
+        .status-step.completed {
+            opacity: 0.7;
+        }
+        
+        .step-icon {
+            font-size: 24px;
+        }
+        
+        .step-label {
+            font-size: 11px;
+            color: #6b7280;
+            text-align: center;
+        }
+        
+        .status-step.active .step-label {
+            color: #111;
+            font-weight: 600;
+        }
+        
+        .customer-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid #f0f0f0;
+            margin-bottom: 12px;
+        }
+        
+        .customer-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        
+        .customer-info {
+            flex: 1;
+        }
+        
+        .customer-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 4px 0;
+        }
+        
+        .distance-info {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 0;
+        }
+        
+        .contact-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .contact-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .call-btn {
+            background: #10b981;
+            color: white;
+        }
+        
+        .chat-btn {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .eta-card {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .eta-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #1e40af;
+        }
+        
+        .eta-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .eta-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e3a8a;
+        }
+        
+        .eta-arrival {
+            font-size: 12px;
+            color: #3b82f6;
+        }
+        
+        .route-card {
+            padding: 20px 16px;
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid #f0f0f0;
+            margin-bottom: 12px;
+        }
+        
+        .route-point {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+        }
+        
+        .point-marker {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-top: 4px;
+        }
+        
+        .point-marker.pickup {
+            background: #10b981;
+        }
+        
+        .point-marker.dropoff {
+            background: #ef4444;
+        }
+        
+        .route-line {
+            width: 2px;
+            height: 24px;
+            background: linear-gradient(to bottom, #10b981, #ef4444);
+            margin: 8px 0 8px 5px;
+        }
+        
+        .point-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 2px;
+        }
+        
+        .point-address {
+            font-size: 14px;
+            color: #111;
+        }
+        
+        .fare-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid #f0f0f0;
+            margin-bottom: 12px;
+        }
+        
+        .fare-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #10b981;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            padding: 16px;
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 400px;
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+        }
+        
+        .nav-btn {
+            padding: 16px 24px;
+            background: #f3f4f6;
+            color: #111;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .status-btn {
+            flex: 1;
+            padding: 16px 24px;
+            background: #000;
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .status-btn.completing {
+            background: #10b981;
+        }
+        
+        .test-controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        
+        .test-controls button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        
+        .success-banner {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 1px solid #a7f3d0;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .success-icon {
+            font-size: 40px;
+            animation: bounce 0.6s ease-in-out;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        
+        .success-content h2 {
+            color: #065f46;
+            margin: 0 0 4px 0;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        .success-earnings {
+            color: #10b981;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="test-container">
+            <!-- Test Controls -->
+            <div class="test-controls">
+                <div>Enhanced Provider Job Detail Test</div>
+                <button @click="simulateStatusUpdate">Update Status</button>
+                <button @click="simulateCompletion">Complete Job</button>
+                <button @click="simulateError">Test Error</button>
+                <button @click="resetTest">Reset</button>
+            </div>
+
+            <!-- Header -->
+            <div class="test-header">
+                <h1 style="margin: 0; font-size: 17px; font-weight: 600;">รายละเอียดงาน (Enhanced)</h1>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="loading" class="test-section" style="text-align: center; padding: 60px 20px;">
+                <div style="width: 32px; height: 32px; border: 2px solid #f3f4f6; border-top-color: #000; border-radius: 50%; animation: spin 0.6s linear infinite; margin: 0 auto 16px;"></div>
+                <p>กำลังโหลดข้อมูลงาน...</p>
+            </div>
+
+            <!-- Error State -->
+            <div v-else-if="error" class="test-section" style="text-align: center; padding: 60px 20px;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <h2 style="margin: 0 0 8px 0;">เกิดข้อผิดพลาด</h2>
+                <p style="color: #6b7280; margin: 0 0 20px 0;">{{ error }}</p>
+                <button @click="retryLoad" style="padding: 12px 32px; background: #000; color: #fff; border: none; border-radius: 12px; cursor: pointer;">ลองใหม่</button>
+            </div>
+
+            <!-- Job Detail Content -->
+            <template v-else-if="job">
+                <!-- Status Progress -->
+                <div class="test-section">
+                    <div class="status-progress">
+                        <div 
+                            v-for="(step, index) in statusFlow" 
+                            :key="step.key"
+                            class="status-step"
+                            :class="{ 
+                                active: index === currentStatusIndex,
+                                completed: index < currentStatusIndex
+                            }"
+                        >
+                            <div class="step-icon">{{ step.icon }}</div>
+                            <span class="step-label">{{ step.label }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completion Banner -->
+                <div v-if="job.status === 'completed'" class="success-banner">
+                    <span class="success-icon">🎉</span>
+                    <div class="success-content">
+                        <h2>งานเสร็จสิ้น!</h2>
+                        <p class="success-earnings">รายได้ ฿{{ job.fare.toLocaleString() }}</p>
+                    </div>
+                </div>
+
+                <!-- Customer Card -->
+                <div class="customer-card">
+                    <div class="customer-avatar">👤</div>
+                    <div class="customer-info">
+                        <h3>{{ job.customer?.name || 'ลูกค้า' }}</h3>
+                        <p class="distance-info">📍 ห่างจากคุณ {{ distanceToPickup }} กม.</p>
+                    </div>
+                    <div v-if="job.status !== 'completed'" class="contact-buttons">
+                        <button class="contact-btn call-btn" @click="callCustomer">📞</button>
+                        <button class="contact-btn chat-btn" @click="openChat">💬</button>
+                    </div>
+                </div>
+
+                <!-- ETA Card -->
+                <div v-if="job.status !== 'completed'" class="eta-card">
+                    <div class="eta-header">
+                        <span>⏱️</span>
+                        <span>เวลาถึง{{ etaDestination }}</span>
+                    </div>
+                    <div class="eta-content">
+                        <div>
+                            <div class="eta-value">{{ eta.time }}</div>
+                            <div class="eta-arrival">ถึงประมาณ {{ eta.arrival }}</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 18px; font-weight: 600; color: #1e40af;">{{ eta.distance }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Route Card -->
+                <div class="route-card">
+                    <div class="route-point">
+                        <span class="point-marker pickup"></span>
+                        <div>
+                            <div class="point-label">จุดรับ</div>
+                            <div class="point-address">{{ job.pickup_address }}</div>
+                        </div>
+                    </div>
+                    <div class="route-line"></div>
+                    <div class="route-point">
+                        <span class="point-marker dropoff"></span>
+                        <div>
+                            <div class="point-label">จุดส่ง</div>
+                            <div class="point-address">{{ job.dropoff_address }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div v-if="job.notes" class="test-section" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fde68a;">
+                    <h4 style="margin: 0 0 8px 0; color: #92400e; display: flex; align-items: center; gap: 6px;">
+                        <span>📝</span> หมายเหตุจากลูกค้า
+                    </h4>
+                    <p style="margin: 0; color: #78350f;">{{ job.notes }}</p>
+                </div>
+
+                <!-- Fare -->
+                <div class="fare-card">
+                    <span>ค่าโดยสาร</span>
+                    <span class="fare-amount">฿{{ job.fare.toLocaleString() }}</span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div v-if="job.status !== 'completed'" class="action-buttons">
+                    <button class="nav-btn" @click="openNavigation">🧭 นำทาง</button>
+                    <button 
+                        v-if="nextStatus"
+                        class="status-btn"
+                        :class="{ completing: nextStatus.key === 'completed' }"
+                        @click="updateStatus"
+                        :disabled="updating"
+                    >
+                        <span v-if="updating">กำลังดำเนินการ...</span>
+                        <span v-else>{{ nextStatus.action }}</span>
+                    </button>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                // State
+                const loading = ref(false);
+                const error = ref(null);
+                const updating = ref(false);
+                const job = ref(null);
+                const currentStatusIndex = ref(0);
+
+                // Status flow
+                const statusFlow = [
+                    { key: 'matched', label: 'รับงานแล้ว', icon: '✅', action: 'กำลังไปรับ' },
+                    { key: 'pickup', label: 'ถึงจุดรับแล้ว', icon: '📍', action: 'ถึงจุดรับแล้ว' },
+                    { key: 'in_progress', label: 'กำลังเดินทาง', icon: '🛣️', action: 'รับลูกค้าแล้ว' },
+                    { key: 'completed', label: 'เสร็จสิ้น', icon: '🎉', action: 'ส่งลูกค้าสำเร็จ' }
+                ];
+
+                // Mock job data
+                const mockJob = {
+                    id: '123e4567-e89b-12d3-a456-426614174000',
+                    type: 'ride',
+                    status: 'matched',
+                    service_type: 'standard',
+                    pickup_address: '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
+                    pickup_lat: 13.7563,
+                    pickup_lng: 100.5018,
+                    dropoff_address: '456 ถนนสีลม แขวงสีลม เขตบางรัก กรุงเทพฯ 10500',
+                    dropoff_lat: 13.7463,
+                    dropoff_lng: 100.5118,
+                    fare: 150,
+                    notes: 'กรุณารอที่ประตูหลัก ข้างร้านเซเว่น',
+                    created_at: '2026-01-15T10:00:00Z',
+                    customer: {
+                        id: 'customer-123',
+                        name: 'คุณสมชาย ใจดี',
+                        phone: '0812345678',
+                        avatar_url: null
+                    }
+                };
+
+                // Computed
+                const nextStatus = computed(() => {
+                    const idx = currentStatusIndex.value;
+                    if (idx < 0 || idx >= statusFlow.length - 1) return null;
+                    return statusFlow[idx + 1];
+                });
+
+                const distanceToPickup = computed(() => {
+                    return '2.3'; // Mock distance
+                });
+
+                const etaDestination = computed(() => {
+                    if (!job.value) return '';
+                    return job.value.status === 'matched' ? 'จุดรับ' : 'จุดส่ง';
+                });
+
+                const eta = computed(() => ({
+                    time: '8 นาที',
+                    arrival: '14:25',
+                    distance: '2.3 กม.'
+                }));
+
+                // Methods
+                function loadJob() {
+                    loading.value = true;
+                    error.value = null;
+                    
+                    setTimeout(() => {
+                        job.value = { ...mockJob };
+                        currentStatusIndex.value = statusFlow.findIndex(s => s.key === job.value.status);
+                        loading.value = false;
+                    }, 1000);
+                }
+
+                function simulateStatusUpdate() {
+                    if (!job.value || !nextStatus.value) return;
+                    
+                    updating.value = true;
+                    
+                    setTimeout(() => {
+                        job.value.status = nextStatus.value.key;
+                        currentStatusIndex.value++;
+                        updating.value = false;
+                        
+                        if (job.value.status === 'completed') {
+                            setTimeout(() => {
+                                alert('งานเสร็จสิ้น! กำลังเปลี่ยนเส้นทางไปหน้ารายการงาน...');
+                            }, 1000);
+                        }
+                    }, 1500);
+                }
+
+                function simulateCompletion() {
+                    if (!job.value) return;
+                    
+                    job.value.status = 'completed';
+                    currentStatusIndex.value = statusFlow.length - 1;
+                }
+
+                function simulateError() {
+                    error.value = 'ไม่สามารถโหลดข้อมูลงานได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
+                    job.value = null;
+                }
+
+                function resetTest() {
+                    loading.value = false;
+                    error.value = null;
+                    updating.value = false;
+                    job.value = null;
+                    currentStatusIndex.value = 0;
+                    loadJob();
+                }
+
+                function retryLoad() {
+                    loadJob();
+                }
+
+                function updateStatus() {
+                    simulateStatusUpdate();
+                }
+
+                function callCustomer() {
+                    alert('กำลังโทรหา ' + job.value?.customer?.name);
+                }
+
+                function openChat() {
+                    alert('เปิดหน้าแชทกับ ' + job.value?.customer?.name);
+                }
+
+                function openNavigation() {
+                    alert('เปิดแผนที่นำทางไปยัง ' + etaDestination.value);
+                }
+
+                // Lifecycle
+                onMounted(() => {
+                    loadJob();
+                });
+
+                return {
+                    loading,
+                    error,
+                    updating,
+                    job,
+                    currentStatusIndex,
+                    statusFlow,
+                    nextStatus,
+                    distanceToPickup,
+                    etaDestination,
+                    eta,
+                    simulateStatusUpdate,
+                    simulateCompletion,
+                    simulateError,
+                    resetTest,
+                    retryLoad,
+                    updateStatus,
+                    callCustomer,
+                    openChat,
+                    openNavigation
+                };
+            }
+        }).mount('#app');
+    </script>
+
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</body>
+</html>

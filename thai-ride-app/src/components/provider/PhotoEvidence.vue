@@ -2,9 +2,11 @@
 /**
  * Photo Evidence Component
  * ให้ Provider ถ่ายรูปยืนยันการรับ-ส่ง
+ * รองรับรูปทุกขนาด + Auto resize เพื่อประหยัด storage
  */
 import { ref, computed } from 'vue'
 import { supabase } from '../../lib/supabase'
+import { resizeImage, validateImageFile, RESIZE_PRESETS, getFileSizeInfo } from '../../utils/imageResize'
 
 interface Props {
   rideId: string
@@ -27,6 +29,8 @@ const emit = defineEmits<{
 const uploading = ref(false)
 const previewUrl = ref<string | null>(props.existingPhoto)
 const fileInput = ref<HTMLInputElement | null>(null)
+const resizing = ref(false)
+const uploadProgress = ref<string>('')
 
 // Computed
 const label = computed(() => props.type === 'pickup' ? 'รูปจุดรับ' : 'รูปจุดส่ง')
@@ -34,7 +38,7 @@ const hasPhoto = computed(() => !!previewUrl.value)
 
 // Methods
 function triggerFileInput(): void {
-  if (props.disabled || uploading.value) return
+  if (props.disabled || uploading.value || resizing.value) return
   fileInput.value?.click()
 }
 
@@ -44,40 +48,64 @@ async function handleFileChange(event: Event): Promise<void> {
   
   if (!file) return
   
-  // Validate file type
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    emit('error', 'กรุณาเลือกไฟล์รูปภาพ (JPEG, PNG, WebP)')
+  // Validate file
+  const validation = validateImageFile(file)
+  if (!validation.valid) {
+    emit('error', validation.error || 'ไฟล์ไม่ถูกต้อง')
+    input.value = ''
     return
   }
   
-  // Validate file size (max 5MB)
-  if (file.size > 5 * 1024 * 1024) {
-    emit('error', 'ไฟล์ใหญ่เกินไป (สูงสุด 5MB)')
-    return
-  }
-  
-  // Show preview immediately
+  // Show original preview immediately
   previewUrl.value = URL.createObjectURL(file)
+  uploadProgress.value = 'กำลังปรับขนาดรูป...'
+  resizing.value = true
   
-  // Upload to storage
-  await uploadPhoto(file)
-  
-  // Clear input
-  input.value = ''
+  try {
+    // Resize image automatically
+    const originalSize = file.size
+    const resizedBlob = await resizeImage(file, RESIZE_PRESETS.evidence)
+    const resizedSize = resizedBlob.size
+    
+    // Log size reduction
+    const sizeInfo = getFileSizeInfo(originalSize, resizedSize)
+    console.log('[PhotoEvidence] Image resized:', {
+      original: sizeInfo.original,
+      resized: sizeInfo.resized,
+      saved: sizeInfo.saved,
+      percentage: `${sizeInfo.percentage}%`
+    })
+    
+    resizing.value = false
+    uploadProgress.value = 'กำลังอัพโหลด...'
+    
+    // Upload resized image
+    await uploadPhoto(resizedBlob, file.name)
+    
+  } catch (error) {
+    console.error('[PhotoEvidence] Resize error:', error)
+    emit('error', 'ไม่สามารถปรับขนาดรูปได้')
+    previewUrl.value = props.existingPhoto
+    resizing.value = false
+  } finally {
+    uploadProgress.value = ''
+    input.value = ''
+  }
 }
 
-async function uploadPhoto(file: File): Promise<void> {
+async function uploadPhoto(blob: Blob, originalName: string): Promise<void> {
   uploading.value = true
   
   try {
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${props.rideId}/${props.type}_${Date.now()}.${fileExt}`
+    // Always use .jpg extension for resized images
+    const fileName = `${props.rideId}/${props.type}_${Date.now()}.jpg`
     
     const { data, error: uploadError } = await supabase.storage
       .from('ride-evidence')
-      .upload(fileName, file, {
+      .upload(fileName, blob, {
         cacheControl: '3600',
-        upsert: true
+        upsert: true,
+        contentType: 'image/jpeg'
       })
     
     if (uploadError) {
@@ -133,11 +161,11 @@ function removePhoto(): void {
     <input
       ref="fileInput"
       type="file"
-      accept="image/jpeg,image/png,image/webp"
+      accept="image/*"
       capture="environment"
       class="hidden-input"
       @change="handleFileChange"
-      :disabled="disabled || uploading"
+      :disabled="disabled || uploading || resizing"
     />
     
     <!-- Has Photo -->
@@ -155,9 +183,9 @@ function removePhoto(): void {
           class="retake-btn"
           @click="triggerFileInput"
           type="button"
-          :disabled="uploading"
+          :disabled="uploading || resizing"
         >
-          <span v-if="uploading" class="btn-loader" aria-hidden="true"></span>
+          <span v-if="uploading || resizing" class="btn-loader" aria-hidden="true"></span>
           <span v-else>ถ่ายใหม่</span>
         </button>
       </div>
@@ -169,18 +197,19 @@ function removePhoto(): void {
       class="capture-btn"
       @click="triggerFileInput"
       type="button"
-      :disabled="disabled || uploading"
+      :disabled="disabled || uploading || resizing"
       :aria-label="`ถ่าย${label}`"
     >
       <div class="capture-icon">
-        <svg v-if="!uploading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <svg v-if="!uploading && !resizing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
           <circle cx="12" cy="13" r="4"/>
         </svg>
         <div v-else class="btn-loader"></div>
       </div>
       <span class="capture-label">{{ label }}</span>
-      <span class="capture-hint">แตะเพื่อถ่ายรูป</span>
+      <span v-if="uploadProgress" class="capture-hint">{{ uploadProgress }}</span>
+      <span v-else class="capture-hint">แตะเพื่อถ่ายรูป (รับทุกขนาด)</span>
     </button>
   </div>
 </template>

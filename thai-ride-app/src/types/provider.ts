@@ -106,13 +106,12 @@ export interface Job {
   provider_id?: string
 }
 
+// Job status aligned with database ride_requests.status
 export type JobStatus = 
   | 'pending'
-  | 'accepted'
-  | 'arriving'
-  | 'arrived'
-  | 'picked_up'
-  | 'in_progress'
+  | 'matched'    // Provider accepted the job
+  | 'pickup'     // Provider arrived at pickup location
+  | 'in_progress' // Customer picked up, on the way
   | 'completed'
   | 'cancelled'
 

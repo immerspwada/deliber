@@ -6,31 +6,37 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
-import { useSimpleProviderJobPool } from '../../composables/useSimpleProviderJobPool'
+import { useProviderStore } from '../../stores/providerStore'
+import { useNavigation } from '../../composables/useNavigation'
+import { usePushNotification } from '../../composables/usePushNotification'
 import ProviderStatusToggle from '../../components/ProviderStatusToggle.vue'
 import DailyGoalCard from '../../components/DailyGoalCard.vue'
-import JobNotification from '../../components/provider/JobNotification.vue'
+import JobCard from '../../components/provider/JobCard.vue'
+import LocationTracker from '../../components/provider/LocationTracker.vue'
 
 const router = useRouter()
-
-// Job Pool Integration - use simple version without complex filters
+const providerStore = useProviderStore()
+const { navigate } = useNavigation()
 const { 
-  availableJobs, 
-  currentJob, 
-  jobCount, 
-  subscribeToNewJobs, 
-  loadAvailableJobs,
-  acceptJob,
-  cleanup: cleanupJobPool
-} = useSimpleProviderJobPool()
+  isSupported: pushSupported, 
+  isSubscribed: pushSubscribed, 
+  permission: pushPermission,
+  requestPermission: requestPushPermission 
+} = usePushNotification()
 
 // State
 const loading = ref(true)
 const error = ref('')
-const provider = ref<Record<string, unknown> | null>(null)
-const isOnline = ref(false)
 const toggling = ref(false)
 const refreshing = ref(false)
+const showPushPrompt = ref(false)
+
+// Use store state
+const provider = computed(() => providerStore.provider)
+const isOnline = computed(() => providerStore.isOnline)
+const availableJobs = computed(() => providerStore.availableJobs)
+const currentJob = computed(() => providerStore.currentJob)
+const isTracking = computed(() => providerStore.isTracking)
 
 // Pull to refresh
 const touchStartY = ref(0)
@@ -47,9 +53,6 @@ const displayName = computed(() => {
 const firstName = computed(() => {
   return (provider.value?.first_name as string) || 'P'
 })
-
-// Development mode check
-const isDevelopment = import.meta.env.DEV
 
 const statusInfo = computed(() => {
   if (!provider.value) return { text: '', class: '', icon: '' }
@@ -99,36 +102,25 @@ async function loadProvider() {
   error.value = ''
   
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.replace('/login')
-      return
-    }
-
-    const { data, error: e } = await supabase
-      .from('providers_v2')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (e) {
-      console.error('Load provider error:', e)
-      error.value = 'ไม่สามารถโหลดข้อมูลได้'
-      return
-    }
-
-    if (!data) {
+    await providerStore.loadProfile()
+    
+    if (!provider.value) {
       router.replace('/provider/register')
       return
     }
 
-    provider.value = data
-    isOnline.value = (data as Record<string, unknown>).is_online as boolean || false
-
-    const status = (data as Record<string, unknown>).status as string
+    const status = provider.value.status
     if (status === 'pending' || status === 'rejected') {
       router.replace('/provider/onboarding')
       return
+    }
+    
+    // Load current job if any
+    await providerStore.loadCurrentJob()
+    
+    // If online, load available jobs
+    if (isOnline.value) {
+      await providerStore.loadAvailableJobs()
     }
   } catch (err) {
     console.error('Exception:', err)
@@ -144,53 +136,13 @@ async function handleToggleOnline(newValue: boolean) {
   toggling.value = true
   
   try {
-    // Update both is_online and is_available for proper job matching
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: e } = await (supabase as any)
-      .from('providers_v2')
-      .update({ 
-        is_online: newValue, 
-        is_available: newValue, // Set availability same as online status
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', provider.value.id)
-
-    if (e) {
-      console.error('Toggle error:', e)
-      isOnline.value = !newValue // Revert
-      return
-    }
-
-    isOnline.value = newValue
+    const success = await providerStore.toggleOnlineStatus()
     
-    // Update provider object to reflect changes
-    if (provider.value) {
-      provider.value = {
-        ...provider.value,
-        is_online: newValue,
-        is_available: newValue
-      }
-    }
-    
-    console.log(`[Provider] Status updated: online=${newValue}, available=${newValue}`)
-    
-    // Initialize or cleanup job subscriptions based on online status
-    if (newValue) {
-      console.log('[Provider] Going online - subscribing to jobs')
-      try {
-        await subscribeToNewJobs()
-        await loadAvailableJobs()
-        console.log('[Provider] Job subscriptions initialized successfully')
-      } catch (error) {
-        console.error('[Provider] Failed to initialize job subscriptions:', error)
-      }
-    } else {
-      console.log('[Provider] Going offline - cleaning up subscriptions')
-      cleanupJobPool()
+    if (!success) {
+      console.error('Toggle failed')
     }
   } catch (err) {
     console.error('Toggle exception:', err)
-    isOnline.value = !newValue // Revert
   } finally {
     toggling.value = false
   }
@@ -243,18 +195,18 @@ async function logout() {
 }
 
 // Job handling functions
-async function handleAcceptJob(job: any) {
+async function handleAcceptJob(jobId: string) {
   try {
-    console.log('[Provider] Accepting job:', job.id)
-    const result = await acceptJob(job.id)
+    console.log('[Provider] Accepting job:', jobId)
+    const success = await providerStore.acceptJob(jobId)
     
-    if (result.success) {
+    if (success) {
       console.log('[Provider] Job accepted successfully')
       // Navigate to job detail view
-      router.push(`/provider/jobs/${job.id}`)
+      router.push(`/provider/jobs/${jobId}`)
     } else {
-      console.error('[Provider] Failed to accept job:', result.error)
-      alert('ไม่สามารถรับงานได้: ' + (result.error || 'เกิดข้อผิดพลาด'))
+      console.error('[Provider] Failed to accept job')
+      alert('ไม่สามารถรับงานได้: เกิดข้อผิดพลาด')
     }
   } catch (error) {
     console.error('[Provider] Error accepting job:', error)
@@ -262,84 +214,40 @@ async function handleAcceptJob(job: any) {
   }
 }
 
+function handleViewJob(jobId: string) {
+  router.push(`/provider/jobs/${jobId}`)
+}
+
 function handleViewAllJobs() {
   router.push('/provider/jobs')
 }
 
-// Debug functions (Development only)
-async function debugJobs() {
-  console.log('🔍 Debug Provider Jobs...')
-  console.log('Provider:', provider.value)
-  console.log('Available Jobs:', availableJobs.value)
-  console.log('Is Online:', isOnline.value)
-  
-  try {
-    // Check database directly
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: pendingRides, error } = await supabase
-        .from('ride_requests')
-        .select('*')
-        .eq('status', 'pending')
-        .is('provider_id', null)
-        .limit(10)
-      
-      if (error) {
-        console.error('❌ Database error:', error)
-      } else {
-        console.log('📋 Pending rides in database:', pendingRides)
-        
-        if (pendingRides.length > 0 && availableJobs.value.length === 0) {
-          console.warn('⚠️ Found pending rides in DB but not in UI - subscription issue!')
-        }
-      }
-    }
-  } catch (err) {
-    console.error('❌ Debug error:', err)
-  }
+function handleNavigate(location: { lat: number; lng: number; address: string }) {
+  navigate({
+    lat: location.lat,
+    lng: location.lng,
+    label: location.address
+  })
 }
 
-async function createTestJob() {
-  try {
-    const testRide = {
-      user_id: '00000000-0000-0000-0000-000000000001',
-      tracking_id: `TEST-${Date.now()}`,
-      pickup_lat: 13.7563,
-      pickup_lng: 100.5018,
-      pickup_address: 'Bangkok Center (Test)',
-      destination_lat: 13.7466,
-      destination_lng: 100.5392,
-      destination_address: 'Siam Square (Test)',
-      estimated_fare: 150.00,
-      status: 'pending'
-    }
-
-    const { data, error } = await supabase
-      .from('ride_requests')
-      .insert(testRide)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('❌ Error creating test job:', error)
-      alert('ไม่สามารถสร้างงานทดสอบได้: ' + error.message)
-    } else {
-      console.log('✅ Test job created:', data)
-      alert('สร้างงานทดสอบสำเร็จ: ' + data.tracking_id)
-    }
-  } catch (err) {
-    console.error('❌ Exception:', err)
-    alert('เกิดข้อผิดพลาด')
+async function handleEnablePushNotifications() {
+  const granted = await requestPushPermission()
+  if (granted) {
+    showPushPrompt.value = false
   }
-}
-
-function toggleFallbackMode() {
-  // Removed - using simple mode only
 }
 
 // Lifecycle
 onMounted(() => {
   loadProvider()
+  
+  // Check push notification status
+  if (pushSupported.value && pushPermission.value === 'default' && !pushSubscribed.value) {
+    // Show prompt after 3 seconds
+    setTimeout(() => {
+      showPushPrompt.value = true
+    }, 3000)
+  }
   
   // Add touch event listeners for pull-to-refresh
   document.addEventListener('touchstart', handleTouchStart, { passive: true })
@@ -353,8 +261,8 @@ onUnmounted(() => {
   document.removeEventListener('touchmove', handleTouchMove)
   document.removeEventListener('touchend', handleTouchEnd)
   
-  // Cleanup job pool subscriptions
-  cleanupJobPool()
+  // Cleanup store
+  providerStore.cleanup()
 })
 </script>
 
@@ -445,28 +353,53 @@ onUnmounted(() => {
         />
       </section>
 
-      <!-- Job Notifications -->
-      <JobNotification
-        v-if="isOnline && availableJobs.length > 0"
-        :available-jobs="availableJobs"
-        @accept-job="handleAcceptJob"
-        @view-all-jobs="handleViewAllJobs"
-      />
+      <!-- Location Tracker -->
+      <section v-if="isOnline" class="section" aria-labelledby="location-heading">
+        <h2 id="location-heading" class="sr-only">การติดตามตำแหน่ง</h2>
+        <LocationTracker :auto-start="isOnline" />
+      </section>
 
-      <!-- Debug Info (Development Only) -->
-      <div v-if="isDevelopment" class="debug-info">
-        <details>
-          <summary>🔧 Debug Info (Simple Mode)</summary>
-          <div class="debug-content">
-            <p><strong>Online:</strong> {{ isOnline }}</p>
-            <p><strong>Available Jobs:</strong> {{ availableJobs.length }}</p>
-            <p><strong>Provider ID:</strong> {{ provider?.id }}</p>
-            <p><strong>User ID:</strong> {{ provider?.user_id }}</p>
-            <p><strong>Status:</strong> {{ provider?.status }}</p>
-            <button @click="debugJobs" class="debug-btn">🔍 Debug Jobs</button>
-            <button @click="createTestJob" class="debug-btn">➕ Create Test Job</button>
+      <!-- Available Jobs -->
+      <section v-if="isOnline && availableJobs.length > 0" class="section" aria-labelledby="jobs-heading">
+        <div class="section-header">
+          <h2 id="jobs-heading" class="section-title">งานที่พร้อมรับ ({{ availableJobs.length }})</h2>
+          <button 
+            class="view-all-btn" 
+            @click="handleViewAllJobs"
+            aria-label="ดูงานทั้งหมด"
+          >
+            ดูทั้งหมด
+          </button>
+        </div>
+        <div class="jobs-list">
+          <JobCard
+            v-for="job in availableJobs.slice(0, 3)"
+            :key="job.id"
+            :job="job"
+            @accept="handleAcceptJob"
+            @view="handleViewJob"
+            @navigate="handleNavigate"
+          />
+        </div>
+      </section>
+
+      <!-- Push Notification Prompt -->
+      <div v-if="showPushPrompt && isOnline" class="push-prompt">
+        <div class="push-content">
+          <div class="push-icon">🔔</div>
+          <div class="push-text">
+            <h3>เปิดการแจ้งเตือน</h3>
+            <p>รับแจ้งเตือนงานใหม่ทันทีแม้แอปปิด</p>
           </div>
-        </details>
+        </div>
+        <div class="push-actions">
+          <button class="push-btn secondary" @click="showPushPrompt = false">
+            ภายหลัง
+          </button>
+          <button class="push-btn primary" @click="handleEnablePushNotifications">
+            เปิดใช้งาน
+          </button>
+        </div>
       </div>
 
       <!-- Waiting for Jobs -->
@@ -796,11 +729,45 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
 .section-title {
   font-size: 16px;
   font-weight: 700;
   color: #1e293b;
-  margin: 0 0 12px 4px;
+  margin: 0;
+}
+
+.view-all-btn {
+  padding: 6px 12px;
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.view-all-btn:hover {
+  background: #e2e8f0;
+}
+
+.view-all-btn:active {
+  transform: scale(0.98);
+}
+
+/* Jobs List */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .sr-only {
@@ -1006,50 +973,94 @@ onUnmounted(() => {
   }
 }
 
-/* Debug Info (Development Only) */
-.debug-info {
-  margin: 16px 0;
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  padding: 12px;
+/* Push Notification Prompt */
+.push-prompt {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 2px solid #3b82f6;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+  animation: slideIn 0.3s ease-out;
 }
 
-.debug-info details {
-  cursor: pointer;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.debug-info summary {
-  font-weight: 600;
-  color: #6c757d;
-  padding: 4px 0;
+.push-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.debug-content {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #dee2e6;
+.push-icon {
+  font-size: 32px;
+  flex-shrink: 0;
 }
 
-.debug-content p {
-  margin: 4px 0;
+.push-text h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e40af;
+  margin: 0 0 4px 0;
+}
+
+.push-text p {
   font-size: 13px;
-  color: #495057;
+  color: #1e40af;
+  margin: 0;
+  opacity: 0.8;
 }
 
-.debug-btn {
-  background: #6c757d;
-  color: white;
+.push-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.push-btn {
+  padding: 10px 16px;
   border: none;
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 12px;
-  margin: 4px 4px 4px 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  min-height: 44px;
+  font-family: inherit;
 }
 
-.debug-btn:hover {
-  background: #5a6268;
+.push-btn.primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.push-btn.primary:hover {
+  background: #2563eb;
+}
+
+.push-btn.primary:active {
+  transform: scale(0.98);
+}
+
+.push-btn.secondary {
+  background: white;
+  color: #64748b;
+}
+
+.push-btn.secondary:hover {
+  background: #f8fafc;
+}
+
+.push-btn.secondary:active {
+  transform: scale(0.98);
 }
 </style>

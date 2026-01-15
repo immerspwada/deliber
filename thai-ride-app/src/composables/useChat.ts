@@ -9,6 +9,7 @@ export interface ChatMessage {
   id: string
   ride_id: string
   sender_id: string
+  sender_type?: string
   message: string
   message_type: 'text' | 'image' | 'location' | 'system'
   is_read: boolean
@@ -50,7 +51,10 @@ export function useChat(rideId: string) {
         return
       }
 
-      messages.value = data as ChatMessage[]
+      messages.value = (data || []).map(msg => ({
+        ...msg,
+        message_type: (msg.message_type || 'text') as ChatMessage['message_type']
+      }))
       
       // Mark messages as read
       await markAsRead()
@@ -80,11 +84,13 @@ export function useChat(rideId: string) {
         return false
       }
 
+      // Use type assertion for insert since chat_messages may not be in generated types yet
       const { data, error: dbError } = await supabase
         .from('chat_messages')
         .insert({
           ride_id: rideId,
           sender_id: user.id,
+          sender_type: 'customer',
           message: text.trim(),
           message_type: type
         })
@@ -98,7 +104,26 @@ export function useChat(rideId: string) {
       }
 
       // Add to local messages (optimistic update)
-      messages.value = [...messages.value, data as ChatMessage]
+      const newMessage: ChatMessage = {
+        id: (data as Record<string, unknown>)?.id as string || crypto.randomUUID(),
+        ride_id: rideId,
+        sender_id: user.id,
+        message: text.trim(),
+        message_type: type,
+        is_read: false,
+        created_at: new Date().toISOString()
+      }
+      messages.value = [...messages.value, newMessage]
+      
+      // Broadcast to realtime channel
+      if (realtimeChannel) {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'new_message',
+          payload: newMessage
+        })
+      }
+      
       return true
 
     } catch (err) {
@@ -121,6 +146,7 @@ export function useChat(rideId: string) {
     if (!currentUserId.value) return
 
     try {
+      // Call RPC function
       await supabase.rpc('mark_messages_read', {
         p_ride_id: rideId,
         p_user_id: currentUserId.value
@@ -136,10 +162,12 @@ export function useChat(rideId: string) {
     if (!currentUserId.value) return 0
 
     try {
-      const { data, error: dbError } = await supabase.rpc('get_unread_message_count', {
-        p_ride_id: rideId,
-        p_user_id: currentUserId.value
-      })
+      // Call RPC function
+      const { data, error: dbError } = await supabase
+        .rpc('get_unread_message_count', {
+          p_ride_id: rideId,
+          p_user_id: currentUserId.value
+        })
 
       if (dbError) {
         console.error('[Chat] Unread count error:', dbError)

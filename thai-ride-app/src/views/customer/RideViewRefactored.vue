@@ -111,6 +111,14 @@ const currentRideId = computed(() => {
   return undefined
 })
 
+// Computed trackingId from activeRide
+const currentTrackingId = computed(() => {
+  if (activeRide.value?.tracking_id) {
+    return String(activeRide.value.tracking_id)
+  }
+  return undefined
+})
+
 // Ride notes state
 const rideNotes = ref('')
 
@@ -264,7 +272,7 @@ onMounted(() => {
             :pickup="pickup"
             :destination="destination"
             :showRoute="!!destination"
-            height="240px"
+            height="320px"
             @routeCalculated="handleRouteCalculated"
             @mapClick="handleMapClick"
           />
@@ -354,6 +362,7 @@ onMounted(() => {
           :matchedDriver="matchedDriver"
           :statusText="statusText"
           :rideId="currentRideId"
+          :trackingId="currentTrackingId"
           @callDriver="callDriver"
           @callEmergency="callEmergency"
           @cancel="cancelRide"
