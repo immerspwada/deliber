@@ -14,178 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
-      ride_requests: {
+      analytics_events: {
         Row: {
-          accepted_at: string | null
-          actual_fare: number | null
-          arrived_at: string | null
-          cancel_reason: string | null
-          cancellation_fee: number | null
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          completed_at: string | null
+          browser: string | null
           created_at: string | null
-          destination_address: string
-          destination_lat: number
-          destination_lng: number
-          dropoff_photo: string | null
-          dropoff_photo_at: string | null
-          estimated_fare: number | null
-          final_fare: number | null
+          device_type: string | null
+          event_category: string
+          event_name: string
           id: string
-          notes: string | null
-          paid_amount: number | null
-          passenger_count: number | null
-          payment_method: string | null
-          payment_status: string | null
-          pickup_address: string
-          pickup_lat: number
-          pickup_lng: number
-          pickup_photo: string | null
-          pickup_photo_at: string | null
-          platform_fee: number | null
-          promo_code: string | null
-          promo_code_id: string | null
-          promo_discount_amount: number | null
-          provider_earnings: number | null
-          provider_id: string | null
-          rated_at: string | null
-          refund_amount: number | null
-          refund_status: string | null
-          refunded_at: string | null
-          ride_type: string | null
-          scheduled_time: string | null
-          special_requests: string | null
-          started_at: string | null
-          status: string | null
-          tracking_id: string | null
-          updated_at: string | null
+          os: string | null
+          page_name: string | null
+          page_url: string | null
+          properties: Json | null
+          session_id: string
           user_id: string | null
         }
         Insert: {
-          accepted_at?: string | null
-          actual_fare?: number | null
-          arrived_at?: string | null
-          cancel_reason?: string | null
-          cancellation_fee?: number | null
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          completed_at?: string | null
+          browser?: string | null
           created_at?: string | null
-          destination_address: string
-          destination_lat: number
-          destination_lng: number
-          dropoff_photo?: string | null
-          dropoff_photo_at?: string | null
-          estimated_fare?: number | null
-          final_fare?: number | null
+          device_type?: string | null
+          event_category: string
+          event_name: string
           id?: string
-          notes?: string | null
-          paid_amount?: number | null
-          passenger_count?: number | null
-          payment_method?: string | null
-          payment_status?: string | null
-          pickup_address: string
-          pickup_lat: number
-          pickup_lng: number
-          pickup_photo?: string | null
-          pickup_photo_at?: string | null
-          platform_fee?: number | null
-          promo_code?: string | null
-          promo_code_id?: string | null
-          promo_discount_amount?: number | null
-          provider_earnings?: number | null
-          provider_id?: string | null
-          rated_at?: string | null
-          refund_amount?: number | null
-          refund_status?: string | null
-          refunded_at?: string | null
-          ride_type?: string | null
-          scheduled_time?: string | null
-          special_requests?: string | null
-          started_at?: string | null
-          status?: string | null
-          tracking_id?: string | null
-          updated_at?: string | null
+          os?: string | null
+          page_name?: string | null
+          page_url?: string | null
+          properties?: Json | null
+          session_id: string
           user_id?: string | null
         }
         Update: {
-          accepted_at?: string | null
-          actual_fare?: number | null
-          arrived_at?: string | null
-          cancel_reason?: string | null
-          cancellation_fee?: number | null
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          completed_at?: string | null
+          browser?: string | null
           created_at?: string | null
-          destination_address?: string
-          destination_lat?: number
-          destination_lng?: number
-          dropoff_photo?: string | null
-          dropoff_photo_at?: string | null
-          estimated_fare?: number | null
-          final_fare?: number | null
+          device_type?: string | null
+          event_category?: string
+          event_name?: string
           id?: string
-          notes?: string | null
-          paid_amount?: number | null
-          passenger_count?: number | null
-          payment_method?: string | null
-          payment_status?: string | null
-          pickup_address?: string
-          pickup_lat?: number
-          pickup_lng?: number
-          pickup_photo?: string | null
-          pickup_photo_at?: string | null
-          platform_fee?: number | null
-          promo_code?: string | null
-          promo_code_id?: string | null
-          promo_discount_amount?: number | null
-          provider_earnings?: number | null
-          provider_id?: string | null
-          rated_at?: string | null
-          refund_amount?: number | null
-          refund_status?: string | null
-          refunded_at?: string | null
-          ride_type?: string | null
-          scheduled_time?: string | null
-          special_requests?: string | null
-          started_at?: string | null
-          status?: string | null
-          tracking_id?: string | null
-          updated_at?: string | null
+          os?: string | null
+          page_name?: string | null
+          page_url?: string | null
+          properties?: Json | null
+          session_id?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          image_url: string | null
+          is_read: boolean | null
+          message: string
+          message_type: string | null
+          ride_id: string | null
+          sender_id: string
+          sender_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_read?: boolean | null
+          message: string
+          message_type?: string | null
+          ride_id?: string | null
+          sender_id: string
+          sender_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_read?: boolean | null
+          message?: string
+          message_type?: string | null
+          ride_id?: string | null
+          sender_id?: string
+          sender_type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "ride_requests_promo_code_id_fkey"
-            columns: ["promo_code_id"]
+            foreignKeyName: "chat_messages_ride_id_fkey"
+            columns: ["ride_id"]
             isOneToOne: false
-            referencedRelation: "promo_codes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ride_requests_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_v2"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ride_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_user_provider_view"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "ride_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "ride_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -298,6 +211,167 @@ export type Database = {
         }
         Relationships: []
       }
+      ride_requests: {
+        Row: {
+          accepted_at: string | null
+          actual_fare: number | null
+          arrived_at: string | null
+          cancel_reason: string | null
+          cancellation_fee: number | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          completed_at: string | null
+          created_at: string | null
+          destination_address: string
+          destination_lat: number
+          destination_lng: number
+          dropoff_photo: string | null
+          dropoff_photo_at: string | null
+          estimated_fare: number | null
+          final_fare: number | null
+          id: string
+          matched_at: string | null
+          notes: string | null
+          original_provider_id: string | null
+          paid_amount: number | null
+          passenger_count: number | null
+          payment_method: string | null
+          payment_status: string | null
+          pickup_address: string
+          pickup_lat: number
+          pickup_lng: number
+          pickup_photo: string | null
+          pickup_photo_at: string | null
+          platform_fee: number | null
+          promo_code: string | null
+          promo_code_id: string | null
+          promo_discount_amount: number | null
+          provider_earnings: number | null
+          provider_id: string | null
+          rated_at: string | null
+          refund_amount: number | null
+          refund_status: string | null
+          refunded_at: string | null
+          ride_type: string | null
+          scheduled_time: string | null
+          special_requests: string | null
+          started_at: string | null
+          status: string | null
+          tracking_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          actual_fare?: number | null
+          arrived_at?: string | null
+          cancel_reason?: string | null
+          cancellation_fee?: number | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          destination_address: string
+          destination_lat: number
+          destination_lng: number
+          dropoff_photo?: string | null
+          dropoff_photo_at?: string | null
+          estimated_fare?: number | null
+          final_fare?: number | null
+          id?: string
+          matched_at?: string | null
+          notes?: string | null
+          original_provider_id?: string | null
+          paid_amount?: number | null
+          passenger_count?: number | null
+          payment_method?: string | null
+          payment_status?: string | null
+          pickup_address: string
+          pickup_lat: number
+          pickup_lng: number
+          pickup_photo?: string | null
+          pickup_photo_at?: string | null
+          platform_fee?: number | null
+          promo_code?: string | null
+          promo_code_id?: string | null
+          promo_discount_amount?: number | null
+          provider_earnings?: number | null
+          provider_id?: string | null
+          rated_at?: string | null
+          refund_amount?: number | null
+          refund_status?: string | null
+          refunded_at?: string | null
+          ride_type?: string | null
+          scheduled_time?: string | null
+          special_requests?: string | null
+          started_at?: string | null
+          status?: string | null
+          tracking_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          actual_fare?: number | null
+          arrived_at?: string | null
+          cancel_reason?: string | null
+          cancellation_fee?: number | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          destination_address?: string
+          destination_lat?: number
+          destination_lng?: number
+          dropoff_photo?: string | null
+          dropoff_photo_at?: string | null
+          estimated_fare?: number | null
+          final_fare?: number | null
+          id?: string
+          matched_at?: string | null
+          notes?: string | null
+          original_provider_id?: string | null
+          paid_amount?: number | null
+          passenger_count?: number | null
+          payment_method?: string | null
+          payment_status?: string | null
+          pickup_address?: string
+          pickup_lat?: number
+          pickup_lng?: number
+          pickup_photo?: string | null
+          pickup_photo_at?: string | null
+          platform_fee?: number | null
+          promo_code?: string | null
+          promo_code_id?: string | null
+          promo_discount_amount?: number | null
+          provider_earnings?: number | null
+          provider_id?: string | null
+          rated_at?: string | null
+          refund_amount?: number | null
+          refund_status?: string | null
+          refunded_at?: string | null
+          ride_type?: string | null
+          scheduled_time?: string | null
+          special_requests?: string | null
+          started_at?: string | null
+          status?: string | null
+          tracking_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ride_requests_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_v2"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           address: string | null
@@ -381,7 +455,38 @@ export type Database = {
       }
     }
     Views: {}
-    Functions: {}
+    Functions: {
+      get_chat_history: {
+        Args: { p_before_id?: string; p_limit?: number; p_ride_id: string }
+        Returns: Json
+      }
+      get_unread_message_count: {
+        Args: { p_ride_id: string; p_user_id: string }
+        Returns: number
+      }
+      get_user_ride_role: {
+        Args: { p_ride_id: string; p_user_id: string }
+        Returns: string
+      }
+      is_ride_chat_allowed: { Args: { p_ride_id: string }; Returns: boolean }
+      is_ride_participant: {
+        Args: { p_ride_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      mark_messages_read: {
+        Args: { p_ride_id: string; p_user_id: string }
+        Returns: number
+      }
+      send_chat_message: {
+        Args: {
+          p_image_url?: string
+          p_message: string
+          p_message_type?: string
+          p_ride_id: string
+        }
+        Returns: Json
+      }
+    }
     Enums: {
       provider_status:
         | "pending"
@@ -396,25 +501,21 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -432,16 +533,14 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -457,16 +556,14 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -482,16 +579,14 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    | { schema: keyof Database },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof Database
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never

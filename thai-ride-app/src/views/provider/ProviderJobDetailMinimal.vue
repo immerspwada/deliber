@@ -9,12 +9,15 @@
  * - Mobile-first design
  */
 
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProviderJobDetail } from '../../composables/useProviderJobDetail'
 import { useETA } from '../../composables/useETA'
 import { useNavigation } from '../../composables/useNavigation'
 import { useURLTracking } from '../../composables/useURLTracking'
+
+// Lazy load ChatDrawer
+const ChatDrawer = defineAsyncComponent(() => import('../../components/ChatDrawer.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +46,7 @@ const { navigate } = useNavigation()
 const { migrateOldURL, updateStep } = useURLTracking()
 
 const showCancelModal = ref(false)
+const showChatDrawer = ref(false)
 const cancelReason = ref('')
 
 const jobId = computed(() => route.params.id as string)
@@ -103,6 +107,10 @@ function callCustomer() {
   if (job.value?.customer?.phone) {
     window.location.href = `tel:${job.value.customer.phone}`
   }
+}
+
+function openChat() {
+  showChatDrawer.value = true
 }
 
 onMounted(async () => {
@@ -242,6 +250,12 @@ onUnmounted(() => {
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
             </svg>
           </button>
+          <button @click="openChat" class="btn-chat" aria-label="แชทกับลูกค้า">
+            <!-- Chat SVG Icon -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
         </div>
 
         <!-- Route Info -->
@@ -363,6 +377,15 @@ onUnmounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Chat Drawer -->
+    <ChatDrawer
+      v-if="job && showChatDrawer"
+      :ride-id="job.id"
+      :other-user-name="job.customer?.name || 'ลูกค้า'"
+      :is-open="showChatDrawer"
+      @close="showChatDrawer = false"
+    />
   </div>
 </template>
 
@@ -676,6 +699,37 @@ onUnmounted(() => {
 .btn-call:active {
   transform: scale(0.95);
   background: #333;
+}
+
+.btn-chat {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 10px;
+}
+
+.btn-chat svg {
+  width: 20px;
+  height: 20px;
+  color: #000;
+}
+
+.btn-chat:active {
+  transform: scale(0.95);
+  background: #000;
+}
+
+.btn-chat:active svg {
+  color: #fff;
 }
 
 /* ===== ROUTE INFO ===== */

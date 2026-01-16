@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export type ServiceType = 'ride' | 'delivery' | 'shopping'
-export type RequestStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
+export type RequestStatus = 'pending' | 'matched' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface SimpleJobRequest {
   id: string

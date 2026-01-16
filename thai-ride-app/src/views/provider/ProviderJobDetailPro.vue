@@ -368,6 +368,8 @@ onUnmounted(() => {
     <ChatDrawer
       v-if="showChatDrawer && job"
       :ride-id="job.id"
+      :other-user-name="job.customer?.name || 'ลูกค้า'"
+      :is-open="showChatDrawer"
       @close="showChatDrawer = false"
     />
   </div>

@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export type ServiceType = 'ride' | 'delivery' | 'shopping'
-export type RequestStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
+export type RequestStatus = 'pending' | 'matched' | 'arrived' | 'in_progress' | 'completed' | 'cancelled'
 
 export interface JobRequest {
   id: string
@@ -111,11 +111,12 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
       console.log('[Provider] Accepting job:', requestId, 'provider_id:', provider.id)
 
       // Update ride_requests table directly with race condition protection
+      // RLS policy requires status='matched' (not 'accepted')
       const { data: updatedRide, error: updateError } = await supabase
         .from('ride_requests')
         .update({
           provider_id: provider.id,
-          status: 'accepted',
+          status: 'matched',
           accepted_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
