@@ -80,6 +80,14 @@ export interface JobDetail {
   pickup_photo?: string | null
   dropoff_photo?: string | null
   customer: CustomerInfo | null
+  // Promo & Pricing
+  estimated_fare: number
+  final_fare: number | null
+  promo_code?: string | null
+  promo_discount?: number | null
+  // Tip
+  tip_amount?: number | null
+  tip_message?: string | null
 }
 
 export interface CustomerInfo {

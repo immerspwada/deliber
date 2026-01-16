@@ -5,7 +5,9 @@
  * 
  * Features:
  * - Green gradient header with earnings & level
- * - Online/Offline status toggle
+ * - Online/Offline status toggle with clear indicator
+ * - Active job card with quick actions
+ * - Today's job stats
  * - Rush hour alert
  * - Available orders count
  * - Recent transactions
@@ -14,17 +16,64 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RideStatus } from '../../types/ride-requests'
+import { usePushNotification } from '../../composables/usePushNotification'
 
 const router = useRouter()
 
+// Push Notification
+const { 
+  isSupported: pushSupported, 
+  isSubscribed: pushSubscribed, 
+  permission: pushPermission,
+  loading: pushLoading,
+  requestPermission,
+  notifyNewJob
+} = usePushNotification()
+
 // Realtime subscription
 let realtimeChannel: RealtimeChannel | null = null
+
+// Types for Supabase queries
+interface ProviderRow {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  rating: number | null
+  total_earnings: number | null
+  total_trips: number | null
+  is_online: boolean
+  is_available: boolean
+}
+
+interface RideRequestRow {
+  id: string
+  status: string
+  pickup_address: string
+  destination_address: string
+  estimated_fare: number
+  estimated_distance: number | null
+  final_fare: number | null
+  created_at: string
+  user_id: string
+  pickup_lat: number
+  pickup_lng: number
+  destination_lat: number
+  destination_lng: number
+  rating: number | null
+  provider_id: string | null
+}
+
+interface ProfileRow {
+  name: string | null
+}
 
 // State
 const loading = ref(true)
 const isOnline = ref(false)
 const isToggling = ref(false)
 const providerId = ref<string | null>(null)
+const showNotificationPrompt = ref(false)
 
 // Provider data
 const providerData = ref<{
@@ -35,9 +84,26 @@ const providerData = ref<{
   total_trips?: number
 } | null>(null)
 
-// Earnings
+// Earnings & Stats
 const todayEarnings = ref(0)
 const availableOrders = ref(0)
+const todayStats = ref({
+  completed: 0,
+  cancelled: 0,
+  totalDistance: 0,
+  avgRating: 0
+})
+
+// Active job
+const activeJob = ref<{
+  id: string
+  status: RideStatus
+  pickup_address: string
+  destination_address: string
+  estimated_fare: number
+  customer_name?: string
+  created_at: string
+} | null>(null)
 
 // Recent transactions
 const recentTransactions = ref<Array<{
@@ -73,6 +139,46 @@ const providerLevel = computed(() => {
   return 1
 })
 
+// Job status helpers
+const hasActiveJob = computed(() => activeJob.value !== null)
+
+const jobStatusLabel = computed(() => {
+  if (!activeJob.value) return ''
+  const statusMap: Record<RideStatus, string> = {
+    'pending': 'รอรับงาน',
+    'matched': 'กำลังไปรับ',
+    'pickup': 'ถึงจุดรับแล้ว',
+    'in_progress': 'กำลังเดินทาง',
+    'completed': 'เสร็จสิ้น',
+    'cancelled': 'ยกเลิก'
+  }
+  return statusMap[activeJob.value.status] || activeJob.value.status
+})
+
+const jobStatusColor = computed(() => {
+  if (!activeJob.value) return 'gray'
+  const colorMap: Record<RideStatus, string> = {
+    'pending': 'yellow',
+    'matched': 'blue',
+    'pickup': 'orange',
+    'in_progress': 'green',
+    'completed': 'green',
+    'cancelled': 'red'
+  }
+  return colorMap[activeJob.value.status] || 'gray'
+})
+
+// Availability status
+const availabilityStatus = computed(() => {
+  if (!isOnline.value) {
+    return { label: 'ออฟไลน์', desc: 'คุณไม่ได้รับงานอยู่', color: 'gray', icon: 'offline' }
+  }
+  if (hasActiveJob.value) {
+    return { label: 'กำลังทำงาน', desc: jobStatusLabel.value, color: 'blue', icon: 'working' }
+  }
+  return { label: 'พร้อมรับงาน', desc: 'รอรับงานใหม่', color: 'green', icon: 'ready' }
+})
+
 // Methods
 async function loadProviderData() {
   loading.value = true
@@ -85,26 +191,90 @@ async function loadProviderData() {
       .from('providers_v2')
       .select('id, first_name, last_name, rating, total_earnings, total_trips, is_online, is_available')
       .eq('user_id', user.id)
-      .maybeSingle()
+      .maybeSingle() as { data: ProviderRow | null }
 
     if (provider) {
       providerId.value = provider.id
       providerData.value = provider
       isOnline.value = provider.is_online && provider.is_available
 
-      // Load today's earnings
-      await loadTodayEarnings(provider.id)
-      
-      // Load available orders count
-      await loadAvailableOrders()
-      
-      // Load recent transactions
-      await loadRecentTransactions(provider.id)
+      // Load all data in parallel
+      await Promise.all([
+        loadTodayEarnings(provider.id),
+        loadAvailableOrders(),
+        loadRecentTransactions(provider.id),
+        loadActiveJob(provider.id),
+        loadTodayStats(provider.id)
+      ])
     }
   } catch (err) {
     console.error('[ProviderHome] Error:', err)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadActiveJob(provId: string) {
+  const { data } = await supabase
+    .from('ride_requests')
+    .select(`
+      id,
+      status,
+      pickup_address,
+      destination_address,
+      estimated_fare,
+      created_at,
+      user_id
+    `)
+    .eq('provider_id', provId)
+    .in('status', ['matched', 'pickup', 'in_progress'])
+    .order('accepted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle() as { data: RideRequestRow | null }
+
+  if (data) {
+    // Get customer name from users table (production uses 'users' not 'profiles')
+    const { data: profile } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', data.user_id)
+      .maybeSingle() as { data: ProfileRow | null }
+
+    activeJob.value = {
+      id: data.id,
+      status: data.status as RideStatus,
+      pickup_address: data.pickup_address,
+      destination_address: data.destination_address,
+      estimated_fare: data.estimated_fare,
+      customer_name: profile?.name || 'ลูกค้า',
+      created_at: data.created_at
+    }
+  } else {
+    activeJob.value = null
+  }
+}
+
+async function loadTodayStats(provId: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  // Query ride_requests for status counts (rating is in ride_ratings table)
+  const { data } = await supabase
+    .from('ride_requests')
+    .select('status')
+    .eq('provider_id', provId)
+    .gte('created_at', today.toISOString()) as { data: RideRequestRow[] | null }
+
+  if (data) {
+    const completed = data.filter(r => r.status === 'completed')
+    const cancelled = data.filter(r => r.status === 'cancelled')
+
+    todayStats.value = {
+      completed: completed.length,
+      cancelled: cancelled.length,
+      totalDistance: 0, // Distance not tracked in ride_requests
+      avgRating: 0 // Would need to query ride_ratings separately
+    }
   }
 }
 
@@ -117,7 +287,7 @@ async function loadTodayEarnings(provId: string) {
     .select('estimated_fare, final_fare')
     .eq('provider_id', provId)
     .eq('status', 'completed')
-    .gte('completed_at', today.toISOString())
+    .gte('completed_at', today.toISOString()) as { data: RideRequestRow[] | null }
 
   if (data) {
     todayEarnings.value = data.reduce((sum, r) => sum + (r.final_fare || r.estimated_fare || 0), 0)
@@ -140,11 +310,11 @@ async function loadRecentTransactions(provId: string) {
     .eq('provider_id', provId)
     .eq('status', 'completed')
     .order('completed_at', { ascending: false })
-    .limit(5)
+    .limit(5) as { data: RideRequestRow[] | null }
 
   if (data && data.length > 0) {
     // Group by date
-    const grouped = new Map<string, typeof data>()
+    const grouped = new Map<string, RideRequestRow[]>()
     data.forEach(item => {
       const date = new Date(item.created_at).toLocaleDateString('th-TH')
       if (!grouped.has(date)) grouped.set(date, [])
@@ -186,8 +356,8 @@ async function toggleOnline() {
 
     const newStatus = !isOnline.value
 
-    await supabase
-      .from('providers_v2')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from('providers_v2') as any)
       .update({
         is_online: newStatus,
         is_available: newStatus,
@@ -211,14 +381,57 @@ function goToOrders() {
   router.push('/provider/orders')
 }
 
+function goToJobDetail() {
+  if (activeJob.value) {
+    router.push(`/provider/job/${activeJob.value.id}`)
+  }
+}
+
 function openMenu() {
   // TODO: Open side menu
+}
+
+// Push Notification handlers
+async function enableNotifications() {
+  const granted = await requestPermission()
+  if (granted) {
+    showNotificationPrompt.value = false
+  }
+}
+
+function dismissNotificationPrompt() {
+  showNotificationPrompt.value = false
+  // Store in localStorage to not show again for a while
+  localStorage.setItem('notification_prompt_dismissed', Date.now().toString())
+}
+
+function shouldShowNotificationPrompt(): boolean {
+  if (!pushSupported.value) return false
+  if (pushSubscribed.value) return false
+  if (pushPermission.value === 'denied') return false
+  
+  // Check if dismissed recently (within 7 days)
+  const dismissed = localStorage.getItem('notification_prompt_dismissed')
+  if (dismissed) {
+    const dismissedTime = parseInt(dismissed, 10)
+    const sevenDays = 7 * 24 * 60 * 60 * 1000
+    if (Date.now() - dismissedTime < sevenDays) return false
+  }
+  
+  return true
 }
 
 // Lifecycle
 onMounted(() => {
   loadProviderData()
   setupRealtimeSubscription()
+  
+  // Check if should show notification prompt
+  setTimeout(() => {
+    if (shouldShowNotificationPrompt()) {
+      showNotificationPrompt.value = true
+    }
+  }, 3000) // Show after 3 seconds
 })
 
 onUnmounted(() => {
@@ -246,6 +459,23 @@ function setupRealtimeSubscription() {
         console.log('[ProviderHome] New job received:', payload.new)
         // Reload available orders count when new job comes in
         loadAvailableOrders()
+        
+        // Send push notification if online and subscribed
+        if (isOnline.value && pushSubscribed.value) {
+          const newJob = payload.new as RideRequestRow
+          notifyNewJob({
+            id: newJob.id,
+            service_type: 'ride',
+            status: 'pending',
+            customer_id: newJob.user_id,
+            pickup_location: { lat: newJob.pickup_lat, lng: newJob.pickup_lng },
+            pickup_address: newJob.pickup_address,
+            dropoff_location: { lat: newJob.destination_lat, lng: newJob.destination_lng },
+            dropoff_address: newJob.destination_address,
+            estimated_earnings: newJob.estimated_fare,
+            created_at: newJob.created_at
+          })
+        }
       }
     )
     .on(
@@ -259,6 +489,14 @@ function setupRealtimeSubscription() {
         console.log('[ProviderHome] Job updated:', payload.eventType, payload.new)
         // Reload count when job status changes
         loadAvailableOrders()
+        
+        // Reload active job if it's ours
+        if (providerId.value) {
+          const updated = payload.new as RideRequestRow
+          if (updated.provider_id === providerId.value) {
+            loadActiveJob(providerId.value)
+          }
+        }
       }
     )
     .on(
@@ -281,6 +519,32 @@ function setupRealtimeSubscription() {
 
 <template>
   <div class="provider-home">
+    <!-- Push Notification Prompt -->
+    <Transition name="slide-down">
+      <div v-if="showNotificationPrompt" class="notification-prompt">
+        <div class="prompt-content">
+          <div class="prompt-icon">🔔</div>
+          <div class="prompt-text">
+            <h4>เปิดการแจ้งเตือน</h4>
+            <p>รับแจ้งเตือนเมื่อมีงานใหม่เข้ามา</p>
+          </div>
+        </div>
+        <div class="prompt-actions">
+          <button class="prompt-btn dismiss" @click="dismissNotificationPrompt" type="button">
+            ไว้ทีหลัง
+          </button>
+          <button 
+            class="prompt-btn enable" 
+            @click="enableNotifications" 
+            :disabled="pushLoading"
+            type="button"
+          >
+            {{ pushLoading ? 'กำลังเปิด...' : 'เปิดเลย' }}
+          </button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Green Header -->
     <header class="header">
       <!-- Menu Button -->
@@ -290,6 +554,13 @@ function setupRealtimeSubscription() {
         </svg>
       </button>
 
+      <!-- Notification Status Badge -->
+      <div v-if="pushSubscribed" class="notification-badge" title="การแจ้งเตือนเปิดอยู่">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+        </svg>
+      </div>
+
       <!-- Profile Section -->
       <div class="profile-section">
         <div class="level-badge">ระดับ {{ providerLevel }}</div>
@@ -297,7 +568,7 @@ function setupRealtimeSubscription() {
         
         <!-- Earnings Display -->
         <div class="earnings-display">
-          <span class="earnings-label">รายได้ของคุณ</span>
+          <span class="earnings-label">รายได้วันนี้</span>
           <span class="earnings-amount">
             <span class="currency">฿</span>
             {{ todayEarnings.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
@@ -329,12 +600,33 @@ function setupRealtimeSubscription() {
 
     <!-- Main Content -->
     <main class="content">
-      <!-- Status Card -->
-      <div class="status-card">
-        <div class="status-info">
-          <span class="status-label">สถานะ: {{ isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}</span>
-          <span class="status-desc">{{ isOnline ? 'พร้อมรับงานทุกประเภท' : 'คุณออฟไลน์อยู่' }}</span>
+      <!-- Availability Status Card -->
+      <div class="availability-card" :class="availabilityStatus.color">
+        <div class="availability-indicator">
+          <!-- Status Icon -->
+          <div class="status-icon-wrapper" :class="availabilityStatus.color">
+            <!-- Offline Icon -->
+            <svg v-if="availabilityStatus.icon === 'offline'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M4.93 4.93l14.14 14.14" />
+            </svg>
+            <!-- Working Icon -->
+            <svg v-else-if="availabilityStatus.icon === 'working'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
+            </svg>
+            <!-- Ready Icon -->
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <path d="M22 4L12 14.01l-3-3" />
+            </svg>
+          </div>
+          
+          <div class="status-text">
+            <span class="status-label">{{ availabilityStatus.label }}</span>
+            <span class="status-desc">{{ availabilityStatus.desc }}</span>
+          </div>
         </div>
+        
         <button 
           class="toggle-btn"
           :class="{ active: isOnline }"
@@ -348,8 +640,80 @@ function setupRealtimeSubscription() {
         </button>
       </div>
 
+      <!-- Active Job Card -->
+      <div v-if="hasActiveJob && activeJob" class="active-job-card" @click="goToJobDetail">
+        <div class="job-header">
+          <div class="job-status-badge" :class="jobStatusColor">
+            <span class="pulse-dot"></span>
+            {{ jobStatusLabel }}
+          </div>
+          <span class="job-fare">฿{{ activeJob.estimated_fare.toFixed(0) }}</span>
+        </div>
+        
+        <div class="job-route">
+          <div class="route-point pickup">
+            <div class="point-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="8" />
+              </svg>
+            </div>
+            <div class="point-info">
+              <span class="point-label">รับ</span>
+              <span class="point-address">{{ activeJob.pickup_address }}</span>
+            </div>
+          </div>
+          
+          <div class="route-line"></div>
+          
+          <div class="route-point dropoff">
+            <div class="point-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+              </svg>
+            </div>
+            <div class="point-info">
+              <span class="point-label">ส่ง</span>
+              <span class="point-address">{{ activeJob.destination_address }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="job-footer">
+          <span class="customer-name">👤 {{ activeJob.customer_name }}</span>
+          <span class="view-detail">
+            ดูรายละเอียด
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      <!-- Today's Stats -->
+      <div v-if="isOnline" class="stats-card">
+        <h3 class="stats-title">สถิติวันนี้</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value">{{ todayStats.completed }}</span>
+            <span class="stat-label">งานสำเร็จ</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ todayStats.totalDistance.toFixed(1) }}</span>
+            <span class="stat-label">กม.</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" :class="{ 'text-red': todayStats.cancelled > 0 }">{{ todayStats.cancelled }}</span>
+            <span class="stat-label">ยกเลิก</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ todayStats.avgRating > 0 ? todayStats.avgRating.toFixed(1) : '-' }}</span>
+            <span class="stat-label">⭐ เรตติ้ง</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Rush Hour Alert -->
-      <div v-if="isRushHour && isOnline" class="alert-card">
+      <div v-if="isRushHour && isOnline && !hasActiveJob" class="alert-card">
         <div class="alert-icon">
           <svg viewBox="0 0 64 64" fill="none" class="alert-svg">
             <rect x="10" y="20" width="44" height="35" rx="4" fill="#DEB887" stroke="#8B4513" stroke-width="2"/>
@@ -369,8 +733,8 @@ function setupRealtimeSubscription() {
         </div>
       </div>
 
-      <!-- Orders Available (when not rush hour) -->
-      <div v-else-if="isOnline && availableOrders > 0" class="orders-card" @click="goToOrders">
+      <!-- Orders Available (when not rush hour and no active job) -->
+      <div v-else-if="isOnline && availableOrders > 0 && !hasActiveJob" class="orders-card" @click="goToOrders">
         <div class="orders-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -384,6 +748,18 @@ function setupRealtimeSubscription() {
         <svg class="orders-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 5l7 7-7 7" />
         </svg>
+      </div>
+
+      <!-- No Jobs Available -->
+      <div v-else-if="isOnline && availableOrders === 0 && !hasActiveJob" class="no-jobs-card">
+        <div class="no-jobs-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+        </div>
+        <p>ยังไม่มีงานใหม่ในขณะนี้</p>
+        <span>ระบบจะแจ้งเตือนเมื่อมีงานเข้ามา</span>
       </div>
 
       <!-- Recent Transactions -->
@@ -428,6 +804,113 @@ function setupRealtimeSubscription() {
 .provider-home {
   min-height: 100vh;
   background: #F5F5F5;
+}
+
+/* Notification Prompt */
+.notification-prompt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+  color: #FFFFFF;
+  padding: 16px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.prompt-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.prompt-icon {
+  font-size: 28px;
+}
+
+.prompt-text h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 2px 0;
+}
+
+.prompt-text p {
+  font-size: 13px;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.prompt-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.prompt-btn.dismiss {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+}
+
+.prompt-btn.dismiss:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.prompt-btn.enable {
+  background: #FFFFFF;
+  color: #1E40AF;
+}
+
+.prompt-btn.enable:active {
+  transform: scale(0.98);
+}
+
+.prompt-btn.enable:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Slide down animation */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+/* Notification Badge */
+.notification-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
+.notification-badge svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* Header */
@@ -526,7 +1009,349 @@ function setupRealtimeSubscription() {
   z-index: 10;
 }
 
-/* Status Card */
+/* Availability Status Card */
+.availability-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+  border-left: 4px solid #9CA3AF;
+  transition: border-color 0.3s;
+}
+
+.availability-card.green {
+  border-left-color: #00A86B;
+}
+
+.availability-card.blue {
+  border-left-color: #3B82F6;
+}
+
+.availability-card.gray {
+  border-left-color: #9CA3AF;
+}
+
+.availability-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+.status-icon-wrapper.green {
+  background: #E8F5EF;
+  color: #00A86B;
+}
+
+.status-icon-wrapper.blue {
+  background: #EFF6FF;
+  color: #3B82F6;
+}
+
+.status-icon-wrapper.gray {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+.status-icon-wrapper svg {
+  width: 24px;
+  height: 24px;
+}
+
+.status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.status-desc {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+/* Active Job Card */
+.active-job-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 2px solid #3B82F6;
+}
+
+.active-job-card:active {
+  transform: scale(0.98);
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 16px 12px;
+  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+}
+
+.job-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #3B82F6;
+  color: #FFFFFF;
+}
+
+.job-status-badge.blue {
+  background: #3B82F6;
+}
+
+.job-status-badge.orange {
+  background: #F97316;
+}
+
+.job-status-badge.green {
+  background: #00A86B;
+}
+
+.job-status-badge.yellow {
+  background: #EAB308;
+  color: #1F2937;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.job-fare {
+  font-size: 20px;
+  font-weight: 700;
+  color: #00A86B;
+}
+
+.job-route {
+  padding: 16px;
+  position: relative;
+}
+
+.route-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.route-point.pickup {
+  margin-bottom: 24px;
+}
+
+.point-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.route-point.pickup .point-icon {
+  color: #00A86B;
+}
+
+.route-point.dropoff .point-icon {
+  color: #EF4444;
+}
+
+.point-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.point-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.point-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.point-address {
+  display: block;
+  font-size: 14px;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-line {
+  position: absolute;
+  left: 27px;
+  top: 44px;
+  width: 2px;
+  height: 20px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #D1D5DB 0px,
+    #D1D5DB 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.job-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #F9FAFB;
+  border-top: 1px solid #E5E7EB;
+}
+
+.customer-name {
+  font-size: 14px;
+  color: #374151;
+}
+
+.view-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3B82F6;
+}
+
+.view-detail svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Stats Card */
+.stats-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+}
+
+.stats-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6B7280;
+  margin: 0 0 12px 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 8px 4px;
+  background: #F9FAFB;
+  border-radius: 12px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.stat-value.text-red {
+  color: #EF4444;
+}
+
+.stat-label {
+  display: block;
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 2px;
+}
+
+/* No Jobs Card */
+.no-jobs-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.no-jobs-icon {
+  width: 56px;
+  height: 56px;
+  background: #F3F4F6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9CA3AF;
+  margin-bottom: 12px;
+}
+
+.no-jobs-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.no-jobs-card p {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 4px 0;
+}
+
+.no-jobs-card span {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+/* Status Card - Legacy (keeping for compatibility) */
 .status-card {
   display: flex;
   align-items: center;
@@ -542,17 +1367,6 @@ function setupRealtimeSubscription() {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.status-label {
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.status-desc {
-  font-size: 13px;
-  color: #6B7280;
 }
 
 .toggle-btn {

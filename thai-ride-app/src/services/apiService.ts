@@ -165,7 +165,7 @@ export class ApiService {
   async checkConnectivity(): Promise<boolean> {
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('users')
         .select('id')
         .limit(1)
         .single()

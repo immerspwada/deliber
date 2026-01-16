@@ -128,9 +128,10 @@ async function uploadPhoto(blob: Blob, originalName: string): Promise<void> {
       ? { pickup_photo: photoUrl, pickup_photo_at: new Date().toISOString() }
       : { dropoff_photo: photoUrl, dropoff_photo_at: new Date().toISOString() }
     
-    const { error: updateError } = await supabase
-      .from('ride_requests')
-      .update(updateData as Record<string, unknown>)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateError } = await (supabase
+      .from('ride_requests') as any)
+      .update(updateData)
       .eq('id', props.rideId)
     
     if (updateError) {

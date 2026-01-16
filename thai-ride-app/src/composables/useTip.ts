@@ -1,265 +1,230 @@
 /**
- * Feature: F56 - Tip System
- * Tables: ride_requests, delivery_requests, shopping_requests
+ * Tip System Composable
  * 
- * ระบบให้ทิปคนขับ
- * - เลือกจำนวนทิป
- * - ทิปหลังจบการเดินทาง
- * - ประวัติการให้ทิป
+ * Role Impact:
+ * - Customer: Give tips after ride completion (within 24h)
+ * - Provider: View received tips and stats
+ * - Admin: View tip analytics (use separate admin composable)
  */
 
-import { ref } from 'vue'
+import { ref, computed, readonly } from 'vue'
 import { supabase } from '../lib/supabase'
-
-export interface TipOption {
-  amount: number
-  label: string
-  isPercentage?: boolean
-}
-
-export interface TipResult {
-  success: boolean
-  amount: number
-  message: string
-}
-
-// Predefined tip options
-export const TIP_OPTIONS: TipOption[] = [
-  { amount: 0, label: 'ไม่ให้ทิป' },
-  { amount: 10, label: '฿10' },
-  { amount: 20, label: '฿20' },
-  { amount: 50, label: '฿50' },
-  { amount: 100, label: '฿100' }
-]
-
-// Percentage-based tip options
-export const TIP_PERCENTAGE_OPTIONS: TipOption[] = [
-  { amount: 0, label: 'ไม่ให้ทิป', isPercentage: true },
-  { amount: 5, label: '5%', isPercentage: true },
-  { amount: 10, label: '10%', isPercentage: true },
-  { amount: 15, label: '15%', isPercentage: true },
-  { amount: 20, label: '20%', isPercentage: true }
-]
+import type {
+  GiveTipRequest,
+  GiveTipResponse,
+  CanGiveTipResponse,
+  ProviderTipsResponse,
+  TipWithDetails,
+  TIP_PRESETS
+} from '../types/tip'
 
 export function useTip() {
+  // State
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const canTipStatus = ref<CanGiveTipResponse | null>(null)
+  
+  // Provider state
+  const providerTips = ref<TipWithDetails[]>([])
+  const totalTips = ref(0)
+  const tipCount = ref(0)
 
-  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+  // =====================================================
+  // CUSTOMER FUNCTIONS
+  // =====================================================
 
-  // Calculate tip from percentage
-  const calculateTipFromPercentage = (fare: number, percentage: number): number => {
-    return Math.round(fare * percentage / 100)
-  }
-
-  // Add tip to ride
-  const addTipToRide = async (
-    rideId: string,
-    amount: number
-  ): Promise<TipResult> => {
+  /**
+   * Check if customer can give tip for a ride
+   */
+  async function checkCanTip(rideId: string): Promise<CanGiveTipResponse> {
     loading.value = true
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        return {
-          success: true,
-          amount,
-          message: amount > 0 ? `ให้ทิป ฿${amount} เรียบร้อยแล้ว` : 'ไม่ให้ทิป'
-        }
-      }
+      const { data, error: rpcError } = await (supabase.rpc as any)('can_give_tip', {
+        p_ride_id: rideId
+      })
 
-      const { error: updateError } = await (supabase
-        .from('ride_requests') as any)
-        .update({
-          tip_amount: amount,
-          tip_given_at: amount > 0 ? new Date().toISOString() : null
-        })
-        .eq('id', rideId)
+      if (rpcError) throw rpcError
 
-      if (updateError) throw updateError
+      canTipStatus.value = data as CanGiveTipResponse
+      return canTipStatus.value
 
-      return {
-        success: true,
-        amount,
-        message: amount > 0 ? `ให้ทิป ฿${amount} เรียบร้อยแล้ว` : 'ไม่ให้ทิป'
-      }
-    } catch (e: any) {
-      error.value = e.message
-      return {
-        success: false,
-        amount: 0,
-        message: e.message
-      }
+    } catch (err) {
+      console.error('[useTip] checkCanTip error:', err)
+      error.value = 'ไม่สามารถตรวจสอบสถานะทิปได้'
+      return { can_tip: false, reason: 'ERROR' }
     } finally {
       loading.value = false
     }
   }
 
-  // Add tip to delivery
-  const addTipToDelivery = async (
-    deliveryId: string,
-    amount: number
-  ): Promise<TipResult> => {
+  /**
+   * Give tip to provider
+   */
+  async function giveTip(request: GiveTipRequest): Promise<GiveTipResponse> {
     loading.value = true
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        return {
-          success: true,
-          amount,
-          message: amount > 0 ? `ให้ทิป ฿${amount} เรียบร้อยแล้ว` : 'ไม่ให้ทิป'
-        }
+      // Validate amount
+      if (request.amount <= 0) {
+        return { success: false, error: 'จำนวนเงินไม่ถูกต้อง' }
       }
 
-      const { error: updateError } = await (supabase
-        .from('delivery_requests') as any)
-        .update({
-          tip_amount: amount,
-          tip_given_at: amount > 0 ? new Date().toISOString() : null
-        })
-        .eq('id', deliveryId)
-
-      if (updateError) throw updateError
-
-      return {
-        success: true,
-        amount,
-        message: amount > 0 ? `ให้ทิป ฿${amount} เรียบร้อยแล้ว` : 'ไม่ให้ทิป'
+      if (request.amount > 10000) {
+        return { success: false, error: 'จำนวนเงินสูงเกินไป (สูงสุด ฿10,000)' }
       }
-    } catch (e: any) {
-      error.value = e.message
-      return {
-        success: false,
-        amount: 0,
-        message: e.message
+
+      const { data, error: rpcError } = await (supabase.rpc as any)('give_tip', {
+        p_ride_id: request.ride_id,
+        p_amount: request.amount,
+        p_message: request.message || null
+      })
+
+      if (rpcError) throw rpcError
+
+      const result = data as GiveTipResponse
+
+      if (result.success) {
+        // Clear can tip status
+        canTipStatus.value = null
+      } else {
+        error.value = getErrorMessage(result.error || 'UNKNOWN')
       }
+
+      return result
+
+    } catch (err) {
+      console.error('[useTip] giveTip error:', err)
+      error.value = 'ไม่สามารถให้ทิปได้'
+      return { success: false, error: 'SYSTEM_ERROR' }
     } finally {
       loading.value = false
     }
   }
 
-  // Add tip to shopping
-  const addTipToShopping = async (
-    shoppingId: string,
-    amount: number
-  ): Promise<TipResult> => {
+  // =====================================================
+  // PROVIDER FUNCTIONS
+  // =====================================================
+
+  /**
+   * Load provider's received tips
+   */
+  async function loadProviderTips(limit = 20, offset = 0): Promise<void> {
     loading.value = true
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        return {
-          success: true,
-          amount,
-          message: amount > 0 ? `ให้ทิป ฿${amount} เรียบร้อยแล้ว` : 'ไม่ให้ทิป'
-        }
+      const { data, error: rpcError } = await (supabase.rpc as any)('get_provider_tips', {
+        p_limit: limit,
+        p_offset: offset
+      })
+
+      if (rpcError) throw rpcError
+
+      const result = data as ProviderTipsResponse
+
+      if (result.success) {
+        providerTips.value = result.tips || []
+        totalTips.value = result.total_tips || 0
+        tipCount.value = result.tip_count || 0
+      } else {
+        error.value = result.error || 'ไม่สามารถโหลดข้อมูลทิปได้'
       }
 
-      const { error: updateError } = await (supabase
-        .from('shopping_requests') as any)
-        .update({
-          tip_amount: amount,
-          tip_given_at: amount > 0 ? new Date().toISOString() : null
-        })
-        .eq('id', shoppingId)
-
-      if (updateError) throw updateError
-
-      return {
-        success: true,
-        amount,
-        message: amount > 0 ? `ให้ทิป ฿${amount} เรียบร้อยแล้ว` : 'ไม่ให้ทิป'
-      }
-    } catch (e: any) {
-      error.value = e.message
-      return {
-        success: false,
-        amount: 0,
-        message: e.message
-      }
+    } catch (err) {
+      console.error('[useTip] loadProviderTips error:', err)
+      error.value = 'ไม่สามารถโหลดข้อมูลทิปได้'
     } finally {
       loading.value = false
     }
   }
 
-  // Get provider's total tips
-  const getProviderTotalTips = async (providerId: string): Promise<number> => {
-    try {
-      if (isDemoMode()) {
-        return Math.floor(Math.random() * 5000) + 500
-      }
+  // =====================================================
+  // HELPERS
+  // =====================================================
 
-      const { data, error: fetchError } = await supabase
-        .from('ride_requests')
-        .select('tip_amount')
-        .eq('provider_id', providerId)
-        .not('tip_amount', 'is', null)
-
-      if (fetchError) throw fetchError
-
-      return (data || []).reduce((sum: number, r: any) => sum + (r.tip_amount || 0), 0)
-    } catch {
-      return 0
+  /**
+   * Get user-friendly error message
+   */
+  function getErrorMessage(code: string): string {
+    const messages: Record<string, string> = {
+      'NOT_AUTHENTICATED': 'กรุณาเข้าสู่ระบบ',
+      'INVALID_AMOUNT': 'จำนวนเงินไม่ถูกต้อง',
+      'AMOUNT_TOO_HIGH': 'จำนวนเงินสูงเกินไป (สูงสุด ฿10,000)',
+      'RIDE_NOT_FOUND': 'ไม่พบข้อมูลการเดินทาง',
+      'ALREADY_TIPPED': 'คุณได้ให้ทิปไปแล้ว',
+      'TIP_WINDOW_EXPIRED': 'หมดเวลาให้ทิป (ภายใน 24 ชม.)',
+      'NO_PROVIDER': 'ไม่พบข้อมูลคนขับ',
+      'INSUFFICIENT_BALANCE': 'ยอดเงินในกระเป๋าไม่เพียงพอ',
+      'RIDE_NOT_COMPLETED': 'การเดินทางยังไม่เสร็จสิ้น',
+      'NOT_A_PROVIDER': 'คุณไม่ใช่ผู้ให้บริการ',
+      'NOT_ADMIN': 'คุณไม่มีสิทธิ์เข้าถึง'
     }
+    return messages[code] || 'เกิดข้อผิดพลาด'
   }
 
-  // Get user's tip history
-  const getUserTipHistory = async (userId: string): Promise<{ total: number; count: number }> => {
-    try {
-      if (isDemoMode()) {
-        return {
-          total: Math.floor(Math.random() * 1000) + 100,
-          count: Math.floor(Math.random() * 20) + 5
-        }
-      }
+  /**
+   * Format tip amount for display
+   */
+  function formatTipAmount(amount: number): string {
+    return `฿${amount.toLocaleString()}`
+  }
 
-      const { data, error: fetchError } = await supabase
-        .from('ride_requests')
-        .select('tip_amount')
-        .eq('user_id', userId)
-        .not('tip_amount', 'is', null)
-        .gt('tip_amount', 0)
+  /**
+   * Calculate time remaining to tip
+   */
+  function getTimeRemaining(expiresAt: string): string {
+    const expires = new Date(expiresAt)
+    const now = new Date()
+    const diff = expires.getTime() - now.getTime()
 
-      if (fetchError) throw fetchError
+    if (diff <= 0) return 'หมดเวลาแล้ว'
 
-      const tips = data || []
-      return {
-        total: tips.reduce((sum: number, r: any) => sum + (r.tip_amount || 0), 0),
-        count: tips.length
-      }
-    } catch {
-      return { total: 0, count: 0 }
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 0) {
+      return `เหลือเวลา ${hours} ชม. ${minutes} นาที`
     }
+    return `เหลือเวลา ${minutes} นาที`
   }
 
-  // Format tip amount
-  const formatTip = (amount: number): string => {
-    return `฿${amount.toLocaleString('th-TH')}`
-  }
+  // =====================================================
+  // COMPUTED
+  // =====================================================
 
-  // Get suggested tip based on fare
-  const getSuggestedTip = (fare: number): number => {
-    if (fare < 50) return 10
-    if (fare < 100) return 20
-    if (fare < 200) return 30
-    if (fare < 500) return 50
-    return Math.round(fare * 0.1) // 10% for high fares
-  }
+  const canTip = computed(() => canTipStatus.value?.can_tip ?? false)
+  const walletBalance = computed(() => canTipStatus.value?.wallet_balance ?? 0)
+
+  // =====================================================
+  // RETURN
+  // =====================================================
 
   return {
-    loading,
-    error,
-    calculateTipFromPercentage,
-    addTipToRide,
-    addTipToDelivery,
-    addTipToShopping,
-    getProviderTotalTips,
-    getUserTipHistory,
-    formatTip,
-    getSuggestedTip,
-    TIP_OPTIONS,
-    TIP_PERCENTAGE_OPTIONS
+    // State
+    loading: readonly(loading),
+    error: readonly(error),
+    canTipStatus: readonly(canTipStatus),
+    providerTips: readonly(providerTips),
+    totalTips: readonly(totalTips),
+    tipCount: readonly(tipCount),
+
+    // Computed
+    canTip,
+    walletBalance,
+
+    // Customer methods
+    checkCanTip,
+    giveTip,
+
+    // Provider methods
+    loadProviderTips,
+
+    // Helpers
+    formatTipAmount,
+    getTimeRemaining,
+    getErrorMessage
   }
 }

@@ -164,7 +164,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
               .from('providers_v2')
               .select('id')
               .eq('user_id', user.id)
-              .maybeSingle()
+              .maybeSingle() as { data: { id: string } | null }
             
             if (providerData?.id) {
               currentProviderId = providerData.id
@@ -177,9 +177,11 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
       const result = await measureAsync('LoadProviderJob', async () => {
         console.log('[JobDetail] Loading job:', jobId, 'Provider ID:', currentProviderId)
         
-        // Load ride request data
-        const { data: rideData, error: rideError } = await supabase
-          .from('ride_requests')
+        // Load ride request data - use any to bypass strict typing issues with generated types
+        // Query base columns first (columns that exist in production)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rideData, error: rideError } = await (supabase
+          .from('ride_requests') as any)
           .select(`
             id, status, ride_type, pickup_address, destination_address,
             pickup_lat, pickup_lng, destination_lat, destination_lng,
@@ -228,6 +230,8 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
         }
 
         // Transform to JobDetail format
+        // Note: promo_code, promo_discount, tip_amount, tip_message columns 
+        // may not exist in production yet - use optional chaining
         const jobDetail: JobDetail = {
           id: rideData.id,
           type: 'ride',
@@ -249,7 +253,15 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             name: customerProfile.name || 'ลูกค้า',
             phone: customerProfile.phone || '',
             avatar_url: customerProfile.avatar_url || undefined
-          } : null
+          } : null,
+          // Promo & Pricing (columns may not exist yet)
+          estimated_fare: rideData.estimated_fare || 0,
+          final_fare: rideData.final_fare,
+          promo_code: rideData.promo_code ?? null,
+          promo_discount: rideData.promo_discount ?? null,
+          // Tip (columns may not exist yet)
+          tip_amount: rideData.tip_amount ?? null,
+          tip_message: rideData.tip_message ?? null
         }
 
         return jobDetail
@@ -325,8 +337,9 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             break
         }
         
-        const { error: updateError } = await supabase
-          .from('ride_requests')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: updateError } = await (supabase
+          .from('ride_requests') as any)
           .update(updateData)
           .eq('id', job.value!.id)
 
@@ -392,8 +405,9 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
 
     try {
       await measureAsync('CancelJob', async () => {
-        const { error: updateError } = await supabase
-          .from('ride_requests')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: updateError } = await (supabase
+          .from('ride_requests') as any)
           .update({ 
             status: 'cancelled',
             cancellation_reason: reason || 'ยกเลิกโดยคนขับ',

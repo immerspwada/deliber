@@ -99,7 +99,7 @@ export function useProviderJobs() {
         throw new Error('Provider not found')
       }
       
-      // Query ride_requests with RLS
+      // Query ride_requests with RLS (production schema)
       let query = supabase
         .from('ride_requests')
         .select(`
@@ -113,12 +113,10 @@ export function useProviderJobs() {
           destination_lng,
           destination_address,
           estimated_fare,
-          estimated_distance,
-          estimated_duration,
           status,
-          service_type,
+          ride_type,
           created_at,
-          scheduled_at
+          scheduled_time
         `)
         .eq('status', 'pending')
         .is('provider_id', null)
@@ -127,7 +125,7 @@ export function useProviderJobs() {
       
       // Apply filters
       if (filters?.serviceTypes && filters.serviceTypes.length > 0) {
-        query = query.in('service_type', filters.serviceTypes)
+        query = query.in('ride_type', filters.serviceTypes)
       }
       
       if (filters?.minFare) {
@@ -143,7 +141,7 @@ export function useProviderJobs() {
       // Map to Job type
       const jobs: Job[] = (data || []).map(ride => ({
         id: ride.id,
-        service_type: (ride.service_type as ServiceType) || 'ride',
+        service_type: (ride.ride_type as ServiceType) || 'ride',
         status: 'pending' as const,
         customer_id: ride.user_id,
         pickup_location: {
@@ -157,10 +155,10 @@ export function useProviderJobs() {
         },
         dropoff_address: ride.destination_address,
         estimated_earnings: ride.estimated_fare,
-        estimated_duration: ride.estimated_duration,
-        estimated_distance: ride.estimated_distance,
+        estimated_duration: undefined, // Column doesn't exist in production
+        estimated_distance: undefined, // Column doesn't exist in production
         created_at: ride.created_at,
-        scheduled_at: ride.scheduled_at
+        scheduled_at: ride.scheduled_time
       }))
       
       // Apply distance filter if provider has location
@@ -261,7 +259,7 @@ export function useProviderJobs() {
       
       const job: Job = {
         id: data.id,
-        service_type: (data.service_type as ServiceType) || 'ride',
+        service_type: (data.ride_type as ServiceType) || 'ride',
         status: 'matched', // After acceptance, status is 'matched'
         customer_id: data.user_id,
         pickup_location: {
@@ -275,8 +273,8 @@ export function useProviderJobs() {
         },
         dropoff_address: data.destination_address,
         estimated_earnings: data.estimated_fare,
-        estimated_duration: data.estimated_duration,
-        estimated_distance: data.estimated_distance,
+        estimated_duration: undefined, // Column doesn't exist in production
+        estimated_distance: undefined, // Column doesn't exist in production
         created_at: data.created_at,
         accepted_at: data.accepted_at,
         provider_id: provider.id
@@ -418,7 +416,7 @@ export function useProviderJobs() {
       
       const job: Job = {
         id: data.id,
-        service_type: (data.service_type as ServiceType) || 'ride',
+        service_type: (data.ride_type as ServiceType) || 'ride',
         status: data.status as Job['status'],
         customer_id: data.user_id,
         pickup_location: {
@@ -432,8 +430,8 @@ export function useProviderJobs() {
         },
         dropoff_address: data.destination_address,
         estimated_earnings: data.estimated_fare,
-        estimated_duration: data.estimated_duration,
-        estimated_distance: data.estimated_distance,
+        estimated_duration: undefined, // Column doesn't exist in production
+        estimated_distance: undefined, // Column doesn't exist in production
         created_at: data.created_at,
         accepted_at: data.accepted_at,
         provider_id: provider.id
@@ -474,7 +472,7 @@ export function useProviderJobs() {
         if (!exists) {
           const job: Job = {
             id: String(newJob.id),
-            service_type: (newJob.service_type as ServiceType) || 'ride',
+            service_type: (newJob.ride_type as ServiceType) || 'ride',
             status: 'pending',
             customer_id: String(newJob.user_id),
             pickup_location: {
@@ -488,8 +486,8 @@ export function useProviderJobs() {
             },
             dropoff_address: String(newJob.destination_address),
             estimated_earnings: Number(newJob.estimated_fare),
-            estimated_duration: Number(newJob.estimated_duration),
-            estimated_distance: Number(newJob.estimated_distance),
+            estimated_duration: undefined, // Column doesn't exist in production
+            estimated_distance: undefined, // Column doesn't exist in production
             created_at: String(newJob.created_at)
           }
           

@@ -44,14 +44,14 @@ serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    // Check if user is admin
-    const { data: profile } = await supabaseClient
-      .from('profiles')
+    // Check if user is admin (production uses 'users' table, not 'profiles')
+    const { data: userData } = await supabaseClient
+      .from('users')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'admin') {
+    if (userData?.role !== 'admin') {
       throw new Error('Forbidden: Admin access required')
     }
 

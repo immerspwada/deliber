@@ -131,7 +131,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'wallet',
         name: 'ProviderWallet',
-        component: () => import('../views/provider/ProviderWalletNew.vue'),
+        component: () => import('../views/provider/ProviderWalletView.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
@@ -144,6 +144,12 @@ export const routes: RouteRecordRaw[] = [
         path: 'profile',
         name: 'ProviderProfile',
         component: () => import('../views/provider/ProviderProfileNew.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
+        path: 'notifications',
+        name: 'ProviderNotificationPreferences',
+        component: () => import('../views/provider/NotificationPreferencesView.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
@@ -226,6 +232,12 @@ export const routes: RouteRecordRaw[] = [
         path: 'analytics',
         name: 'AdminAnalytics',
         component: () => import('../views/admin/AdminAnalyticsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'push-analytics',
+        name: 'AdminPushAnalytics',
+        component: () => import('../admin/views/PushAnalyticsView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {
@@ -360,6 +372,12 @@ export const routes: RouteRecordRaw[] = [
         path: 'withdrawals',
         name: 'AdminWithdrawals',
         component: () => import('../admin/views/WithdrawalsView.vue'),
+        meta: { requiresAuth: true, requiresAdminAccess: true }
+      },
+      {
+        path: 'provider-withdrawals',
+        name: 'AdminProviderWithdrawals',
+        component: () => import('../admin/views/AdminProviderWithdrawalsView.vue'),
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {

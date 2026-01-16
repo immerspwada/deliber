@@ -6,33 +6,101 @@
  * Features:
  * - Profile header with avatar
  * - Stats display
- * - Settings menu
+ * - Settings menu with working modals
  * - Role switcher
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
 import { useProviderMedia } from '../../composables/useProviderMedia'
+import { usePushNotification } from '../../composables/usePushNotification'
+import { useDocumentUpload } from '../../composables/useDocumentUpload'
 import ProviderMediaUpload from '../../components/provider/ProviderMediaUpload.vue'
+import DocumentUpload from '../../components/DocumentUpload.vue'
 
 const router = useRouter()
 const { avatarUrl, fetchProviderMedia } = useProviderMedia()
+const { isSupported: pushSupported, isSubscribed: pushEnabled, permission: pushPermission, loading: pushLoading, requestPermission, unsubscribe } = usePushNotification()
+const { documents, loadDocuments } = useDocumentUpload()
 
 // State
 const loading = ref(true)
 const showMediaUpload = ref(false)
 const showRoleSwitcher = ref(false)
+const saving = ref(false)
+const saveMessage = ref('')
 
+// Active modal
+const activeModal = ref<string | null>(null)
+
+// Provider data with all fields
 const provider = ref<{
+  id?: string
   first_name?: string
   last_name?: string
-  phone?: string
+  phone_number?: string
   email?: string
   rating?: number
   total_trips?: number
   total_earnings?: number
   status?: string
+  vehicle_type?: string
+  vehicle_plate?: string
+  vehicle_color?: string
+  vehicle_info?: Record<string, unknown>
+  bank_name?: string
+  bank_account_number?: string
+  bank_account_name?: string
+  national_id?: string
+  address?: string
 } | null>(null)
+
+// Form data for editing
+const personalForm = ref({
+  first_name: '',
+  last_name: '',
+  phone_number: '',
+  national_id: '',
+  address: ''
+})
+
+const vehicleForm = ref({
+  vehicle_type: '',
+  vehicle_plate: '',
+  vehicle_color: '',
+  vehicle_brand: '',
+  vehicle_model: '',
+  vehicle_year: ''
+})
+
+const bankForm = ref({
+  bank_name: '',
+  bank_account_number: '',
+  bank_account_name: ''
+})
+
+// Bank options
+const bankOptions = [
+  'ธนาคารกรุงเทพ',
+  'ธนาคารกสิกรไทย',
+  'ธนาคารกรุงไทย',
+  'ธนาคารไทยพาณิชย์',
+  'ธนาคารกรุงศรีอยุธยา',
+  'ธนาคารทหารไทยธนชาต',
+  'ธนาคารออมสิน',
+  'ธนาคารเกียรตินาคินภัทร',
+  'ธนาคารซีไอเอ็มบี ไทย',
+  'ธนาคารยูโอบี'
+]
+
+// Vehicle type options
+const vehicleTypeOptions = [
+  { value: 'car', label: 'รถยนต์' },
+  { value: 'motorcycle', label: 'มอเตอร์ไซค์' },
+  { value: 'van', label: 'รถตู้' },
+  { value: 'pickup', label: 'รถกระบะ' },
+  { value: 'truck', label: 'รถบรรทุก' }
+]
 
 // Computed
 const displayName = computed(() => {
@@ -58,15 +126,18 @@ const statusInfo = computed(() => {
   return map[s || ''] || { text: s || '', class: '' }
 })
 
+// Document count
+const documentCount = computed(() => documents.value.length)
+
 // Menu items
 const menuItems = [
-  { id: 'personal', icon: 'user', label: 'ข้อมูลส่วนตัว' },
-  { id: 'vehicle', icon: 'car', label: 'รายละเอียดยานพาหนะ' },
-  { id: 'documents', icon: 'file', label: 'เอกสาร' },
-  { id: 'bank', icon: 'bank', label: 'บัญชีธนาคาร' },
-  { id: 'notifications', icon: 'bell', label: 'การแจ้งเตือน' },
-  { id: 'settings', icon: 'settings', label: 'ตั้งค่า' },
-  { id: 'help', icon: 'help', label: 'ช่วยเหลือและสนับสนุน' }
+  { id: 'personal', icon: 'user', label: 'ข้อมูลส่วนตัว', desc: 'ชื่อ เบอร์โทร ที่อยู่' },
+  { id: 'vehicle', icon: 'car', label: 'รายละเอียดยานพาหนะ', desc: 'ทะเบียน ยี่ห้อ สี' },
+  { id: 'documents', icon: 'file', label: 'เอกสาร', desc: `${documentCount.value} เอกสาร` },
+  { id: 'bank', icon: 'bank', label: 'บัญชีธนาคาร', desc: 'สำหรับรับเงิน' },
+  { id: 'notifications', icon: 'bell', label: 'การแจ้งเตือน', desc: pushEnabled.value ? 'เปิดอยู่' : 'ปิดอยู่' },
+  { id: 'settings', icon: 'settings', label: 'ตั้งค่า', desc: 'ภาษา ความเป็นส่วนตัว' },
+  { id: 'help', icon: 'help', label: 'ช่วยเหลือและสนับสนุน', desc: 'FAQ ติดต่อเรา' }
 ]
 
 // Methods
@@ -85,11 +156,185 @@ async function loadData() {
     if (data) {
       provider.value = data
       await fetchProviderMedia()
+      await loadDocuments()
+      
+      // Initialize forms with current data
+      initializeForms(data)
     }
   } catch (err) {
     console.error('[Profile] Error:', err)
   } finally {
     loading.value = false
+  }
+}
+
+function initializeForms(data: Record<string, unknown>) {
+  // Personal form
+  personalForm.value = {
+    first_name: (data.first_name as string) || '',
+    last_name: (data.last_name as string) || '',
+    phone_number: (data.phone_number as string) || '',
+    national_id: (data.national_id as string) || '',
+    address: (data.address as string) || ''
+  }
+  
+  // Vehicle form
+  const vehicleInfo = (data.vehicle_info as Record<string, unknown>) || {}
+  vehicleForm.value = {
+    vehicle_type: (data.vehicle_type as string) || '',
+    vehicle_plate: (data.vehicle_plate as string) || '',
+    vehicle_color: (data.vehicle_color as string) || '',
+    vehicle_brand: (vehicleInfo.brand as string) || '',
+    vehicle_model: (vehicleInfo.model as string) || '',
+    vehicle_year: (vehicleInfo.year as string) || ''
+  }
+  
+  // Bank form
+  bankForm.value = {
+    bank_name: (data.bank_name as string) || '',
+    bank_account_number: (data.bank_account_number as string) || '',
+    bank_account_name: (data.bank_account_name as string) || ''
+  }
+}
+
+function openModal(id: string) {
+  activeModal.value = id
+  saveMessage.value = ''
+}
+
+function closeModal() {
+  activeModal.value = null
+  saveMessage.value = ''
+}
+
+// Save personal info
+async function savePersonalInfo() {
+  if (!provider.value?.id) return
+  
+  saving.value = true
+  saveMessage.value = ''
+  
+  try {
+    const { error } = await supabase
+      .from('providers_v2')
+      .update({
+        first_name: personalForm.value.first_name,
+        last_name: personalForm.value.last_name,
+        phone_number: personalForm.value.phone_number,
+        national_id: personalForm.value.national_id,
+        address: personalForm.value.address,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', provider.value.id)
+    
+    if (error) throw error
+    
+    // Update local state
+    provider.value = {
+      ...provider.value,
+      ...personalForm.value
+    }
+    
+    saveMessage.value = 'บันทึกสำเร็จ'
+    setTimeout(() => closeModal(), 1000)
+  } catch (err) {
+    console.error('[Profile] Save error:', err)
+    saveMessage.value = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+  } finally {
+    saving.value = false
+  }
+}
+
+// Save vehicle info
+async function saveVehicleInfo() {
+  if (!provider.value?.id) return
+  
+  saving.value = true
+  saveMessage.value = ''
+  
+  try {
+    const { error } = await supabase
+      .from('providers_v2')
+      .update({
+        vehicle_type: vehicleForm.value.vehicle_type,
+        vehicle_plate: vehicleForm.value.vehicle_plate,
+        vehicle_color: vehicleForm.value.vehicle_color,
+        vehicle_info: {
+          brand: vehicleForm.value.vehicle_brand,
+          model: vehicleForm.value.vehicle_model,
+          year: vehicleForm.value.vehicle_year
+        },
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', provider.value.id)
+    
+    if (error) throw error
+    
+    // Update local state
+    provider.value = {
+      ...provider.value,
+      vehicle_type: vehicleForm.value.vehicle_type,
+      vehicle_plate: vehicleForm.value.vehicle_plate,
+      vehicle_color: vehicleForm.value.vehicle_color,
+      vehicle_info: {
+        brand: vehicleForm.value.vehicle_brand,
+        model: vehicleForm.value.vehicle_model,
+        year: vehicleForm.value.vehicle_year
+      }
+    }
+    
+    saveMessage.value = 'บันทึกสำเร็จ'
+    setTimeout(() => closeModal(), 1000)
+  } catch (err) {
+    console.error('[Profile] Save error:', err)
+    saveMessage.value = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+  } finally {
+    saving.value = false
+  }
+}
+
+// Save bank info
+async function saveBankInfo() {
+  if (!provider.value?.id) return
+  
+  saving.value = true
+  saveMessage.value = ''
+  
+  try {
+    const { error } = await supabase
+      .from('providers_v2')
+      .update({
+        bank_name: bankForm.value.bank_name,
+        bank_account_number: bankForm.value.bank_account_number,
+        bank_account_name: bankForm.value.bank_account_name,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', provider.value.id)
+    
+    if (error) throw error
+    
+    // Update local state
+    provider.value = {
+      ...provider.value,
+      ...bankForm.value
+    }
+    
+    saveMessage.value = 'บันทึกสำเร็จ'
+    setTimeout(() => closeModal(), 1000)
+  } catch (err) {
+    console.error('[Profile] Save error:', err)
+    saveMessage.value = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+  } finally {
+    saving.value = false
+  }
+}
+
+// Toggle push notification
+async function togglePushNotification() {
+  if (pushEnabled.value) {
+    await unsubscribe()
+  } else {
+    await requestPermission()
   }
 }
 
@@ -177,6 +422,7 @@ onMounted(loadData)
           v-for="item in menuItems" 
           :key="item.id"
           class="menu-item"
+          @click="openModal(item.id)"
         >
           <div class="menu-icon">
             <svg v-if="item.icon === 'user'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -208,7 +454,10 @@ onMounted(loadData)
               <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/>
             </svg>
           </div>
-          <span class="menu-label">{{ item.label }}</span>
+          <div class="menu-text">
+            <span class="menu-label">{{ item.label }}</span>
+            <span class="menu-desc">{{ item.desc }}</span>
+          </div>
           <svg class="menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 18l6-6-6-6"/>
           </svg>
@@ -259,6 +508,317 @@ onMounted(loadData)
             </button>
           </div>
           <ProviderMediaUpload />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Personal Info Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'personal'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>ข้อมูลส่วนตัว</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="first_name">ชื่อ</label>
+              <input id="first_name" v-model="personalForm.first_name" type="text" placeholder="ชื่อจริง" />
+            </div>
+            <div class="form-group">
+              <label for="last_name">นามสกุล</label>
+              <input id="last_name" v-model="personalForm.last_name" type="text" placeholder="นามสกุล" />
+            </div>
+            <div class="form-group">
+              <label for="phone_number">เบอร์โทรศัพท์</label>
+              <input id="phone_number" v-model="personalForm.phone_number" type="tel" placeholder="0812345678" />
+            </div>
+            <div class="form-group">
+              <label for="national_id">เลขบัตรประชาชน</label>
+              <input id="national_id" v-model="personalForm.national_id" type="text" placeholder="1234567890123" maxlength="13" />
+            </div>
+            <div class="form-group">
+              <label for="address">ที่อยู่</label>
+              <textarea id="address" v-model="personalForm.address" rows="3" placeholder="ที่อยู่ปัจจุบัน"></textarea>
+            </div>
+            <p v-if="saveMessage" class="save-message" :class="{ error: saveMessage.includes('ผิดพลาด') }">{{ saveMessage }}</p>
+            <button class="save-btn" :disabled="saving" @click="savePersonalInfo">
+              {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Vehicle Info Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'vehicle'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>รายละเอียดยานพาหนะ</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="vehicle_type">ประเภทยานพาหนะ</label>
+              <select id="vehicle_type" v-model="vehicleForm.vehicle_type">
+                <option value="">เลือกประเภท</option>
+                <option v-for="opt in vehicleTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="vehicle_brand">ยี่ห้อ</label>
+              <input id="vehicle_brand" v-model="vehicleForm.vehicle_brand" type="text" placeholder="เช่น Toyota, Honda" />
+            </div>
+            <div class="form-group">
+              <label for="vehicle_model">รุ่น</label>
+              <input id="vehicle_model" v-model="vehicleForm.vehicle_model" type="text" placeholder="เช่น Vios, City" />
+            </div>
+            <div class="form-group">
+              <label for="vehicle_year">ปี</label>
+              <input id="vehicle_year" v-model="vehicleForm.vehicle_year" type="text" placeholder="เช่น 2023" maxlength="4" />
+            </div>
+            <div class="form-group">
+              <label for="vehicle_plate">ทะเบียนรถ</label>
+              <input id="vehicle_plate" v-model="vehicleForm.vehicle_plate" type="text" placeholder="เช่น กข 1234" />
+            </div>
+            <div class="form-group">
+              <label for="vehicle_color">สี</label>
+              <input id="vehicle_color" v-model="vehicleForm.vehicle_color" type="text" placeholder="เช่น ขาว, ดำ, เงิน" />
+            </div>
+            <p v-if="saveMessage" class="save-message" :class="{ error: saveMessage.includes('ผิดพลาด') }">{{ saveMessage }}</p>
+            <button class="save-btn" :disabled="saving" @click="saveVehicleInfo">
+              {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Documents Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'documents'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content modal-large">
+          <div class="modal-header">
+            <h3>เอกสาร</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <DocumentUpload @back="closeModal" @complete="closeModal" />
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Bank Account Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'bank'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>บัญชีธนาคาร</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="info-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+              <p>บัญชีนี้จะใช้สำหรับรับเงินจากการให้บริการ</p>
+            </div>
+            <div class="form-group">
+              <label for="bank_name">ธนาคาร</label>
+              <select id="bank_name" v-model="bankForm.bank_name">
+                <option value="">เลือกธนาคาร</option>
+                <option v-for="bank in bankOptions" :key="bank" :value="bank">{{ bank }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bank_account_number">เลขบัญชี</label>
+              <input id="bank_account_number" v-model="bankForm.bank_account_number" type="text" placeholder="เลขบัญชี 10-12 หลัก" />
+            </div>
+            <div class="form-group">
+              <label for="bank_account_name">ชื่อบัญชี</label>
+              <input id="bank_account_name" v-model="bankForm.bank_account_name" type="text" placeholder="ชื่อ-นามสกุล ตามบัญชี" />
+            </div>
+            <p v-if="saveMessage" class="save-message" :class="{ error: saveMessage.includes('ผิดพลาด') }">{{ saveMessage }}</p>
+            <button class="save-btn" :disabled="saving" @click="saveBankInfo">
+              {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Notifications Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'notifications'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>การแจ้งเตือน</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div v-if="pushSupported" class="notification-setting">
+              <div class="notification-info">
+                <div class="notification-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 01-3.46 0"/>
+                  </svg>
+                </div>
+                <div class="notification-text">
+                  <span class="notification-label">การแจ้งเตือนงานใหม่</span>
+                  <span class="notification-desc">
+                    {{ pushPermission === 'denied' ? 'ถูกบล็อก - เปิดในการตั้งค่าเบราว์เซอร์' : 
+                       pushEnabled ? 'เปิดใช้งานอยู่' : 'ปิดอยู่' }}
+                  </span>
+                </div>
+              </div>
+              <button 
+                class="toggle-btn"
+                :class="{ active: pushEnabled, disabled: pushPermission === 'denied' }"
+                :disabled="pushLoading || pushPermission === 'denied'"
+                @click="togglePushNotification"
+                :aria-label="pushEnabled ? 'ปิดการแจ้งเตือน' : 'เปิดการแจ้งเตือน'"
+              >
+                <span class="toggle-track">
+                  <span class="toggle-thumb"></span>
+                </span>
+              </button>
+            </div>
+            <div v-else class="not-supported">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4M12 16h.01"/>
+              </svg>
+              <p>เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Settings Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'settings'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>ตั้งค่า</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="settings-item">
+              <div class="settings-info">
+                <span class="settings-label">ภาษา</span>
+                <span class="settings-value">ไทย</span>
+              </div>
+              <svg class="settings-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <span class="settings-label">เวอร์ชัน</span>
+                <span class="settings-value">2.0.0</span>
+              </div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <span class="settings-label">ล้างแคช</span>
+                <span class="settings-value">ล้างข้อมูลชั่วคราว</span>
+              </div>
+              <svg class="settings-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Help Modal -->
+    <Teleport to="body">
+      <div v-if="activeModal === 'help'" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>ช่วยเหลือและสนับสนุน</h3>
+            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="help-section">
+              <h4>คำถามที่พบบ่อย</h4>
+              <div class="faq-item">
+                <span class="faq-q">ฉันจะเริ่มรับงานได้อย่างไร?</span>
+                <span class="faq-a">เปิดสถานะ "พร้อมรับงาน" ที่หน้าหลัก แล้วรอรับงานจากระบบ</span>
+              </div>
+              <div class="faq-item">
+                <span class="faq-q">เงินจะเข้าบัญชีเมื่อไหร่?</span>
+                <span class="faq-a">เงินจะโอนเข้าบัญชีทุกวันจันทร์ สำหรับงานที่เสร็จสิ้นในสัปดาห์ก่อนหน้า</span>
+              </div>
+              <div class="faq-item">
+                <span class="faq-q">ฉันจะยกเลิกงานได้อย่างไร?</span>
+                <span class="faq-a">กดปุ่ม "ยกเลิกงาน" ในหน้ารายละเอียดงาน (อาจมีค่าปรับ)</span>
+              </div>
+            </div>
+            <div class="help-section">
+              <h4>ติดต่อเรา</h4>
+              <a href="tel:021234567" class="contact-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+                </svg>
+                <span>02-123-4567</span>
+              </a>
+              <a href="mailto:support@gobear.app" class="contact-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <span>support@gobear.app</span>
+              </a>
+              <a href="https://line.me/ti/p/@gobear" target="_blank" class="contact-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
+                </svg>
+                <span>@gobear (LINE)</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -493,10 +1053,21 @@ onMounted(loadData)
 }
 
 .menu-label {
-  flex: 1;
   font-size: 15px;
   font-weight: 500;
   color: #111827;
+}
+
+.menu-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-desc {
+  font-size: 12px;
+  color: #9CA3AF;
 }
 
 .menu-arrow {
@@ -666,5 +1237,336 @@ onMounted(loadData)
 .close-btn svg {
   width: 20px;
   height: 20px;
+}
+
+/* Modal Body & Forms */
+.modal-body {
+  padding: 20px;
+}
+
+.modal-large {
+  max-height: 90vh;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: #FFFFFF;
+  color: #111827;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #00A86B;
+  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.save-btn {
+  width: 100%;
+  padding: 14px;
+  background: #00A86B;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.save-btn:active {
+  transform: scale(0.98);
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.save-message {
+  text-align: center;
+  font-size: 14px;
+  color: #00A86B;
+  margin: 8px 0;
+}
+
+.save-message.error {
+  color: #DC2626;
+}
+
+/* Info Box */
+.info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.info-box svg {
+  width: 20px;
+  height: 20px;
+  color: #00A86B;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.info-box p {
+  font-size: 13px;
+  color: #166534;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Notification Setting */
+.notification-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #F9FAFB;
+  border-radius: 12px;
+}
+
+.notification-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notification-icon {
+  width: 44px;
+  height: 44px;
+  background: #FEF3C7;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F59E0B;
+}
+
+.notification-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.notification-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notification-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.notification-desc {
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.toggle-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-track {
+  display: block;
+  width: 52px;
+  height: 32px;
+  background: #E5E7EB;
+  border-radius: 16px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle-btn.active .toggle-track {
+  background: #00A86B;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.toggle-btn.active .toggle-thumb {
+  transform: translateX(20px);
+}
+
+.not-supported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+}
+
+.not-supported svg {
+  width: 48px;
+  height: 48px;
+  color: #9CA3AF;
+}
+
+.not-supported p {
+  font-size: 14px;
+  color: #6B7280;
+  margin: 0;
+}
+
+/* Settings Items */
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #F3F4F6;
+  cursor: pointer;
+}
+
+.settings-item:last-child {
+  border-bottom: none;
+}
+
+.settings-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.settings-value {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.settings-arrow {
+  width: 20px;
+  height: 20px;
+  color: #D1D5DB;
+}
+
+/* Help Section */
+.help-section {
+  margin-bottom: 24px;
+}
+
+.help-section:last-child {
+  margin-bottom: 0;
+}
+
+.help-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 12px 0;
+}
+
+.faq-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.faq-item:last-child {
+  border-bottom: none;
+}
+
+.faq-q {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.faq-a {
+  display: block;
+  font-size: 13px;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #F9FAFB;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: #111827;
+  transition: background 0.2s;
+}
+
+.contact-item:last-child {
+  margin-bottom: 0;
+}
+
+.contact-item:active {
+  background: #F3F4F6;
+}
+
+.contact-item svg {
+  width: 20px;
+  height: 20px;
+  color: #00A86B;
+}
+
+.contact-item span {
+  font-size: 14px;
+  font-weight: 500;
 }
 </style>

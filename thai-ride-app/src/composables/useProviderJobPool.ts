@@ -167,20 +167,10 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
   // Fetch current job details
   async function fetchCurrentJob(requestId: string, requestType: ServiceType = 'ride'): Promise<void> {
     try {
+      // First get the ride request
       const { data, error: fetchError } = await supabase
         .from('ride_requests')
-        .select(`
-          *,
-          customer:user_id (
-            id,
-            email,
-            profiles!inner (
-              first_name,
-              last_name,
-              phone_number
-            )
-          )
-        `)
+        .select('*')
         .eq('id', requestId)
         .maybeSingle()
 
@@ -194,13 +184,29 @@ export function useProviderJobPool(serviceTypes: ServiceType[] = ['ride']) {
         return
       }
 
-      // Transform customer data
-      const customer = data.customer as any
-      const customerInfo: CustomerInfo = {
-        id: customer?.id || '',
-        first_name: customer?.profiles?.first_name || '',
-        last_name: customer?.profiles?.last_name || '',
-        phone_number: customer?.profiles?.phone_number || ''
+      // Get customer info from users table (production uses 'users' not 'profiles')
+      let customerInfo: CustomerInfo = {
+        id: data.user_id || '',
+        first_name: '',
+        last_name: '',
+        phone_number: ''
+      }
+
+      if (data.user_id) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, phone_number')
+          .eq('id', data.user_id)
+          .maybeSingle()
+
+        if (userData) {
+          customerInfo = {
+            id: userData.id || '',
+            first_name: userData.first_name || '',
+            last_name: userData.last_name || '',
+            phone_number: userData.phone_number || ''
+          }
+        }
       }
 
       currentJob.value = { 

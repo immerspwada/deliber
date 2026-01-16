@@ -126,24 +126,24 @@ export function usePushNotification() {
         .from('providers_v2')
         .select('id')
         .eq('user_id', user.id)
-        .single()
+        .single() as { data: { id: string } | null }
       
       if (!provider) return
       
-      // Store subscription in database (you'll need to create this table)
+      // Store subscription in database
       const subscriptionData = {
         provider_id: provider.id,
         endpoint: sub.endpoint,
         keys: JSON.stringify({
-          p256dh: arrayBufferToBase64(await sub.getKey('p256dh')),
-          auth: arrayBufferToBase64(await sub.getKey('auth'))
+          p256dh: arrayBufferToBase64(sub.getKey('p256dh')),
+          auth: arrayBufferToBase64(sub.getKey('auth'))
         }),
         updated_at: new Date().toISOString()
       }
       
-      // Upsert subscription
-      await supabase
-        .from('push_subscriptions')
+      // Upsert subscription - cast to bypass strict typing for tables not in generated types
+      await (supabase
+        .from('push_subscriptions') as ReturnType<typeof supabase.from>)
         .upsert(subscriptionData, { onConflict: 'provider_id' })
       
       console.log('[Push] Subscription saved to database')
@@ -200,6 +200,12 @@ export function usePushNotification() {
     })
   }
 
+  // Extended notification options for service worker (includes actions)
+  interface ExtendedNotificationOptions extends NotificationOptions {
+    actions?: Array<{ action: string; title: string; icon?: string }>
+    vibrate?: number[]
+  }
+
   // Show new job notification
   function notifyNewJob(job: Job): void {
     const serviceIcons: Record<string, string> = {
@@ -213,7 +219,8 @@ export function usePushNotification() {
     const icon = serviceIcons[job.service_type] || '🚗'
     const fare = job.estimated_earnings?.toLocaleString() || '0'
     
-    showLocalNotification(`${icon} งานใหม่!`, {
+    // Use extended options for service worker notifications
+    const options: ExtendedNotificationOptions = {
       body: `฿${fare} - ${job.pickup_address || 'ไม่ระบุ'}`,
       data: { 
         jobId: job.id, 
@@ -226,7 +233,9 @@ export function usePushNotification() {
       ],
       vibrate: [200, 100, 200],
       requireInteraction: true
-    })
+    }
+    
+    showLocalNotification(`${icon} งานใหม่!`, options as NotificationOptions)
   }
 
   // Convert VAPID key

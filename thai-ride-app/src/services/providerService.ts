@@ -275,12 +275,11 @@ async function loadAvailableJobs(): Promise<ProviderJob[]> {
     const { data, error: queryError } = await supabase
       .from('ride_requests')
       .select(`
-        id, tracking_id, service_type, status,
+        id, tracking_id, ride_type, status,
         user_id, provider_id,
         pickup_lat, pickup_lng, pickup_address,
         destination_lat, destination_lng, destination_address,
-        estimated_fare, estimated_distance, estimated_duration,
-        notes, created_at, scheduled_at
+        estimated_fare, notes, created_at, scheduled_time
       `)
       .eq('status', 'pending')
       .is('provider_id', null)
@@ -298,7 +297,7 @@ async function loadAvailableJobs(): Promise<ProviderJob[]> {
       const job: ProviderJob = {
         id: String(row.id),
         tracking_id: row.tracking_id as string | undefined,
-        service_type: (row.service_type as ProviderJob['service_type']) || 'ride',
+        service_type: (row.ride_type as ProviderJob['service_type']) || 'ride',
         status: 'pending',
         customer_id: String(row.user_id),
         provider_id: row.provider_id as string | undefined,
@@ -309,8 +308,8 @@ async function loadAvailableJobs(): Promise<ProviderJob[]> {
         destination_lng: Number(row.destination_lng) || 0,
         destination_address: String(row.destination_address || ''),
         estimated_fare: Number(row.estimated_fare) || 0,
-        estimated_distance: row.estimated_distance as number | undefined,
-        estimated_duration: row.estimated_duration as number | undefined,
+        estimated_distance: undefined, // Column doesn't exist in production
+        estimated_duration: undefined, // Column doesn't exist in production
         notes: row.notes as string | undefined,
         created_at: String(row.created_at)
       }
@@ -390,7 +389,7 @@ async function acceptJob(jobId: string): Promise<{ success: boolean; job?: Provi
     const job: ProviderJob = {
       id: String(row.id),
       tracking_id: row.tracking_id as string | undefined,
-      service_type: (row.service_type as ProviderJob['service_type']) || 'ride',
+      service_type: (row.ride_type as ProviderJob['service_type']) || 'ride',
       status: 'matched',
       customer_id: String(row.user_id),
       provider_id: profile.value.id,
@@ -401,8 +400,8 @@ async function acceptJob(jobId: string): Promise<{ success: boolean; job?: Provi
       destination_lng: Number(row.destination_lng) || 0,
       destination_address: String(row.destination_address || ''),
       estimated_fare: Number(row.estimated_fare) || 0,
-      estimated_distance: row.estimated_distance as number | undefined,
-      estimated_duration: row.estimated_duration as number | undefined,
+      estimated_distance: undefined, // Column doesn't exist in production
+      estimated_duration: undefined, // Column doesn't exist in production
       notes: row.notes as string | undefined,
       created_at: String(row.created_at),
       accepted_at: row.accepted_at as string | undefined
@@ -530,7 +529,7 @@ async function loadCurrentJob(): Promise<ProviderJob | null> {
     const job: ProviderJob = {
       id: String(row.id),
       tracking_id: row.tracking_id as string | undefined,
-      service_type: (row.service_type as ProviderJob['service_type']) || 'ride',
+      service_type: (row.ride_type as ProviderJob['service_type']) || 'ride',
       status: row.status as ProviderJob['status'],
       customer_id: String(row.user_id),
       provider_id: profile.value.id,
@@ -541,8 +540,8 @@ async function loadCurrentJob(): Promise<ProviderJob | null> {
       destination_lng: Number(row.destination_lng) || 0,
       destination_address: String(row.destination_address || ''),
       estimated_fare: Number(row.estimated_fare) || 0,
-      estimated_distance: row.estimated_distance as number | undefined,
-      estimated_duration: row.estimated_duration as number | undefined,
+      estimated_distance: undefined, // Column doesn't exist in production
+      estimated_duration: undefined, // Column doesn't exist in production
       notes: row.notes as string | undefined,
       created_at: String(row.created_at),
       accepted_at: row.accepted_at as string | undefined,
@@ -605,7 +604,7 @@ function handleNewJob(payload: { new: Record<string, unknown> }): void {
   const job: ProviderJob = {
     id: String(row.id),
     tracking_id: row.tracking_id as string | undefined,
-    service_type: (row.service_type as ProviderJob['service_type']) || 'ride',
+    service_type: (row.ride_type as ProviderJob['service_type']) || 'ride',
     status: 'pending',
     customer_id: String(row.user_id),
     pickup_lat: Number(row.pickup_lat) || 0,
@@ -615,8 +614,8 @@ function handleNewJob(payload: { new: Record<string, unknown> }): void {
     destination_lng: Number(row.destination_lng) || 0,
     destination_address: String(row.destination_address || ''),
     estimated_fare: Number(row.estimated_fare) || 0,
-    estimated_distance: row.estimated_distance as number | undefined,
-    estimated_duration: row.estimated_duration as number | undefined,
+    estimated_distance: undefined, // Column doesn't exist in production
+    estimated_duration: undefined, // Column doesn't exist in production
     created_at: String(row.created_at)
   }
   
