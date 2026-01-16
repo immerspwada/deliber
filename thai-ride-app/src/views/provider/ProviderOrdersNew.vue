@@ -7,12 +7,17 @@
  * - Route display (Your location -> Drop points)
  * - Earnings breakdown
  * - Accept/Decline buttons
+ * - Realtime updates for new jobs
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const router = useRouter()
+
+// Realtime subscription
+let realtimeChannel: RealtimeChannel | null = null
 
 // State
 const loading = ref(true)
@@ -168,7 +173,100 @@ function goBack() {
 }
 
 // Lifecycle
-onMounted(loadOrders)
+onMounted(() => {
+  loadOrders()
+  setupRealtimeSubscription()
+})
+
+onUnmounted(() => {
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel)
+    realtimeChannel = null
+  }
+})
+
+// Realtime subscription for new jobs
+function setupRealtimeSubscription() {
+  console.log('[Orders] Setting up realtime subscription...')
+  
+  realtimeChannel = supabase
+    .channel('provider-orders-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'ride_requests',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[Orders] New job received:', payload.new)
+        // Add new job to the list
+        const newJob = payload.new as {
+          id: string
+          tracking_id?: string
+          pickup_address: string
+          destination_address: string
+          pickup_lat: number
+          pickup_lng: number
+          destination_lat: number
+          destination_lng: number
+          estimated_fare: number
+          created_at: string
+        }
+        
+        // Calculate distance and add to orders
+        const jobWithDistance = {
+          ...newJob,
+          distance: calculateDistance(newJob.pickup_lat, newJob.pickup_lng, newJob.destination_lat, newJob.destination_lng)
+        }
+        
+        // Add to beginning of list
+        orders.value = [jobWithDistance, ...orders.value]
+        
+        // Auto-select new job
+        selectedOrders.value.add(newJob.id)
+        selectedOrders.value = new Set(selectedOrders.value)
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'ride_requests'
+      },
+      (payload) => {
+        console.log('[Orders] Job updated:', payload.new)
+        const updated = payload.new as { id: string; status: string }
+        
+        // Remove job if it's no longer pending (someone else took it)
+        if (updated.status !== 'pending') {
+          orders.value = orders.value.filter(o => o.id !== updated.id)
+          selectedOrders.value.delete(updated.id)
+          selectedOrders.value = new Set(selectedOrders.value)
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'ride_requests'
+      },
+      (payload) => {
+        console.log('[Orders] Job deleted:', payload.old)
+        const deleted = payload.old as { id: string }
+        orders.value = orders.value.filter(o => o.id !== deleted.id)
+        selectedOrders.value.delete(deleted.id)
+        selectedOrders.value = new Set(selectedOrders.value)
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Orders] Realtime subscription status:', status)
+    })
+}
 </script>
 
 <template>

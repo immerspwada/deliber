@@ -10,11 +10,15 @@
  * - Available orders count
  * - Recent transactions
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const router = useRouter()
+
+// Realtime subscription
+let realtimeChannel: RealtimeChannel | null = null
 
 // State
 const loading = ref(true)
@@ -212,7 +216,67 @@ function openMenu() {
 }
 
 // Lifecycle
-onMounted(loadProviderData)
+onMounted(() => {
+  loadProviderData()
+  setupRealtimeSubscription()
+})
+
+onUnmounted(() => {
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel)
+    realtimeChannel = null
+  }
+})
+
+// Realtime subscription for new jobs
+function setupRealtimeSubscription() {
+  console.log('[ProviderHome] Setting up realtime subscription...')
+  
+  realtimeChannel = supabase
+    .channel('provider-home-jobs')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'ride_requests',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[ProviderHome] New job received:', payload.new)
+        // Reload available orders count when new job comes in
+        loadAvailableOrders()
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'ride_requests'
+      },
+      (payload) => {
+        console.log('[ProviderHome] Job updated:', payload.eventType, payload.new)
+        // Reload count when job status changes
+        loadAvailableOrders()
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'ride_requests'
+      },
+      () => {
+        console.log('[ProviderHome] Job deleted')
+        loadAvailableOrders()
+      }
+    )
+    .subscribe((status) => {
+      console.log('[ProviderHome] Realtime subscription status:', status)
+    })
+}
 </script>
 
 <template>
