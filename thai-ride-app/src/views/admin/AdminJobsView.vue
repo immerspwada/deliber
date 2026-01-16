@@ -117,6 +117,9 @@
                 Earnings
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Evidence
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Created
               </th>
             </tr>
@@ -142,10 +145,24 @@
                 <span :class="getStatusBadgeClass(job.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
                   {{ job.status }}
                 </span>
+                <div v-if="job.arrived_at" class="text-xs text-green-600 mt-1">
+                  ✓ ถึงจุดรับ {{ formatTime(job.arrived_at) }}
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 <div>Est: ฿{{ job.estimated_earnings?.toLocaleString() || 0 }}</div>
                 <div v-if="job.final_earnings">Final: ฿{{ job.final_earnings.toLocaleString() }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex gap-2">
+                  <a v-if="job.pickup_photo" :href="job.pickup_photo" target="_blank" class="evidence-badge pickup" title="รูปจุดรับ">
+                    📍 รับ
+                  </a>
+                  <a v-if="job.dropoff_photo" :href="job.dropoff_photo" target="_blank" class="evidence-badge dropoff" title="รูปจุดส่ง">
+                    🏁 ส่ง
+                  </a>
+                  <span v-if="!job.pickup_photo && !job.dropoff_photo" class="text-gray-400 text-xs">-</span>
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {{ formatDate(job.created_at) }}
@@ -161,7 +178,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../../lib/supabase'
-import type { ServiceType } from '../../types/database'
+
+// Service type for badge styling
+type ServiceType = 'ride' | 'delivery' | 'shopping' | 'moving' | 'laundry'
 
 // Local type for jobs (table may not exist in generated types)
 interface JobV2 {
@@ -177,6 +196,9 @@ interface JobV2 {
   estimated_earnings: number | null
   final_earnings: number | null
   created_at: string | null
+  arrived_at: string | null
+  pickup_photo: string | null
+  dropoff_photo: string | null
 }
 
 const jobs = ref<JobV2[]>([])
@@ -263,7 +285,10 @@ const loadJobs = async () => {
         distance_km: r.distance_km,
         estimated_earnings: r.estimated_fare,
         final_earnings: r.final_fare,
-        created_at: r.created_at
+        created_at: r.created_at,
+        arrived_at: r.arrived_at,
+        pickup_photo: r.pickup_photo,
+        dropoff_photo: r.dropoff_photo
       }))
       error = result.error
     }
@@ -313,6 +338,11 @@ const formatDate = (dateString: string | null) => {
   return new Date(dateString).toLocaleDateString('th-TH')
 }
 
+const formatTime = (dateString: string | null) => {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+}
+
 const formatDistance = (distance: number | null) => {
   if (!distance) return 'N/A'
   return `${distance.toFixed(1)} km`
@@ -322,3 +352,35 @@ onMounted(() => {
   loadJobs()
 })
 </script>
+
+<style scoped>
+.evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.evidence-badge.pickup {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.evidence-badge.pickup:hover {
+  background: #FDE68A;
+}
+
+.evidence-badge.dropoff {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.evidence-badge.dropoff:hover {
+  background: #A7F3D0;
+}
+</style>

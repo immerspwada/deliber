@@ -31,6 +31,13 @@ const orders = ref<Array<{
   destination_lat: number
   destination_lng: number
   estimated_fare: number
+  final_fare: number | null
+  actual_fare: number | null
+  paid_amount: number | null
+  promo_discount_amount: number | null
+  promo_code: string | null
+  payment_method: string | null
+  tip_amount: number | null
   distance: number
   created_at: string
 }>>([])
@@ -38,16 +45,32 @@ const orders = ref<Array<{
 const selectedOrders = ref<Set<string>>(new Set())
 const alwaysBestRoute = ref(true)
 
-// Computed
+// Computed - ใช้ราคาที่ลูกค้าจ่ายจริง (ข้าม 0 หรือ null)
 const totalEarnings = computed(() => {
   return orders.value
     .filter(o => selectedOrders.value.has(o.id))
-    .reduce((sum, o) => sum + (o.estimated_fare || 0), 0)
+    .reduce((sum, o) => {
+      // ใช้ราคาตามลำดับ: paid_amount > final_fare > actual_fare > estimated_fare
+      // ข้าม 0 เพราะอาจยังไม่ได้ set
+      const fare = (o.paid_amount && o.paid_amount > 0 ? o.paid_amount : null) 
+        ?? (o.final_fare && o.final_fare > 0 ? o.final_fare : null)
+        ?? (o.actual_fare && o.actual_fare > 0 ? o.actual_fare : null)
+        ?? o.estimated_fare 
+        ?? 0
+      return sum + fare
+    }, 0)
+})
+
+const totalDiscount = computed(() => {
+  return orders.value
+    .filter(o => selectedOrders.value.has(o.id))
+    .reduce((sum, o) => sum + (o.promo_discount_amount || 0), 0)
 })
 
 const totalTips = computed(() => {
-  // Estimate tips as 10% of earnings
-  return totalEarnings.value * 0.1
+  return orders.value
+    .filter(o => selectedOrders.value.has(o.id))
+    .reduce((sum, o) => sum + (o.tip_amount || 0), 0)
 })
 
 const totalDistance = computed(() => {
@@ -66,15 +89,15 @@ const dropPointsCount = computed(() => selectedOrders.value.size)
 async function loadOrders() {
   loading.value = true
   try {
-    const { data } = await supabase
+    const { data } = await (supabase
       .from('ride_requests')
-      .select('id, tracking_id, pickup_address, destination_address, pickup_lat, pickup_lng, destination_lat, destination_lng, estimated_fare, created_at')
+      .select('id, tracking_id, pickup_address, destination_address, pickup_lat, pickup_lng, destination_lat, destination_lng, estimated_fare, final_fare, actual_fare, paid_amount, promo_discount_amount, promo_code, payment_method, tip_amount, created_at')
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(10) as any)
 
     if (data) {
-      orders.value = data.map(o => ({
+      orders.value = data.map((o: any) => ({
         ...o,
         distance: calculateDistance(o.pickup_lat, o.pickup_lng, o.destination_lat, o.destination_lng)
       }))
@@ -91,13 +114,23 @@ async function loadOrders() {
 
 function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   if (!lat1 || !lng1 || !lat2 || !lng2) return 0
-  const R = 6371 * 0.621371 // Convert to miles
+  const R = 6371 // km
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLng = (lng2 - lng1) * Math.PI / 180
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLng/2) * Math.sin(dLng/2)
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+}
+
+// Helper: Get fare display (skip 0 values)
+function getFareDisplay(order: typeof orders.value[0]): string {
+  const fare = (order.paid_amount && order.paid_amount > 0 ? order.paid_amount : null) 
+    ?? (order.final_fare && order.final_fare > 0 ? order.final_fare : null)
+    ?? (order.actual_fare && order.actual_fare > 0 ? order.actual_fare : null)
+    ?? order.estimated_fare 
+    ?? 0
+  return fare.toFixed(0)
 }
 
 function toggleOrder(orderId: string) {
@@ -120,11 +153,11 @@ async function acceptOrders() {
     }
 
     // Get provider ID
-    const { data: provider, error: providerError } = await supabase
+    const { data: provider, error: providerError } = await (supabase
       .from('providers_v2')
       .select('id')
       .eq('user_id', user.id)
-      .single()
+      .single() as any)
 
     if (providerError || !provider) {
       console.error('[Orders] Provider not found:', providerError)
@@ -136,8 +169,8 @@ async function acceptOrders() {
     const orderIds = Array.from(selectedOrders.value)
     
     for (const orderId of orderIds) {
-      const { error: updateError } = await supabase
-        .from('ride_requests')
+      const { error: updateError } = await (supabase
+        .from('ride_requests') as any)
         .update({
           provider_id: provider.id,
           status: 'matched',
@@ -202,22 +235,27 @@ function setupRealtimeSubscription() {
       (payload) => {
         console.log('[Orders] New job received:', payload.new)
         // Add new job to the list
-        const newJob = payload.new as {
-          id: string
-          tracking_id?: string
-          pickup_address: string
-          destination_address: string
-          pickup_lat: number
-          pickup_lng: number
-          destination_lat: number
-          destination_lng: number
-          estimated_fare: number
-          created_at: string
-        }
+        const newJob = payload.new as any
         
         // Calculate distance and add to orders
         const jobWithDistance = {
-          ...newJob,
+          id: newJob.id,
+          tracking_id: newJob.tracking_id,
+          pickup_address: newJob.pickup_address,
+          destination_address: newJob.destination_address,
+          pickup_lat: newJob.pickup_lat,
+          pickup_lng: newJob.pickup_lng,
+          destination_lat: newJob.destination_lat,
+          destination_lng: newJob.destination_lng,
+          estimated_fare: newJob.estimated_fare ?? 0,
+          final_fare: newJob.final_fare ?? null,
+          actual_fare: newJob.actual_fare ?? null,
+          paid_amount: newJob.paid_amount ?? null,
+          promo_discount_amount: newJob.promo_discount_amount ?? null,
+          promo_code: newJob.promo_code ?? null,
+          payment_method: newJob.payment_method ?? null,
+          tip_amount: newJob.tip_amount ?? null,
+          created_at: newJob.created_at,
           distance: calculateDistance(newJob.pickup_lat, newJob.pickup_lng, newJob.destination_lat, newJob.destination_lng)
         }
         
@@ -316,11 +354,15 @@ function setupRealtimeSubscription() {
       <!-- Earnings Summary -->
       <div class="earnings-card">
         <div class="earnings-row main">
-          <span class="earnings-label">รายได้จากการส่ง</span>
+          <span class="earnings-label">ราคาที่ลูกค้าจ่าย</span>
           <span class="earnings-value">฿{{ totalEarnings.toFixed(2) }}</span>
         </div>
         
         <div class="earnings-grid">
+          <div class="earnings-item" v-if="totalDiscount > 0">
+            <span class="item-label">ส่วนลดโปรโม</span>
+            <span class="item-value discount">-฿{{ totalDiscount.toFixed(2) }}</span>
+          </div>
           <div class="earnings-item">
             <span class="item-label">ทิปรวม</span>
             <span class="item-value">฿{{ totalTips.toFixed(2) }}</span>
@@ -383,7 +425,22 @@ function setupRealtimeSubscription() {
             </div>
             <div class="order-info">
               <span class="order-address">{{ order.destination_address }}</span>
-              <span class="order-meta">{{ order.distance.toFixed(1) }} กม. • ฿{{ order.estimated_fare.toFixed(2) }}</span>
+              <div class="order-meta">
+                <span>{{ order.distance.toFixed(1) }} กม.</span>
+                <span class="order-fare">
+                  ฿{{ getFareDisplay(order) }}</span>
+                <span v-if="order.promo_code" class="order-promo">
+                  🎫 {{ order.promo_code }}
+                </span>
+              </div>
+              <div v-if="order.promo_discount_amount && order.promo_discount_amount > 0" class="order-discount">
+                ส่วนลด -฿{{ order.promo_discount_amount.toFixed(0) }}
+              </div>
+            </div>
+            <div class="order-payment">
+              <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+              <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+              <span v-else class="payment-badge">{{ order.payment_method || 'N/A' }}</span>
             </div>
           </div>
         </div>
@@ -634,6 +691,10 @@ function setupRealtimeSubscription() {
   color: #111827;
 }
 
+.item-value.discount {
+  color: #DC2626;
+}
+
 /* Route Toggle */
 .route-toggle {
   display: flex;
@@ -808,8 +869,55 @@ function setupRealtimeSubscription() {
 }
 
 .order-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: #6B7280;
+  margin-top: 2px;
+}
+
+.order-fare {
+  font-weight: 600;
+  color: #00A86B;
+}
+
+.order-promo {
+  font-size: 11px;
+  color: #7C3AED;
+  background: #F3E8FF;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.order-discount {
+  font-size: 11px;
+  color: #DC2626;
+  margin-top: 2px;
+}
+
+.order-payment {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.payment-badge {
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #F3F4F6;
+  color: #6B7280;
+  white-space: nowrap;
+}
+
+.payment-badge.cash {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.payment-badge.wallet {
+  background: #DBEAFE;
+  color: #1E40AF;
 }
 
 /* Actions */

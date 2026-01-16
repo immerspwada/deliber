@@ -62,20 +62,34 @@ export function useNavigation() {
   /**
    * Open Google Maps
    * Works on all platforms (web fallback)
+   * Uses universal link approach for better compatibility
    */
   function openGoogleMaps(lat: number, lng: number, label?: string): void {
-    // Try native app first (deep link)
-    const nativeUrl = isIOS.value
-      ? `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`
-      : `google.navigation:q=${lat},${lng}`
-    
-    // Web fallback
+    // Use Google Maps universal link (works on all platforms)
+    // This will open the app if installed, otherwise opens in browser
     const webUrl = label
-      ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(label)}`
-      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+      ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
     
-    // Try native app, fallback to web
-    tryOpenApp(nativeUrl, webUrl)
+    // On mobile, try intent-based approach for Android
+    if (isAndroid.value) {
+      // Use geo: URI which Android handles natively
+      const geoUrl = `geo:${lat},${lng}?q=${lat},${lng}`
+      
+      // Try geo: first, fallback to web
+      tryOpenApp(geoUrl, webUrl)
+      return
+    }
+    
+    // On iOS, try comgooglemaps:// scheme
+    if (isIOS.value) {
+      const iosUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`
+      tryOpenApp(iosUrl, webUrl)
+      return
+    }
+    
+    // Desktop/other - just open web URL
+    window.open(webUrl, '_blank')
   }
   
   /**
@@ -109,29 +123,47 @@ export function useNavigation() {
   
   /**
    * Try to open native app, fallback to web
+   * Uses a more reliable approach with timeout
    */
   function tryOpenApp(nativeUrl: string, webUrl: string): void {
-    // Create hidden iframe to trigger app
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    iframe.src = nativeUrl
-    document.body.appendChild(iframe)
+    const startTime = Date.now()
+    let didNavigate = false
     
-    // Fallback to web after delay
-    const timeout = setTimeout(() => {
+    // Listen for visibility change (app opened)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        didNavigate = true
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // Try to open native app
+    const link = document.createElement('a')
+    link.href = nativeUrl
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    
+    try {
+      link.click()
+    } catch {
+      // Scheme not supported, go to web directly
       window.open(webUrl, '_blank')
-      document.body.removeChild(iframe)
-    }, 1500)
+      document.body.removeChild(link)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      return
+    }
     
-    // If app opens, clear timeout
-    window.addEventListener('blur', () => {
-      clearTimeout(timeout)
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe)
-        }
-      }, 2000)
-    }, { once: true })
+    // Fallback to web after delay if app didn't open
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      document.body.removeChild(link)
+      
+      // If we didn't navigate away and not much time passed, open web
+      if (!didNavigate && Date.now() - startTime < 2000) {
+        window.open(webUrl, '_blank')
+      }
+    }, 1500)
   }
   
   /**

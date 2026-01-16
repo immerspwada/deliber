@@ -28,6 +28,7 @@ import { useRideRequest } from '../../composables/useRideRequest'
 import { usePullToRefresh } from '../../composables/usePullToRefresh'
 import { useRoleAccess } from '../../composables/useRoleAccess'
 import { useErrorHandler } from '../../composables/useErrorHandler'
+import { useGeocode } from '../../composables/useGeocode'
 
 // Critical components - load immediately
 import RideHeader from '../../components/ride/RideHeader.vue'
@@ -57,6 +58,7 @@ const router = useRouter()
 // =====================================================
 const { isCustomer, isAdmin } = useRoleAccess()
 const { handleError } = useErrorHandler()
+const { reverseGeocode } = useGeocode()
 
 // Check role on mount - redirect if not customer/admin
 const hasAccess = computed(() => isCustomer.value || isAdmin.value)
@@ -122,23 +124,6 @@ const currentTrackingId = computed(() => {
 // Ride notes state
 const rideNotes = ref('')
 
-// Reverse geocode helper
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-      { headers: { Accept: 'application/json', 'User-Agent': 'ThaiRideApp/1.0' } }
-    )
-    if (response.ok) {
-      const data = await response.json()
-      return data.display_name?.split(',').slice(0, 2).join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-    }
-  } catch {
-    // ignore
-  }
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-}
-
 // Handle map click to select destination
 async function handleMapClick(coords: { lat: number; lng: number }): Promise<void> {
   // Haptic feedback
@@ -146,18 +131,29 @@ async function handleMapClick(coords: { lat: number; lng: number }): Promise<voi
     navigator.vibrate(30)
   }
   
-  // Get address from coordinates
-  const address = await reverseGeocode(coords.lat, coords.lng)
+  // Set destination immediately with coordinates (don't wait for geocoding)
+  const tempAddress = `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
   
-  // Set as destination
   selectDestination({
-    name: address,
-    address: address,
+    name: tempAddress,
+    address: tempAddress,
     lat: coords.lat,
     lng: coords.lng
   })
   
-  searchQuery.value = address
+  searchQuery.value = tempAddress
+  
+  // Try to get better address in background (non-blocking) using multi-provider geocoding
+  reverseGeocode(coords.lat, coords.lng).then(result => {
+    // Only update if we got a real address (not just coordinates)
+    if (result.source !== 'coordinates' && destination.value) {
+      destination.value.address = result.name
+      searchQuery.value = result.name
+      console.log(`[RideView] Geocoded via ${result.source}: ${result.name}`)
+    }
+  }).catch(() => {
+    // Silently fail - coordinates are already shown
+  })
 }
 
 // Pull-to-refresh setup
@@ -375,6 +371,8 @@ onMounted(() => {
           <RideRatingView
             v-model:rating="userRating"
             :isSubmitting="isSubmittingRating"
+            :rideId="activeRide?.id ? String(activeRide.id) : undefined"
+            :providerName="matchedDriver?.name"
             @submit="submitRating"
             @skip="skipRating"
           />

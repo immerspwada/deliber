@@ -152,9 +152,23 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('../views/provider/NotificationPreferencesView.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
+      // Job Detail - Step-based routing
       {
         path: 'job/:id',
         name: 'ProviderJobDetail',
+        component: () => import('../views/provider/job/ProviderJobLayout.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      {
+        path: 'job/:id/:step',
+        name: 'ProviderJobStep',
+        component: () => import('../views/provider/job/ProviderJobLayout.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      // Legacy route (old design)
+      {
+        path: 'job-legacy/:id',
+        name: 'ProviderJobDetailLegacy',
         component: () => import('../views/provider/ProviderJobDetailPro.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
       },
@@ -223,10 +237,9 @@ export const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, requiresAdminAccess: true }
       },
       {
+        // Redirect /admin/jobs to /admin/orders (consolidated view)
         path: 'jobs',
-        name: 'AdminJobs',
-        component: () => import('../views/admin/AdminJobsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
+        redirect: '/admin/orders'
       },
       {
         path: 'analytics',

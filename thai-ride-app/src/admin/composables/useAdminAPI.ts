@@ -417,6 +417,9 @@ export function useAdminAPI() {
         rating: o.rating,
         feedback: o.feedback,
         last_updated: o.last_updated,
+        pickup_photo: o.pickup_photo,
+        dropoff_photo: o.dropoff_photo,
+        arrived_at: o.arrived_at,
         base_fare: 0
       }))
 

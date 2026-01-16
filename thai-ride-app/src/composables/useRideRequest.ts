@@ -10,6 +10,7 @@ import { useLocation, type GeoLocation } from './useLocation'
 import { useWallet } from './useWallet'
 import { useServices } from './useServices'
 import { supabase } from '../lib/supabase'
+import { reverseGeocode as reverseGeocodeMulti } from './useGeocode'
 
 export type RideStep = 'select' | 'searching' | 'tracking' | 'rating'
 
@@ -248,24 +249,10 @@ export function useRideRequest() {
   
   async function reverseGeocodePickup(lat: number, lng: number): Promise<void> {
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-      
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-        { 
-          headers: { Accept: 'application/json', 'User-Agent': 'ThaiRideApp/1.0' },
-          signal: controller.signal
-        }
-      )
-      
-      clearTimeout(timeoutId)
-      
-      if (response.ok) {
-        const data = await response.json()
-        if (data.display_name && pickup.value) {
-          pickup.value.address = data.display_name.split(',').slice(0, 2).join(', ')
-        }
+      const result = await reverseGeocodeMulti(lat, lng)
+      if (result.source !== 'coordinates' && pickup.value) {
+        pickup.value.address = result.name
+        console.log(`[RideRequest] Pickup geocoded via ${result.source}: ${result.name}`)
       }
     } catch {
       // Silently ignore reverse geocoding errors
@@ -284,67 +271,81 @@ export function useRideRequest() {
     nearbyPlaces.value = []
 
     const categories = [
-      { type: 'mall', query: 'shopping mall', icon: 'shopping' },
+      { type: 'mall', query: 'mall', icon: 'shopping' },
       { type: 'hospital', query: 'hospital', icon: 'hospital' },
-      { type: 'station', query: 'train station', icon: 'train' },
+      { type: 'station', query: 'station', icon: 'train' },
       { type: 'airport', query: 'airport', icon: 'plane' },
       { type: 'university', query: 'university', icon: 'school' },
       { type: 'temple', query: 'temple', icon: 'temple' }
     ]
 
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
     const allPlaces: NearbyPlace[] = []
 
+    // Try Photon API for each category (more reliable than Nominatim)
     try {
-      for (let i = 0; i < categories.length; i++) {
-        const cat = categories[i]
-        if (i > 0) await delay(1100)
-
+      for (const cat of categories.slice(0, 4)) { // Limit to 4 categories for speed
         try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cat.query)}&format=json&limit=2&viewbox=${lng - 0.05},${lat + 0.05},${lng + 0.05},${lat - 0.05}&bounded=1`,
-            { headers: { Accept: 'application/json', 'User-Agent': 'ThaiRideApp/1.0' } }
+          const photonResponse = await fetch(
+            `https://photon.komoot.io/api/?q=${encodeURIComponent(cat.query)}&lat=${lat}&lon=${lng}&limit=3&lang=en`,
+            { headers: { Accept: 'application/json' } }
           )
-
-          if (response.ok) {
-            const data = await response.json()
-            const places = data.map((place: Record<string, unknown>) => ({
-              id: String(place.place_id) || `${cat.type}-${Math.random()}`,
-              name: String(place.display_name || '').split(',')[0] || cat.query,
-              address: String(place.display_name || '').split(',').slice(1, 3).join(',').trim() || '',
-              lat: parseFloat(String(place.lat)),
-              lng: parseFloat(String(place.lon)),
-              type: cat.type,
-              icon: cat.icon
-            }))
-            allPlaces.push(...places)
-
-            nearbyPlaces.value = allPlaces
-              .map(place => ({
-                ...place,
-                distance: calculateDistance(lat, lng, place.lat, place.lng)
-              }))
-              .sort((a, b) => (a.distance || 0) - (b.distance || 0))
-              .slice(0, 8)
+          
+          if (photonResponse.ok) {
+            const data = await photonResponse.json()
+            const features = data.features || []
+            
+            for (const feature of features) {
+              const props = feature.properties || {}
+              const coords = feature.geometry?.coordinates || []
+              
+              if (coords.length < 2) continue
+              
+              const name = props.name || props.street || ''
+              if (!name) continue
+              
+              // Calculate distance and skip if too far (> 10km)
+              const dist = calculateDistance(lat, lng, coords[1], coords[0])
+              if (dist > 10000) continue
+              
+              allPlaces.push({
+                id: `photon-${props.osm_id || Math.random()}`,
+                name,
+                address: [props.street, props.district, props.city].filter(Boolean).join(', ') || '',
+                lat: coords[1],
+                lng: coords[0],
+                type: cat.type,
+                icon: cat.icon,
+                distance: dist
+              })
+            }
           }
-        } catch { /* continue */ }
+        } catch {
+          // Continue to next category
+        }
       }
-
-      const sortedPlaces = allPlaces
-        .map(place => ({
-          ...place,
-          distance: calculateDistance(lat, lng, place.lat, place.lng)
-        }))
-        .sort((a, b) => (a.distance || 0) - (b.distance || 0))
-        .slice(0, 8)
-
-      nearbyPlaces.value = sortedPlaces
-      nearbyPlacesCache.set(cacheKey, sortedPlaces)
+      
+      console.log(`[RideRequest] Photon found ${allPlaces.length} nearby places`)
     } catch {
-      // ignore
-    } finally {
-      isLoadingNearby.value = false
+      console.log('[RideRequest] Photon nearby search failed')
     }
+
+    // Skip Nominatim fallback if we have enough results (Nominatim is down anyway)
+    // Only try if we have zero results
+    if (allPlaces.length === 0) {
+      console.log('[RideRequest] No Photon results, skipping Nominatim (likely down)')
+    }
+
+    // Sort by distance and dedupe
+    const sortedPlaces = allPlaces
+      .filter((place, index, self) => 
+        index === self.findIndex(p => p.name === place.name)
+      )
+      .sort((a, b) => (a.distance || 0) - (b.distance || 0))
+      .slice(0, 8)
+
+    nearbyPlaces.value = sortedPlaces
+    nearbyPlacesCache.set(cacheKey, sortedPlaces)
+    isLoadingNearby.value = false
   }
 
   function searchPlaces(): void {
@@ -375,6 +376,12 @@ export function useRideRequest() {
     calculateFare()
   }
 
+  /**
+   * Calculate fare - MUST match ride.ts store formula!
+   * Base: 35 THB + distance * perKmRate
+   * perKmRate: standard=10, premium=15, shared=8
+   * Minimum: standard=50, premium=80, shared=40
+   */
   function calculateFare(): void {
     if (!pickup.value || !destination.value) return
     const dist = calculateDistance(
@@ -383,13 +390,21 @@ export function useRideRequest() {
     )
     estimatedDistance.value = dist
     estimatedTime.value = calculateTravelTime(dist)
-    estimatedFare.value = Math.round(35 + dist * 12)
+    // Use standard rate (10 THB/km) - matches ride.ts store
+    const baseFare = 35
+    const perKmRate = 10 // standard rate
+    const minimumFare = 50
+    estimatedFare.value = Math.round(Math.max(baseFare + dist * perKmRate, minimumFare))
   }
 
   function handleRouteCalculated(info: { distance: number; duration: number }): void {
     estimatedDistance.value = info.distance
     estimatedTime.value = info.duration
-    estimatedFare.value = Math.round(35 + info.distance * 12)
+    // Use standard rate (10 THB/km) - matches ride.ts store
+    const baseFare = 35
+    const perKmRate = 10 // standard rate
+    const minimumFare = 50
+    estimatedFare.value = Math.round(Math.max(baseFare + info.distance * perKmRate, minimumFare))
   }
 
   async function checkActiveRide(): Promise<void> {
@@ -836,12 +851,54 @@ export function useRideRequest() {
 
   async function submitRating(): Promise<void> {
     if (!activeRide.value || userRating.value === 0) return
+    
+    const rideId = activeRide.value.id
+    const providerId = activeRide.value.provider_id || matchedDriver.value?.id
+    const userId = authStore.user?.id
+    
+    if (!rideId || !providerId || !userId) {
+      console.error('[RideRequest] Missing data for rating:', { rideId, providerId, userId })
+      alert('ไม่สามารถส่งคะแนนได้ ข้อมูลไม่ครบ')
+      return
+    }
+    
     isSubmittingRating.value = true
     try {
-      const success = await rideStore.submitRating(userRating.value, 0)
-      if (success) resetAll()
+      console.log('[RideRequest] Submitting rating:', { rideId, providerId, userId, rating: userRating.value })
+      
+      // Insert rating directly
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: ratingError } = await (supabase as any)
+        .from('ride_ratings')
+        .insert({
+          ride_id: rideId,
+          user_id: userId,
+          provider_id: providerId,
+          rating: userRating.value,
+          tip_amount: 0,
+          comment: null
+        })
+      
+      if (ratingError) {
+        console.error('[RideRequest] Rating insert error:', ratingError)
+        // Continue anyway - rating is not critical for UX
+      } else {
+        console.log('[RideRequest] Rating submitted successfully')
+      }
+      
+      // Update ride status to completed if not already
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('ride_requests')
+        .update({ status: 'completed' })
+        .eq('id', rideId)
+      
+      // Reset and go back to select
+      resetAll()
+      
     } catch (error) {
       console.error('[RideRequest] Submit rating error:', error)
+      alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
       isSubmittingRating.value = false
     }

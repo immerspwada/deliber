@@ -120,6 +120,15 @@ async function loadOrders() {
       firstItem: result.data[0],
     });
 
+    // Debug evidence fields
+    const ordersWithEvidence = result.data.filter((o: any) => o.pickup_photo || o.dropoff_photo);
+    console.log("[OrdersView] Orders with evidence:", ordersWithEvidence.length, ordersWithEvidence.map((o: any) => ({
+      tracking_id: o.tracking_id,
+      pickup_photo: o.pickup_photo,
+      dropoff_photo: o.dropoff_photo,
+      arrived_at: o.arrived_at
+    })));
+
     if (api.error.value) {
       loadError.value = api.error.value;
       console.error("[OrdersView] API error:", api.error.value);
@@ -689,6 +698,7 @@ function getVisiblePages() {
               <th>ระยะทาง</th>
               <th>ชำระ</th>
               <th>วันที่</th>
+              <th>Evidence</th>
               <th></th>
             </tr>
           </thead>
@@ -752,6 +762,9 @@ function getVisiblePages() {
                 >
                   {{ getStatusLabel(order.status) }}
                 </span>
+                <div v-if="order.arrived_at" class="arrived-info">
+                  ✓ ถึงจุดรับ {{ formatTime(new Date(order.arrived_at)) }}
+                </div>
               </td>
               <td class="amount">
                 <div class="amount-info">
@@ -766,6 +779,31 @@ function getVisiblePages() {
                 <span class="payment-badge">{{ getPaymentLabel(order.payment_method || 'cash') }}</span>
               </td>
               <td class="date">{{ formatDate(order.created_at) }}</td>
+              <td>
+                <div class="evidence-badges">
+                  <a 
+                    v-if="order.pickup_photo" 
+                    :href="order.pickup_photo" 
+                    target="_blank" 
+                    class="evidence-badge pickup"
+                    title="รูปจุดรับ"
+                    @click.stop
+                  >
+                    📍 รับ
+                  </a>
+                  <a 
+                    v-if="order.dropoff_photo" 
+                    :href="order.dropoff_photo" 
+                    target="_blank" 
+                    class="evidence-badge dropoff"
+                    title="รูปจุดส่ง"
+                    @click.stop
+                  >
+                    🏁 ส่ง
+                  </a>
+                  <span v-if="!order.pickup_photo && !order.dropoff_photo" class="no-evidence">-</span>
+                </div>
+              </td>
               <td>
                 <div class="action-buttons">
                   <button class="action-btn" @click.stop="viewOrder(order)" title="ดูรายละเอียด">
@@ -2655,5 +2693,53 @@ function getVisiblePages() {
   .service-stats {
     grid-template-columns: 1fr;
   }
+}
+
+/* Evidence Badges */
+.evidence-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.evidence-badge.pickup {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.evidence-badge.pickup:hover {
+  background: #FDE68A;
+}
+
+.evidence-badge.dropoff {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.evidence-badge.dropoff:hover {
+  background: #A7F3D0;
+}
+
+.no-evidence {
+  color: #9CA3AF;
+  font-size: 12px;
+}
+
+.arrived-info {
+  font-size: 11px;
+  color: #059669;
+  margin-top: 4px;
 }
 </style>

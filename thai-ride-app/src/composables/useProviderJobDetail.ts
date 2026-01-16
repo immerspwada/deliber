@@ -20,7 +20,6 @@ import { supabase } from '../lib/supabase'
 import { useErrorHandler } from './useErrorHandler'
 import { useRoleAccess } from './useRoleAccess'
 import { useJobAlert } from './useJobAlert'
-import { useURLTracking } from './useURLTracking'
 import { measureAsync } from '../utils/performance'
 import { 
   type JobDetail, 
@@ -56,7 +55,6 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
   const { handleError, clearError } = useErrorHandler()
   const { providerId } = useRoleAccess()
   const { quickBeep, quickVibrate } = useJobAlert()
-  const { updateStep } = useURLTracking()
 
   // =====================================================
   // STATE MANAGEMENT
@@ -351,16 +349,12 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
       })
 
       if (result) {
-        // Update local state
-        job.value!.status = result
-        
-        // Update URL with new step (standardized)
-        // Convert database status format (in_progress) to URL format (in-progress)
-        const urlStep = result.replace(/_/g, '-')
-        updateStep(urlStep as any, 'provider_job')
+        // Update local state - create new object to trigger reactivity
+        const updatedJob = { ...job.value!, status: result }
+        job.value = updatedJob
         
         // Clear cache to force refresh
-        cache.delete(job.value!.id)
+        cache.delete(updatedJob.id)
         
         // Provide feedback
         quickBeep()
@@ -371,6 +365,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
           await handleJobCompletion()
         }
 
+        console.log('[JobDetail] Status updated successfully:', result)
         return { success: true, newStatus: result }
       }
 

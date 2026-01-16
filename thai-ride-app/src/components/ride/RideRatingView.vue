@@ -1,12 +1,21 @@
 <script setup lang="ts">
 /**
  * Component: RideRatingView
- * แสดงหน้าจอให้คะแนนคนขับ
+ * แสดงหน้าจอให้คะแนนคนขับ + ให้ทิป
+ * 
+ * Role Impact:
+ * - Customer: ให้คะแนนและทิปหลังจบงาน
+ * - Provider: รับคะแนนและทิป
+ * - Admin: ดูสถิติ
  */
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import TipModal from '@/components/customer/TipModal.vue'
+import { useTip } from '@/composables/useTip'
 
-defineProps<{
+const props = defineProps<{
   isSubmitting: boolean
+  rideId?: string
+  providerName?: string
 }>()
 
 const rating = defineModel<number>('rating', { default: 0 })
@@ -15,6 +24,22 @@ const emit = defineEmits<{
   submit: []
   skip: []
 }>()
+
+// Tip state
+const showTipModal = ref(false)
+const tipGiven = ref(false)
+const tipAmount = ref(0)
+const { checkCanTip, canTip } = useTip()
+
+// Check if can tip on mount
+onMounted(async () => {
+  if (props.rideId) {
+    await checkCanTip(props.rideId)
+  }
+})
+
+// Show tip button only if can tip
+const showTipButton = computed(() => canTip.value && !tipGiven.value)
 
 const hoveredStar = ref(0)
 
@@ -34,6 +59,12 @@ function getStarState(star: number): 'active' | 'hover' | 'inactive' {
   if (rating.value >= star) return 'active'
   if (hoveredStar.value >= star) return 'hover'
   return 'inactive'
+}
+
+function handleTipSuccess(amount: number): void {
+  tipGiven.value = true
+  tipAmount.value = amount
+  showTipModal.value = false
 }
 </script>
 
@@ -64,6 +95,7 @@ function getStarState(star: number): 'active' | 'hover' | 'inactive' {
           @click="handleStarClick(star)"
           @mouseenter="handleStarHover(star)"
           :aria-label="`ให้ ${star} ดาว`"
+          type="button"
         >
           <svg 
             width="40" 
@@ -85,11 +117,30 @@ function getStarState(star: number): 'active' | 'hover' | 'inactive' {
         </p>
       </Transition>
 
+      <!-- Tip Section -->
+      <div v-if="showTipButton" class="tip-section">
+        <button 
+          class="tip-btn"
+          type="button"
+          @click="showTipModal = true"
+        >
+          <span class="tip-icon">💰</span>
+          <span>ให้ทิปคนขับ</span>
+        </button>
+      </div>
+
+      <!-- Tip Given Badge -->
+      <div v-else-if="tipGiven" class="tip-given-badge">
+        <span class="tip-icon">🎉</span>
+        <span>ให้ทิป ฿{{ tipAmount.toLocaleString() }} แล้ว</span>
+      </div>
+
       <!-- Actions -->
       <div class="rating-actions">
         <button
           class="submit-btn"
           :disabled="rating === 0 || isSubmitting"
+          type="button"
           @click="emit('submit')"
         >
           <template v-if="isSubmitting">
@@ -102,11 +153,21 @@ function getStarState(star: number): 'active' | 'hover' | 'inactive' {
             ส่งคะแนน
           </template>
         </button>
-        <button class="skip-btn" @click="emit('skip')">
+        <button class="skip-btn" type="button" @click="emit('skip')">
           ข้าม
         </button>
       </div>
     </div>
+
+    <!-- Tip Modal -->
+    <TipModal
+      v-if="rideId"
+      :ride-id="rideId"
+      :provider-name="providerName"
+      :is-open="showTipModal"
+      @close="showTipModal = false"
+      @success="handleTipSuccess"
+    />
   </div>
 </template>
 
@@ -264,5 +325,51 @@ function getStarState(star: number): 'active' | 'hover' | 'inactive' {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Tip Section */
+.tip-section {
+  margin-bottom: 24px;
+}
+
+.tip-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+  color: #1a1a1a;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.tip-btn:active {
+  transform: scale(0.98);
+}
+
+.tip-icon {
+  font-size: 20px;
+}
+
+.tip-given-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #e8f5ef;
+  color: #00875a;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  animation: pop-in 0.3s ease-out;
 }
 </style>

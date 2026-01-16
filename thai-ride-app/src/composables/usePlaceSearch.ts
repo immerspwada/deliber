@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { useSavedPlaces } from './useSavedPlaces'
 import { useRecentPlaces } from './useRecentPlaces'
+import { reverseGeocode as reverseGeocodeMulti } from './useGeocode'
 
 export interface PlaceResult {
   id: string
@@ -386,38 +387,18 @@ export function usePlaceSearch() {
     return searchPlaces(query, { lat, lng, includeRecent: false, includeSaved: false })
   }
 
-  // Reverse geocode - get address from coordinates
+  // Reverse geocode - get address from coordinates (uses multi-provider fallback)
   const reverseGeocode = async (lat: number, lng: number): Promise<PlaceResult | null> => {
     try {
-      const params = new URLSearchParams({
-        lat: lat.toString(),
-        lon: lng.toString(),
-        format: 'json',
-        addressdetails: '1',
-        'accept-language': 'th,en'
-      })
-
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?${params}`,
-        {
-          headers: {
-            'User-Agent': 'ThaiRideApp/1.0'
-          }
-        }
-      )
-
-      if (!response.ok) return null
-
-      const data = await response.json()
-
+      const result = await reverseGeocodeMulti(lat, lng)
       return {
-        id: data.place_id?.toString() || crypto.randomUUID(),
-        name: formatPlaceName(data),
-        address: data.display_name,
-        lat: parseFloat(data.lat),
-        lng: parseFloat(data.lon),
-        type: getPlaceType(data),
-        source: 'nominatim'
+        id: crypto.randomUUID(),
+        name: result.name,
+        address: result.address,
+        lat: result.lat,
+        lng: result.lng,
+        type: 'address',
+        source: result.source === 'google' ? 'google' : 'nominatim'
       }
     } catch {
       return null

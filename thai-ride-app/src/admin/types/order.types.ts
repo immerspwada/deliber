@@ -56,6 +56,11 @@ export interface Order {
   duration_minutes?: number
   special_notes?: string
   
+  // Evidence Photos
+  pickup_photo?: string
+  dropoff_photo?: string
+  arrived_at?: string
+  
   // Timestamps
   created_at: string
   matched_at?: string
