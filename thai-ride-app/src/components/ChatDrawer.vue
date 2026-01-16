@@ -66,9 +66,21 @@ const statusMessage = computed(() => {
 
 const quickMessages = computed(() => {
   if (chatState.value.userRole === 'provider') {
-    return ['รอสักครู่นะครับ', 'ถึงแล้วครับ', 'กำลังไปครับ', 'ขอบคุณครับ']
+    // Provider quick messages
+    return [
+      'กำลังไปรับครับ',
+      'ถึงจุดรับแล้วครับ',
+      'รอสักครู่นะครับ',
+      'ขอบคุณครับ'
+    ]
   }
-  return ['รอสักครู่ค่ะ', 'อยู่ที่ไหนคะ', 'ขอบคุณค่ะ', 'โอเคค่ะ']
+  // Customer quick messages
+  return [
+    'อยู่ที่ไหนแล้วคะ',
+    'รอหน้าตึกค่ะ',
+    'รอสักครู่ค่ะ',
+    'ขอบคุณค่ะ'
+  ]
 })
 
 async function handleSend(): Promise<void> {
