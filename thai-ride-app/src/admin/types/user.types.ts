@@ -18,6 +18,11 @@ export interface Customer {
   wallet_balance: number
   loyalty_points: number
   tags?: CustomerTag[]
+  // Suspension fields
+  is_active?: boolean
+  suspended_at?: string
+  suspended_reason?: string
+  suspended_by?: string
 }
 
 export interface CustomerTag {

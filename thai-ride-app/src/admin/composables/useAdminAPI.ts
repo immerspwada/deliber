@@ -96,7 +96,12 @@ export function useAdminAPI() {
         total_rides: 0,
         total_spent: 0,
         wallet_balance: 0,
-        loyalty_points: 0
+        loyalty_points: 0,
+        // Suspension fields
+        is_active: user.is_active !== false,
+        suspended_at: user.suspended_at,
+        suspended_reason: user.suspended_reason,
+        suspended_by: user.suspended_by
       } as Customer))
 
       return {
@@ -128,6 +133,52 @@ export function useAdminAPI() {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch customer'
       return null
+    }
+  }
+
+  async function suspendCustomer(customerId: string, reason: string): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      // Get current admin user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+      
+      const { data, error: rpcError } = await (supabase.rpc as any)('suspend_customer', {
+        p_customer_id: customerId,
+        p_reason: reason,
+        p_admin_id: user.id
+      })
+      
+      if (rpcError) throw rpcError
+      return data === true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to suspend customer'
+      console.error('[Admin API] suspendCustomer error:', e)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function unsuspendCustomer(customerId: string): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      const { data, error: rpcError } = await (supabase.rpc as any)('unsuspend_customer', {
+        p_customer_id: customerId
+      })
+      
+      if (rpcError) throw rpcError
+      return data === true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to unsuspend customer'
+      console.error('[Admin API] unsuspendCustomer error:', e)
+      return false
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -1452,6 +1503,8 @@ export function useAdminAPI() {
     // Customers
     getCustomers,
     getCustomerById,
+    suspendCustomer,
+    unsuspendCustomer,
     // Providers
     getProviders,
     updateProviderStatus,
