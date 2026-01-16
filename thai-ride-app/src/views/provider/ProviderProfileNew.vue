@@ -15,7 +15,7 @@ import { supabase } from '../../lib/supabase'
 import { useProviderMedia } from '../../composables/useProviderMedia'
 import { usePushNotification } from '../../composables/usePushNotification'
 import { useDocumentUpload } from '../../composables/useDocumentUpload'
-import ProviderMediaUpload from '../../components/provider/ProviderMediaUpload.vue'
+import AvatarUploadEnhanced from '../../components/provider/AvatarUploadEnhanced.vue'
 import DocumentUpload from '../../components/DocumentUpload.vue'
 
 const router = useRouter()
@@ -215,8 +215,9 @@ async function savePersonalInfo() {
   saveMessage.value = ''
   
   try {
-    const { error } = await supabase
-      .from('providers_v2')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase
+      .from('providers_v2') as any)
       .update({
         first_name: personalForm.value.first_name,
         last_name: personalForm.value.last_name,
@@ -253,8 +254,9 @@ async function saveVehicleInfo() {
   saveMessage.value = ''
   
   try {
-    const { error } = await supabase
-      .from('providers_v2')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase
+      .from('providers_v2') as any)
       .update({
         vehicle_type: vehicleForm.value.vehicle_type,
         vehicle_plate: vehicleForm.value.vehicle_plate,
@@ -301,8 +303,9 @@ async function saveBankInfo() {
   saveMessage.value = ''
   
   try {
-    const { error } = await supabase
-      .from('providers_v2')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase
+      .from('providers_v2') as any)
       .update({
         bank_name: bankForm.value.bank_name,
         bank_account_number: bankForm.value.bank_account_number,
@@ -344,6 +347,11 @@ function openMediaUpload() {
 
 function closeMediaUpload() {
   showMediaUpload.value = false
+  fetchProviderMedia()
+}
+
+function handleAvatarUploaded(_url: string) {
+  // Avatar uploaded successfully, refresh media
   fetchProviderMedia()
 }
 
@@ -499,7 +507,7 @@ onMounted(loadData)
       <div v-if="showMediaUpload" class="modal-overlay" @click.self="closeMediaUpload">
         <div class="modal-content">
           <div class="modal-header">
-            <h3>จัดการรูปภาพ</h3>
+            <h3>เปลี่ยนรูปโปรไฟล์</h3>
             <button class="close-btn" @click="closeMediaUpload" aria-label="ปิด">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -507,7 +515,11 @@ onMounted(loadData)
               </svg>
             </button>
           </div>
-          <ProviderMediaUpload />
+          <AvatarUploadEnhanced 
+            :current-avatar="avatarUrl"
+            @uploaded="handleAvatarUploaded"
+            @close="closeMediaUpload"
+          />
         </div>
       </div>
     </Teleport>
