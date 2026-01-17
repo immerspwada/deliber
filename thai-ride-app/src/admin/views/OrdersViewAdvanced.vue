@@ -275,45 +275,65 @@ watch([currentPage], loadOrders)
 
 <template>
   <div class="orders-advanced">
-    <!-- Header -->
+    <!-- Header with Summary -->
     <div class="header">
       <div class="header-left">
         <h1>📋 ออเดอร์ทั้งหมด</h1>
-        <span class="count">{{ totalOrders.toLocaleString() }} รายการ</span>
+        <div class="summary-badges">
+          <span class="badge badge-total">{{ totalOrders.toLocaleString() }} รายการ</span>
+          <span class="badge badge-pending">{{ orders.filter(o => o.status === 'pending').length }} รอรับ</span>
+          <span class="badge badge-progress">{{ orders.filter(o => o.status === 'in_progress').length }} กำลังส่ง</span>
+          <span class="badge badge-completed">{{ orders.filter(o => o.status === 'completed').length }} สำเร็จ</span>
+        </div>
       </div>
       <button @click="loadOrders" class="refresh-btn" :disabled="loading">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'spin': loading }">
           <path d="M23 4v6h-6M1 20v-6h6"/>
           <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
         </svg>
-        รีเฟรช
+        {{ loading ? 'กำลังโหลด...' : 'รีเฟรช' }}
       </button>
     </div>
 
     <!-- Filters -->
     <div class="filters">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="🔍 ค้นหา Tracking ID, ชื่อลูกค้า, ผู้ให้บริการ..."
-        class="search-input"
-      />
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="🔍 ค้นหา Tracking ID, ชื่อลูกค้า, ผู้ให้บริการ..."
+          class="search-input"
+        />
+        <button v-if="searchQuery" @click="searchQuery = ''" class="clear-search">✕</button>
+      </div>
       
       <select v-model="serviceTypeFilter" class="filter-select">
-        <option value="">ทุกบริการ</option>
+        <option value="">📦 ทุกบริการ</option>
         <option value="ride">🚗 เรียกรถ</option>
         <option value="delivery">📦 จัดส่ง</option>
         <option value="shopping">🛒 ช้อปปิ้ง</option>
       </select>
       
       <select v-model="statusFilter" class="filter-select">
-        <option value="">ทุกสถานะ</option>
-        <option value="pending">รอรับ</option>
-        <option value="matched">จับคู่แล้ว</option>
-        <option value="in_progress">กำลังดำเนินการ</option>
-        <option value="completed">เสร็จสิ้น</option>
-        <option value="cancelled">ยกเลิก</option>
+        <option value="">🔄 ทุกสถานะ</option>
+        <option value="pending">⏳ รอรับ</option>
+        <option value="matched">✅ จับคู่แล้ว</option>
+        <option value="in_progress">🚀 กำลังดำเนินการ</option>
+        <option value="completed">✔️ เสร็จสิ้น</option>
+        <option value="cancelled">❌ ยกเลิก</option>
       </select>
+
+      <button 
+        v-if="searchQuery || serviceTypeFilter || statusFilter" 
+        @click="searchQuery = ''; serviceTypeFilter = ''; statusFilter = ''"
+        class="clear-filters-btn"
+      >
+        🗑️ ล้างตัวกรอง
+      </button>
     </div>
 
     <!-- Loading -->
@@ -622,12 +642,16 @@ watch([currentPage], loadOrders)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  padding: 24px;
+  background: linear-gradient(135deg, #ffffff, #f9fafb);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .header-left {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .header-left h1 {
@@ -635,6 +659,42 @@ watch([currentPage], loadOrders)
   font-weight: 700;
   margin: 0;
   color: #1f2937;
+}
+
+.summary-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-total {
+  background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+  color: #3730a3;
+}
+
+.badge-pending {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+}
+
+.badge-progress {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1e40af;
+}
+
+.badge-completed {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #065f46;
 }
 
 .count {
@@ -671,27 +731,99 @@ watch([currentPage], loadOrders)
   transform: none;
 }
 
+.refresh-btn svg.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Filters */
 .filters {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.search-input {
+.search-box {
+  position: relative;
   flex: 1;
   min-width: 300px;
-  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: #f9fafb;
   border: 2px solid #e5e7eb;
   border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.search-box:focus-within {
+  border-color: #00a86b;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+}
+
+.search-box svg {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.clear-search {
+  position: absolute;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e5e7eb;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #6b7280;
   font-size: 14px;
   transition: all 0.2s;
 }
 
-.search-input:focus {
-  border-color: #00a86b;
+.clear-search:hover {
+  background: #d1d5db;
+  color: #374151;
+}
+
+.search-input {
+  flex: 1;
+  padding: 14px 0;
+  border: none;
   outline: none;
+  font-size: 14px;
+  background: transparent;
+}
+
+.clear-filters-btn {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #fee2e2, #fecaca);
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.clear-filters-btn:hover {
+  background: linear-gradient(135deg, #fecaca, #fca5a5);
+  transform: translateY(-1px);
 }
 
 .filter-select {
@@ -770,10 +902,17 @@ watch([currentPage], loadOrders)
 .orders-table tbody tr {
   cursor: pointer;
   transition: all 0.15s;
+  border-left: 3px solid transparent;
 }
 
 .orders-table tbody tr:hover {
   background: #f9fafb;
+  border-left-color: #00a86b;
+  transform: translateX(2px);
+}
+
+.orders-table tbody tr:active {
+  transform: translateX(0);
 }
 
 .service-icon {
@@ -813,6 +952,8 @@ watch([currentPage], loadOrders)
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .amount {
@@ -847,7 +988,8 @@ watch([currentPage], loadOrders)
 
 .action-btn:hover {
   border-color: #00a86b;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 168, 107, 0.2);
 }
 
 .action-btn.reassign {
