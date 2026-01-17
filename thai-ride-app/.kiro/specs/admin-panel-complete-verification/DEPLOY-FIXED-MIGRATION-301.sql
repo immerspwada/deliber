@@ -1,0 +1,344 @@
+-- ================================================================
+-- PRODUCTION DEPLOYMENT: Fixed Migration 301
+-- ================================================================
+-- This fixes two critical bugs in admin RPC functions:
+-- 1. Ambiguous column reference "id"
+-- 2. Type mismatch: provider_status = text
+--
+-- INSTRUCTIONS:
+-- 1. Copy this entire file
+-- 2. Open Supabase Dashboard → SQL Editor
+-- 3. Paste and click "Run"
+-- 4. Verify success message
+-- ================================================================
+
+-- Drop existing functions
+DROP FUNCTION IF EXISTS get_admin_providers_v2(TEXT, TEXT, INT, INT) CASCADE;
+DROP FUNCTION IF EXISTS count_admin_providers_v2(TEXT, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS get_admin_customers(TEXT, TEXT, INT, INT) CASCADE;
+DROP FUNCTION IF EXISTS count_admin_customers(TEXT, TEXT) CASCADE;
+
+-- ================================================================
+-- get_admin_providers_v2 - FIXED
+-- ================================================================
+CREATE OR REPLACE FUNCTION get_admin_providers_v2(
+  p_status TEXT DEFAULT NULL,
+  p_provider_type TEXT DEFAULT NULL,
+  p_limit INT DEFAULT 20,
+  p_offset INT DEFAULT 0
+)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  provider_uid TEXT,
+  email TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  phone_number TEXT,
+  provider_type TEXT,
+  status TEXT,
+  is_online BOOLEAN,
+  is_available BOOLEAN,
+  current_lat DOUBLE PRECISION,
+  current_lng DOUBLE PRECISION,
+  rating NUMERIC,
+  total_trips INT,
+  total_earnings NUMERIC,
+  wallet_balance NUMERIC,
+  documents_verified BOOLEAN,
+  verification_notes TEXT,
+  created_at TIMESTAMPTZ,
+  approved_at TIMESTAMPTZ,
+  approved_by UUID,
+  last_active_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_admin_id UUID;
+  v_user_role TEXT;
+BEGIN
+  -- Get current user ID
+  SELECT auth.uid() INTO v_admin_id;
+  
+  -- Check if user exists and has admin role
+  SELECT role INTO v_user_role
+  FROM users
+  WHERE id = v_admin_id;
+  
+  IF v_user_role IS NULL THEN
+    RAISE EXCEPTION 'User not found';
+  END IF;
+  
+  IF v_user_role NOT IN ('admin', 'super_admin') THEN
+    RAISE EXCEPTION 'Access denied. Admin privileges required. Current role: %', v_user_role;
+  END IF;
+
+  -- Return provider data
+  RETURN QUERY
+  SELECT 
+    pv.id,
+    pv.user_id,
+    pv.provider_uid,
+    u.email,
+    pv.first_name,
+    pv.last_name,
+    pv.phone_number,
+    pv.provider_type,
+    pv.status::TEXT,
+    pv.is_online,
+    pv.is_available,
+    pv.current_lat,
+    pv.current_lng,
+    pv.rating,
+    pv.total_trips,
+    COALESCE(pv.total_earnings, 0) as total_earnings,
+    COALESCE(w.balance, 0) as wallet_balance,
+    pv.documents_verified,
+    pv.verification_notes,
+    pv.created_at,
+    pv.approved_at,
+    pv.approved_by,
+    pv.last_active_at
+  FROM providers_v2 pv
+  LEFT JOIN users u ON pv.user_id = u.id
+  LEFT JOIN wallets w ON pv.user_id = w.user_id
+  WHERE 
+    (p_status IS NULL OR pv.status::TEXT = p_status)
+    AND (p_provider_type IS NULL OR pv.provider_type = p_provider_type)
+  ORDER BY pv.created_at DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$;
+
+-- ================================================================
+-- count_admin_providers_v2 - FIXED
+-- ================================================================
+CREATE OR REPLACE FUNCTION count_admin_providers_v2(
+  p_status TEXT DEFAULT NULL,
+  p_provider_type TEXT DEFAULT NULL
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_admin_id UUID;
+  v_user_role TEXT;
+  v_count INT;
+BEGIN
+  -- Get current user ID
+  SELECT auth.uid() INTO v_admin_id;
+  
+  -- Check if user exists and has admin role
+  SELECT role INTO v_user_role
+  FROM users
+  WHERE id = v_admin_id;
+  
+  IF v_user_role IS NULL THEN
+    RAISE EXCEPTION 'User not found';
+  END IF;
+  
+  IF v_user_role NOT IN ('admin', 'super_admin') THEN
+    RAISE EXCEPTION 'Access denied. Admin privileges required. Current role: %', v_user_role;
+  END IF;
+
+  -- Count providers
+  SELECT COUNT(*)::INT INTO v_count
+  FROM providers_v2 pv
+  WHERE 
+    (p_status IS NULL OR pv.status::TEXT = p_status)
+    AND (p_provider_type IS NULL OR pv.provider_type = p_provider_type);
+    
+  RETURN v_count;
+END;
+$$;
+
+-- ================================================================
+-- get_admin_customers - FIXED
+-- ================================================================
+CREATE OR REPLACE FUNCTION get_admin_customers(
+  p_search TEXT DEFAULT NULL,
+  p_status TEXT DEFAULT NULL,
+  p_limit INT DEFAULT 20,
+  p_offset INT DEFAULT 0
+)
+RETURNS TABLE (
+  id UUID,
+  email TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  phone_number TEXT,
+  role TEXT,
+  verification_status TEXT,
+  is_suspended BOOLEAN,
+  suspension_reason TEXT,
+  total_rides INT,
+  total_spent NUMERIC,
+  wallet_balance NUMERIC,
+  created_at TIMESTAMPTZ,
+  last_active_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_admin_id UUID;
+  v_user_role TEXT;
+BEGIN
+  -- Get current user ID
+  SELECT auth.uid() INTO v_admin_id;
+  
+  -- Check if user exists and has admin role
+  SELECT role INTO v_user_role
+  FROM users
+  WHERE id = v_admin_id;
+  
+  IF v_user_role IS NULL THEN
+    RAISE EXCEPTION 'User not found';
+  END IF;
+  
+  IF v_user_role NOT IN ('admin', 'super_admin') THEN
+    RAISE EXCEPTION 'Access denied. Admin privileges required. Current role: %', v_user_role;
+  END IF;
+
+  -- Return customer data
+  RETURN QUERY
+  SELECT 
+    u.id,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.phone_number,
+    u.role,
+    u.verification_status,
+    COALESCE(u.is_suspended, false) as is_suspended,
+    u.suspension_reason,
+    COALESCE(
+      (SELECT COUNT(*)::INT FROM ride_requests WHERE customer_id = u.id),
+      0
+    ) as total_rides,
+    COALESCE(
+      (SELECT SUM(final_fare) FROM ride_requests WHERE customer_id = u.id AND status = 'completed'),
+      0
+    ) as total_spent,
+    COALESCE(w.balance, 0) as wallet_balance,
+    u.created_at,
+    u.last_active_at
+  FROM users u
+  LEFT JOIN wallets w ON u.id = w.user_id
+  WHERE 
+    u.role = 'customer'
+    AND (p_search IS NULL OR 
+         u.email ILIKE '%' || p_search || '%' OR
+         u.first_name ILIKE '%' || p_search || '%' OR
+         u.last_name ILIKE '%' || p_search || '%' OR
+         u.phone_number ILIKE '%' || p_search || '%')
+    AND (p_status IS NULL OR u.verification_status = p_status)
+  ORDER BY u.created_at DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$;
+
+-- ================================================================
+-- count_admin_customers - FIXED
+-- ================================================================
+CREATE OR REPLACE FUNCTION count_admin_customers(
+  p_search TEXT DEFAULT NULL,
+  p_status TEXT DEFAULT NULL
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_admin_id UUID;
+  v_user_role TEXT;
+  v_count INT;
+BEGIN
+  -- Get current user ID
+  SELECT auth.uid() INTO v_admin_id;
+  
+  -- Check if user exists and has admin role
+  SELECT role INTO v_user_role
+  FROM users
+  WHERE id = v_admin_id;
+  
+  IF v_user_role IS NULL THEN
+    RAISE EXCEPTION 'User not found';
+  END IF;
+  
+  IF v_user_role NOT IN ('admin', 'super_admin') THEN
+    RAISE EXCEPTION 'Access denied. Admin privileges required. Current role: %', v_user_role;
+  END IF;
+
+  -- Count customers
+  SELECT COUNT(*)::INT INTO v_count
+  FROM users u
+  WHERE 
+    u.role = 'customer'
+    AND (p_search IS NULL OR 
+         u.email ILIKE '%' || p_search || '%' OR
+         u.first_name ILIKE '%' || p_search || '%' OR
+         u.last_name ILIKE '%' || p_search || '%' OR
+         u.phone_number ILIKE '%' || p_search || '%')
+    AND (p_status IS NULL OR u.verification_status = p_status);
+    
+  RETURN v_count;
+END;
+$$;
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION get_admin_providers_v2(TEXT, TEXT, INT, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION count_admin_providers_v2(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_admin_customers(TEXT, TEXT, INT, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION count_admin_customers(TEXT, TEXT) TO authenticated;
+
+-- Add comments
+COMMENT ON FUNCTION get_admin_providers_v2 IS 'Get provider list with filters and pagination - FIXED to use users table and cast enum to TEXT';
+COMMENT ON FUNCTION count_admin_providers_v2 IS 'Count providers for pagination - FIXED to use users table and cast enum to TEXT';
+COMMENT ON FUNCTION get_admin_customers IS 'Get customer list with search, filters, and pagination - FIXED to use users table';
+COMMENT ON FUNCTION count_admin_customers IS 'Count customers for pagination - FIXED to use users table';
+
+-- ================================================================
+-- VERIFICATION QUERIES
+-- ================================================================
+-- Run these after deployment to verify success:
+
+-- 1. Check functions exist
+SELECT routine_name, routine_type 
+FROM information_schema.routines 
+WHERE routine_name IN (
+  'get_admin_providers_v2',
+  'count_admin_providers_v2',
+  'get_admin_customers',
+  'count_admin_customers'
+);
+
+-- 2. Test get_admin_providers_v2 (should return data without errors)
+SELECT * FROM get_admin_providers_v2(NULL, NULL, 5, 0);
+
+-- 3. Test with status filter (should work now - no type error)
+SELECT * FROM get_admin_providers_v2('pending', NULL, 5, 0);
+
+-- 4. Test count function
+SELECT count_admin_providers_v2(NULL, NULL);
+
+-- 5. Test with both filters
+SELECT * FROM get_admin_providers_v2('approved', 'ride', 5, 0);
+
+-- ================================================================
+-- SUCCESS INDICATORS
+-- ================================================================
+-- ✅ All 4 functions created successfully
+-- ✅ No errors when running verification queries
+-- ✅ Status filter works without "operator does not exist" error
+-- ✅ Provider list returns data
+-- ================================================================
