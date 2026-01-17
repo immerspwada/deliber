@@ -256,6 +256,50 @@ async function saveNotes() {
   }
 }
 
+// Update order status
+async function updateOrderStatus(order: Order, newStatus: string) {
+  if (order.status === newStatus) return
+  
+  const confirmed = confirm(`เปลี่ยนสถานะจาก "${getStatusLabel(order.status)}" เป็น "${getStatusLabel(newStatus)}"?`)
+  if (!confirmed) {
+    // Reset select to original value
+    loadOrders()
+    return
+  }
+  
+  loading.value = true
+  try {
+    const updateData: any = { status: newStatus }
+    
+    // Add timestamps based on status
+    if (newStatus === 'matched') {
+      updateData.matched_at = new Date().toISOString()
+    } else if (newStatus === 'in_progress') {
+      updateData.started_at = new Date().toISOString()
+    } else if (newStatus === 'completed') {
+      updateData.completed_at = new Date().toISOString()
+    } else if (newStatus === 'cancelled') {
+      updateData.cancelled_at = new Date().toISOString()
+    }
+    
+    const { error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', order.id)
+    
+    if (error) throw error
+    
+    alert('เปลี่ยนสถานะสำเร็จ')
+    loadOrders()
+  } catch (err) {
+    console.error('[OrdersView] Error updating status:', err)
+    alert('เกิดข้อผิดพลาด')
+    loadOrders()
+  } finally {
+    loading.value = false
+  }
+}
+
 // Open map modal
 function openMapModal(order: Order) {
   selectedOrder.value = order
@@ -740,16 +784,19 @@ watch([currentPage], loadOrders)
                 </div>
               </div>
             </td>
-            <td>
-              <span
-                class="status-badge"
-                :style="{
-                  color: getStatusColor(order.status),
-                  background: getStatusColor(order.status) + '20'
-                }"
+            <td @click.stop>
+              <select 
+                :value="order.status"
+                @change="updateOrderStatus(order, ($event.target as HTMLSelectElement).value)"
+                class="status-dropdown"
+                :class="`status-${order.status}`"
               >
-                {{ getStatusLabel(order.status) }}
-              </span>
+                <option value="pending">รอรับ</option>
+                <option value="matched">จับคู่แล้ว</option>
+                <option value="in_progress">กำลังดำเนินการ</option>
+                <option value="completed">เสร็จสิ้น</option>
+                <option value="cancelled">ยกเลิก</option>
+              </select>
             </td>
             <td>
               <div class="time-info">
@@ -1651,6 +1698,64 @@ watch([currentPage], loadOrders)
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Status Dropdown */
+.status-dropdown {
+  padding: 6px 12px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 140px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 5L6 8L9 5' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+.status-dropdown:hover {
+  opacity: 0.8;
+}
+
+.status-dropdown:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.status-dropdown.status-pending {
+  background-color: #FFFBEB;
+  color: #92400E;
+  border-color: #FDE68A;
+}
+
+.status-dropdown.status-matched {
+  background-color: #EFF6FF;
+  color: #1E40AF;
+  border-color: #BFDBFE;
+}
+
+.status-dropdown.status-in_progress {
+  background-color: #F3E8FF;
+  color: #6B21A8;
+  border-color: #D8B4FE;
+}
+
+.status-dropdown.status-completed {
+  background-color: #F0FDF4;
+  color: #166534;
+  border-color: #BBF7D0;
+}
+
+.status-dropdown.status-cancelled {
+  background-color: #FEF2F2;
+  color: #991B1B;
+  border-color: #FECACA;
 }
 
 .call-btn {
