@@ -1,47 +1,95 @@
 <script setup lang="ts">
 /**
- * Push Analytics Dashboard
+ * Push Analytics Dashboard (Production Ready)
  * Admin view for push notification analytics
- * 
- * Role: Admin only
  */
 import { onMounted, ref } from 'vue'
-import { usePushAnalytics, type TimeRange } from '../../composables/usePushAnalytics'
 
-const {
-  summary,
-  volumeData,
-  recentLogs,
-  loading,
-  error,
-  timeRange,
-  topNotificationTypes,
-  topFailureReasons,
-  statusBreakdown,
-  loadAnalytics,
-  setTimeRange
-} = usePushAnalytics()
+// State
+const loading = ref(false)
+const error = ref<string | null>(null)
+const timeRange = ref<'24h' | '7d' | '30d'>('24h')
 
-const showLogsModal = ref(false)
+// Summary data
+const summary = ref({
+  total_sent: 0,
+  total_delivered: 0,
+  total_failed: 0,
+  delivery_rate: 0,
+  avg_latency_ms: 0
+})
 
-// Format number with commas
+// Recent logs
+const recentLogs = ref<any[]>([])
+
+// Load analytics data
+async function loadAnalytics() {
+  loading.value = true
+  error.value = null
+  
+  try {
+    const { supabase } = await import('../../lib/supabase')
+    
+    // Calculate time range
+    const now = new Date()
+    const hoursAgo = timeRange.value === '24h' ? 24 : timeRange.value === '7d' ? 168 : 720
+    const startTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000)
+    
+    // Load push notification logs
+    const { data: logs, error: logsError } = await supabase
+      .from('push_notification_logs')
+      .select('*')
+      .gte('sent_at', startTime.toISOString())
+      .order('sent_at', { ascending: false })
+      .limit(100)
+    
+    if (logsError) throw logsError
+    
+    // Calculate summary
+    const totalSent = logs?.length || 0
+    const totalDelivered = logs?.filter(l => l.status === 'delivered').length || 0
+    const totalFailed = logs?.filter(l => l.status === 'failed').length || 0
+    const deliveryRate = totalSent > 0 ? (totalDelivered / totalSent) * 100 : 0
+    
+    // Calculate average latency
+    const latencies = logs?.filter(l => l.latency_ms).map(l => l.latency_ms) || []
+    const avgLatency = latencies.length > 0 
+      ? latencies.reduce((a, b) => a + b, 0) / latencies.length 
+      : 0
+    
+    summary.value = {
+      total_sent: totalSent,
+      total_delivered: totalDelivered,
+      total_failed: totalFailed,
+      delivery_rate: deliveryRate,
+      avg_latency_ms: avgLatency
+    }
+    
+    recentLogs.value = logs || []
+    
+  } catch (err: any) {
+    console.error('[PushAnalytics] Error loading data:', err)
+    error.value = err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Format helpers
 function formatNumber(num: number): string {
   return num?.toLocaleString() || '0'
 }
 
-// Format percentage
 function formatPercent(num: number): string {
   return `${num?.toFixed(1) || '0'}%`
 }
 
-// Format latency
 function formatLatency(ms: number | null): string {
   if (!ms) return '-'
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(2)}s`
 }
 
-// Format date
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString('th-TH', {
     day: '2-digit',
@@ -51,58 +99,61 @@ function formatDate(dateStr: string): string {
   })
 }
 
-// Status color
 function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
     sent: 'bg-blue-100 text-blue-800',
     delivered: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-    expired: 'bg-gray-100 text-gray-800'
+    failed: 'bg-red-100 text-red-800'
   }
   return colors[status] || 'bg-gray-100 text-gray-800'
 }
 
-// Notification type icon
 function getTypeIcon(type: string): string {
   const icons: Record<string, string> = {
     new_job: '🔔',
     job_update: '📋',
     earnings: '💰',
     promotions: '🎁',
-    system_announcements: '📢',
-    silent_sync: '🔄'
+    system: '📢'
   }
   return icons[type] || '📨'
 }
 
-// Handle time range change
-async function handleTimeRangeChange(range: TimeRange) {
-  await setTimeRange(range)
+async function handleTimeRangeChange(range: '24h' | '7d' | '30d') {
+  timeRange.value = range
+  await loadAnalytics()
 }
 
 onMounted(() => {
   loadAnalytics()
+  
+  // Auto-refresh every 60 seconds
+  const interval = setInterval(() => {
+    loadAnalytics()
+  }, 60000)
+  
+  return () => clearInterval(interval)
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100">
+  <div class="min-h-screen bg-gray-50">
     <!-- Header -->
-    <div class="bg-white shadow">
-      <div class="px-4 py-6 sm:px-6 lg:px-8">
+    <div class="bg-white border-b">
+      <div class="px-6 py-4">
         <div class="flex items-center justify-between">
           <div>
-            <h1 class="text-2xl font-bold text-gray-900">Push Analytics</h1>
-            <p class="mt-1 text-sm text-gray-500">สถิติการส่ง Push Notification</p>
+            <h1 class="text-2xl font-bold text-gray-900">📊 Push Analytics</h1>
+            <p class="text-gray-600 mt-1">สถิติการส่ง Push Notification</p>
           </div>
           
           <!-- Time Range Selector -->
           <div class="flex gap-2">
             <button
-              v-for="range in (['24h', '7d', '30d'] as TimeRange[])"
+              v-for="range in ['24h', '7d', '30d']"
               :key="range"
-              @click="handleTimeRangeChange(range)"
+              @click="handleTimeRangeChange(range as any)"
               :class="[
                 'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                 timeRange === range
@@ -112,15 +163,27 @@ onMounted(() => {
             >
               {{ range === '24h' ? '24 ชั่วโมง' : range === '7d' ? '7 วัน' : '30 วัน' }}
             </button>
+            <button
+              @click="loadAnalytics"
+              :disabled="loading"
+              class="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              <svg class="w-5 h-5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="px-4 py-6 sm:px-6 lg:px-8">
+    <div class="px-6 py-6">
       <!-- Loading State -->
-      <div v-if="loading && !summary" class="flex justify-center py-12">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div v-if="loading && summary.total_sent === 0" class="flex justify-center py-12">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p class="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+        </div>
       </div>
 
       <!-- Error State -->
@@ -137,13 +200,12 @@ onMounted(() => {
       <template v-else>
         <!-- Summary Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <!-- Total Sent -->
           <div class="bg-white rounded-xl shadow p-6">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-gray-500">ส่งทั้งหมด</p>
                 <p class="text-3xl font-bold text-gray-900">
-                  {{ formatNumber(summary?.total_sent || 0) }}
+                  {{ formatNumber(summary.total_sent) }}
                 </p>
               </div>
               <div class="p-3 bg-blue-100 rounded-full">
@@ -152,13 +214,12 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Delivered -->
           <div class="bg-white rounded-xl shadow p-6">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-gray-500">ส่งถึง</p>
                 <p class="text-3xl font-bold text-green-600">
-                  {{ formatNumber(summary?.total_delivered || 0) }}
+                  {{ formatNumber(summary.total_delivered) }}
                 </p>
               </div>
               <div class="p-3 bg-green-100 rounded-full">
@@ -167,13 +228,12 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Failed -->
           <div class="bg-white rounded-xl shadow p-6">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-gray-500">ล้มเหลว</p>
                 <p class="text-3xl font-bold text-red-600">
-                  {{ formatNumber(summary?.total_failed || 0) }}
+                  {{ formatNumber(summary.total_failed) }}
                 </p>
               </div>
               <div class="p-3 bg-red-100 rounded-full">
@@ -182,13 +242,12 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Delivery Rate -->
           <div class="bg-white rounded-xl shadow p-6">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-gray-500">อัตราส่งถึง</p>
                 <p class="text-3xl font-bold text-blue-600">
-                  {{ formatPercent(summary?.delivery_rate || 0) }}
+                  {{ formatPercent(summary.delivery_rate) }}
                 </p>
               </div>
               <div class="p-3 bg-blue-100 rounded-full">
@@ -196,145 +255,15 @@ onMounted(() => {
               </div>
             </div>
             <p class="mt-2 text-sm text-gray-500">
-              เฉลี่ย {{ formatLatency(summary?.avg_latency_ms || null) }}
+              เฉลี่ย {{ formatLatency(summary.avg_latency_ms) }}
             </p>
-          </div>
-        </div>
-
-        <!-- Charts Row -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <!-- Volume Chart -->
-          <div class="bg-white rounded-xl shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">ปริมาณการส่ง</h3>
-            
-            <div v-if="volumeData.length === 0" class="text-center py-8 text-gray-500">
-              ไม่มีข้อมูล
-            </div>
-            
-            <div v-else class="space-y-2">
-              <div
-                v-for="item in volumeData.slice(-10)"
-                :key="item.time_bucket"
-                class="flex items-center gap-3"
-              >
-                <span class="text-xs text-gray-500 w-20">
-                  {{ formatDate(item.time_bucket) }}
-                </span>
-                <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden flex">
-                  <div
-                    class="h-full bg-green-500"
-                    :style="{ width: `${(item.delivered_count / Math.max(item.total_count, 1)) * 100}%` }"
-                  ></div>
-                  <div
-                    class="h-full bg-red-500"
-                    :style="{ width: `${(item.failed_count / Math.max(item.total_count, 1)) * 100}%` }"
-                  ></div>
-                </div>
-                <span class="text-sm font-medium w-12 text-right">
-                  {{ item.total_count }}
-                </span>
-              </div>
-            </div>
-            
-            <div class="flex gap-4 mt-4 text-xs">
-              <div class="flex items-center gap-1">
-                <div class="w-3 h-3 bg-green-500 rounded"></div>
-                <span>ส่งถึง</span>
-              </div>
-              <div class="flex items-center gap-1">
-                <div class="w-3 h-3 bg-red-500 rounded"></div>
-                <span>ล้มเหลว</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Breakdown by Type -->
-          <div class="bg-white rounded-xl shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">แยกตามประเภท</h3>
-            
-            <div v-if="topNotificationTypes.length === 0" class="text-center py-8 text-gray-500">
-              ไม่มีข้อมูล
-            </div>
-            
-            <div v-else class="space-y-3">
-              <div
-                v-for="item in topNotificationTypes"
-                :key="item.type"
-                class="flex items-center justify-between"
-              >
-                <div class="flex items-center gap-2">
-                  <span class="text-xl">{{ getTypeIcon(item.type) }}</span>
-                  <span class="text-sm text-gray-700">{{ item.type }}</span>
-                </div>
-                <span class="text-sm font-semibold text-gray-900">
-                  {{ formatNumber(item.count) }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Status Breakdown & Failure Reasons -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <!-- Status Breakdown -->
-          <div class="bg-white rounded-xl shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">สถานะการส่ง</h3>
-            
-            <div v-if="statusBreakdown.length === 0" class="text-center py-8 text-gray-500">
-              ไม่มีข้อมูล
-            </div>
-            
-            <div v-else class="space-y-3">
-              <div
-                v-for="item in statusBreakdown"
-                :key="item.status"
-                class="flex items-center justify-between"
-              >
-                <span :class="['px-3 py-1 rounded-full text-xs font-medium', getStatusColor(item.status)]">
-                  {{ item.label }}
-                </span>
-                <span class="text-sm font-semibold text-gray-900">
-                  {{ formatNumber(item.count) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Failure Reasons -->
-          <div class="bg-white rounded-xl shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">สาเหตุที่ล้มเหลว</h3>
-            
-            <div v-if="topFailureReasons.length === 0" class="text-center py-8 text-gray-500">
-              ไม่มีข้อผิดพลาด 🎉
-            </div>
-            
-            <div v-else class="space-y-3">
-              <div
-                v-for="item in topFailureReasons"
-                :key="item.reason"
-                class="flex items-center justify-between"
-              >
-                <span class="text-sm text-gray-700 truncate max-w-[200px]" :title="item.reason">
-                  {{ item.reason }}
-                </span>
-                <span class="text-sm font-semibold text-red-600">
-                  {{ formatNumber(item.count) }}
-                </span>
-              </div>
-            </div>
           </div>
         </div>
 
         <!-- Recent Logs -->
         <div class="bg-white rounded-xl shadow">
-          <div class="px-6 py-4 border-b flex items-center justify-between">
+          <div class="px-6 py-4 border-b">
             <h3 class="text-lg font-semibold text-gray-900">ประวัติล่าสุด</h3>
-            <button
-              @click="showLogsModal = true"
-              class="text-sm text-blue-600 hover:text-blue-700"
-            >
-              ดูทั้งหมด
-            </button>
           </div>
           
           <div class="overflow-x-auto">
@@ -349,15 +278,15 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200">
-                <tr v-for="log in recentLogs.slice(0, 10)" :key="log.id" class="hover:bg-gray-50">
+                <tr v-for="log in recentLogs.slice(0, 20)" :key="log.id" class="hover:bg-gray-50">
                   <td class="px-4 py-3 text-sm text-gray-500">
                     {{ formatDate(log.sent_at) }}
                   </td>
                   <td class="px-4 py-3">
                     <span class="text-lg">{{ getTypeIcon(log.notification_type) }}</span>
                   </td>
-                  <td class="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate">
-                    {{ log.title }}
+                  <td class="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+                    {{ log.title || '-' }}
                   </td>
                   <td class="px-4 py-3">
                     <span :class="['px-2 py-1 rounded-full text-xs font-medium', getStatusColor(log.status)]">
@@ -371,12 +300,19 @@ onMounted(() => {
                 
                 <tr v-if="recentLogs.length === 0">
                   <td colspan="5" class="px-4 py-8 text-center text-gray-500">
-                    ไม่มีประวัติการส่ง
+                    ไม่มีประวัติการส่ง Push Notification
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p class="text-sm text-blue-800">
+            💡 <strong>หมายเหตุ:</strong> ข้อมูลอัพเดทอัตโนมัติทุก 60 วินาที
+          </p>
         </div>
       </template>
     </div>

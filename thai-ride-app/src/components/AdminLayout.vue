@@ -67,108 +67,44 @@ const logout = async () => {
 // ✅ FIX 1: Session check moved to global router guard (see router/index.ts)
 // No longer checking on every mount - reduces localStorage access from 3,600 to 1
 
-// ✅ FIX 2: Memoize menu sections (static data, no need to recreate)
+// ✅ Simplified menu - เหลือแค่หมวดหมู่ที่จำเป็น
 const menuSections = computed(() => [
   {
     title: '',
     items: [
       { path: '/admin/dashboard', label: 'แดชบอร์ด', icon: 'dashboard' },
-      { path: '/admin/orders', label: 'ออเดอร์', icon: 'orders' },
+      { path: '/admin/orders', label: 'ออเดอร์ทั้งหมด', icon: 'orders' },
       { path: '/admin/live-map', label: 'แผนที่สด', icon: 'live' }
     ]
   },
   {
-    title: 'ผู้ใช้',
+    title: 'ผู้ใช้งาน',
     items: [
       { path: '/admin/customers', label: 'ลูกค้า', icon: 'customer' },
-      { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car', badgeKey: 'pendingProviders' },
-      { path: '/admin/documents', label: 'เอกสาร', icon: 'audit' },
-      { path: '/admin/verification-queue', label: 'คิวตรวจสอบ', icon: 'users' }
-    ]
-  },
-  {
-    title: 'Provider Mode',
-    items: [
-      { path: '/provider', label: 'หน้าหลัก Provider', icon: 'dashboard' },
-      { path: '/provider/orders', label: 'งานของฉัน', icon: 'orders' },
-      { path: '/provider/wallet', label: 'กระเป๋าเงิน', icon: 'wallet' },
-      { path: '/provider/chat', label: 'แชท', icon: 'chat' },
-      { path: '/provider/profile', label: 'โปรไฟล์', icon: 'user' }
-    ]
-  },
-  {
-    title: 'บริการ',
-    items: [
-      { path: '/admin/driver-tracking', label: 'ติดตามคนขับ', icon: 'live' },
-      { path: '/admin/scheduled-rides', label: 'นัดหมาย', icon: 'schedule' },
-      { path: '/admin/delivery', label: 'ส่งของ', icon: 'moving' },
-      { path: '/admin/shopping', label: 'ช้อปปิ้ง', icon: 'orders' },
-      { path: '/admin/queue-bookings', label: 'จองคิว', icon: 'queue' },
-      { path: '/admin/moving', label: 'ขนย้าย', icon: 'moving' },
-      { path: '/admin/laundry', label: 'ซักผ้า', icon: 'laundry' },
-      { path: '/admin/cancellations', label: 'ยกเลิก', icon: 'cancel' }
+      { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car', badgeKey: 'pendingProviders' }
     ]
   },
   {
     title: 'การเงิน',
     items: [
-      { path: '/admin/revenue', label: 'รายได้', icon: 'revenue' },
-      { path: '/admin/payments', label: 'การชำระเงิน', icon: 'payment' },
-      { path: '/admin/refunds', label: 'คืนเงิน', icon: 'withdrawal' },
-      { path: '/admin/wallets', label: 'กระเป๋าเงิน', icon: 'wallet' },
-      { path: '/admin/topup-requests', label: 'เติมเงิน', icon: 'topup' },
-      { path: '/admin/withdrawals', label: 'ถอนเงิน', icon: 'withdrawal' },
-      { path: '/admin/tips', label: 'ทิป', icon: 'tip' }
-    ]
-  },
-  {
-    title: 'Marketing',
-    items: [
-      { path: '/admin/promos', label: 'โปรโมโค้ด', icon: 'promo' },
-      { path: '/admin/referrals', label: 'แนะนำเพื่อน', icon: 'referral' },
-      { path: '/admin/loyalty', label: 'Loyalty', icon: 'loyalty' },
-      { path: '/admin/incentives', label: 'โบนัสคนขับ', icon: 'incentive' },
-      { path: '/admin/subscriptions', label: 'แพ็กเกจ', icon: 'subscription' }
-    ]
-  },
-  {
-    title: 'Support',
-    items: [
-      { path: '/admin/ratings', label: 'รีวิว', icon: 'ratings' },
-      { path: '/admin/feedback', label: 'Feedback', icon: 'feedback' },
-      { path: '/admin/support', label: 'Tickets', icon: 'support' },
-      { path: '/admin/fraud-alerts', label: 'ทุจริต', icon: 'fraud' },
-      { path: '/admin/corporate', label: 'องค์กร', icon: 'corporate' }
+      { path: '/admin/topup-requests', label: 'คำขอเติมเงิน', icon: 'topup' },
+      { path: '/admin/provider-withdrawals', label: 'ถอนเงิน Provider', icon: 'withdrawal' },
+      { path: '/admin/wallets', label: 'กระเป๋าเงิน', icon: 'wallet' }
     ]
   },
   {
     title: 'รายงาน',
     items: [
       { path: '/admin/analytics', label: 'วิเคราะห์', icon: 'analytics' },
-      { path: '/admin/reports', label: 'รายงาน', icon: 'report' },
-      { path: '/admin/ux-analytics', label: 'UX Analytics', icon: 'ux' }
+      { path: '/admin/push-analytics', label: 'Push Analytics', icon: 'push' },
+      { path: '/admin/provider-heatmap', label: 'Provider Heatmap', icon: 'map' }
     ]
   },
   {
-    title: 'ตั้งค่า',
+    title: 'ระบบ',
     items: [
-      { path: '/admin/settings', label: 'ทั่วไป', icon: 'gear' },
-      { path: '/admin/notifications', label: 'แจ้งเตือน', icon: 'notification' },
-      { path: '/admin/push-notifications', label: 'Push Notifications', icon: 'push' },
-      { path: '/admin/notification-templates', label: 'Notification Templates', icon: 'template' },
-      { path: '/admin/service-zones', label: 'พื้นที่บริการ', icon: 'map' },
-      { path: '/admin/surge-pricing', label: 'Surge Pricing', icon: 'surge' },
-      { path: '/admin/system-health', label: 'สุขภาพระบบ', icon: 'health' },
-      { path: '/admin/security', label: 'ความปลอดภัย', icon: 'security' },
-      { path: '/admin/production-dashboard', label: 'Production KPIs', icon: 'dashboard' },
-      { path: '/admin/cross-role-monitor', label: 'Cross-Role Monitor', icon: 'monitor' },
-      { path: '/admin/audit-log', label: 'Audit Log', icon: 'audit' },
-      { path: '/admin/alerting', label: 'Alerts', icon: 'alert' },
-      { path: '/admin/deployment', label: 'Deployment', icon: 'deploy' },
-      { path: '/admin/data-management', label: 'Data Management', icon: 'data' },
-      { path: '/admin/compliance', label: 'Compliance', icon: 'compliance' },
-      { path: '/admin/incidents', label: 'Incidents', icon: 'incident' },
-      { path: '/admin/readiness', label: 'Readiness Check', icon: 'checklist' }
+      { path: '/admin/cron-jobs', label: 'Cron Jobs', icon: 'schedule' },
+      { path: '/admin/system-health', label: 'สุขภาพระบบ', icon: 'health' }
     ]
   }
 ])
