@@ -357,12 +357,12 @@ async function cancelOrder() {
     
     if (error) throw error
     
-    alert('✅ ยกเลิกออเดอร์สำเร็จ!')
+    alert('ยกเลิกออเดอร์สำเร็จ')
     showCancelModal.value = false
     loadOrders()
   } catch (err) {
     console.error('[OrdersView] Error cancelling order:', err)
-    alert('❌ เกิดข้อผิดพลาด')
+    alert('เกิดข้อผิดพลาด')
   } finally {
     loading.value = false
   }
@@ -386,12 +386,12 @@ async function reassignProvider() {
     
     if (error) throw error
     
-    alert('✅ ย้ายงานสำเร็จ!')
+    alert('ย้ายงานสำเร็จ')
     showReassignModal.value = false
     loadOrders()
   } catch (err) {
     console.error('[OrdersView] Error reassigning:', err)
-    alert('❌ เกิดข้อผิดพลาด')
+    alert('เกิดข้อผิดพลาด')
   } finally {
     loading.value = false
   }
@@ -425,11 +425,11 @@ function formatPhoneNumber(phone: string) {
 
 function callPhone(phone: string, name: string) {
   if (!phone) {
-    alert('❌ ไม่มีเบอร์โทรศัพท์')
+    alert('ไม่มีเบอร์โทรศัพท์')
     return
   }
   
-  const confirmed = confirm(`📞 โทรหา ${name}\nเบอร์: ${formatPhoneNumber(phone)}`)
+  const confirmed = confirm(`โทรหา ${name}\nเบอร์: ${formatPhoneNumber(phone)}`)
   if (confirmed) {
     window.location.href = `tel:${phone}`
   }
@@ -498,11 +498,11 @@ function getTimeStatus(createdAt: string, status: string): { text: string; color
   }
   
   if (status === 'pending' && minutes > 10) {
-    return { text: '⚠️ รอนาน', color: '#f59e0b' }
+    return { text: 'รอนาน', color: '#f59e0b' }
   }
   
   if (status === 'in_progress' && minutes > 60) {
-    return { text: '⚠️ ใช้เวลานาน', color: '#ef4444' }
+    return { text: 'ใช้เวลานาน', color: '#ef4444' }
   }
   
   return { text: '', color: '' }
@@ -716,7 +716,9 @@ watch([currentPage], loadOrders)
                     class="call-btn"
                     title="โทรหาลูกค้า"
                   >
-                    📞
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -731,7 +733,9 @@ watch([currentPage], loadOrders)
                     class="call-btn"
                     title="โทรหาไรเดอร์"
                   >
-                    📞
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -924,8 +928,8 @@ watch([currentPage], loadOrders)
     <div v-if="showReassignModal" class="modal-overlay" @click.self="showReassignModal = false">
       <div class="modal">
         <div class="modal-header">
-          <h2>🔄 ย้ายงานไปให้ไรเดอร์คนอื่น</h2>
-          <button @click="showReassignModal = false" class="close-btn">✕</button>
+          <h2>ย้ายงานไปให้ไรเดอร์คนอื่น</h2>
+          <button @click="showReassignModal = false" class="close-btn">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info">
@@ -953,10 +957,10 @@ watch([currentPage], loadOrders)
                   <span v-else class="offline-badge">⚫ ออฟไลน์</span>
                 </div>
                 <div class="provider-details">
-                  <div>📞 {{ provider.phone }}</div>
-                  <div>🚗 {{ provider.vehicle_type }}</div>
+                  <div>{{ provider.phone }}</div>
+                  <div>{{ provider.vehicle_type }}</div>
                   <div>⭐ {{ provider.rating?.toFixed(1) || 'N/A' }}</div>
-                  <div>📦 {{ provider.total_orders || 0 }} งาน</div>
+                  <div>{{ provider.total_orders || 0 }} งาน</div>
                 </div>
               </div>
             </div>
@@ -1013,7 +1017,10 @@ watch([currentPage], loadOrders)
                     @click="callPhone(selectedOrder.customer_phone, selectedOrder.customer_name || 'ลูกค้า')"
                     class="call-btn-large"
                   >
-                    📞 โทร
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                    โทร
                   </button>
                 </div>
               </div>
@@ -1028,7 +1035,10 @@ watch([currentPage], loadOrders)
                     @click="callPhone(selectedOrder.provider_phone, selectedOrder.provider_name || 'ไรเดอร์')"
                     class="call-btn-large"
                   >
-                    📞 โทร
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                    โทร
                   </button>
                 </div>
               </div>
@@ -1062,7 +1072,7 @@ watch([currentPage], loadOrders)
                   @click="showDetailModal = false; openNotesModal(selectedOrder!)"
                   class="edit-notes-btn"
                 >
-                  {{ selectedOrder?.notes ? '✏️ แก้ไขโน้ต' : '➕ เพิ่มโน้ต' }}
+                  {{ selectedOrder?.notes ? 'แก้ไขโน้ต' : 'เพิ่มโน้ต' }}
                 </button>
               </div>
             </div>
@@ -1077,14 +1087,14 @@ watch([currentPage], loadOrders)
               @click="showDetailModal = false; openReassignModal(selectedOrder)"
               class="btn btn-primary"
             >
-              🔄 ย้ายงาน
+              ย้ายงาน
             </button>
             <button
               v-if="selectedOrder && selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled'"
               @click="showDetailModal = false; openCancelModal(selectedOrder)"
               class="btn btn-danger"
             >
-              ❌ ยกเลิกออเดอร์
+              ยกเลิกออเดอร์
             </button>
           </div>
         </div>
@@ -1095,12 +1105,12 @@ watch([currentPage], loadOrders)
     <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
       <div class="modal">
         <div class="modal-header">
-          <h2>❌ ยกเลิกออเดอร์</h2>
-          <button @click="showCancelModal = false" class="close-btn">✕</button>
+          <h2>ยกเลิกออเดอร์</h2>
+          <button @click="showCancelModal = false" class="close-btn">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info warning">
-            <p><strong>⚠️ คำเตือน:</strong> คุณกำลังจะยกเลิกออเดอร์นี้</p>
+            <p><strong>คำเตือน:</strong> คุณกำลังจะยกเลิกออเดอร์นี้</p>
             <p><strong>Tracking ID:</strong> {{ selectedOrder?.tracking_id }}</p>
             <p><strong>ลูกค้า:</strong> {{ selectedOrder?.customer_name }}</p>
             <p><strong>ยอดเงิน:</strong> {{ formatCurrency(selectedOrder?.final_amount || 0) }}</p>
@@ -1136,8 +1146,8 @@ watch([currentPage], loadOrders)
     <div v-if="showNotesModal" class="modal-overlay" @click.self="showNotesModal = false">
       <div class="modal">
         <div class="modal-header">
-          <h2>📝 โน้ตออเดอร์</h2>
-          <button @click="showNotesModal = false" class="close-btn">✕</button>
+          <h2>โน้ตออเดอร์</h2>
+          <button @click="showNotesModal = false" class="close-btn">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info">
