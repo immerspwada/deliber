@@ -4,7 +4,7 @@
  * Features: Reassign provider, bulk actions, real-time updates, analytics, map integration
  * Design: Clean, minimal, no emojis (following design-system.md)
  */
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { supabase } from '../../lib/supabase'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -262,14 +262,23 @@ async function updateOrderStatus(order: Order, newStatus: string) {
   
   const confirmed = confirm(`เปลี่ยนสถานะจาก "${getStatusLabel(order.status)}" เป็น "${getStatusLabel(newStatus)}"?`)
   if (!confirmed) {
-    // Reset select to original value
-    loadOrders()
+    // Force re-render by reloading
+    const temp = orders.value
+    orders.value = []
+    nextTick(() => {
+      orders.value = temp
+    })
     return
   }
   
-  loading.value = true
+  // Store old status for rollback
+  const oldStatus = order.status
+  
+  // Optimistic update - update UI immediately
+  order.status = newStatus
+  
   try {
-    // Simple status update only
+    // Update in database
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
@@ -277,14 +286,13 @@ async function updateOrderStatus(order: Order, newStatus: string) {
     
     if (error) throw error
     
-    alert('เปลี่ยนสถานะสำเร็จ')
-    loadOrders()
+    // Success - reload to ensure consistency
+    await loadOrders()
   } catch (err) {
     console.error('[OrdersView] Error updating status:', err)
+    // Rollback on error
+    order.status = oldStatus
     alert('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'Unknown error'))
-    loadOrders()
-  } finally {
-    loading.value = false
   }
 }
 
