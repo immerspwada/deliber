@@ -15,6 +15,7 @@ interface Order {
   tracking_id: string
   service_type: string
   status: string
+  customer_id?: string
   customer_name: string
   customer_phone: string
   provider_id: string | null
@@ -278,16 +279,62 @@ async function updateOrderStatus(order: Order, newStatus: string) {
   order.status = newStatus
   
   try {
-    // Update in database
-    const { error } = await supabase
+    // 1. Update order status in database
+    const { error: updateError } = await supabase
       .from('orders')
-      .update({ status: newStatus })
+      .update({ 
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', order.id)
     
-    if (error) throw error
+    if (updateError) throw updateError
+    
+    // 2. Create notification for Customer
+    if (order.customer_name) {
+      await supabase.from('notifications').insert({
+        user_id: order.customer_id || null,
+        title: 'สถานะออเดอร์เปลี่ยนแปลง',
+        message: `ออเดอร์ ${order.tracking_id} เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"`,
+        type: 'order_status',
+        reference_id: order.id,
+        reference_type: 'order'
+      })
+    }
+    
+    // 3. Create notification for Provider
+    if (order.provider_id) {
+      await supabase.from('notifications').insert({
+        user_id: order.provider_id,
+        title: 'สถานะงานเปลี่ยนแปลง',
+        message: `งาน ${order.tracking_id} เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"`,
+        type: 'order_status',
+        reference_id: order.id,
+        reference_type: 'order'
+      })
+    }
+    
+    // 4. Log activity for Admin
+    await supabase.from('activity_logs').insert({
+      user_id: (await supabase.auth.getUser()).data.user?.id,
+      action: 'order_status_changed',
+      entity_type: 'order',
+      entity_id: order.id,
+      details: {
+        tracking_id: order.tracking_id,
+        old_status: oldStatus,
+        new_status: newStatus,
+        changed_by: 'admin'
+      }
+    })
+    
+    // 5. Trigger real-time update via Supabase Realtime
+    // This will automatically notify all subscribed clients
     
     // Success - reload to ensure consistency
     await loadOrders()
+    
+    console.log(`[OrdersView] Status updated: ${order.tracking_id} from ${oldStatus} to ${newStatus}`)
   } catch (err) {
     console.error('[OrdersView] Error updating status:', err)
     // Rollback on error
