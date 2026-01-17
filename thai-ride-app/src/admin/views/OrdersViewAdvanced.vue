@@ -279,7 +279,7 @@ async function updateOrderStatus(order: Order, newStatus: string) {
   order.status = newStatus
   
   try {
-    // 1. Update order status in database
+    // 1. Update order status in database (CRITICAL - must succeed)
     const { error: updateError } = await supabase
       .from('orders')
       .update({ 
@@ -290,46 +290,62 @@ async function updateOrderStatus(order: Order, newStatus: string) {
     
     if (updateError) throw updateError
     
-    // 2. Create notification for Customer
-    if (order.customer_name) {
-      await supabase.from('notifications').insert({
-        user_id: order.customer_id || null,
-        title: 'สถานะออเดอร์เปลี่ยนแปลง',
-        message: `ออเดอร์ ${order.tracking_id} เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"`,
-        type: 'order_status',
-        reference_id: order.id,
-        reference_type: 'order'
-      })
-    }
-    
-    // 3. Create notification for Provider
-    if (order.provider_id) {
-      await supabase.from('notifications').insert({
-        user_id: order.provider_id,
-        title: 'สถานะงานเปลี่ยนแปลง',
-        message: `งาน ${order.tracking_id} เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"`,
-        type: 'order_status',
-        reference_id: order.id,
-        reference_type: 'order'
-      })
-    }
-    
-    // 4. Log activity for Admin
-    await supabase.from('activity_logs').insert({
-      user_id: (await supabase.auth.getUser()).data.user?.id,
-      action: 'order_status_changed',
-      entity_type: 'order',
-      entity_id: order.id,
-      details: {
-        tracking_id: order.tracking_id,
-        old_status: oldStatus,
-        new_status: newStatus,
-        changed_by: 'admin'
+    // 2. Try to create notification for Customer (OPTIONAL - best effort)
+    if (order.customer_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: order.customer_id,
+          title: 'สถานะออเดอร์เปลี่ยนแปลง',
+          message: `ออเดอร์ ${order.tracking_id} เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"`,
+          type: 'order_status',
+          reference_id: order.id,
+          reference_type: 'order',
+          read: false
+        })
+      } catch (notifError) {
+        console.warn('[OrdersView] Customer notification failed (non-critical):', notifError)
       }
-    })
+    }
     
-    // 5. Trigger real-time update via Supabase Realtime
-    // This will automatically notify all subscribed clients
+    // 3. Try to create notification for Provider (OPTIONAL - best effort)
+    if (order.provider_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: order.provider_id,
+          title: 'สถานะงานเปลี่ยนแปลง',
+          message: `งาน ${order.tracking_id} เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"`,
+          type: 'order_status',
+          reference_id: order.id,
+          reference_type: 'order',
+          read: false
+        })
+      } catch (notifError) {
+        console.warn('[OrdersView] Provider notification failed (non-critical):', notifError)
+      }
+    }
+    
+    // 4. Try to log activity for Admin (OPTIONAL - best effort)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('activity_logs').insert({
+          user_id: user.id,
+          action: 'order_status_changed',
+          entity_type: 'order',
+          entity_id: order.id,
+          details: {
+            tracking_id: order.tracking_id,
+            old_status: oldStatus,
+            new_status: newStatus,
+            changed_by: 'admin'
+          }
+        })
+      }
+    } catch (logError) {
+      console.warn('[OrdersView] Activity log failed (non-critical):', logError)
+    }
+    
+    // 5. Real-time update via Supabase Realtime happens automatically
     
     // Success - reload to ensure consistency
     await loadOrders()
