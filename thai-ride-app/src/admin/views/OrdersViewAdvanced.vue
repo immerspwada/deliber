@@ -1,10 +1,13 @@
 <script setup lang="ts">
 /**
  * Advanced Orders View - Production Ready
- * Features: Reassign provider, bulk actions, real-time updates, analytics
+ * Features: Reassign provider, bulk actions, real-time updates, analytics, map integration
+ * Design: Clean, minimal, no emojis (following design-system.md)
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { supabase } from '../../lib/supabase'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 // Types
 interface Order {
@@ -51,6 +54,8 @@ const showReassignModal = ref(false)
 const showDetailModal = ref(false)
 const showCancelModal = ref(false)
 const showNotesModal = ref(false)
+const showMapModal = ref(false)
+const showBulkModal = ref(false)
 const cancelReason = ref('')
 const orderNotes = ref('')
 const searchQuery = ref('')
@@ -60,6 +65,9 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const totalOrders = ref(0)
 const error = ref<string | null>(null)
+const selectedOrders = ref<Set<string>>(new Set())
+const bulkAction = ref('')
+let map: L.Map | null = null
 
 // Computed
 const filteredOrders = computed(() => {
@@ -86,6 +94,54 @@ const filteredOrders = computed(() => {
 })
 
 const totalPages = computed(() => Math.ceil(totalOrders.value / pageSize.value))
+
+// Analytics computed
+const analytics = computed(() => {
+  const total = orders.value.length
+  const pending = orders.value.filter(o => o.status === 'pending').length
+  const inProgress = orders.value.filter(o => o.status === 'in_progress').length
+  const completed = orders.value.filter(o => o.status === 'completed').length
+  const cancelled = orders.value.filter(o => o.status === 'cancelled').length
+  
+  const totalRevenue = orders.value
+    .filter(o => o.status === 'completed')
+    .reduce((sum, o) => sum + (o.final_amount || 0), 0)
+  
+  const avgOrderValue = completed > 0 ? totalRevenue / completed : 0
+  
+  return {
+    total,
+    pending,
+    inProgress,
+    completed,
+    cancelled,
+    totalRevenue,
+    avgOrderValue,
+    completionRate: total > 0 ? ((completed / total) * 100).toFixed(1) : '0'
+  }
+})
+
+// Bulk selection
+const allSelected = computed(() => {
+  return filteredOrders.value.length > 0 && 
+         filteredOrders.value.every(o => selectedOrders.value.has(o.id))
+})
+
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedOrders.value.clear()
+  } else {
+    filteredOrders.value.forEach(o => selectedOrders.value.add(o.id))
+  }
+}
+
+function toggleSelect(orderId: string) {
+  if (selectedOrders.value.has(orderId)) {
+    selectedOrders.value.delete(orderId)
+  } else {
+    selectedOrders.value.add(orderId)
+  }
+}
 
 // Load orders
 async function loadOrders() {
@@ -189,12 +245,96 @@ async function saveNotes() {
     
     if (error) throw error
     
-    alert('✅ บันทึกโน้ตสำเร็จ!')
+    alert('บันทึกโน้ตสำเร็จ')
     showNotesModal.value = false
     loadOrders()
   } catch (err) {
     console.error('[OrdersView] Error saving notes:', err)
-    alert('❌ เกิดข้อผิดพลาด')
+    alert('เกิดข้อผิดพลาด')
+  } finally {
+    loading.value = false
+  }
+}
+
+// Open map modal
+function openMapModal(order: Order) {
+  selectedOrder.value = order
+  showMapModal.value = true
+  
+  // Initialize map after modal is shown
+  setTimeout(() => {
+    initMap()
+  }, 100)
+}
+
+// Initialize map
+function initMap() {
+  const mapContainer = document.getElementById('order-map')
+  if (!mapContainer || !selectedOrder.value) return
+  
+  // Clear existing map
+  if (map) {
+    map.remove()
+  }
+  
+  // Create map centered on Bangkok
+  map = L.map('order-map').setView([13.7563, 100.5018], 13)
+  
+  // Add tile layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map)
+  
+  // Add markers (mock coordinates for demo)
+  const pickupMarker = L.marker([13.7563, 100.5018])
+    .addTo(map)
+    .bindPopup('<b>จุดรับ</b><br>' + selectedOrder.value.pickup_address)
+  
+  const dropoffMarker = L.marker([13.7463, 100.5318])
+    .addTo(map)
+    .bindPopup('<b>จุดส่ง</b><br>' + selectedOrder.value.dropoff_address)
+  
+  // Fit bounds to show both markers
+  const group = L.featureGroup([pickupMarker, dropoffMarker])
+  map.fitBounds(group.getBounds().pad(0.1))
+}
+
+// Bulk operations
+function openBulkModal() {
+  if (selectedOrders.value.size === 0) {
+    alert('กรุณาเลือกออเดอร์อย่างน้อย 1 รายการ')
+    return
+  }
+  showBulkModal.value = true
+}
+
+async function executeBulkAction() {
+  if (!bulkAction.value || selectedOrders.value.size === 0) return
+  
+  const confirmed = confirm(`ยืนยันการดำเนินการกับ ${selectedOrders.value.size} รายการ?`)
+  if (!confirmed) return
+  
+  loading.value = true
+  try {
+    const orderIds = Array.from(selectedOrders.value)
+    
+    if (bulkAction.value === 'cancel') {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled', notes: 'ยกเลิกโดย Admin (Bulk)' })
+        .in('id', orderIds)
+      
+      if (error) throw error
+    }
+    
+    alert(`ดำเนินการสำเร็จ ${selectedOrders.value.size} รายการ`)
+    showBulkModal.value = false
+    selectedOrders.value.clear()
+    bulkAction.value = ''
+    loadOrders()
+  } catch (err) {
+    console.error('[OrdersView] Bulk action error:', err)
+    alert('เกิดข้อผิดพลาด')
   } finally {
     loading.value = false
   }
@@ -326,6 +466,15 @@ function getServiceIcon(type: string) {
   return icons[type] || '📋'
 }
 
+function getServiceLabel(type: string) {
+  const labels: Record<string, string> = {
+    ride: 'เรียกรถ',
+    delivery: 'จัดส่ง',
+    shopping: 'ช้อปปิ้ง'
+  }
+  return labels[type] || type
+}
+
 function getElapsedTime(createdAt: string, completedAt?: string | null): string {
   const start = new Date(createdAt)
   const end = completedAt ? new Date(completedAt) : new Date()
@@ -394,22 +543,51 @@ watch([currentPage], loadOrders)
 
 <template>
   <div class="orders-advanced">
-    <!-- Header with Summary -->
+    <!-- Analytics Summary -->
+    <div class="analytics-grid">
+      <div class="stat-card">
+        <div class="stat-label">ทั้งหมด</div>
+        <div class="stat-value">{{ analytics.total }}</div>
+      </div>
+      <div class="stat-card stat-pending">
+        <div class="stat-label">รอรับ</div>
+        <div class="stat-value">{{ analytics.pending }}</div>
+      </div>
+      <div class="stat-card stat-progress">
+        <div class="stat-label">กำลังส่ง</div>
+        <div class="stat-value">{{ analytics.inProgress }}</div>
+      </div>
+      <div class="stat-card stat-completed">
+        <div class="stat-label">สำเร็จ</div>
+        <div class="stat-value">{{ analytics.completed }}</div>
+      </div>
+      <div class="stat-card stat-revenue">
+        <div class="stat-label">รายได้รวม</div>
+        <div class="stat-value">฿{{ analytics.totalRevenue.toLocaleString() }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ค่าเฉลี่ย</div>
+        <div class="stat-value">฿{{ analytics.avgOrderValue.toFixed(0) }}</div>
+      </div>
+    </div>
+
+    <!-- Header -->
     <div class="header">
       <div class="header-left">
-        <h1>📋 ออเดอร์ทั้งหมด</h1>
-        <div class="summary-badges">
-          <span class="badge badge-total">{{ totalOrders.toLocaleString() }} รายการ</span>
-          <span class="badge badge-pending">{{ orders.filter(o => o.status === 'pending').length }} รอรับ</span>
-          <span class="badge badge-progress">{{ orders.filter(o => o.status === 'in_progress').length }} กำลังส่ง</span>
-          <span class="badge badge-completed">{{ orders.filter(o => o.status === 'completed').length }} สำเร็จ</span>
-        </div>
-      </div>
-      <div class="header-right">
+        <h1>ออเดอร์ทั้งหมด</h1>
         <div class="auto-refresh-indicator">
           <span class="pulse-dot"></span>
           <span class="refresh-text">Auto-refresh: 30s</span>
         </div>
+      </div>
+      <div class="header-right">
+        <button 
+          v-if="selectedOrders.size > 0"
+          @click="openBulkModal" 
+          class="bulk-btn"
+        >
+          จัดการ {{ selectedOrders.size }} รายการ
+        </button>
         <button @click="loadOrders" class="refresh-btn" :disabled="loading">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'spin': loading }">
             <path d="M23 4v6h-6M1 20v-6h6"/>
@@ -430,26 +608,26 @@ watch([currentPage], loadOrders)
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="🔍 ค้นหา Tracking ID, ชื่อลูกค้า, ผู้ให้บริการ..."
+          placeholder="ค้นหา Tracking ID, ชื่อลูกค้า, ผู้ให้บริการ..."
           class="search-input"
         />
-        <button v-if="searchQuery" @click="searchQuery = ''" class="clear-search">✕</button>
+        <button v-if="searchQuery" @click="searchQuery = ''" class="clear-search">×</button>
       </div>
       
       <select v-model="serviceTypeFilter" class="filter-select">
-        <option value="">📦 ทุกบริการ</option>
-        <option value="ride">🚗 เรียกรถ</option>
-        <option value="delivery">📦 จัดส่ง</option>
-        <option value="shopping">🛒 ช้อปปิ้ง</option>
+        <option value="">ทุกบริการ</option>
+        <option value="ride">เรียกรถ</option>
+        <option value="delivery">จัดส่ง</option>
+        <option value="shopping">ช้อปปิ้ง</option>
       </select>
       
       <select v-model="statusFilter" class="filter-select">
-        <option value="">🔄 ทุกสถานะ</option>
-        <option value="pending">⏳ รอรับ</option>
-        <option value="matched">✅ จับคู่แล้ว</option>
-        <option value="in_progress">🚀 กำลังดำเนินการ</option>
-        <option value="completed">✔️ เสร็จสิ้น</option>
-        <option value="cancelled">❌ ยกเลิก</option>
+        <option value="">ทุกสถานะ</option>
+        <option value="pending">รอรับ</option>
+        <option value="matched">จับคู่แล้ว</option>
+        <option value="in_progress">กำลังดำเนินการ</option>
+        <option value="completed">เสร็จสิ้น</option>
+        <option value="cancelled">ยกเลิก</option>
       </select>
 
       <button 
@@ -457,7 +635,7 @@ watch([currentPage], loadOrders)
         @click="searchQuery = ''; serviceTypeFilter = ''; statusFilter = ''"
         class="clear-filters-btn"
       >
-        🗑️ ล้างตัวกรอง
+        ล้างตัวกรอง
       </button>
     </div>
 
@@ -469,11 +647,11 @@ watch([currentPage], loadOrders)
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
-      <div class="error-icon">⚠️</div>
+      <div class="error-icon">!</div>
       <h3>เกิดข้อผิดพลาด</h3>
       <p class="error-message">{{ error }}</p>
       <button @click="loadOrders" class="retry-btn">
-        🔄 ลองใหม่อีกครั้ง
+        ลองใหม่อีกครั้ง
       </button>
     </div>
 
@@ -487,6 +665,14 @@ watch([currentPage], loadOrders)
       <table class="orders-table">
         <thead>
           <tr>
+            <th class="checkbox-col">
+              <input 
+                type="checkbox" 
+                :checked="allSelected"
+                @change="toggleSelectAll"
+                class="checkbox"
+              />
+            </th>
             <th>บริการ</th>
             <th>Tracking ID</th>
             <th>ลูกค้า</th>
@@ -500,9 +686,22 @@ watch([currentPage], loadOrders)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="order in filteredOrders" :key="order.id" @click="viewOrder(order)">
+          <tr 
+            v-for="order in filteredOrders" 
+            :key="order.id" 
+            @click="viewOrder(order)"
+            :class="{ 'selected-row': selectedOrders.has(order.id) }"
+          >
+            <td class="checkbox-col" @click.stop>
+              <input 
+                type="checkbox" 
+                :checked="selectedOrders.has(order.id)"
+                @change="toggleSelect(order.id)"
+                class="checkbox"
+              />
+            </td>
             <td>
-              <span class="service-icon">{{ getServiceIcon(order.service_type) }}</span>
+              <span class="service-type">{{ getServiceLabel(order.service_type) }}</span>
             </td>
             <td>
               <code class="tracking-id">{{ order.tracking_id }}</code>
@@ -569,17 +768,41 @@ watch([currentPage], loadOrders)
                 :class="{ 'has-notes': order.notes }"
                 :title="order.notes ? 'มีโน้ต - คลิกเพื่อดู/แก้ไข' : 'เพิ่มโน้ต'"
               >
-                {{ order.notes ? '📝' : '➕' }}
+                <svg v-if="order.notes" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
               </button>
             </td>
             <td>
               <div class="actions">
                 <button
+                  @click.stop="openMapModal(order)"
+                  class="action-btn view"
+                  title="ดูแผนที่"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                    <line x1="8" y1="2" x2="8" y2="18"/>
+                    <line x1="16" y1="6" x2="16" y2="22"/>
+                  </svg>
+                </button>
+                <button
                   @click.stop="viewOrder(order)"
                   class="action-btn view"
                   title="ดูรายละเอียด"
                 >
-                  👁️
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
                 </button>
                 <button
                   v-if="order.status === 'pending' || order.status === 'matched'"
@@ -587,7 +810,10 @@ watch([currentPage], loadOrders)
                   class="action-btn reassign"
                   title="ย้ายงาน"
                 >
-                  🔄
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                  </svg>
                 </button>
                 <button
                   v-if="order.status !== 'completed' && order.status !== 'cancelled'"
@@ -595,7 +821,10 @@ watch([currentPage], loadOrders)
                   class="action-btn cancel"
                   title="ยกเลิกออเดอร์"
                 >
-                  ❌
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
                 </button>
               </div>
             </td>
@@ -606,9 +835,68 @@ watch([currentPage], loadOrders)
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <div class="empty-icon">📭</div>
+      <div class="empty-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+      </div>
       <h3>ไม่พบออเดอร์</h3>
       <p>ลองเปลี่ยนเงื่อนไขการค้นหา</p>
+    </div>
+
+    <!-- Map Modal -->
+    <div v-if="showMapModal" class="modal-overlay" @click.self="showMapModal = false">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h2>แผนที่ออเดอร์</h2>
+          <button @click="showMapModal = false" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="order-info">
+            <p><strong>Tracking ID:</strong> {{ selectedOrder?.tracking_id }}</p>
+            <p><strong>จุดรับ:</strong> {{ selectedOrder?.pickup_address }}</p>
+            <p><strong>จุดส่ง:</strong> {{ selectedOrder?.dropoff_address }}</p>
+          </div>
+          <div id="order-map" class="map-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Operations Modal -->
+    <div v-if="showBulkModal" class="modal-overlay" @click.self="showBulkModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>จัดการหลายรายการ</h2>
+          <button @click="showBulkModal = false" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="order-info">
+            <p><strong>จำนวนที่เลือก:</strong> {{ selectedOrders.size }} รายการ</p>
+          </div>
+
+          <div class="form-group">
+            <label>เลือกการดำเนินการ</label>
+            <select v-model="bulkAction" class="form-select">
+              <option value="">-- เลือก --</option>
+              <option value="cancel">ยกเลิกทั้งหมด</option>
+            </select>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="showBulkModal = false" class="btn btn-secondary">
+              ยกเลิก
+            </button>
+            <button
+              @click="executeBulkAction"
+              :disabled="!bulkAction || loading"
+              class="btn btn-danger"
+            >
+              {{ loading ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -897,6 +1185,57 @@ watch([currentPage], loadOrders)
   padding: 24px;
 }
 
+/* Analytics Grid */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+
+.stat-card:hover {
+  border-color: #D1D5DB;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1F2937;
+}
+
+.stat-card.stat-pending {
+  border-left: 3px solid #F59E0B;
+}
+
+.stat-card.stat-progress {
+  border-left: 3px solid #3B82F6;
+}
+
+.stat-card.stat-completed {
+  border-left: 3px solid #10B981;
+}
+
+.stat-card.stat-revenue {
+  border-left: 3px solid #000000;
+}
+
 /* Header */
 .header {
   display: flex;
@@ -904,15 +1243,28 @@ watch([currentPage], loadOrders)
   align-items: center;
   margin-bottom: 24px;
   padding: 24px;
-  background: linear-gradient(135deg, #ffffff, #f9fafb);
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+  color: #1F2937;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .auto-refresh-indicator {
@@ -920,17 +1272,18 @@ watch([currentPage], loadOrders)
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  border-radius: 20px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 600;
-  color: #065f46;
+  font-weight: 500;
+  color: #374151;
 }
 
 .auto-refresh-indicator .pulse-dot {
   width: 8px;
   height: 8px;
-  background: #10b981;
+  background: #10B981;
   border-radius: 50%;
   animation: pulse-green 2s infinite;
 }
@@ -946,62 +1299,19 @@ watch([currentPage], loadOrders)
   }
 }
 
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.header-left h1 {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0;
-  color: #1f2937;
-}
-
-.summary-badges {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.badge {
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
+.bulk-btn {
+  padding: 12px 20px;
+  background: #000000;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
   font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.badge-total {
-  background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
-  color: #3730a3;
-}
-
-.badge-pending {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #92400e;
-}
-
-.badge-progress {
-  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-  color: #1e40af;
-}
-
-.badge-completed {
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  color: #065f46;
-}
-
-.count {
-  padding: 6px 16px;
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  color: #065f46;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 20px;
+.bulk-btn:hover {
+  background: #374151;
 }
 
 .refresh-btn {
@@ -1009,24 +1319,23 @@ watch([currentPage], loadOrders)
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  background: #00a86b;
-  color: #fff;
-  border: none;
-  border-radius: 12px;
+  background: #FFFFFF;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .refresh-btn:hover {
-  background: #059669;
-  transform: translateY(-1px);
+  border-color: #000000;
+  color: #000000;
 }
 
 .refresh-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 .refresh-btn svg.spin {
