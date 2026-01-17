@@ -240,6 +240,24 @@ function formatDate(date: string) {
   })
 }
 
+function formatPhoneNumber(phone: string) {
+  if (!phone) return '-'
+  // Format: 081-234-5678
+  return phone.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+}
+
+function callPhone(phone: string, name: string) {
+  if (!phone) {
+    alert('❌ ไม่มีเบอร์โทรศัพท์')
+    return
+  }
+  
+  const confirmed = confirm(`📞 โทรหา ${name}\nเบอร์: ${formatPhoneNumber(phone)}`)
+  if (confirmed) {
+    window.location.href = `tel:${phone}`
+  }
+}
+
 function getStatusColor(status: string) {
   const colors: Record<string, string> = {
     pending: '#F59E0B',
@@ -269,6 +287,39 @@ function getServiceIcon(type: string) {
     shopping: '🛒'
   }
   return icons[type] || '📋'
+}
+
+function getElapsedTime(createdAt: string, completedAt?: string | null): string {
+  const start = new Date(createdAt)
+  const end = completedAt ? new Date(completedAt) : new Date()
+  const diff = end.getTime() - start.getTime()
+  
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  
+  if (days > 0) return `${days} วัน ${hours % 24} ชม.`
+  if (hours > 0) return `${hours} ชม. ${minutes % 60} นาที`
+  return `${minutes} นาที`
+}
+
+function getTimeStatus(createdAt: string, status: string): { text: string; color: string } {
+  const elapsed = new Date().getTime() - new Date(createdAt).getTime()
+  const minutes = Math.floor(elapsed / 60000)
+  
+  if (status === 'completed' || status === 'cancelled') {
+    return { text: '', color: '' }
+  }
+  
+  if (status === 'pending' && minutes > 10) {
+    return { text: '⚠️ รอนาน', color: '#f59e0b' }
+  }
+  
+  if (status === 'in_progress' && minutes > 60) {
+    return { text: '⚠️ ใช้เวลานาน', color: '#ef4444' }
+  }
+  
+  return { text: '', color: '' }
 }
 
 // Auto-refresh
@@ -404,6 +455,7 @@ watch([currentPage], loadOrders)
             <th>ลูกค้า</th>
             <th>ผู้ให้บริการ</th>
             <th>สถานะ</th>
+            <th>เวลา</th>
             <th>ยอดเงิน</th>
             <th>วันที่</th>
             <th>การจัดการ</th>
@@ -420,13 +472,31 @@ watch([currentPage], loadOrders)
             <td>
               <div class="user-info">
                 <div class="name">{{ order.customer_name || '-' }}</div>
-                <div class="phone">{{ order.customer_phone || '-' }}</div>
+                <div v-if="order.customer_phone" class="phone-with-action">
+                  <span class="phone">{{ formatPhoneNumber(order.customer_phone) }}</span>
+                  <button 
+                    @click.stop="callPhone(order.customer_phone, order.customer_name || 'ลูกค้า')"
+                    class="call-btn"
+                    title="โทรหาลูกค้า"
+                  >
+                    📞
+                  </button>
+                </div>
               </div>
             </td>
             <td>
               <div class="user-info">
                 <div class="name">{{ order.provider_name || 'ยังไม่มี' }}</div>
-                <div class="phone">{{ order.provider_phone || '-' }}</div>
+                <div v-if="order.provider_phone" class="phone-with-action">
+                  <span class="phone">{{ formatPhoneNumber(order.provider_phone) }}</span>
+                  <button 
+                    @click.stop="callPhone(order.provider_phone, order.provider_name || 'ไรเดอร์')"
+                    class="call-btn"
+                    title="โทรหาไรเดอร์"
+                  >
+                    📞
+                  </button>
+                </div>
               </div>
             </td>
             <td>
@@ -439,6 +509,18 @@ watch([currentPage], loadOrders)
               >
                 {{ getStatusLabel(order.status) }}
               </span>
+            </td>
+            <td>
+              <div class="time-info">
+                <div class="elapsed-time">{{ getElapsedTime(order.created_at, order.completed_at) }}</div>
+                <div 
+                  v-if="getTimeStatus(order.created_at, order.status).text"
+                  class="time-warning"
+                  :style="{ color: getTimeStatus(order.created_at, order.status).color }"
+                >
+                  {{ getTimeStatus(order.created_at, order.status).text }}
+                </div>
+              </div>
             </td>
             <td class="amount">{{ formatCurrency(order.final_amount || order.estimated_amount) }}</td>
             <td class="date">{{ formatDate(order.created_at) }}</td>
@@ -587,13 +669,33 @@ watch([currentPage], loadOrders)
             </div>
             <div class="detail-item">
               <label>ลูกค้า</label>
-              <div>{{ selectedOrder?.customer_name }}</div>
-              <div class="phone">{{ selectedOrder?.customer_phone }}</div>
+              <div class="contact-info">
+                <div>{{ selectedOrder?.customer_name }}</div>
+                <div v-if="selectedOrder?.customer_phone" class="phone-with-action">
+                  <span class="phone">{{ formatPhoneNumber(selectedOrder.customer_phone) }}</span>
+                  <button 
+                    @click="callPhone(selectedOrder.customer_phone, selectedOrder.customer_name || 'ลูกค้า')"
+                    class="call-btn-large"
+                  >
+                    📞 โทร
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="detail-item">
               <label>ผู้ให้บริการ</label>
-              <div>{{ selectedOrder?.provider_name || 'ยังไม่มี' }}</div>
-              <div class="phone">{{ selectedOrder?.provider_phone || '-' }}</div>
+              <div class="contact-info">
+                <div>{{ selectedOrder?.provider_name || 'ยังไม่มี' }}</div>
+                <div v-if="selectedOrder?.provider_phone" class="phone-with-action">
+                  <span class="phone">{{ formatPhoneNumber(selectedOrder.provider_phone) }}</span>
+                  <button 
+                    @click="callPhone(selectedOrder.provider_phone, selectedOrder.provider_name || 'ไรเดอร์')"
+                    class="call-btn-large"
+                  >
+                    📞 โทร
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="detail-item">
               <label>จุดรับ</label>
@@ -1110,6 +1212,55 @@ watch([currentPage], loadOrders)
   color: #6b7280;
 }
 
+.phone-with-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.call-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  border: 1px solid #6ee7b7;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.call-btn:hover {
+  background: linear-gradient(135deg, #a7f3d0, #6ee7b7);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.call-btn:active {
+  transform: scale(0.95);
+}
+
+.time-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.elapsed-time {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.time-warning {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .status-badge {
   display: inline-block;
   padding: 6px 12px;
@@ -1434,6 +1585,37 @@ watch([currentPage], loadOrders)
 .detail-item > div {
   font-size: 14px;
   color: #1f2937;
+}
+
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.call-btn-large {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  border: 1px solid #6ee7b7;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #065f46;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.call-btn-large:hover {
+  background: linear-gradient(135deg, #a7f3d0, #6ee7b7);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.call-btn-large:active {
+  transform: translateY(0);
 }
 
 .amount-large {
