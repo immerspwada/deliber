@@ -87,6 +87,16 @@ const menuSections = computed(() => [
     ]
   },
   {
+    title: 'Provider Mode',
+    items: [
+      { path: '/provider', label: 'หน้าหลัก Provider', icon: 'dashboard' },
+      { path: '/provider/orders', label: 'งานของฉัน', icon: 'orders' },
+      { path: '/provider/wallet', label: 'กระเป๋าเงิน', icon: 'wallet' },
+      { path: '/provider/chat', label: 'แชท', icon: 'chat' },
+      { path: '/provider/profile', label: 'โปรไฟล์', icon: 'user' }
+    ]
+  },
+  {
     title: 'บริการ',
     items: [
       { path: '/admin/driver-tracking', label: 'ติดตามคนขับ', icon: 'live' },

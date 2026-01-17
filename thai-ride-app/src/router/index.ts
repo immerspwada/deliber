@@ -111,72 +111,73 @@ export const routes: RouteRecordRaw[] = [
   },
   
   // Provider Routes - New Design (Green Theme)
+  // ✅ Admin can access all provider features
   {
     path: '/provider',
     component: () => import('../components/ProviderLayoutNew.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, requiresProviderAccess: true },
+    meta: { requiresAuth: true, hideNavigation: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] },
     children: [
       {
         path: '',
         name: 'ProviderHome',
         component: () => import('../views/provider/ProviderHomeNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'orders',
         name: 'ProviderOrders',
         component: () => import('../views/provider/ProviderOrdersNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'wallet',
         name: 'ProviderWallet',
         component: () => import('../views/provider/ProviderWalletView.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'chat',
         name: 'ProviderChat',
         component: () => import('../views/provider/ProviderChatNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'profile',
         name: 'ProviderProfile',
         component: () => import('../views/provider/ProviderProfileNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'notifications',
         name: 'ProviderNotificationPreferences',
         component: () => import('../views/provider/NotificationPreferencesView.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       // Job Detail - Step-based routing
       {
         path: 'job/:id',
         name: 'ProviderJobDetail',
         component: () => import('../views/provider/job/ProviderJobLayout.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'job/:id/:step',
         name: 'ProviderJobStep',
         component: () => import('../views/provider/job/ProviderJobLayout.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       // Legacy route (old design)
       {
         path: 'job-legacy/:id',
         name: 'ProviderJobDetailLegacy',
         component: () => import('../views/provider/ProviderJobDetailPro.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       {
         path: 'job-minimal/:id',
         name: 'ProviderJobDetailMinimal',
         component: () => import('../views/provider/ProviderJobDetailMinimal.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
       },
       // Legacy routes (redirect to new)
       {
@@ -643,7 +644,14 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // PHASE 3: Provider routes - check provider access directly from providers_v2 table
+  // ✅ Admin can bypass provider access check
   if (to.meta.requiresProviderAccess && !to.meta.allowWithoutProvider) {
+    // Check if user is admin - admins can access all provider features
+    if (userRole === 'admin' || userRole === 'super_admin') {
+      console.log('[Router] Admin access granted - bypassing provider check')
+      return next()
+    }
+    
     try {
       console.log('[Router] Checking provider access directly from providers_v2...')
       
