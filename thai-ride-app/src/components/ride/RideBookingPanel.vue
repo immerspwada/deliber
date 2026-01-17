@@ -420,12 +420,6 @@ function getVehicleIcon(icon: string): string {
   border-top: 1px solid #f0f0f0;
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-  flex: 1;
-  min-height: 0;
-  max-height: 70vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 14px;
