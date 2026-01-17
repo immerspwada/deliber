@@ -269,22 +269,10 @@ async function updateOrderStatus(order: Order, newStatus: string) {
   
   loading.value = true
   try {
-    const updateData: any = { status: newStatus }
-    
-    // Add timestamps based on status
-    if (newStatus === 'matched') {
-      updateData.matched_at = new Date().toISOString()
-    } else if (newStatus === 'in_progress') {
-      updateData.started_at = new Date().toISOString()
-    } else if (newStatus === 'completed') {
-      updateData.completed_at = new Date().toISOString()
-    } else if (newStatus === 'cancelled') {
-      updateData.cancelled_at = new Date().toISOString()
-    }
-    
+    // Simple status update only
     const { error } = await supabase
       .from('orders')
-      .update(updateData)
+      .update({ status: newStatus })
       .eq('id', order.id)
     
     if (error) throw error
@@ -293,7 +281,7 @@ async function updateOrderStatus(order: Order, newStatus: string) {
     loadOrders()
   } catch (err) {
     console.error('[OrdersView] Error updating status:', err)
-    alert('เกิดข้อผิดพลาด')
+    alert('เกิดข้อผิดพลาด: ' + (err instanceof Error ? err.message : 'Unknown error'))
     loadOrders()
   } finally {
     loading.value = false
