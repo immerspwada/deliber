@@ -25,6 +25,8 @@ interface Order {
   distance_km: number | null
   created_at: string
   priority: string
+  notes: string | null
+  completed_at?: string | null
 }
 
 interface Provider {
@@ -48,7 +50,9 @@ const selectedProvider = ref<string | null>(null)
 const showReassignModal = ref(false)
 const showDetailModal = ref(false)
 const showCancelModal = ref(false)
+const showNotesModal = ref(false)
 const cancelReason = ref('')
+const orderNotes = ref('')
 const searchQuery = ref('')
 const statusFilter = ref('')
 const serviceTypeFilter = ref('')
@@ -161,6 +165,39 @@ function openCancelModal(order: Order) {
   selectedOrder.value = order
   cancelReason.value = ''
   showCancelModal.value = true
+}
+
+// Open notes modal
+function openNotesModal(order: Order) {
+  selectedOrder.value = order
+  orderNotes.value = order.notes || ''
+  showNotesModal.value = true
+}
+
+// Save notes
+async function saveNotes() {
+  if (!selectedOrder.value) return
+  
+  loading.value = true
+  try {
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        notes: orderNotes.value || null
+      })
+      .eq('id', selectedOrder.value.id)
+    
+    if (error) throw error
+    
+    alert('✅ บันทึกโน้ตสำเร็จ!')
+    showNotesModal.value = false
+    loadOrders()
+  } catch (err) {
+    console.error('[OrdersView] Error saving notes:', err)
+    alert('❌ เกิดข้อผิดพลาด')
+  } finally {
+    loading.value = false
+  }
 }
 
 // Cancel order
@@ -458,6 +495,7 @@ watch([currentPage], loadOrders)
             <th>เวลา</th>
             <th>ยอดเงิน</th>
             <th>วันที่</th>
+            <th>โน้ต</th>
             <th>การจัดการ</th>
           </tr>
         </thead>
@@ -524,6 +562,16 @@ watch([currentPage], loadOrders)
             </td>
             <td class="amount">{{ formatCurrency(order.final_amount || order.estimated_amount) }}</td>
             <td class="date">{{ formatDate(order.created_at) }}</td>
+            <td>
+              <button
+                @click.stop="openNotesModal(order)"
+                class="notes-indicator"
+                :class="{ 'has-notes': order.notes }"
+                :title="order.notes ? 'มีโน้ต - คลิกเพื่อดู/แก้ไข' : 'เพิ่มโน้ต'"
+              >
+                {{ order.notes ? '📝' : '➕' }}
+              </button>
+            </td>
             <td>
               <div class="actions">
                 <button
@@ -715,6 +763,21 @@ watch([currentPage], loadOrders)
               <label>ระยะทาง</label>
               <div>{{ selectedOrder?.distance_km?.toFixed(1) || '-' }} km</div>
             </div>
+            <div class="detail-item full-width">
+              <label>โน้ต</label>
+              <div class="notes-display">
+                <div v-if="selectedOrder?.notes" class="notes-content">
+                  {{ selectedOrder.notes }}
+                </div>
+                <div v-else class="no-notes">ไม่มีโน้ต</div>
+                <button 
+                  @click="showDetailModal = false; openNotesModal(selectedOrder!)"
+                  class="edit-notes-btn"
+                >
+                  {{ selectedOrder?.notes ? '✏️ แก้ไขโน้ต' : '➕ เพิ่มโน้ต' }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="modal-actions">
@@ -775,6 +838,50 @@ watch([currentPage], loadOrders)
               class="btn btn-danger"
             >
               {{ loading ? 'กำลังยกเลิก...' : '✓ ยืนยันยกเลิกออเดอร์' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes Modal -->
+    <div v-if="showNotesModal" class="modal-overlay" @click.self="showNotesModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>📝 โน้ตออเดอร์</h2>
+          <button @click="showNotesModal = false" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="order-info">
+            <p><strong>Tracking ID:</strong> {{ selectedOrder?.tracking_id }}</p>
+            <p><strong>ลูกค้า:</strong> {{ selectedOrder?.customer_name }}</p>
+            <p><strong>สถานะ:</strong> {{ getStatusLabel(selectedOrder?.status || '') }}</p>
+          </div>
+
+          <div class="form-group">
+            <label>โน้ต / บันทึกเพิ่มเติม</label>
+            <textarea
+              v-model="orderNotes"
+              class="form-textarea"
+              placeholder="เพิ่มโน้ตหรือบันทึกเพิ่มเติมสำหรับออเดอร์นี้..."
+              rows="6"
+              autofocus
+            ></textarea>
+            <div class="notes-hint">
+              💡 โน้ตนี้จะถูกบันทึกไว้สำหรับการอ้างอิงภายในของ Admin เท่านั้น
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="showNotesModal = false" class="btn btn-secondary">
+              ยกเลิก
+            </button>
+            <button
+              @click="saveNotes"
+              :disabled="loading"
+              class="btn btn-primary"
+            >
+              {{ loading ? 'กำลังบันทึก...' : '✓ บันทึกโน้ต' }}
             </button>
           </div>
         </div>
@@ -1575,6 +1682,10 @@ watch([currentPage], loadOrders)
   gap: 8px;
 }
 
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
 .detail-item label {
   font-size: 12px;
   font-weight: 600;
@@ -1713,6 +1824,91 @@ watch([currentPage], loadOrders)
 .form-textarea:focus {
   border-color: #00a86b;
   outline: none;
+}
+
+.notes-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.notes-indicator {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.notes-indicator:hover {
+  border-color: #00a86b;
+  background: #f0fdf4;
+  transform: scale(1.1);
+}
+
+.notes-indicator.has-notes {
+  border-style: solid;
+  border-color: #fbbf24;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+}
+
+.notes-indicator.has-notes:hover {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fde68a, #fcd34d);
+  transform: scale(1.1);
+}
+
+.notes-display {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-content {
+  padding: 12px 16px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #92400e;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.no-notes {
+  padding: 12px 16px;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.edit-notes-btn {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+
+.edit-notes-btn:hover {
+  background: linear-gradient(135deg, #fde68a, #fcd34d);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
 }
 
 /* Responsive */
