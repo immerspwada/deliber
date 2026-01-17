@@ -55,6 +55,7 @@ const serviceTypeFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const totalOrders = ref(0)
+const error = ref<string | null>(null)
 
 // Computed
 const filteredOrders = computed(() => {
@@ -85,19 +86,24 @@ const totalPages = computed(() => Math.ceil(totalOrders.value / pageSize.value))
 // Load orders
 async function loadOrders() {
   loading.value = true
+  error.value = null
+  
   try {
-    const { data, error, count } = await supabase
+    const { data, error: fetchError, count } = await supabase
       .from('orders_view')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value - 1)
     
-    if (error) throw error
+    if (fetchError) throw fetchError
     
     orders.value = data || []
     totalOrders.value = count || 0
   } catch (err) {
     console.error('[OrdersView] Error loading orders:', err)
+    error.value = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
+    orders.value = []
+    totalOrders.value = 0
   } finally {
     loading.value = false
   }
@@ -265,9 +271,34 @@ function getServiceIcon(type: string) {
   return icons[type] || '📋'
 }
 
+// Auto-refresh
+const autoRefreshInterval = ref<NodeJS.Timeout | null>(null)
+const lastRefreshTime = ref<Date>(new Date())
+
+function startAutoRefresh() {
+  if (autoRefreshInterval.value) return
+  
+  autoRefreshInterval.value = setInterval(() => {
+    loadOrders()
+    lastRefreshTime.value = new Date()
+  }, 30000) // 30 seconds
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshInterval.value) {
+    clearInterval(autoRefreshInterval.value)
+    autoRefreshInterval.value = null
+  }
+}
+
 // Lifecycle
 onMounted(() => {
   loadOrders()
+  startAutoRefresh()
+})
+
+onUnmounted(() => {
+  stopAutoRefresh()
 })
 
 watch([currentPage], loadOrders)
@@ -286,13 +317,19 @@ watch([currentPage], loadOrders)
           <span class="badge badge-completed">{{ orders.filter(o => o.status === 'completed').length }} สำเร็จ</span>
         </div>
       </div>
-      <button @click="loadOrders" class="refresh-btn" :disabled="loading">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'spin': loading }">
-          <path d="M23 4v6h-6M1 20v-6h6"/>
-          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-        </svg>
-        {{ loading ? 'กำลังโหลด...' : 'รีเฟรช' }}
-      </button>
+      <div class="header-right">
+        <div class="auto-refresh-indicator">
+          <span class="pulse-dot"></span>
+          <span class="refresh-text">Auto-refresh: 30s</span>
+        </div>
+        <button @click="loadOrders" class="refresh-btn" :disabled="loading">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'spin': loading }">
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+          </svg>
+          {{ loading ? 'กำลังโหลด...' : 'รีเฟรช' }}
+        </button>
+      </div>
     </div>
 
     <!-- Filters -->
@@ -337,13 +374,28 @@ watch([currentPage], loadOrders)
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="loading">
+    <div v-if="loading && orders.length === 0" class="loading">
       <div class="spinner"></div>
       <p>กำลังโหลดข้อมูล...</p>
     </div>
 
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <div class="error-icon">⚠️</div>
+      <h3>เกิดข้อผิดพลาด</h3>
+      <p class="error-message">{{ error }}</p>
+      <button @click="loadOrders" class="retry-btn">
+        🔄 ลองใหม่อีกครั้ง
+      </button>
+    </div>
+
     <!-- Orders Table -->
     <div v-else-if="filteredOrders.length > 0" class="table-container">
+      <!-- Loading Overlay -->
+      <div v-if="loading" class="loading-overlay">
+        <div class="spinner-small"></div>
+        <span>กำลังอัพเดท...</span>
+      </div>
       <table class="orders-table">
         <thead>
           <tr>
@@ -648,6 +700,43 @@ watch([currentPage], loadOrders)
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.auto-refresh-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #065f46;
+}
+
+.auto-refresh-indicator .pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
 .header-left {
   display: flex;
   flex-direction: column;
@@ -872,10 +961,86 @@ watch([currentPage], loadOrders)
 
 /* Table */
 .table-container {
+  position: relative;
   background: #fff;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 10;
+  backdrop-filter: blur(2px);
+}
+
+.spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #00a86b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.error-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.error-state h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 12px 0;
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 14px;
+  margin: 0 0 24px 0;
+  padding: 12px 20px;
+  background: #fee2e2;
+  border-radius: 8px;
+  max-width: 500px;
+}
+
+.retry-btn {
+  padding: 12px 24px;
+  background: #00a86b;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retry-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
 }
 
 .orders-table {
