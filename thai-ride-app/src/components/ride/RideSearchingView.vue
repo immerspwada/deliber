@@ -55,6 +55,7 @@ function formatTime(seconds: number): string {
 
 <style scoped>
 .searching-view {
+  /* ✅ CRITICAL FIX: Allow scrolling when content overflows */
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -62,6 +63,8 @@ function formatTime(seconds: number): string {
   justify-content: center;
   background: #fff;
   padding: 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .searching-content {
