@@ -322,12 +322,17 @@ const goToHome = () => {
 
 .main-content {
   flex: 1;
-  padding-bottom: 90px;
+  /* ✅ CRITICAL FIX: Allow scrolling */
+  overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 90px;
 }
 
 .main-content.full-screen {
   padding-bottom: 0;
+  /* ✅ CRITICAL: Full screen pages handle their own scrolling */
+  overflow: visible;
 }
 
 .main-content.no-bottom-nav {

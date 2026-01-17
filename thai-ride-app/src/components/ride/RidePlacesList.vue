@@ -208,10 +208,11 @@ function getIconPath(icon: string): string {
 <style scoped>
 .places-container {
   padding: 12px 16px;
+  /* ✅ CRITICAL FIX: Allow natural flow instead of fixed height */
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* ✅ Remove overflow to allow parent to handle scrolling */
+  overflow: visible;
   -webkit-overflow-scrolling: touch;
 }
 

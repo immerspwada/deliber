@@ -491,9 +491,8 @@ onMounted(async () => {
 .map-wrapper {
   position: relative;
   width: 100%;
-  /* CRITICAL FIX: Ensure wrapper has height */
-  height: 100%;
-  min-height: 500px;
+  /* ✅ CRITICAL FIX: Set reasonable height instead of 100% */
+  height: 320px;
   border-radius: 16px;
   overflow: hidden;
   background-color: #f5f5f5;

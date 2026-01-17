@@ -391,10 +391,16 @@ onMounted(() => {
 
 <style scoped>
 .ride-page {
+  /* ✅ CRITICAL FIX: Use flex layout instead of fixed positioning */
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
   background: #f5f5f5;
-  padding-bottom: env(safe-area-inset-bottom);
+  /* ✅ CRITICAL: Enable scrolling */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   /* Ensure page allows clicks */
   pointer-events: auto;
 }
@@ -402,15 +408,17 @@ onMounted(() => {
 .select-view {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 120px);
-  min-height: calc(100dvh - 120px);
+  /* ✅ FIX: Allow content to flow naturally */
+  flex: 1;
+  min-height: 0;
   /* Ensure view allows clicks */
   pointer-events: auto;
 }
 
 .step-view {
-  min-height: calc(100vh - 120px);
-  min-height: calc(100dvh - 120px);
+  /* ✅ FIX: Allow content to flow naturally */
+  flex: 1;
+  min-height: 0;
 }
 
 .map-section {
@@ -418,6 +426,8 @@ onMounted(() => {
   background: #fff;
   border-bottom: 1px solid #f0f0f0;
   position: relative;
+  /* ✅ FIX: Set reasonable height for map section */
+  height: auto;
   /* Ensure map section doesn't block clicks */
   pointer-events: auto;
 }

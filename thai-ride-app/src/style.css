@@ -55,9 +55,12 @@ body {
   background-color: var(--color-background);
   color: var(--color-text-primary);
   line-height: 1.5;
+  /* ✅ CRITICAL FIX: Allow vertical scrolling */
   overflow-x: hidden;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
+  /* ✅ CRITICAL FIX: Allow overscroll for pull-to-refresh */
+  overscroll-behavior-y: auto;
 }
 
 @supports (height: 100dvh) {
