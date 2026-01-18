@@ -1,28 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../../lib/supabase'
-import type { ProviderV2 } from '../../types/database'
+import { useAdminProviders, type AdminProvider } from '../../admin/composables/useAdminProviders'
 
-interface Provider {
-  id: string
-  user_id: string
-  provider_uid: string | null
-  first_name: string
-  last_name: string
-  email: string
-  phone_number: string | null
-  service_types: string[]
-  status: string
-  created_at: string
-  documents: Record<string, unknown>
-  vehicle_type: string | null
-  vehicle_plate: string | null
-  national_id: string | null
-}
+// Use the admin providers composable
+const {
+  loading,
+  providers,
+  pendingProviders,
+  fetchProviders,
+  approveProvider: approveProviderComposable,
+  rejectProvider: rejectProviderComposable,
+  getFullName,
+  formatDate: formatDateComposable,
+  getProviderTypeLabel
+} = useAdminProviders()
 
-const providers = ref<Provider[]>([])
-const loading = ref(true)
-const error = ref<string | null>(null)
+// Local state
 const actionLoading = ref<string | null>(null)
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
 
@@ -31,10 +25,12 @@ const selectedIds = ref<Set<string>>(new Set())
 
 // Modal state
 const showDetailModal = ref(false)
-const selectedProvider = ref<Provider | null>(null)
+const selectedProvider = ref<AdminProvider | null>(null)
+const approvalNotes = ref('')
 const rejectionReason = ref('')
 const showRejectModal = ref(false)
-const rejectingProviderId = ref<string | null>(null)
+const showApproveModal = ref(false)
+const actionProviderId = ref<string | null>(null)
 
 // Filters
 const selectedServiceType = ref<string>('all')
@@ -46,17 +42,14 @@ const serviceTypes = [
   { value: 'ride', label: 'รถรับส่ง' },
   { value: 'delivery', label: 'จัดส่งสินค้า' },
   { value: 'shopping', label: 'ช้อปปิ้ง' },
-  { value: 'moving', label: 'ขนย้าย' },
-  { value: 'laundry', label: 'ซักรีด' },
+  { value: 'all', label: 'ทั้งหมด' },
 ]
 
 const filteredProviders = computed(() => {
-  let result = [...providers.value]
+  let result = [...pendingProviders.value]
 
   if (selectedServiceType.value !== 'all') {
-    result = result.filter((p) =>
-      p.service_types.includes(selectedServiceType.value)
-    )
+    result = result.filter((p) => p.provider_type === selectedServiceType.value)
   }
 
   if (searchQuery.value) {
@@ -79,7 +72,7 @@ const filteredProviders = computed(() => {
   return result
 })
 
-const pendingCount = computed(() => providers.value.length)
+const pendingCount = computed(() => pendingProviders.value.length)
 const selectedCount = computed(() => selectedIds.value.size)
 const allSelected = computed(() => 
   filteredProviders.value.length > 0 && 
@@ -98,40 +91,7 @@ onUnmounted(() => {
 })
 
 async function loadProviders(): Promise<void> {
-  loading.value = true
-  error.value = null
-
-  try {
-    const { data: providersData, error: providersError } = await supabase
-      .from('providers_v2')
-      .select('*')
-      .in('status', ['pending', 'pending_verification'])
-      .order('created_at', { ascending: true })
-
-    if (providersError) throw providersError
-
-    providers.value = (providersData || []).map((provider: ProviderV2) => ({
-      id: provider.id,
-      user_id: provider.user_id,
-      provider_uid: provider.provider_uid,
-      first_name: provider.first_name || 'ไม่ระบุ',
-      last_name: provider.last_name || '',
-      email: provider.email || 'ไม่ระบุ',
-      phone_number: provider.phone_number,
-      service_types: provider.service_types || [],
-      status: provider.status,
-      created_at: provider.created_at || new Date().toISOString(),
-      documents: (provider.documents as Record<string, unknown>) || {},
-      vehicle_type: provider.vehicle_type,
-      vehicle_plate: provider.vehicle_plate,
-      national_id: provider.national_id,
-    }))
-  } catch (err: unknown) {
-    console.error('Error loading providers:', err)
-    error.value = (err as Error).message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
-  } finally {
-    loading.value = false
-  }
+  await fetchProviders({ status: 'pending', limit: 100 })
 }
 
 function setupRealtimeSubscription(): void {
@@ -161,61 +121,57 @@ function toggleSelectAll(): void {
   selectedIds.value = new Set(selectedIds.value)
 }
 
-async function approveProvider(providerId: string): Promise<void> {
-  actionLoading.value = providerId
+function openApproveModal(providerId: string): void {
+  actionProviderId.value = providerId
+  approvalNotes.value = ''
+  showApproveModal.value = true
+}
+
+async function confirmApprove(): Promise<void> {
+  if (!actionProviderId.value) return
+  
+  actionLoading.value = actionProviderId.value
   try {
-    const { error: updateError } = await supabase
-      .from('providers_v2')
-      .update({ status: 'approved', approved_at: new Date().toISOString() })
-      .eq('id', providerId)
-
-    if (updateError) throw updateError
+    const result = await approveProviderComposable(actionProviderId.value, approvalNotes.value)
     
-    const provider = providers.value.find(p => p.id === providerId)
-    if (provider?.user_id) {
-      await supabase
-        .from('users')
-        .update({ role: 'provider', is_also_provider: true })
-        .eq('id', provider.user_id)
+    if (result.success) {
+      await loadProviders()
+      showApproveModal.value = false
+      showDetailModal.value = false
+      selectedIds.value.delete(actionProviderId.value)
     }
-
-    await loadProviders()
-    showDetailModal.value = false
   } catch (err: unknown) {
     console.error('Error approving provider:', err)
-    alert('เกิดข้อผิดพลาด: ' + (err as Error).message)
   } finally {
     actionLoading.value = null
+    actionProviderId.value = null
   }
 }
 
 function openRejectModal(providerId: string): void {
-  rejectingProviderId.value = providerId
+  actionProviderId.value = providerId
   rejectionReason.value = ''
   showRejectModal.value = true
 }
 
 async function confirmReject(): Promise<void> {
-  if (!rejectingProviderId.value) return
+  if (!actionProviderId.value || !rejectionReason.value.trim()) return
   
-  actionLoading.value = rejectingProviderId.value
+  actionLoading.value = actionProviderId.value
   try {
-    const { error: updateError } = await supabase
-      .from('providers_v2')
-      .update({ status: 'rejected', suspension_reason: rejectionReason.value || 'ไม่ผ่านการตรวจสอบ' })
-      .eq('id', rejectingProviderId.value)
-
-    if (updateError) throw updateError
-
-    await loadProviders()
-    showRejectModal.value = false
-    showDetailModal.value = false
+    const result = await rejectProviderComposable(actionProviderId.value, rejectionReason.value)
+    
+    if (result.success) {
+      await loadProviders()
+      showRejectModal.value = false
+      showDetailModal.value = false
+      selectedIds.value.delete(actionProviderId.value)
+    }
   } catch (err: unknown) {
     console.error('Error rejecting provider:', err)
-    alert('เกิดข้อผิดพลาด: ' + (err as Error).message)
   } finally {
     actionLoading.value = null
-    rejectingProviderId.value = null
+    actionProviderId.value = null
   }
 }
 
@@ -226,23 +182,15 @@ async function bulkApprove(): Promise<void> {
   actionLoading.value = 'bulk'
   try {
     const ids = Array.from(selectedIds.value)
-    const { error: updateError } = await supabase
-      .from('providers_v2')
-      .update({ status: 'approved', approved_at: new Date().toISOString() })
-      .in('id', ids)
-
-    if (updateError) throw updateError
-
-    const providerUserIds = providers.value.filter(p => ids.includes(p.id)).map(p => p.user_id).filter(Boolean)
-    if (providerUserIds.length > 0) {
-      await supabase.from('users').update({ role: 'provider', is_also_provider: true }).in('id', providerUserIds)
+    
+    for (const id of ids) {
+      await approveProviderComposable(id, 'อนุมัติแบบกลุ่ม')
     }
 
     selectedIds.value.clear()
     await loadProviders()
   } catch (err: unknown) {
     console.error('Error bulk approving:', err)
-    alert('เกิดข้อผิดพลาด: ' + (err as Error).message)
   } finally {
     actionLoading.value = null
   }
@@ -251,39 +199,32 @@ async function bulkApprove(): Promise<void> {
 async function bulkReject(): Promise<void> {
   if (selectedIds.value.size === 0) return
   const reason = prompt('ระบุเหตุผลในการปฏิเสธ:')
-  if (reason === null) return
+  if (reason === null || !reason.trim()) return
 
   actionLoading.value = 'bulk'
   try {
     const ids = Array.from(selectedIds.value)
-    const { error: updateError } = await supabase
-      .from('providers_v2')
-      .update({ status: 'rejected', suspension_reason: reason || 'ไม่ผ่านการตรวจสอบ' })
-      .in('id', ids)
-
-    if (updateError) throw updateError
+    
+    for (const id of ids) {
+      await rejectProviderComposable(id, reason)
+    }
 
     selectedIds.value.clear()
     await loadProviders()
   } catch (err: unknown) {
     console.error('Error bulk rejecting:', err)
-    alert('เกิดข้อผิดพลาด: ' + (err as Error).message)
   } finally {
     actionLoading.value = null
   }
 }
 
-function viewProviderDetails(provider: Provider): void {
+function viewProviderDetails(provider: AdminProvider): void {
   selectedProvider.value = provider
   showDetailModal.value = true
 }
 
 function getServiceTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    ride: 'รถรับส่ง', delivery: 'จัดส่งสินค้า', shopping: 'ช้อปปิ้ง',
-    moving: 'ขนย้าย', laundry: 'ซักรีด',
-  }
-  return labels[type] || type
+  return getProviderTypeLabel(type)
 }
 
 function formatDate(dateString: string): string {
@@ -296,10 +237,6 @@ function formatDate(dateString: string): string {
   if (diffDays === 1) return 'เมื่อวาน'
   if (diffDays < 7) return `${diffDays} วันที่แล้ว`
   return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-function getDocumentCount(docs: Record<string, unknown>): number {
-  return Object.keys(docs || {}).length
 }
 </script>
 
@@ -363,12 +300,6 @@ function getDocumentCount(docs: Record<string, unknown>): number {
       <p class="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
     </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
-      <p class="text-red-600">{{ error }}</p>
-      <button type="button" @click="loadProviders" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">ลองใหม่</button>
-    </div>
-
     <!-- Empty -->
     <div v-else-if="filteredProviders.length === 0" class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -394,20 +325,16 @@ function getDocumentCount(docs: Record<string, unknown>): number {
             <div class="grid grid-cols-2 gap-4 mb-3 text-sm text-gray-600">
               <p><span class="font-medium">อีเมล:</span> {{ provider.email }}</p>
               <p><span class="font-medium">เบอร์โทร:</span> {{ provider.phone_number || 'ไม่ระบุ' }}</p>
-              <p v-if="provider.vehicle_type"><span class="font-medium">ประเภทรถ:</span> {{ provider.vehicle_type }}</p>
-              <p v-if="provider.vehicle_plate"><span class="font-medium">ทะเบียน:</span> {{ provider.vehicle_plate }}</p>
-            </div>
-            <div class="flex flex-wrap gap-2 mb-3">
-              <span v-for="type in provider.service_types" :key="type" class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">{{ getServiceTypeLabel(type) }}</span>
-              <span v-if="provider.service_types.length === 0" class="text-sm text-gray-400">ยังไม่ได้เลือกบริการ</span>
+              <p><span class="font-medium">ประเภทบริการ:</span> {{ getServiceTypeLabel(provider.provider_type) }}</p>
+              <p><span class="font-medium">คะแนน:</span> {{ provider.rating.toFixed(1) }} ⭐</p>
             </div>
             <div class="flex items-center text-sm text-gray-600 mb-4">
               <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <span>เอกสาร: {{ getDocumentCount(provider.documents) }} รายการ</span>
+              <span>เอกสาร: {{ provider.documents_verified ? 'ตรวจสอบแล้ว' : 'รอตรวจสอบ' }}</span>
             </div>
             <div class="flex gap-3">
               <button type="button" @click="viewProviderDetails(provider)" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">ดูรายละเอียด</button>
-              <button type="button" @click="approveProvider(provider.id)" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">{{ actionLoading === provider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}</button>
+              <button type="button" @click="openApproveModal(provider.id)" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">{{ actionLoading === provider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}</button>
               <button type="button" @click="openRejectModal(provider.id)" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">ปฏิเสธ</button>
             </div>
           </div>
@@ -417,7 +344,7 @@ function getDocumentCount(docs: Record<string, unknown>): number {
 
     <!-- Detail Modal -->
     <div v-if="showDetailModal && selectedProvider" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div class="p-6 border-b border-gray-200">
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold text-gray-900">รายละเอียดผู้ให้บริการ</h2>
@@ -427,43 +354,119 @@ function getDocumentCount(docs: Record<string, unknown>): number {
           </div>
         </div>
         <div class="p-6 space-y-6">
+          <!-- Personal Information -->
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3">ข้อมูลส่วนตัว</h3>
             <div class="grid grid-cols-2 gap-4 text-sm">
-              <div><span class="text-gray-500">ชื่อ:</span> {{ selectedProvider.first_name }} {{ selectedProvider.last_name }}</div>
-              <div><span class="text-gray-500">อีเมล:</span> {{ selectedProvider.email }}</div>
-              <div><span class="text-gray-500">เบอร์โทร:</span> {{ selectedProvider.phone_number || 'ไม่ระบุ' }}</div>
-              <div><span class="text-gray-500">บัตรประชาชน:</span> {{ selectedProvider.national_id || 'ไม่ระบุ' }}</div>
-            </div>
-          </div>
-          <div v-if="selectedProvider.vehicle_type || selectedProvider.vehicle_plate">
-            <h3 class="text-lg font-semibold text-gray-900 mb-3">ข้อมูลยานพาหนะ</h3>
-            <div class="grid grid-cols-2 gap-4 text-sm">
-              <div><span class="text-gray-500">ประเภท:</span> {{ selectedProvider.vehicle_type || 'ไม่ระบุ' }}</div>
-              <div><span class="text-gray-500">ทะเบียน:</span> {{ selectedProvider.vehicle_plate || 'ไม่ระบุ' }}</div>
-            </div>
-          </div>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-3">บริการที่ลงทะเบียน</h3>
-            <div class="flex flex-wrap gap-2">
-              <span v-for="type in selectedProvider.service_types" :key="type" class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">{{ getServiceTypeLabel(type) }}</span>
-              <span v-if="selectedProvider.service_types.length === 0" class="text-gray-400">ยังไม่ได้เลือกบริการ</span>
-            </div>
-          </div>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-3">เอกสาร</h3>
-            <div v-if="getDocumentCount(selectedProvider.documents) > 0" class="grid grid-cols-2 gap-4">
-              <div v-for="(url, docType) in selectedProvider.documents" :key="String(docType)" class="border border-gray-200 rounded-lg p-3">
-                <p class="text-sm font-medium text-gray-700 mb-2">{{ docType }}</p>
-                <a :href="String(url)" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-sm">ดูเอกสาร</a>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <span class="text-gray-500 block mb-1">ชื่อ-นามสกุล</span>
+                <span class="font-medium">{{ getFullName(selectedProvider) }}</span>
+              </div>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <span class="text-gray-500 block mb-1">อีเมล</span>
+                <span class="font-medium">{{ selectedProvider.email }}</span>
+              </div>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <span class="text-gray-500 block mb-1">เบอร์โทร</span>
+                <span class="font-medium">{{ selectedProvider.phone_number || 'ไม่ระบุ' }}</span>
+              </div>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <span class="text-gray-500 block mb-1">ประเภทบริการ</span>
+                <span class="font-medium">{{ getServiceTypeLabel(selectedProvider.provider_type) }}</span>
               </div>
             </div>
-            <p v-else class="text-gray-400">ไม่มีเอกสาร</p>
+          </div>
+
+          <!-- Statistics -->
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">สถิติ</h3>
+            <div class="grid grid-cols-3 gap-4">
+              <div class="bg-blue-50 p-4 rounded-lg text-center">
+                <p class="text-2xl font-bold text-blue-600">{{ selectedProvider.total_trips }}</p>
+                <p class="text-sm text-gray-600 mt-1">งานทั้งหมด</p>
+              </div>
+              <div class="bg-green-50 p-4 rounded-lg text-center">
+                <p class="text-2xl font-bold text-green-600">{{ selectedProvider.rating.toFixed(1) }}</p>
+                <p class="text-sm text-gray-600 mt-1">คะแนนเฉลี่ย</p>
+              </div>
+              <div class="bg-purple-50 p-4 rounded-lg text-center">
+                <p class="text-2xl font-bold text-purple-600">฿{{ selectedProvider.total_earnings.toLocaleString() }}</p>
+                <p class="text-sm text-gray-600 mt-1">รายได้รวม</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Document Verification Status -->
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">สถานะเอกสาร</h3>
+            <div class="flex items-center gap-3 p-4 rounded-lg" :class="selectedProvider.documents_verified ? 'bg-green-50' : 'bg-yellow-50'">
+              <svg v-if="selectedProvider.documents_verified" class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <svg v-else class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <div>
+                <p class="font-medium" :class="selectedProvider.documents_verified ? 'text-green-900' : 'text-yellow-900'">
+                  {{ selectedProvider.documents_verified ? 'เอกสารตรวจสอบแล้ว' : 'รอตรวจสอบเอกสาร' }}
+                </p>
+                <p class="text-sm" :class="selectedProvider.documents_verified ? 'text-green-700' : 'text-yellow-700'">
+                  {{ selectedProvider.documents_verified ? 'เอกสารครบถ้วนและถูกต้อง' : 'กรุณาตรวจสอบเอกสารก่อนอนุมัติ' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Verification Notes -->
+          <div v-if="selectedProvider.verification_notes">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">หมายเหตุการตรวจสอบ</h3>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-700">{{ selectedProvider.verification_notes }}</p>
+            </div>
+          </div>
+
+          <!-- Registration Date -->
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">ข้อมูลการลงทะเบียน</h3>
+            <div class="bg-gray-50 p-3 rounded-lg text-sm">
+              <span class="text-gray-500">วันที่สมัคร: </span>
+              <span class="font-medium">{{ formatDateComposable(selectedProvider.created_at) }}</span>
+            </div>
           </div>
         </div>
         <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button type="button" @click="approveProvider(selectedProvider.id)" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">{{ actionLoading === selectedProvider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}</button>
-          <button type="button" @click="openRejectModal(selectedProvider.id)" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">ปฏิเสธ</button>
+          <button type="button" @click="openApproveModal(selectedProvider.id)" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+            {{ actionLoading === selectedProvider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}
+          </button>
+          <button type="button" @click="openRejectModal(selectedProvider.id)" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">
+            ปฏิเสธ
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approve Modal with Notes -->
+    <div v-if="showApproveModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl max-w-md w-full">
+        <div class="p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">อนุมัติผู้ให้บริการ</h2>
+          <p class="text-gray-600 mb-4">คุณสามารถเพิ่มหมายเหตุเกี่ยวกับการอนุมัติ (ไม่บังคับ)</p>
+          <label for="approval-notes" class="sr-only">หมายเหตุการอนุมัติ</label>
+          <textarea 
+            id="approval-notes" 
+            v-model="approvalNotes" 
+            placeholder="เช่น: เอกสารครบถ้วน ตรวจสอบแล้วถูกต้อง..." 
+            rows="4" 
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+          ></textarea>
+        </div>
+        <div class="p-6 border-t border-gray-200 flex gap-3">
+          <button type="button" @click="showApproveModal = false" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">
+            ยกเลิก
+          </button>
+          <button type="button" @click="confirmApprove" :disabled="actionLoading === actionProviderId" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+            {{ actionLoading === actionProviderId ? 'กำลังดำเนินการ...' : 'ยืนยันอนุมัติ' }}
+          </button>
         </div>
       </div>
     </div>
@@ -473,12 +476,32 @@ function getDocumentCount(docs: Record<string, unknown>): number {
       <div class="bg-white rounded-2xl max-w-md w-full">
         <div class="p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-4">ปฏิเสธผู้ให้บริการ</h2>
+          <p class="text-gray-600 mb-4">กรุณาระบุเหตุผลในการปฏิเสธ (บังคับ)</p>
           <label for="rejection-reason" class="sr-only">เหตุผลในการปฏิเสธ</label>
-          <textarea id="rejection-reason" v-model="rejectionReason" placeholder="ระบุเหตุผลในการปฏิเสธ..." rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"></textarea>
+          <textarea 
+            id="rejection-reason" 
+            v-model="rejectionReason" 
+            placeholder="เช่น: เอกสารไม่ครบถ้วน, ข้อมูลไม่ถูกต้อง..." 
+            rows="4" 
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
+            required
+          ></textarea>
+          <p v-if="rejectionReason.trim().length > 0 && rejectionReason.trim().length < 10" class="text-sm text-red-600 mt-2">
+            กรุณาระบุเหตุผลอย่างน้อย 10 ตัวอักษร
+          </p>
         </div>
         <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button type="button" @click="showRejectModal = false" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">ยกเลิก</button>
-          <button type="button" @click="confirmReject" :disabled="actionLoading === rejectingProviderId" class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">{{ actionLoading === rejectingProviderId ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}</button>
+          <button type="button" @click="showRejectModal = false" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">
+            ยกเลิก
+          </button>
+          <button 
+            type="button" 
+            @click="confirmReject" 
+            :disabled="actionLoading === actionProviderId || rejectionReason.trim().length < 10" 
+            class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            {{ actionLoading === actionProviderId ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}
+          </button>
         </div>
       </div>
     </div>

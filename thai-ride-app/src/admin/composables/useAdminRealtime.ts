@@ -19,7 +19,7 @@ export type ServiceTable =
   | 'queue_bookings'
   | 'moving_requests'
   | 'laundry_requests'
-  | 'service_providers'
+  | 'providers_v2'
   | 'users'
   | 'user_wallets'
   | 'wallet_transactions'
@@ -138,7 +138,7 @@ export function useAdminRealtime() {
    */
   function subscribeToProviders(onChange: (table: string, eventType: string, payload: any) => void): void {
     subscribe({
-      tables: ['service_providers'],
+      tables: ['providers_v2'],
       onChange,
       debounceMs: 500
     })
@@ -214,7 +214,7 @@ export function useAdminRealtime() {
       queue_bookings: 'จองคิว',
       moving_requests: 'ขนย้าย',
       laundry_requests: 'ซักผ้า',
-      service_providers: 'ผู้ให้บริการ',
+      providers_v2: 'ผู้ให้บริการ',
       users: 'ผู้ใช้',
       user_wallets: 'กระเป๋าเงิน',
       wallet_transactions: 'ธุรกรรม',

@@ -1,275 +1,96 @@
 <script setup lang="ts">
+/**
+ * Admin Scheduled Rides View
+ * ===========================
+ * จัดการการจองล่วงหน้าทั้งหมดในระบบ
+ * 
+ * Updated to use useAdminScheduledRides composable with RPC functions
+ */
 import { ref, onMounted, watch, computed } from 'vue'
-import { supabase } from '../../lib/supabase'
+import { useAdminScheduledRides, type ScheduledRide } from '@/admin/composables/useAdminScheduledRides'
 import { useAdminUIStore } from '../stores/adminUI.store'
-
-interface ScheduledRide {
-  id: string
-  user_id: string
-  customer_name: string
-  customer_phone: string
-  pickup_address: string
-  pickup_lat: number
-  pickup_lng: number
-  destination_address: string
-  destination_lat: number
-  destination_lng: number
-  scheduled_datetime: string
-  ride_type: string
-  estimated_fare: number | null
-  notes: string | null
-  reminder_sent: boolean
-  status: string
-  ride_request_id: string | null
-  passenger_count: number
-  special_requests: string | null
-  created_at: string
-  updated_at: string
-}
-
-type ScheduledRideStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'expired'
 
 const uiStore = useAdminUIStore()
 
-const rides = ref<ScheduledRide[]>([])
-const totalRides = ref(0)
+// Use composable
+const {
+  loading,
+  scheduledRides,
+  totalCount,
+  error,
+  upcomingRides,
+  todayRides,
+  assignedRides,
+  unassignedRides,
+  fetchScheduledRides,
+  fetchCount,
+  formatCurrency,
+  formatDate,
+  formatDateOnly,
+  formatTimeOnly,
+  getTimeUntil,
+  isRideSoon,
+  getStatusColor,
+  getStatusLabel
+} = useAdminScheduledRides()
+
+// Pagination state
 const currentPage = ref(1)
 const pageSize = ref(20)
-const totalPages = ref(0)
-const statusFilter = ref('')
-const dateFilter = ref<'all' | 'today' | 'tomorrow' | 'week'>('all')
+const totalPages = computed(() => Math.ceil(totalCount.value / pageSize.value))
+
+// Filter state
+const dateFromFilter = ref<string>('')
+const dateToFilter = ref<string>('')
+
+// UI state
 const selectedRide = ref<ScheduledRide | null>(null)
 const showDetailModal = ref(false)
-const showStatusModal = ref(false)
-const showCancelModal = ref(false)
-const newStatus = ref<ScheduledRideStatus>('scheduled')
-const cancelReason = ref('')
-const loadError = ref<string | null>(null)
-const isLoading = ref(false)
-const isUpdating = ref(false)
 
-// Stats
-const stats = ref({
-  total: 0,
-  scheduled: 0,
-  confirmed: 0,
-  completed: 0,
-  cancelled: 0
-})
-
-// Computed
-const upcomingRides = computed(() => {
-  const now = new Date()
-  return rides.value.filter(r => 
-    new Date(r.scheduled_datetime) > now && 
-    !['cancelled', 'completed', 'expired'].includes(r.status)
-  ).length
-})
-
-async function loadRides() {
-  isLoading.value = true
-  loadError.value = null
+// Computed filters
+const filters = computed(() => {
+  const dateFrom = dateFromFilter.value ? new Date(dateFromFilter.value) : new Date()
+  const dateTo = dateToFilter.value ? new Date(dateToFilter.value) : null
   
-  try {
-    const offset = (currentPage.value - 1) * pageSize.value
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('get_all_scheduled_rides_for_admin', {
-      p_status: statusFilter.value || null,
-      p_limit: pageSize.value,
-      p_offset: offset
-    })
-
-    if (error) throw error
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: countData, error: countError } = await (supabase.rpc as any)('count_scheduled_rides_for_admin', {
-      p_status: statusFilter.value || null
-    })
-
-    if (countError) throw countError
-
-    rides.value = data || []
-    totalRides.value = countData || 0
-    totalPages.value = Math.ceil(totalRides.value / pageSize.value)
-    
-    // Load stats
-    await loadStats()
-  } catch (err) {
-    loadError.value = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
-    console.error('[ScheduledRides] Load error:', err)
-  } finally {
-    isLoading.value = false
+  return {
+    dateFrom,
+    dateTo,
+    limit: pageSize.value,
+    offset: (currentPage.value - 1) * pageSize.value
   }
-}
+})
 
-async function loadStats() {
+// Stats computed from composable
+const stats = computed(() => ({
+  total: totalCount.value,
+  upcoming: upcomingRides.value.length,
+  today: todayRides.value.length,
+  assigned: assignedRides.value.length,
+  unassigned: unassignedRides.value.length
+}))
+
+// Initialize date from filter to today
+onMounted(() => {
+  const today = new Date()
+  dateFromFilter.value = today.toISOString().split('T')[0]
+})
+
+// Load scheduled rides with error handling
+async function loadRides() {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('get_scheduled_rides_stats')
-    
-    if (error) throw error
-    
-    if (data) {
-      stats.value = {
-        total: data.total || 0,
-        scheduled: data.scheduled || 0,
-        confirmed: data.confirmed || 0,
-        completed: data.completed || 0,
-        cancelled: data.cancelled || 0
-      }
-    }
+    await fetchScheduledRides(filters.value)
+    await fetchCount({
+      dateFrom: filters.value.dateFrom,
+      dateTo: filters.value.dateTo
+    })
   } catch (err) {
-    console.error('[ScheduledRides] Stats error:', err)
+    console.error('[ScheduledRidesView] Load error:', err)
   }
 }
 
 function viewRide(ride: ScheduledRide) {
   selectedRide.value = ride
   showDetailModal.value = true
-}
-
-function openStatusModal(ride: ScheduledRide) {
-  selectedRide.value = ride
-  newStatus.value = ride.status as ScheduledRideStatus
-  showStatusModal.value = true
-}
-
-function openCancelModal(ride: ScheduledRide) {
-  selectedRide.value = ride
-  cancelReason.value = ''
-  showCancelModal.value = true
-}
-
-async function updateStatus() {
-  if (!selectedRide.value || isUpdating.value) return
-  
-  isUpdating.value = true
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('admin_update_scheduled_ride_status', {
-      p_ride_id: selectedRide.value.id,
-      p_new_status: newStatus.value
-    })
-
-    if (error) throw error
-    
-    if (data?.success) {
-      uiStore.showSuccess('อัพเดทสถานะเรียบร้อย')
-      showStatusModal.value = false
-      showDetailModal.value = false
-      await loadRides()
-    } else {
-      throw new Error(data?.error || 'Failed to update status')
-    }
-  } catch (err) {
-    uiStore.showError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
-  } finally {
-    isUpdating.value = false
-  }
-}
-
-async function cancelRide() {
-  if (!selectedRide.value || isUpdating.value) return
-  
-  isUpdating.value = true
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('admin_cancel_scheduled_ride', {
-      p_ride_id: selectedRide.value.id,
-      p_reason: cancelReason.value || 'ยกเลิกโดย Admin'
-    })
-
-    if (error) throw error
-    
-    if (data?.success) {
-      uiStore.showSuccess('ยกเลิกการจองเรียบร้อย')
-      showCancelModal.value = false
-      showDetailModal.value = false
-      await loadRides()
-    } else {
-      throw new Error(data?.error || 'Failed to cancel ride')
-    }
-  } catch (err) {
-    uiStore.showError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
-  } finally {
-    isUpdating.value = false
-  }
-}
-
-async function sendReminder(ride: ScheduledRide) {
-  try {
-    // Create notification for user
-    const { error } = await supabase.from('user_notifications').insert({
-      user_id: ride.user_id,
-      type: 'ride',
-      title: 'แจ้งเตือนการจองล่วงหน้า',
-      message: `การจองของคุณในวันที่ ${formatDate(ride.scheduled_datetime)} กำลังจะถึงเวลา`,
-      data: { scheduled_ride_id: ride.id }
-    })
-    
-    if (error) throw error
-    
-    // Update reminder_sent flag
-    await supabase
-      .from('scheduled_rides')
-      .update({ reminder_sent: true })
-      .eq('id', ride.id)
-    
-    uiStore.showSuccess('ส่งการแจ้งเตือนเรียบร้อย')
-    await loadRides()
-  } catch (err) {
-    uiStore.showError('ไม่สามารถส่งการแจ้งเตือนได้')
-  }
-}
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('th-TH', {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  })
-}
-
-function formatRelativeTime(date: string) {
-  const now = new Date()
-  const target = new Date(date)
-  const diff = target.getTime() - now.getTime()
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(hours / 24)
-  
-  if (diff < 0) return 'ผ่านไปแล้ว'
-  if (days > 0) return `อีก ${days} วัน`
-  if (hours > 0) return `อีก ${hours} ชม.`
-  return 'เร็วๆ นี้'
-}
-
-function formatCurrency(amount: number | null) {
-  if (amount === null) return '-'
-  return new Intl.NumberFormat('th-TH', {
-    style: 'currency', currency: 'THB', minimumFractionDigits: 0
-  }).format(amount)
-}
-
-function getStatusColor(s: string) {
-  const colors: Record<string, string> = {
-    scheduled: '#F59E0B',
-    confirmed: '#3B82F6', 
-    completed: '#10B981',
-    cancelled: '#EF4444',
-    expired: '#6B7280'
-  }
-  return colors[s] || '#6B7280'
-}
-
-function getStatusLabel(s: string) {
-  const labels: Record<string, string> = {
-    scheduled: 'รอดำเนินการ',
-    confirmed: 'ยืนยันแล้ว',
-    completed: 'เสร็จสิ้น',
-    cancelled: 'ยกเลิก',
-    expired: 'หมดอายุ'
-  }
-  return labels[s] || s
 }
 
 function getRideTypeLabel(type: string) {
@@ -286,10 +107,42 @@ function isUpcoming(date: string) {
   return new Date(date) > new Date()
 }
 
-watch([statusFilter, dateFilter], () => { 
+// Set date range presets
+function setDateRange(preset: 'today' | 'tomorrow' | 'week' | 'month') {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  switch (preset) {
+    case 'today':
+      dateFromFilter.value = today.toISOString().split('T')[0]
+      const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      dateToFilter.value = todayEnd.toISOString().split('T')[0]
+      break
+    case 'tomorrow':
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      dateFromFilter.value = tomorrow.toISOString().split('T')[0]
+      const tomorrowEnd = new Date(tomorrow.getTime() + 24 * 60 * 60 * 1000)
+      dateToFilter.value = tomorrowEnd.toISOString().split('T')[0]
+      break
+    case 'week':
+      dateFromFilter.value = today.toISOString().split('T')[0]
+      const weekEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+      dateToFilter.value = weekEnd.toISOString().split('T')[0]
+      break
+    case 'month':
+      dateFromFilter.value = today.toISOString().split('T')[0]
+      const monthEnd = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+      dateToFilter.value = monthEnd.toISOString().split('T')[0]
+      break
+  }
+}
+
+// Watch for filter changes
+watch([dateFromFilter, dateToFilter], () => {
   currentPage.value = 1
-  loadRides() 
+  loadRides()
 })
+
 watch(currentPage, loadRides)
 
 onMounted(() => {
@@ -304,11 +157,24 @@ onMounted(() => {
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">การจองล่วงหน้า</h1>
-        <span class="total-count">{{ totalRides.toLocaleString() }} รายการ</span>
+        <span class="total-count">{{ totalCount.toLocaleString() }} รายการ</span>
       </div>
       <div class="header-right">
-        <button class="refresh-btn" @click="loadRides" :disabled="isLoading" aria-label="รีเฟรช">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ spinning: isLoading }">
+        <button 
+          class="refresh-btn" 
+          @click="loadRides" 
+          :disabled="loading" 
+          aria-label="รีเฟรช"
+        >
+          <svg 
+            width="18" 
+            height="18" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2" 
+            :class="{ spinning: loading }"
+          >
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
         </button>
@@ -325,54 +191,91 @@ onMounted(() => {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon pending">⏳</div>
+        <div class="stat-icon upcoming">⏰</div>
         <div class="stat-content">
-          <div class="stat-value">{{ stats.scheduled }}</div>
-          <div class="stat-label">รอดำเนินการ</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon confirmed">✅</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ stats.confirmed }}</div>
-          <div class="stat-label">ยืนยันแล้ว</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon upcoming">🚗</div>
-        <div class="stat-content">
-          <div class="stat-value">{{ upcomingRides }}</div>
+          <div class="stat-value">{{ stats.upcoming }}</div>
           <div class="stat-label">กำลังจะถึง</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon today">📆</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stats.today }}</div>
+          <div class="stat-label">วันนี้</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon assigned">✅</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stats.assigned }}</div>
+          <div class="stat-label">มอบหมายแล้ว</div>
         </div>
       </div>
     </div>
 
-    <!-- Filters -->
+    <!-- Date Range Filters -->
     <div class="filters-bar">
-      <select v-model="statusFilter" class="filter-select">
-        <option value="">ทุกสถานะ</option>
-        <option value="scheduled">รอดำเนินการ</option>
-        <option value="confirmed">ยืนยันแล้ว</option>
-        <option value="completed">เสร็จสิ้น</option>
-        <option value="cancelled">ยกเลิก</option>
-        <option value="expired">หมดอายุ</option>
-      </select>
+      <div class="filter-group">
+        <label class="filter-label">ช่วงเวลา:</label>
+        <div class="date-presets">
+          <button 
+            class="preset-btn" 
+            @click="setDateRange('today')"
+          >
+            วันนี้
+          </button>
+          <button 
+            class="preset-btn" 
+            @click="setDateRange('tomorrow')"
+          >
+            พรุ่งนี้
+          </button>
+          <button 
+            class="preset-btn" 
+            @click="setDateRange('week')"
+          >
+            7 วัน
+          </button>
+          <button 
+            class="preset-btn" 
+            @click="setDateRange('month')"
+          >
+            30 วัน
+          </button>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">จาก:</label>
+        <input 
+          type="date" 
+          v-model="dateFromFilter" 
+          class="date-input"
+        />
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">ถึง:</label>
+        <input 
+          type="date" 
+          v-model="dateToFilter" 
+          class="date-input"
+        />
+      </div>
     </div>
 
     <!-- Table -->
     <div class="table-container">
-      <div v-if="loadError" class="error-state">
+      <div v-if="error" class="error-state">
         <div class="error-icon">⚠️</div>
         <h3>เกิดข้อผิดพลาด</h3>
-        <p class="error-message">{{ loadError }}</p>
+        <p class="error-message">{{ error }}</p>
         <button class="btn btn-primary" @click="loadRides">ลองใหม่</button>
       </div>
 
-      <div v-else-if="isLoading" class="loading-state">
+      <div v-else-if="loading" class="loading-state">
         <div class="skeleton" v-for="i in 8" :key="i"/>
       </div>
 
-      <table v-else-if="rides.length > 0" class="data-table">
+      <table v-else-if="scheduledRides.length > 0" class="data-table">
         <thead>
           <tr>
             <th>เวลานัดหมาย</th>
@@ -381,16 +284,31 @@ onMounted(() => {
             <th>ประเภท</th>
             <th>ค่าโดยสาร</th>
             <th>สถานะ</th>
+            <th>ผู้ให้บริการ</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ride in rides" :key="ride.id" @click="viewRide(ride)" :class="{ 'upcoming-row': isUpcoming(ride.scheduled_datetime) && ride.status === 'scheduled' }">
+          <tr 
+            v-for="ride in scheduledRides" 
+            :key="ride.id" 
+            @click="viewRide(ride)" 
+            :class="{ 
+              'upcoming-row': isUpcoming(ride.scheduled_datetime) && ride.status === 'pending',
+              'soon-row': isRideSoon(ride.scheduled_datetime)
+            }"
+          >
             <td>
               <div class="datetime-cell">
                 <div class="date">{{ formatDate(ride.scheduled_datetime) }}</div>
-                <div class="relative-time" :class="{ 'text-warning': isUpcoming(ride.scheduled_datetime) }">
-                  {{ formatRelativeTime(ride.scheduled_datetime) }}
+                <div 
+                  class="relative-time" 
+                  :class="{ 
+                    'text-warning': isRideSoon(ride.scheduled_datetime),
+                    'text-danger': isUpcoming(ride.scheduled_datetime) && isRideSoon(ride.scheduled_datetime)
+                  }"
+                >
+                  {{ getTimeUntil(ride.scheduled_datetime) }}
                 </div>
               </div>
             </td>
@@ -409,21 +327,31 @@ onMounted(() => {
             </td>
             <td class="amount">{{ formatCurrency(ride.estimated_fare) }}</td>
             <td>
-              <span class="status-badge" :style="{ color: getStatusColor(ride.status), background: getStatusColor(ride.status) + '20' }">
+              <span 
+                class="status-badge" 
+                :style="{ 
+                  color: getStatusColor(ride.status), 
+                  background: getStatusColor(ride.status) + '20' 
+                }"
+              >
                 {{ getStatusLabel(ride.status) }}
               </span>
             </td>
             <td>
+              <div v-if="ride.provider_name" class="provider-cell">
+                <div class="provider-name">{{ ride.provider_name }}</div>
+                <div class="provider-phone">{{ ride.provider_phone || '-' }}</div>
+              </div>
+              <span v-else class="text-muted">ยังไม่มอบหมาย</span>
+            </td>
+            <td>
               <div class="action-buttons">
                 <button 
-                  v-if="ride.status === 'scheduled' && !ride.reminder_sent" 
-                  class="action-btn reminder-btn" 
-                  @click.stop="sendReminder(ride)"
-                  title="ส่งการแจ้งเตือน"
+                  class="action-btn" 
+                  @click.stop="viewRide(ride)" 
+                  title="ดูรายละเอียด"
+                  aria-label="ดูรายละเอียด"
                 >
-                  🔔
-                </button>
-                <button class="action-btn" @click.stop="viewRide(ride)" title="ดูรายละเอียด">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
                   </svg>
@@ -436,15 +364,29 @@ onMounted(() => {
 
       <div v-else class="empty-state">
         <div class="empty-icon">📅</div>
-        <p>ไม่พบการจองล่วงหน้า</p>
+        <p>ไม่พบการจองล่วงหน้าในช่วงเวลาที่เลือก</p>
       </div>
     </div>
 
     <!-- Pagination -->
     <div v-if="totalPages > 1" class="pagination">
-      <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">ก่อนหน้า</button>
+      <button 
+        class="page-btn" 
+        :disabled="currentPage === 1" 
+        @click="currentPage--"
+        aria-label="หน้าก่อนหน้า"
+      >
+        ก่อนหน้า
+      </button>
       <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-      <button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++">ถัดไป</button>
+      <button 
+        class="page-btn" 
+        :disabled="currentPage === totalPages" 
+        @click="currentPage++"
+        aria-label="หน้าถัดไป"
+      >
+        ถัดไป
+      </button>
     </div>
 
     <!-- Detail Modal -->
@@ -452,17 +394,39 @@ onMounted(() => {
       <div class="modal">
         <div class="modal-header">
           <h2>รายละเอียดการจอง</h2>
-          <button class="close-btn" @click="showDetailModal = false" aria-label="ปิด">&times;</button>
+          <button 
+            class="close-btn" 
+            @click="showDetailModal = false" 
+            aria-label="ปิด"
+          >
+            &times;
+          </button>
         </div>
         <div class="modal-body">
           <div class="detail-grid">
+            <div class="detail-item">
+              <label>Tracking ID</label>
+              <span class="tracking-id">{{ selectedRide.tracking_id }}</span>
+            </div>
             <div class="detail-item">
               <label>เวลานัดหมาย</label>
               <span>{{ formatDate(selectedRide.scheduled_datetime) }}</span>
             </div>
             <div class="detail-item">
+              <label>เหลือเวลา</label>
+              <span :class="{ 'text-warning': isRideSoon(selectedRide.scheduled_datetime) }">
+                {{ getTimeUntil(selectedRide.scheduled_datetime) }}
+              </span>
+            </div>
+            <div class="detail-item">
               <label>สถานะ</label>
-              <span class="status-badge" :style="{ color: getStatusColor(selectedRide.status), background: getStatusColor(selectedRide.status) + '20' }">
+              <span 
+                class="status-badge" 
+                :style="{ 
+                  color: getStatusColor(selectedRide.status), 
+                  background: getStatusColor(selectedRide.status) + '20' 
+                }"
+              >
                 {{ getStatusLabel(selectedRide.status) }}
               </span>
             </div>
@@ -471,32 +435,59 @@ onMounted(() => {
               <span>{{ selectedRide.customer_name || 'ไม่ระบุ' }}</span>
             </div>
             <div class="detail-item">
+              <label>อีเมล</label>
+              <span>{{ selectedRide.customer_email || '-' }}</span>
+            </div>
+            <div class="detail-item">
               <label>เบอร์โทร</label>
               <span>{{ selectedRide.customer_phone || '-' }}</span>
             </div>
+            <div class="detail-item">
+              <label>จำนวนผู้โดยสาร</label>
+              <span>{{ selectedRide.passenger_count }} คน</span>
+            </div>
             <div class="detail-item full-width">
               <label>จุดรับ</label>
-              <span>{{ selectedRide.pickup_address }}</span>
+              <span>📍 {{ selectedRide.pickup_address }}</span>
             </div>
             <div class="detail-item full-width">
               <label>จุดหมาย</label>
-              <span>{{ selectedRide.destination_address }}</span>
+              <span>🎯 {{ selectedRide.destination_address }}</span>
             </div>
             <div class="detail-item">
               <label>ประเภทรถ</label>
               <span>{{ getRideTypeLabel(selectedRide.ride_type) }}</span>
             </div>
             <div class="detail-item">
-              <label>จำนวนผู้โดยสาร</label>
-              <span>{{ selectedRide.passenger_count }} คน</span>
-            </div>
-            <div class="detail-item">
               <label>ค่าโดยสารโดยประมาณ</label>
               <span class="amount">{{ formatCurrency(selectedRide.estimated_fare) }}</span>
             </div>
             <div class="detail-item">
-              <label>แจ้งเตือนแล้ว</label>
+              <label>ส่งการแจ้งเตือนแล้ว</label>
               <span>{{ selectedRide.reminder_sent ? '✅ ใช่' : '❌ ยัง' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>สร้างเมื่อ</label>
+              <span>{{ formatDate(selectedRide.created_at) }}</span>
+            </div>
+          </div>
+          
+          <!-- Provider Info (if assigned) -->
+          <div v-if="selectedRide.provider_name" class="provider-section">
+            <h3>ผู้ให้บริการ</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <label>ชื่อ</label>
+                <span>{{ selectedRide.provider_name }}</span>
+              </div>
+              <div class="detail-item">
+                <label>เบอร์โทร</label>
+                <span>{{ selectedRide.provider_phone || '-' }}</span>
+              </div>
+              <div class="detail-item" v-if="selectedRide.provider_rating">
+                <label>คะแนน</label>
+                <span>⭐ {{ selectedRide.provider_rating.toFixed(1) }}</span>
+              </div>
             </div>
           </div>
           
@@ -511,77 +502,8 @@ onMounted(() => {
           </div>
           
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showDetailModal = false">ปิด</button>
-            <button 
-              v-if="!['completed', 'cancelled', 'expired'].includes(selectedRide.status)" 
-              class="btn btn-danger" 
-              @click="openCancelModal(selectedRide)"
-            >
-              ยกเลิก
-            </button>
-            <button 
-              v-if="!['completed', 'cancelled', 'expired'].includes(selectedRide.status)" 
-              class="btn btn-primary" 
-              @click="openStatusModal(selectedRide)"
-            >
-              เปลี่ยนสถานะ
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Status Modal -->
-    <div v-if="showStatusModal" class="modal-overlay" @click.self="showStatusModal = false">
-      <div class="modal modal-sm">
-        <div class="modal-header">
-          <h2>เปลี่ยนสถานะ</h2>
-          <button class="close-btn" @click="showStatusModal = false" aria-label="ปิด">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="new-status">สถานะใหม่</label>
-            <select id="new-status" v-model="newStatus" class="form-select">
-              <option value="scheduled">รอดำเนินการ</option>
-              <option value="confirmed">ยืนยันแล้ว</option>
-              <option value="completed">เสร็จสิ้น</option>
-              <option value="cancelled">ยกเลิก</option>
-              <option value="expired">หมดอายุ</option>
-            </select>
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showStatusModal = false" :disabled="isUpdating">ยกเลิก</button>
-            <button class="btn btn-primary" @click="updateStatus" :disabled="isUpdating">
-              {{ isUpdating ? 'กำลังบันทึก...' : 'บันทึก' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cancel Modal -->
-    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
-      <div class="modal modal-sm">
-        <div class="modal-header">
-          <h2>ยกเลิกการจอง</h2>
-          <button class="close-btn" @click="showCancelModal = false" aria-label="ปิด">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p class="confirm-text">คุณต้องการยกเลิกการจองนี้หรือไม่?</p>
-          <div class="form-group">
-            <label for="cancel-reason">เหตุผล (ไม่บังคับ)</label>
-            <textarea 
-              id="cancel-reason"
-              v-model="cancelReason" 
-              class="form-textarea" 
-              rows="3" 
-              placeholder="ระบุเหตุผลในการยกเลิก..."
-            ></textarea>
-          </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showCancelModal = false" :disabled="isUpdating">ไม่</button>
-            <button class="btn btn-danger" @click="cancelRide" :disabled="isUpdating">
-              {{ isUpdating ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก' }}
+            <button class="btn btn-secondary" @click="showDetailModal = false">
+              ปิด
             </button>
           </div>
         </div>
@@ -612,14 +534,21 @@ onMounted(() => {
 .stat-icon.total { background: #e0f2fe; }
 .stat-icon.pending { background: #fef3c7; }
 .stat-icon.confirmed { background: #d1fae5; }
-.stat-icon.upcoming { background: #ede9fe; }
+.stat-icon.today { background: #fef3c7; }
+.stat-icon.assigned { background: #d1fae5; }
 .stat-content { flex: 1; }
 .stat-value { font-size: 24px; font-weight: 700; color: #1f2937; }
 .stat-label { font-size: 13px; color: #6b7280; }
 
 /* Filters */
-.filters-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-.filter-select { padding: 12px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; min-width: 160px; }
+.filters-bar { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-label { font-size: 14px; font-weight: 500; color: #374151; white-space: nowrap; }
+.date-presets { display: flex; gap: 8px; }
+.preset-btn { padding: 8px 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; cursor: pointer; transition: all 0.2s; color: #6b7280; }
+.preset-btn:hover { background: #f9fafb; border-color: #00a86b; color: #00a86b; }
+.preset-btn.active { background: #00a86b; border-color: #00a86b; color: #fff; }
+.date-input { padding: 8px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; min-width: 140px; }
 
 /* Table */
 .table-container { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -634,13 +563,20 @@ onMounted(() => {
 .data-table tbody tr:hover { background: #f9fafb; }
 .data-table tbody tr.upcoming-row { background: #fffbeb; }
 .data-table tbody tr.upcoming-row:hover { background: #fef3c7; }
+.data-table tbody tr.soon-row { background: #fee2e2; }
+.data-table tbody tr.soon-row:hover { background: #fecaca; }
 
 .datetime-cell .date { font-weight: 500; color: #1f2937; }
 .datetime-cell .relative-time { font-size: 12px; color: #6b7280; }
 .datetime-cell .relative-time.text-warning { color: #f59e0b; font-weight: 500; }
+.datetime-cell .relative-time.text-danger { color: #ef4444; font-weight: 600; }
 
 .customer-cell .customer-name { font-weight: 500; color: #1f2937; }
 .customer-cell .customer-phone { font-size: 12px; color: #6b7280; }
+
+.provider-cell .provider-name { font-weight: 500; color: #1f2937; }
+.provider-cell .provider-phone { font-size: 12px; color: #6b7280; }
+.text-muted { color: #9ca3af; font-size: 13px; }
 
 .route-cell .pickup, .route-cell .destination { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .route-cell .pickup { color: #059669; margin-bottom: 2px; }
@@ -683,6 +619,10 @@ onMounted(() => {
 .detail-item.full-width { grid-column: span 2; }
 .detail-item label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; }
 .detail-item span { font-size: 14px; color: #1f2937; }
+.detail-item .tracking-id { font-family: 'Courier New', monospace; font-weight: 600; color: #00a86b; }
+
+.provider-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb; }
+.provider-section h3 { font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; }
 
 .notes-section { margin-bottom: 20px; }
 .notes-section label { font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 8px; }

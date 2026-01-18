@@ -1,6 +1,12 @@
 /**
  * Centralized Error Handler Composable
  * ใช้สำหรับจัดการ error ทั่วทั้งแอป
+ * 
+ * Features:
+ * - Automatic retry with exponential backoff
+ * - Network error detection
+ * - User-friendly error messages
+ * - Retry button for recoverable errors
  */
 import { ref, readonly } from 'vue'
 import { 
@@ -17,16 +23,23 @@ interface ErrorState {
   hasError: boolean
   error: AppError | null
   retryCount: number
+  canRetry: boolean
+  retryCallback: (() => Promise<void>) | null
 }
 
 // Simple toast notification function (can be replaced with a proper toast library)
 function useToast() {
-  const showError = (message: string): void => {
+  const showError = (message: string, options?: { action?: { label: string; onClick: () => void } }): void => {
     console.error('[Toast Error]', message)
     // In a real app, this would show a toast notification
     // For now, we'll use console.error and could show an alert in development
     if (import.meta.env.DEV) {
       // Could show browser notification or use a toast library
+    }
+    
+    // If there's a retry action, log it
+    if (options?.action) {
+      console.log('[Toast Action]', options.action.label)
     }
   }
 
@@ -42,13 +55,15 @@ export function useErrorHandler() {
   const errorState = ref<ErrorState>({
     hasError: false,
     error: null,
-    retryCount: 0
+    retryCount: 0,
+    canRetry: false,
+    retryCallback: null
   })
 
   /**
    * Handle any error and show appropriate user message
    */
-  function handleError(error: unknown, context?: string): AppError {
+  function handle(error: unknown, context?: string, retryCallback?: () => Promise<void>): AppError {
     console.error(`[ErrorHandler${context ? ` - ${context}` : ''}]`, error)
     
     let appError: AppError
@@ -74,11 +89,32 @@ export function useErrorHandler() {
       appError = createAppError(ErrorCode.UNKNOWN, String(error))
     }
 
+    // Check if error is recoverable
+    const canRetry = isRecoverableError(appError)
+
     // Update error state
     errorState.value = {
       hasError: true,
       error: appError,
-      retryCount: errorState.value.retryCount + 1
+      retryCount: errorState.value.retryCount + 1,
+      canRetry,
+      retryCallback: canRetry ? retryCallback || null : null
+    }
+
+    // Show error with retry button if applicable
+    if (canRetry && retryCallback) {
+      const retrySuggestion = getRetrySuggestion(appError)
+      showError(appError.userMessage || retrySuggestion || 'เกิดข้อผิดพลาด', {
+        action: {
+          label: 'ลองใหม่',
+          onClick: () => {
+            clearError()
+            retryCallback()
+          }
+        }
+      })
+    } else {
+      showError(appError.userMessage || 'เกิดข้อผิดพลาด')
     }
 
     // Log to external service in production
@@ -87,6 +123,13 @@ export function useErrorHandler() {
     }
 
     return appError
+  }
+
+  /**
+   * Legacy handleError method (for backward compatibility)
+   */
+  function handleError(error: unknown, context?: string): AppError {
+    return handle(error, context)
   }
 
   /**
@@ -153,7 +196,19 @@ export function useErrorHandler() {
     errorState.value = {
       hasError: false,
       error: null,
-      retryCount: 0
+      retryCount: 0,
+      canRetry: false,
+      retryCallback: null
+    }
+  }
+
+  /**
+   * Manually trigger retry
+   */
+  async function retry(): Promise<void> {
+    if (errorState.value.retryCallback) {
+      clearError()
+      await errorState.value.retryCallback()
     }
   }
 
@@ -210,9 +265,11 @@ export function useErrorHandler() {
 
   return {
     errorState: readonly(errorState),
-    handleError,
+    handle,
+    handleError, // Legacy method
     handleAsync,
     clearError,
+    retry,
     isRecoverableError,
     getRetrySuggestion
   }

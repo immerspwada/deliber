@@ -1,8 +1,9 @@
 import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
 import { supabase } from '../lib/supabase'
-import { canAccessProviderRoutes, canAccessAdminRoutes } from '../types/role'
+import { canAccessAdminRoutes } from '../types/role'
 import type { UserRole } from '../types/role'
+import { adminRoutes } from '../admin/router'
 
 export const routes: RouteRecordRaw[] = [
   // Public routes
@@ -111,73 +112,72 @@ export const routes: RouteRecordRaw[] = [
   },
   
   // Provider Routes - New Design (Green Theme)
-  // ✅ Admin can access all provider features
   {
     path: '/provider',
     component: () => import('../components/ProviderLayoutNew.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] },
+    meta: { requiresAuth: true, hideNavigation: true, requiresProviderAccess: true },
     children: [
       {
         path: '',
         name: 'ProviderHome',
         component: () => import('../views/provider/ProviderHomeNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
         path: 'orders',
         name: 'ProviderOrders',
         component: () => import('../views/provider/ProviderOrdersNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
         path: 'wallet',
         name: 'ProviderWallet',
         component: () => import('../views/provider/ProviderWalletView.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
         path: 'chat',
         name: 'ProviderChat',
         component: () => import('../views/provider/ProviderChatNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
         path: 'profile',
         name: 'ProviderProfile',
         component: () => import('../views/provider/ProviderProfileNew.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
         path: 'notifications',
         name: 'ProviderNotificationPreferences',
         component: () => import('../views/provider/NotificationPreferencesView.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       // Job Detail - Step-based routing
       {
         path: 'job/:id',
         name: 'ProviderJobDetail',
         component: () => import('../views/provider/job/ProviderJobLayout.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
       },
       {
         path: 'job/:id/:step',
         name: 'ProviderJobStep',
         component: () => import('../views/provider/job/ProviderJobLayout.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
       },
       // Legacy route (old design)
       {
         path: 'job-legacy/:id',
         name: 'ProviderJobDetailLegacy',
         component: () => import('../views/provider/ProviderJobDetailPro.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
       },
       {
         path: 'job-minimal/:id',
         name: 'ProviderJobDetailMinimal',
         component: () => import('../views/provider/ProviderJobDetailMinimal.vue'),
-        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true, allowedRoles: ['provider', 'admin', 'super_admin'] }
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
       },
       // Legacy routes (redirect to new)
       {
@@ -199,115 +199,8 @@ export const routes: RouteRecordRaw[] = [
     ]
   },
   
-  // Admin Login (outside layout)
-  {
-    path: '/admin/login',
-    name: 'AdminLogin',
-    component: () => import('../views/admin/AdminLoginView.vue'),
-    meta: { public: true, hideNavigation: true }
-  },
-  
-  // Admin Routes (requires admin access) - Simplified
-  {
-    path: '/admin',
-    component: () => import('../components/AdminLayout.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, requiresAdminAccess: true },
-    children: [
-      // Dashboard
-      {
-        path: '',
-        name: 'AdminDashboard',
-        component: () => import('../views/admin/AdminDashboardView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'dashboard',
-        redirect: '/admin'
-      },
-      
-      // Core Features
-      {
-        path: 'orders',
-        name: 'AdminOrders',
-        component: () => import('../admin/views/OrdersViewAdvanced.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'live-map',
-        name: 'AdminLiveMap',
-        component: () => import('../admin/views/DriverTrackingView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      
-      // Users
-      {
-        path: 'customers',
-        name: 'AdminCustomers',
-        component: () => import('../admin/views/CustomersView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'providers',
-        name: 'AdminProviders',
-        component: () => import('../views/admin/AdminProvidersView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      
-      // Finance
-      {
-        path: 'topup-requests',
-        name: 'AdminTopupRequests',
-        component: () => import('../views/admin/AdminTopupRequestsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'provider-withdrawals',
-        name: 'AdminProviderWithdrawals',
-        component: () => import('../admin/views/AdminProviderWithdrawalsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'wallets',
-        name: 'AdminWallets',
-        component: () => import('../admin/views/WalletsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      
-      // Analytics & Reports
-      {
-        path: 'analytics',
-        name: 'AdminAnalytics',
-        component: () => import('../views/admin/AdminAnalyticsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'push-analytics',
-        name: 'AdminPushAnalytics',
-        component: () => import('../admin/views/PushAnalyticsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'provider-heatmap',
-        name: 'AdminProviderHeatmap',
-        component: () => import('../admin/views/ProviderHeatmapView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      
-      // System
-      {
-        path: 'cron-jobs',
-        name: 'AdminCronJobs',
-        component: () => import('../admin/views/CronJobMonitoringView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      },
-      {
-        path: 'system-health',
-        name: 'AdminSystemHealth',
-        component: () => import('../admin/views/SystemLogsView.vue'),
-        meta: { requiresAuth: true, requiresAdminAccess: true }
-      }
-    ]
-  }
+  // Admin Routes - Use Admin V2 System
+  ...adminRoutes
 ]
 
 // Create router instance
@@ -320,6 +213,36 @@ const router = createRouter({
 // PRODUCTION ONLY - No demo mode, uses real Supabase authentication
 router.beforeEach(async (to, _from, next) => {
   console.log('[Router] Navigating to:', to.path, 'Meta:', to.meta)
+  
+  // ========================================
+  // ADMIN ROUTES - Use Admin V2 Auth System
+  // ========================================
+  if (to.path.startsWith('/admin')) {
+    // Admin routes use their own auth system (adminAuth.store.ts)
+    // Check if this is the login page
+    if (to.meta.public) {
+      return next()
+    }
+
+    // For protected admin routes, check admin auth
+    const { useAdminAuthStore } = await import('../admin/stores/adminAuth.store')
+    const adminAuthStore = useAdminAuthStore()
+    
+    // Initialize admin auth if not already done
+    const isAuthenticated = await adminAuthStore.initialize()
+    
+    if (!isAuthenticated) {
+      console.log('[Router] Admin not authenticated, redirecting to login')
+      return next('/admin/login')
+    }
+    
+    console.log('[Router] Admin authenticated, allowing access')
+    return next()
+  }
+
+  // ========================================
+  // CUSTOMER/PROVIDER ROUTES - Use Supabase Auth
+  // ========================================
   
   // Public routes - allow access
   if (to.meta.public) {
@@ -372,14 +295,7 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // PHASE 3: Provider routes - check provider access directly from providers_v2 table
-  // ✅ Admin can bypass provider access check
   if (to.meta.requiresProviderAccess && !to.meta.allowWithoutProvider) {
-    // Check if user is admin - admins can access all provider features
-    if (userRole === 'admin' || userRole === 'super_admin') {
-      console.log('[Router] Admin access granted - bypassing provider check')
-      return next()
-    }
-    
     try {
       console.log('[Router] Checking provider access directly from providers_v2...')
       
@@ -399,18 +315,19 @@ router.beforeEach(async (to, _from, next) => {
         // Allow access - the dashboard will show appropriate message
       } else {
         // Check provider status
-        if (providerData.status === 'approved' || providerData.status === 'active') {
-          console.log('[Router] Provider access granted - status:', providerData.status)
-        } else if (providerData.status === 'pending') {
+        const status = (providerData as any).status
+        if (status === 'approved' || status === 'active') {
+          console.log('[Router] Provider access granted - status:', status)
+        } else if (status === 'pending') {
           console.log('[Router] Provider pending approval - allowing access to see status')
-        } else if (providerData.status === 'rejected') {
+        } else if (status === 'rejected') {
           console.log('[Router] Provider rejected - redirecting to onboarding')
           return next('/provider/onboarding')
-        } else if (providerData.status === 'suspended') {
+        } else if (status === 'suspended') {
           console.log('[Router] Provider suspended - redirecting to onboarding')
           return next('/provider/onboarding')
         } else {
-          console.log('[Router] Unknown provider status:', providerData.status)
+          console.log('[Router] Unknown provider status:', status)
         }
       }
     } catch (err) {
@@ -433,15 +350,6 @@ router.beforeEach(async (to, _from, next) => {
       
       return next('/customer')
     }
-  }
-
-  // Admin routes - check admin access
-  if (to.meta.requiresAdminAccess) {
-    if (!canAccessAdminRoutes(userRole)) {
-      console.log('[Router] Admin access denied for role:', userRole)
-      return next('/customer')
-    }
-    console.log('[Router] Admin access granted for role:', userRole)
   }
 
   console.log('[Router] Navigation allowed')

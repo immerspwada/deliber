@@ -19,7 +19,7 @@ const VerificationQueueView = () => import('./views/VerificationQueueView.vue')
 const RevenueView = () => import('./views/RevenueView.vue')
 const PaymentsView = () => import('./views/PaymentsView.vue')
 const WalletsView = () => import('./views/WalletsView.vue')
-const AdminTopupRequestsView = () => import('../views/AdminTopupRequestsView.vue')
+const AdminTopupRequestsView = () => import('./views/AdminTopupRequestsView.vue')
 const WithdrawalsView = () => import('./views/WithdrawalsView.vue')
 // const CustomerWithdrawalsView = () => import('./views/CustomerWithdrawalsView.vue')
 const AdminRefundsView = () => import('../views/AdminRefundsView.vue')
@@ -59,6 +59,9 @@ const CancellationsView = () => import('./views/CancellationsView.vue')
 const DriverTrackingView = () => import('./views/DriverTrackingView.vue')
 const ReorderAnalyticsView = () => import('./views/ReorderAnalyticsView.vue')
 const SystemLogsView = () => import('./views/SystemLogsView.vue')
+const PushAnalyticsView = () => import('./views/PushAnalyticsView.vue')
+const CronJobMonitoringView = () => import('./views/CronJobMonitoringView.vue')
+const ProviderHeatmapView = () => import('./views/ProviderHeatmapView.vue')
 
 export const adminRoutes: RouteRecordRaw[] = [
   // Login (no shell)
@@ -314,11 +317,35 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: ReorderAnalyticsView,
         meta: { module: 'analytics' }
       },
+      {
+        path: 'push-analytics',
+        name: 'AdminPushAnalyticsV2',
+        component: PushAnalyticsView,
+        meta: { module: 'analytics' }
+      },
+      {
+        path: 'cron-jobs',
+        name: 'AdminCronJobsV2',
+        component: CronJobMonitoringView,
+        meta: { module: 'analytics' }
+      },
+      {
+        path: 'provider-heatmap',
+        name: 'AdminProviderHeatmapV2',
+        component: ProviderHeatmapView,
+        meta: { module: 'analytics' }
+      },
       
       // Settings
       {
         path: 'system-logs',
         name: 'AdminSystemLogsV2',
+        component: SystemLogsView,
+        meta: { module: 'settings' }
+      },
+      {
+        path: 'system-health',
+        name: 'AdminSystemHealthV2',
         component: SystemLogsView,
         meta: { module: 'settings' }
       },

@@ -8,20 +8,17 @@
  * - Earnings breakdown
  * - Accept/Decline buttons
  * - Realtime updates for new jobs
+ * - Preview map for selected orders
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import JobPreviewMap from '../../components/provider/JobPreviewMap.vue'
 
 const router = useRouter()
 
-// Realtime subscription
-let realtimeChannel: RealtimeChannel | null = null
-
-// State
-const loading = ref(true)
-const orders = ref<Array<{
+// Types
+interface Order {
   id: string
   tracking_id?: string
   pickup_address: string
@@ -40,8 +37,14 @@ const orders = ref<Array<{
   tip_amount: number | null
   distance: number
   created_at: string
-}>>([])
+}
 
+// State
+const loading = ref(true)
+const showMapPreview = ref(false)
+const realtimeChannel = ref<any>(null)
+const selectedOrderForMap = ref<Order | null>(null)
+const orders = ref<Order[]>([])
 const selectedOrders = ref<Set<string>>(new Set())
 const alwaysBestRoute = ref(true)
 
@@ -142,6 +145,16 @@ function toggleOrder(orderId: string) {
   selectedOrders.value = new Set(selectedOrders.value) // Trigger reactivity
 }
 
+function openMapPreview(order: typeof orders.value[0]) {
+  selectedOrderForMap.value = order
+  showMapPreview.value = true
+}
+
+function closeMapPreview() {
+  showMapPreview.value = false
+  selectedOrderForMap.value = null
+}
+
 async function acceptOrders() {
   if (selectedOrders.value.size === 0) return
 
@@ -212,9 +225,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (realtimeChannel) {
-    supabase.removeChannel(realtimeChannel)
-    realtimeChannel = null
+  if (realtimeChannel.value) {
+    supabase.removeChannel(realtimeChannel.value)
+    realtimeChannel.value = null
   }
 })
 
@@ -222,7 +235,7 @@ onUnmounted(() => {
 function setupRealtimeSubscription() {
   console.log('[Orders] Setting up realtime subscription...')
   
-  realtimeChannel = supabase
+  realtimeChannel.value = supabase
     .channel('provider-orders-realtime')
     .on(
       'postgres_changes',
@@ -238,7 +251,7 @@ function setupRealtimeSubscription() {
         const newJob = payload.new as any
         
         // Calculate distance and add to orders
-        const jobWithDistance = {
+        const jobWithDistance: Order = {
           id: newJob.id,
           tracking_id: newJob.tracking_id,
           pickup_address: newJob.pickup_address,
@@ -342,8 +355,25 @@ function setupRealtimeSubscription() {
               {{ orders.length > 0 ? orders[0].destination_address : 'ไม่มีจุดหมาย' }}
             </span>
           </div>
-          <button class="drop-points-btn">
+          <button 
+            class="drop-points-btn"
+            @click="openMapPreview(orders[0])"
+            v-if="orders.length > 0"
+            type="button"
+            aria-label="ดูแผนที่"
+          >
             {{ dropPointsCount }} จุดส่ง
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <button 
+            class="drop-points-btn"
+            v-else
+            disabled
+            type="button"
+          >
+            0 จุดส่ง
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M6 9l6 6 6-6" />
             </svg>
@@ -459,6 +489,32 @@ function setupRealtimeSubscription() {
         ไม่ ฉันจะเลือกเอง
       </button>
     </footer>
+
+    <!-- Map Preview Modal -->
+    <Teleport to="body">
+      <div 
+        v-if="showMapPreview && selectedOrderForMap"
+        class="map-modal-overlay"
+        @click="closeMapPreview"
+      >
+        <div 
+          class="map-modal-content"
+          @click.stop
+        >
+          <JobPreviewMap
+            v-if="selectedOrderForMap"
+            :pickup-lat="selectedOrderForMap.pickup_lat"
+            :pickup-lng="selectedOrderForMap.pickup_lng"
+            :dropoff-lat="selectedOrderForMap.destination_lat"
+            :dropoff-lng="selectedOrderForMap.destination_lng"
+            :pickup-address="selectedOrderForMap.pickup_address"
+            :dropoff-address="selectedOrderForMap.destination_address"
+            :show="showMapPreview"
+            @close="closeMapPreview"
+          />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -982,5 +1038,56 @@ function setupRealtimeSubscription() {
 
 .custom-btn:active {
   color: #111827;
+}
+
+/* Map Modal */
+.map-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.map-modal-content {
+  width: 100%;
+  max-height: 90vh;
+  background: #FFFFFF;
+  border-radius: 20px 20px 0 0;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (min-width: 768px) {
+  .map-modal-overlay {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .map-modal-content {
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    border-radius: 20px;
+  }
 }
 </style>

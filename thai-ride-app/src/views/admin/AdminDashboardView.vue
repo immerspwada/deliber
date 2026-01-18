@@ -1,8 +1,22 @@
 <template>
   <div class="admin-dashboard">
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-      <p class="text-gray-600">ภาพรวมระบบและการจัดการ</p>
+    <div class="mb-6 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p class="text-gray-600">ภาพรวมระบบและการจัดการ</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span
+          class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+          :class="realtime.isConnected.value ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'"
+        >
+          <span
+            class="w-2 h-2 rounded-full mr-2"
+            :class="realtime.isConnected.value ? 'bg-green-500 animate-pulse' : 'bg-gray-400'"
+          ></span>
+          {{ realtime.isConnected.value ? 'Live Updates' : 'Connecting...' }}
+        </span>
+      </div>
     </div>
 
     <!-- Stats Cards -->
@@ -31,6 +45,12 @@
           <div class="ml-4">
             <p class="text-sm font-medium text-gray-600">Active Providers</p>
             <p class="text-2xl font-semibold text-gray-900">{{ stats.activeProviders }}</p>
+            <p class="text-xs text-green-600 mt-1">
+              <span class="inline-flex items-center">
+                <span class="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                {{ stats.onlineProviders }} online
+              </span>
+            </p>
           </div>
         </div>
       </div>
@@ -45,6 +65,9 @@
           <div class="ml-4">
             <p class="text-sm font-medium text-gray-600">Total Jobs</p>
             <p class="text-2xl font-semibold text-gray-900">{{ stats.totalJobs }}</p>
+            <p v-if="stats.pendingOrders > 0" class="text-xs text-yellow-600 mt-1">
+              {{ stats.pendingOrders }} pending
+            </p>
           </div>
         </div>
       </div>
@@ -118,14 +141,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../../lib/supabase'
+import { useAdminRealtime } from '@/admin/composables/useAdminRealtime'
 
 interface Stats {
   totalUsers: number
   activeProviders: number
   totalJobs: number
   totalRevenue: number
+  onlineProviders: number
+  pendingOrders: number
 }
 
 interface Activity {
@@ -138,10 +164,14 @@ const stats = ref<Stats>({
   totalUsers: 0,
   activeProviders: 0,
   totalJobs: 0,
-  totalRevenue: 0
+  totalRevenue: 0,
+  onlineProviders: 0,
+  pendingOrders: 0
 })
 
 const recentActivity = ref<Activity[]>([])
+const realtime = useAdminRealtime()
+let refreshInterval: ReturnType<typeof setInterval> | null = null
 
 const loadStats = async () => {
   try {
@@ -155,6 +185,12 @@ const loadStats = async () => {
       .from('providers_v2')
       .select('*', { count: 'exact', head: true })
       .in('status', ['approved', 'active'])
+
+    // Load online provider count
+    const { count: onlineCount } = await supabase
+      .from('providers_v2')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_online', true)
 
     // Load job count - try jobs_v2 first, fallback to ride_requests
     let jobCount = 0
@@ -170,11 +206,19 @@ const loadStats = async () => {
       jobCount = result.count || 0
     }
 
+    // Load pending orders count
+    const { count: pendingCount } = await supabase
+      .from('ride_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+
     stats.value = {
       totalUsers: userCount || 0,
       activeProviders: providerCount || 0,
       totalJobs: jobCount,
-      totalRevenue: 0 // Calculate from earnings if needed
+      totalRevenue: 0, // Calculate from earnings if needed
+      onlineProviders: onlineCount || 0,
+      pendingOrders: pendingCount || 0
     }
   } catch (error) {
     console.error('Error loading stats:', error)
@@ -185,7 +229,34 @@ const formatTime = (timestamp: string) => {
   return new Date(timestamp).toLocaleString('th-TH')
 }
 
+// Setup real-time subscriptions
+const setupRealtime = () => {
+  // Subscribe to ride_requests and providers_v2 changes
+  realtime.subscribe({
+    tables: ['ride_requests', 'providers_v2'],
+    onChange: (table, eventType) => {
+      console.log(`[AdminDashboard] Realtime update: ${table} ${eventType}`)
+      // Reload stats when changes occur
+      loadStats()
+    },
+    debounceMs: 1000 // Debounce to avoid too frequent updates
+  })
+}
+
 onMounted(() => {
   loadStats()
+  setupRealtime()
+  
+  // Auto-refresh stats every 30 seconds
+  refreshInterval = setInterval(() => {
+    loadStats()
+  }, 30000)
+})
+
+onUnmounted(() => {
+  realtime.unsubscribe()
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
 })
 </script>

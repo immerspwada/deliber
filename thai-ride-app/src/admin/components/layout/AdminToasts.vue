@@ -1,101 +1,149 @@
+<!--
+  Admin Toast Notifications
+  ========================
+  Global toast notification system for admin
+-->
+
 <script setup lang="ts">
-/**
- * Admin Toast Notifications
- */
 import { useAdminUIStore } from '../../stores/adminUI.store'
 
 const uiStore = useAdminUIStore()
+
+const getIcon = (type: string) => {
+  switch (type) {
+    case 'success':
+      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>`
+    case 'error':
+      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>`
+    case 'warning':
+      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>`
+    default:
+      return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>`
+  }
+}
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="toast-container">
-      <TransitionGroup name="toast">
-        <div
-          v-for="toast in uiStore.toasts"
-          :key="toast.id"
-          class="toast"
-          :class="toast.type"
-        >
-          <div class="toast-icon">
-            <svg v-if="toast.type === 'success'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 6L9 17l-5-5"/>
-            </svg>
-            <svg v-else-if="toast.type === 'error'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
-            </svg>
-            <svg v-else-if="toast.type === 'warning'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
-            </svg>
-          </div>
-          <span class="toast-message">{{ toast.message }}</span>
-          <button class="toast-close" @click="uiStore.removeToast(toast.id)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
+  <div class="toast-container">
+    <TransitionGroup name="toast">
+      <div
+        v-for="toast in uiStore.toasts"
+        :key="toast.id"
+        class="toast"
+        :class="`toast-${toast.type}`"
+      >
+        <div class="toast-icon" v-html="getIcon(toast.type)" />
+        <div class="toast-content">
+          <div v-if="toast.title" class="toast-title">{{ toast.title }}</div>
+          <div class="toast-message">{{ toast.message }}</div>
         </div>
-      </TransitionGroup>
-    </div>
-  </Teleport>
+        <button 
+          class="toast-close"
+          @click="uiStore.removeToast(toast.id)"
+          aria-label="Close"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </TransitionGroup>
+  </div>
 </template>
 
 <style scoped>
 .toast-container {
   position: fixed;
   top: 72px;
-  right: 24px;
-  z-index: 10000;
+  right: 20px;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  max-width: 400px;
 }
 
 .toast {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  min-width: 300px;
-  max-width: 400px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  min-width: 320px;
 }
 
-.toast.success {
-  border-left: 4px solid #10B981;
+.toast-success {
+  border-left: 4px solid #10b981;
 }
 
-.toast.error {
-  border-left: 4px solid #EF4444;
+.toast-error {
+  border-left: 4px solid #ef4444;
 }
 
-.toast.warning {
-  border-left: 4px solid #F59E0B;
+.toast-warning {
+  border-left: 4px solid #f59e0b;
 }
 
-.toast.info {
-  border-left: 4px solid #3B82F6;
+.toast-info {
+  border-left: 4px solid #3b82f6;
 }
 
 .toast-icon {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.toast.success .toast-icon { color: #10B981; }
-.toast.error .toast-icon { color: #EF4444; }
-.toast.warning .toast-icon { color: #F59E0B; }
-.toast.info .toast-icon { color: #3B82F6; }
+.toast-success .toast-icon {
+  color: #10b981;
+}
+
+.toast-error .toast-icon {
+  color: #ef4444;
+}
+
+.toast-warning .toast-icon {
+  color: #f59e0b;
+}
+
+.toast-info .toast-icon {
+  color: #3b82f6;
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
 
 .toast-message {
-  flex: 1;
   font-size: 14px;
-  color: #1F2937;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .toast-close {
@@ -108,55 +156,42 @@ const uiStore = useAdminUIStore()
   background: none;
   border: none;
   border-radius: 4px;
+  color: #9ca3af;
   cursor: pointer;
-  color: #9CA3AF;
+  transition: all 0.2s;
 }
 
 .toast-close:hover {
-  background: #F3F4F6;
-  color: #4B5563;
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 /* Animations */
-.toast-enter-active {
-  animation: slideIn 0.3s ease;
-}
-
+.toast-enter-active,
 .toast-leave-active {
-  animation: slideOut 0.3s ease;
+  transition: all 0.3s ease;
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(100%);
 }
 
-@keyframes slideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%);
-  }
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(100%);
 }
 
+/* Mobile */
 @media (max-width: 640px) {
   .toast-container {
-    left: 16px;
-    right: 16px;
+    left: 20px;
+    right: 20px;
+    max-width: none;
   }
   
   .toast {
-    min-width: auto;
-    max-width: none;
+    min-width: 0;
   }
 }
 </style>
