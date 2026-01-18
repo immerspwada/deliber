@@ -205,7 +205,6 @@ export function useProviderPerformance() {
         totalTrips: providerData?.total_trips || 0,
         cancellationRate: Math.round(cancellationRate),
         onlineHours: 0 // Would fetch from provider_online_sessions
-        }
       }
 
       // Calculate score

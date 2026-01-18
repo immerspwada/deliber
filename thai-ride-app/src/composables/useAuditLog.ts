@@ -158,40 +158,6 @@ export function useAuditLog() {
     logStatusChange
   }
 }
-            old_status: statusList[i] || null,
-            new_status: statusList[i + 1] || 'completed',
-            changed_by: `demo-user-${i}`,
-            changed_by_role: i === 0 ? 'customer' : 'provider',
-            changed_by_name: i === 0 ? 'ลูกค้า' : 'คนขับ',
-            reason: null,
-            metadata: {},
-            created_at: new Date(now.getTime() - (statusList.length - i) * 1000 * 60 * 10).toISOString()
-          })
-        }
-
-        return trail
-      }
-
-      const { data, error: fetchError } = await (supabase.rpc as any)('get_entity_audit_trail', {
-        p_entity_type: entityType,
-        p_entity_id: entityId
-      })
-
-      if (fetchError) throw fetchError
-
-      return data || []
-    } catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : 'Unknown error'
-      return []
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // Fetch status change statistics
-  const fetchStats = async (startDate?: Date, endDate?: Date) => {
-    loading.value = true
-    error.value = null
 
     try {
       if (isDemoMode()) {
@@ -296,7 +262,7 @@ export function useAuditLog() {
     stats,
     fetchRecentLogs,
     fetchEntityAuditTrail,
-    fetchStats,
+    fetchStatusChangeStats,
     logStatusChange,
     getStatusLabel,
     getRoleLabel
