@@ -5,6 +5,7 @@ import { useAdminUIStore } from "../stores/adminUI.store";
 import { useAdminRealtime } from "../composables/useAdminRealtime";
 import { useDebounceFn } from "@vueuse/core";
 import type { Order, OrderFilters, OrderStatus } from "../types";
+import StatusDropdown from "../components/StatusDropdown.vue";
 
 const api = useAdminAPI();
 const uiStore = useAdminUIStore();
@@ -200,6 +201,30 @@ async function updateStatus() {
     loadOrders();
   } else {
     uiStore.showError("เกิดข้อผิดพลาด");
+  }
+}
+
+// Inline status update (for dropdown)
+async function updateStatusInline(order: Order, newStatus: OrderStatus) {
+  console.log('[OrdersView] updateStatusInline:', { orderId: order.id, oldStatus: order.status, newStatus });
+  
+  const success = await api.updateOrderStatus(
+    order.id,
+    newStatus,
+    { serviceType: order.service_type as any }
+  );
+  
+  if (success) {
+    uiStore.showSuccess(`เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}" เรียบร้อย`);
+    // Update local state immediately for better UX
+    const orderIndex = orders.value.findIndex(o => o.id === order.id);
+    if (orderIndex !== -1) {
+      orders.value[orderIndex].status = newStatus;
+    }
+    // Reload to get fresh data
+    loadOrders();
+  } else {
+    uiStore.showError(api.error.value || "เกิดข้อผิดพลาดในการเปลี่ยนสถานะ");
   }
 }
 
@@ -753,15 +778,12 @@ function getVisiblePages() {
                 </div>
               </td>
               <td>
-                <span
-                  class="status-badge"
-                  :style="{
-                    color: getStatusColor(order.status),
-                    background: getStatusColor(order.status) + '20',
-                  }"
-                >
-                  {{ getStatusLabel(order.status) }}
-                </span>
+                <StatusDropdown
+                  :current-status="order.status"
+                  :order-id="order.id"
+                  :service-type="order.service_type"
+                  @update="(newStatus) => updateStatusInline(order, newStatus)"
+                />
                 <div v-if="order.arrived_at" class="arrived-info">
                   ✓ ถึงจุดรับ {{ formatTime(new Date(order.arrived_at)) }}
                 </div>
@@ -849,15 +871,12 @@ function getVisiblePages() {
               <span class="service-icon">{{ getServiceTypeIcon(order.service_type) }}</span>
               <span class="service-label">{{ getServiceTypeLabel(order.service_type) }}</span>
             </div>
-            <span
-              class="status-badge"
-              :style="{
-                color: getStatusColor(order.status),
-                background: getStatusColor(order.status) + '20',
-              }"
-            >
-              {{ getStatusLabel(order.status) }}
-            </span>
+            <StatusDropdown
+              :current-status="order.status"
+              :order-id="order.id"
+              :service-type="order.service_type"
+              @update="(newStatus) => updateStatusInline(order, newStatus)"
+            />
           </div>
           
           <div class="card-body">
