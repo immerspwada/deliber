@@ -18,6 +18,9 @@ import { supabase } from '../../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { RideStatus } from '../../types/ride-requests'
 import { usePushNotification } from '../../composables/usePushNotification'
+import { useOrderNumber } from '../../composables/useOrderNumber'
+import { useCopyToClipboard } from '../../composables/useCopyToClipboard'
+import { useToast } from '../../composables/useToast'
 
 const router = useRouter()
 
@@ -30,6 +33,11 @@ const {
   requestPermission,
   notifyNewJob
 } = usePushNotification()
+
+// Order Number
+const { formatOrderNumber } = useOrderNumber()
+const { copyToClipboard } = useCopyToClipboard()
+const { showSuccess, showError } = useToast()
 
 // Realtime subscription
 let realtimeChannel: RealtimeChannel | null = null
@@ -48,6 +56,7 @@ interface ProviderRow {
 
 interface RideRequestRow {
   id: string
+  tracking_id: string
   status: string
   pickup_address: string
   destination_address: string
@@ -74,6 +83,7 @@ const isOnline = ref(false)
 const isToggling = ref(false)
 const providerId = ref<string | null>(null)
 const showNotificationPrompt = ref(false)
+const isCopied = ref(false)
 
 // Provider data
 const providerData = ref<{
@@ -97,6 +107,7 @@ const todayStats = ref({
 // Active job
 const activeJob = ref<{
   id: string
+  tracking_id: string
   status: RideStatus
   pickup_address: string
   destination_address: string
@@ -219,6 +230,7 @@ async function loadActiveJob(provId: string) {
     .from('ride_requests')
     .select(`
       id,
+      tracking_id,
       status,
       pickup_address,
       destination_address,
@@ -242,6 +254,7 @@ async function loadActiveJob(provId: string) {
 
     activeJob.value = {
       id: data.id,
+      tracking_id: data.tracking_id,
       status: data.status as RideStatus,
       pickup_address: data.pickup_address,
       destination_address: data.destination_address,
@@ -384,6 +397,36 @@ function goToOrders() {
 function goToJobDetail() {
   if (activeJob.value) {
     router.push(`/provider/job/${activeJob.value.id}`)
+  }
+}
+
+async function copyOrderNumber() {
+  if (!activeJob.value?.tracking_id) {
+    showError('ไม่พบหมายเลขออเดอร์')
+    return
+  }
+
+  const success = await copyToClipboard(activeJob.value.tracking_id)
+
+  if (success) {
+    isCopied.value = true
+    showSuccess('คัดลอกหมายเลขออเดอร์แล้ว')
+
+    // Reset copied state after 2 seconds
+    setTimeout(() => {
+      isCopied.value = false
+    }, 2000)
+  } else {
+    showError('ไม่สามารถคัดลอกได้')
+  }
+}
+
+// Keyboard support for order number copy
+function handleOrderNumberKeydown(event: KeyboardEvent) {
+  // Handle Enter and Space keys
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault() // Prevent page scroll on Space
+    copyOrderNumber()
   }
 }
 
@@ -647,6 +690,25 @@ function setupRealtimeSubscription() {
             <span class="pulse-dot"></span>
             {{ jobStatusLabel }}
           </div>
+          
+          <!-- Order Number Badge -->
+          <button
+            class="order-number-badge"
+            :class="{ copied: isCopied }"
+            @click.stop="copyOrderNumber"
+            @keydown="handleOrderNumberKeydown"
+            :aria-label="`หมายเลขออเดอร์ ${formatOrderNumber(activeJob.tracking_id)} แตะเพื่อคัดลอก`"
+            role="button"
+            tabindex="0"
+            type="button"
+          >
+            <span aria-hidden="true">{{ formatOrderNumber(activeJob.tracking_id) }}</span>
+            <svg class="copy-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+          
           <span class="job-fare">฿{{ activeJob.estimated_fare.toFixed(0) }}</span>
         </div>
         
@@ -1153,6 +1215,97 @@ function setupRealtimeSubscription() {
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Order Number Badge */
+.order-number-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: #F3F4F6;
+  border: none;
+  border-radius: 8px;
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.order-number-badge:hover {
+  background: #E5E7EB;
+}
+
+.order-number-badge:focus {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+.order-number-badge:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.order-number-badge:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+.order-number-badge:active {
+  background: #D1FAE5;
+  color: #065F46;
+  transform: scale(0.95);
+}
+
+.order-number-badge.copied {
+  background: #D1FAE5;
+  color: #065F46;
+  animation: pulse-success 0.5s ease;
+}
+
+@keyframes pulse-success {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.copy-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.order-number-badge:hover .copy-icon {
+  opacity: 1;
+}
+
+/* Responsive styles for order number badge */
+@media (max-width: 639px) {
+  .order-number-badge {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .order-number-badge {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .order-number-badge {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
 }
 
 .job-fare {

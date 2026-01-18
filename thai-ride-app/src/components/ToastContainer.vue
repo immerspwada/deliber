@@ -29,6 +29,8 @@ const getIcon = (type: string) => {
           v-for="toast in toasts"
           :key="toast.id"
           :class="['toast', `toast-${toast.type}`]"
+          role="alert"
+          :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
           @click="removeToast(toast.id)"
         >
           <div class="toast-icon" v-html="getIcon(toast.type)"></div>
