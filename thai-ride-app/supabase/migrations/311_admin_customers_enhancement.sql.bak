@@ -1,0 +1,423 @@
+-- Migration: Admin Customers Enhancement
+-- ========================================
+-- เพิ่มฟีเจอร์ขั้นสูงสำหรับ Admin Customers View
+
+-- Add customer-related columns to profiles
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS email TEXT,
+ADD COLUMN IF NOT EXISTS full_name TEXT,
+ADD COLUMN IF NOT EXISTS phone_number TEXT,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'banned')),
+ADD COLUMN IF NOT EXISTS wallet_balance DECIMAL(10,2) DEFAULT 0 CHECK (wallet_balance >= 0),
+ADD COLUMN IF NOT EXISTS total_orders INTEGER DEFAULT 0 CHECK (total_orders >= 0),
+ADD COLUMN IF NOT EXISTS total_spent DECIMAL(10,2) DEFAULT 0 CHECK (total_spent >= 0),
+ADD COLUMN IF NOT EXISTS average_rating DECIMAL(3,2) DEFAULT 0 CHECK (average_rating >= 0 AND average_rating <= 5),
+ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS suspension_reason TEXT,
+ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS favorite_service_type TEXT,
+ADD COLUMN IF NOT EXISTS churn_risk_score DECIMAL(3,2) DEFAULT 0 CHECK (churn_risk_score >= 0 AND churn_risk_score <= 1),
+ADD COLUMN IF NOT EXISTS lifetime_value DECIMAL(10,2) DEFAULT 0 CHECK (lifetime_value >= 0);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_phone ON profiles(phone_number) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_wallet_balance ON profiles(wallet_balance) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_total_orders ON profiles(total_orders) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_average_rating ON profiles(average_rating) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_created_at ON profiles(created_at) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_last_active_at ON profiles(last_active_at) WHERE role = 'customer';
+CREATE INDEX IF NOT EXISTS idx_profiles_status ON profiles(status) WHERE role = 'customer';
+
+-- Create function to update last_active_at
+CREATE OR REPLACE FUNCTION update_last_active()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE profiles
+  SET last_active_at = NOW()
+  WHERE id = NEW.customer_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to update last_active_at when order is created
+DROP TRIGGER IF EXISTS trigger_update_last_active ON ride_requests;
+CREATE TRIGGER trigger_update_last_active
+AFTER INSERT ON ride_requests
+FOR EACH ROW
+EXECUTE FUNCTION update_last_active();
+
+-- Enhanced RPC function for getting customers with advanced filtering
+CREATE OR REPLACE FUNCTION admin_get_customers_enhanced(
+  p_search TEXT DEFAULT NULL,
+  p_status TEXT[] DEFAULT NULL,
+  p_created_after TIMESTAMPTZ DEFAULT NULL,
+  p_created_before TIMESTAMPTZ DEFAULT NULL,
+  p_wallet_min DECIMAL DEFAULT NULL,
+  p_wallet_max DECIMAL DEFAULT NULL,
+  p_orders_min INTEGER DEFAULT NULL,
+  p_orders_max INTEGER DEFAULT NULL,
+  p_rating_min DECIMAL DEFAULT NULL,
+  p_rating_max DECIMAL DEFAULT NULL,
+  p_sort_by TEXT DEFAULT 'created_at',
+  p_sort_order TEXT DEFAULT 'desc',
+  p_limit INTEGER DEFAULT 20,
+  p_offset INTEGER DEFAULT 0
+)
+RETURNS TABLE (
+  id UUID,
+  email TEXT,
+  full_name TEXT,
+  phone_number TEXT,
+  status TEXT,
+  wallet_balance DECIMAL,
+  total_orders INTEGER,
+  total_spent DECIMAL,
+  average_rating DECIMAL,
+  created_at TIMESTAMPTZ,
+  suspended_at TIMESTAMPTZ,
+  suspension_reason TEXT,
+  last_active_at TIMESTAMPTZ,
+  favorite_service_type TEXT,
+  churn_risk_score DECIMAL,
+  lifetime_value DECIMAL
+) AS $$
+BEGIN
+  -- Check if user is admin
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Admin access required';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    p.id,
+    p.email,
+    p.full_name,
+    p.phone_number,
+    p.status,
+    p.wallet_balance,
+    p.total_orders,
+    p.total_spent,
+    p.average_rating,
+    p.created_at,
+    p.suspended_at,
+    p.suspension_reason,
+    p.last_active_at,
+    p.favorite_service_type,
+    p.churn_risk_score,
+    p.lifetime_value
+  FROM profiles p
+  WHERE p.role = 'customer'
+    -- Search filter
+    AND (
+      p_search IS NULL OR
+      p.full_name ILIKE '%' || p_search || '%' OR
+      p.email ILIKE '%' || p_search || '%' OR
+      p.phone_number ILIKE '%' || p_search || '%'
+    )
+    -- Status filter
+    AND (
+      p_status IS NULL OR
+      p.status = ANY(p_status)
+    )
+    -- Date range filter
+    AND (
+      p_created_after IS NULL OR
+      p.created_at >= p_created_after
+    )
+    AND (
+      p_created_before IS NULL OR
+      p.created_at <= p_created_before
+    )
+    -- Wallet range filter
+    AND (
+      p_wallet_min IS NULL OR
+      p.wallet_balance >= p_wallet_min
+    )
+    AND (
+      p_wallet_max IS NULL OR
+      p.wallet_balance <= p_wallet_max
+    )
+    -- Orders range filter
+    AND (
+      p_orders_min IS NULL OR
+      p.total_orders >= p_orders_min
+    )
+    AND (
+      p_orders_max IS NULL OR
+      p.total_orders <= p_orders_max
+    )
+    -- Rating range filter
+    AND (
+      p_rating_min IS NULL OR
+      p.average_rating >= p_rating_min
+    )
+    AND (
+      p_rating_max IS NULL OR
+      p.average_rating <= p_rating_max
+    )
+  ORDER BY
+    CASE WHEN p_sort_by = 'created_at' AND p_sort_order = 'asc' THEN p.created_at END ASC,
+    CASE WHEN p_sort_by = 'created_at' AND p_sort_order = 'desc' THEN p.created_at END DESC,
+    CASE WHEN p_sort_by = 'wallet_balance' AND p_sort_order = 'asc' THEN p.wallet_balance END ASC,
+    CASE WHEN p_sort_by = 'wallet_balance' AND p_sort_order = 'desc' THEN p.wallet_balance END DESC,
+    CASE WHEN p_sort_by = 'total_orders' AND p_sort_order = 'asc' THEN p.total_orders END ASC,
+    CASE WHEN p_sort_by = 'total_orders' AND p_sort_order = 'desc' THEN p.total_orders END DESC,
+    CASE WHEN p_sort_by = 'full_name' AND p_sort_order = 'asc' THEN p.full_name END ASC,
+    CASE WHEN p_sort_by = 'full_name' AND p_sort_order = 'desc' THEN p.full_name END DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get customer detail with all related data
+CREATE OR REPLACE FUNCTION admin_get_customer_detail(p_customer_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_customer JSON;
+  v_orders JSON;
+  v_wallet_transactions JSON;
+  v_reviews JSON;
+BEGIN
+  -- Check if user is admin
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid()
+    AND role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Admin access required';
+  END IF;
+
+  -- Get customer profile
+  SELECT row_to_json(p.*) INTO v_customer
+  FROM profiles p
+  WHERE p.id = p_customer_id;
+
+  -- Get recent orders (last 10)
+  SELECT json_agg(row_to_json(r.*)) INTO v_orders
+  FROM (
+    SELECT
+      id,
+      service_type,
+      status,
+      fare,
+      created_at,
+      pickup_address,
+      dropoff_address
+    FROM ride_requests
+    WHERE customer_id = p_customer_id
+    ORDER BY created_at DESC
+    LIMIT 10
+  ) r;
+
+  -- Get recent wallet transactions (last 10)
+  SELECT json_agg(row_to_json(w.*)) INTO v_wallet_transactions
+  FROM (
+    SELECT
+      id,
+      amount,
+      type,
+      description,
+      created_at
+    FROM wallet_transactions
+    WHERE user_id = p_customer_id
+    ORDER BY created_at DESC
+    LIMIT 10
+  ) w;
+
+  -- Get recent reviews (last 10)
+  SELECT json_agg(row_to_json(rev.*)) INTO v_reviews
+  FROM (
+    SELECT
+      id,
+      rating,
+      comment,
+      created_at
+    FROM ratings
+    WHERE customer_id = p_customer_id
+    ORDER BY created_at DESC
+    LIMIT 10
+  ) rev;
+
+  -- Return combined data
+  RETURN json_build_object(
+    'customer', v_customer,
+    'orders', COALESCE(v_orders, '[]'::json),
+    'wallet_transactions', COALESCE(v_wallet_transactions, '[]'::json),
+    'reviews', COALESCE(v_reviews, '[]'::json)
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to calculate and update customer analytics
+CREATE OR REPLACE FUNCTION update_customer_analytics()
+RETURNS void AS $$
+BEGIN
+  -- Update favorite service type
+  UPDATE profiles p
+  SET favorite_service_type = (
+    SELECT service_type
+    FROM ride_requests
+    WHERE customer_id = p.id
+    GROUP BY service_type
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+  )
+  WHERE p.role = 'customer';
+
+  -- Update lifetime value
+  UPDATE profiles p
+  SET lifetime_value = COALESCE((
+    SELECT SUM(fare)
+    FROM ride_requests
+    WHERE customer_id = p.id
+    AND status = 'completed'
+  ), 0)
+  WHERE p.role = 'customer';
+
+  -- Update churn risk score (simple calculation based on last active)
+  UPDATE profiles p
+  SET churn_risk_score = CASE
+    WHEN last_active_at IS NULL THEN 0.8
+    WHEN last_active_at < NOW() - INTERVAL '30 days' THEN 0.7
+    WHEN last_active_at < NOW() - INTERVAL '14 days' THEN 0.5
+    WHEN last_active_at < NOW() - INTERVAL '7 days' THEN 0.3
+    ELSE 0.1
+  END
+  WHERE p.role = 'customer';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create scheduled job to update analytics (run daily)
+-- Note: This requires pg_cron extension
+-- SELECT cron.schedule('update-customer-analytics', '0 2 * * *', 'SELECT update_customer_analytics()');
+
+-- Function to suspend customer
+CREATE OR REPLACE FUNCTION admin_suspend_customer(
+  p_customer_id UUID,
+  p_reason TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_result JSON;
+BEGIN
+  -- Check if user is admin
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = (SELECT auth.uid())
+    AND role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Admin access required';
+  END IF;
+
+  -- Update customer status
+  UPDATE profiles
+  SET 
+    status = 'suspended',
+    suspended_at = NOW(),
+    suspension_reason = p_reason,
+    updated_at = NOW()
+  WHERE id = p_customer_id
+  AND role = 'customer'
+  RETURNING row_to_json(profiles.*) INTO v_result;
+
+  IF v_result IS NULL THEN
+    RAISE EXCEPTION 'Customer not found';
+  END IF;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to unsuspend customer
+CREATE OR REPLACE FUNCTION admin_unsuspend_customer(
+  p_customer_id UUID
+)
+RETURNS JSON AS $$
+DECLARE
+  v_result JSON;
+BEGIN
+  -- Check if user is admin
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = (SELECT auth.uid())
+    AND role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Admin access required';
+  END IF;
+
+  -- Update customer status
+  UPDATE profiles
+  SET 
+    status = 'active',
+    suspended_at = NULL,
+    suspension_reason = NULL,
+    updated_at = NOW()
+  WHERE id = p_customer_id
+  AND role = 'customer'
+  RETURNING row_to_json(profiles.*) INTO v_result;
+
+  IF v_result IS NULL THEN
+    RAISE EXCEPTION 'Customer not found';
+  END IF;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to bulk suspend customers
+CREATE OR REPLACE FUNCTION admin_bulk_suspend_customers(
+  p_customer_ids UUID[],
+  p_reason TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  -- Check if user is admin
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = (SELECT auth.uid())
+    AND role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Admin access required';
+  END IF;
+
+  -- Update customers status
+  UPDATE profiles
+  SET 
+    status = 'suspended',
+    suspended_at = NOW(),
+    suspension_reason = p_reason,
+    updated_at = NOW()
+  WHERE id = ANY(p_customer_ids)
+  AND role = 'customer';
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+
+  RETURN json_build_object(
+    'success', true,
+    'count', v_count
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION admin_get_customers_enhanced TO authenticated;
+GRANT EXECUTE ON FUNCTION admin_get_customer_detail TO authenticated;
+GRANT EXECUTE ON FUNCTION update_customer_analytics TO authenticated;
+GRANT EXECUTE ON FUNCTION admin_suspend_customer TO authenticated;
+GRANT EXECUTE ON FUNCTION admin_unsuspend_customer TO authenticated;
+GRANT EXECUTE ON FUNCTION admin_bulk_suspend_customers TO authenticated;
+
+-- Add comments
+COMMENT ON FUNCTION admin_get_customers_enhanced IS 'Get customers with advanced filtering and sorting for admin panel';
+COMMENT ON FUNCTION admin_get_customer_detail IS 'Get detailed customer information including orders, wallet, and reviews';
+COMMENT ON FUNCTION update_customer_analytics IS 'Update customer analytics data (favorite service, lifetime value, churn risk)';
+COMMENT ON FUNCTION admin_suspend_customer IS 'Suspend a customer account with reason';
+COMMENT ON FUNCTION admin_unsuspend_customer IS 'Unsuspend a customer account';
+COMMENT ON FUNCTION admin_bulk_suspend_customers IS 'Bulk suspend multiple customer accounts';

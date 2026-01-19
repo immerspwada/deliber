@@ -38,4 +38,24 @@ if git diff --cached --name-only | grep -q "\.sql$"; then
   done
 fi
 
+# 6. Check for duplicate file suffixes
+echo "🔍 Checking for duplicate file patterns..."
+DUPLICATE_PATTERNS="New\.vue|V2\.vue|Enhanced\.vue|Minimal\.vue|Pro\.vue|Stable\.vue|Copy\.vue|Backup\.vue|Old\.vue|Temp\.vue"
+DUPLICATES=$(git diff --cached --name-only | grep -E "$DUPLICATE_PATTERNS" || true)
+
+if [ -n "$DUPLICATES" ]; then
+  echo "⚠️  WARNING: Found files with duplicate-indicating suffixes:"
+  echo "$DUPLICATES"
+  echo ""
+  echo "💡 Consider using:"
+  echo "   - Feature flags for gradual rollouts"
+  echo "   - Separate routes for beta features"
+  echo "   - Composition pattern for version switching"
+  echo ""
+  echo "📖 See: .kiro/specs/admin-customers-enhancement/PREVENT-DUPLICATES-GUIDE.md"
+  echo ""
+  echo "⚠️  This is a WARNING - commit will proceed, but please review."
+  echo ""
+fi
+
 echo "✅ All pre-commit checks passed!"

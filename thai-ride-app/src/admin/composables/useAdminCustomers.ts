@@ -120,6 +120,18 @@ export function useAdminCustomers() {
   }
 
   /**
+   * Get status color (hex color)
+   */
+  function getStatusColorHex(status: string): string {
+    const colors: Record<string, string> = {
+      active: '#059669',
+      suspended: '#EF4444',
+      banned: '#DC2626'
+    }
+    return colors[status] || '#6B7280'
+  }
+
+  /**
    * Suspend a customer
    */
   async function suspendCustomer(
@@ -138,18 +150,13 @@ export function useAdminCustomers() {
         return { success: false, message: errorMessage }
       }
 
-      // Update customer status in profiles table
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          status: 'suspended',
-          suspension_reason: reason,
-          suspended_at: new Date().toISOString(),
-          suspended_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .eq('id', customerId)
+      // Call RPC function
+      const { data, error: rpcError } = await supabase.rpc('suspend_customer_account', {
+        p_customer_id: customerId,
+        p_reason: reason
+      })
 
-      if (updateError) throw updateError
+      if (rpcError) throw rpcError
 
       // Log audit trail
       await logCustomerSuspension(customerId, reason)
@@ -197,18 +204,12 @@ export function useAdminCustomers() {
         return { success: false, message: errorMessage }
       }
 
-      // Update customer status in profiles table
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          status: 'active',
-          suspension_reason: null,
-          suspended_at: null,
-          suspended_by: null
-        })
-        .eq('id', customerId)
+      // Call RPC function
+      const { data, error: rpcError } = await supabase.rpc('unsuspend_customer_account', {
+        p_customer_id: customerId
+      })
 
-      if (updateError) throw updateError
+      if (rpcError) throw rpcError
 
       // Log audit trail
       await logCustomerUnsuspension(customerId)
@@ -277,7 +278,7 @@ export function useAdminCustomers() {
   }
 
   /**
-   * Get status color class
+   * Get status color class (Tailwind)
    */
   function getStatusColor(status: string): string {
     const colors: Record<string, string> = {
@@ -310,6 +311,7 @@ export function useAdminCustomers() {
     formatCurrency,
     formatDate,
     getStatusLabel,
-    getStatusColor
+    getStatusColor,
+    getStatusColorHex
   }
 }

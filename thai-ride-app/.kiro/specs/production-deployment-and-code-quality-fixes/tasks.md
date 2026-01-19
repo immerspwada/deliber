@@ -1,0 +1,302 @@
+# Implementation Plan: Production Deployment and Code Quality Fixes
+
+## Overview
+
+This implementation plan addresses critical production deployment issues and code quality improvements. The work is organized by priority (P0 → P1 → P2 → P3) to ensure critical issues are resolved first. Each task builds incrementally, with checkpoints to verify progress.
+
+**Current Status**:
+
+- ✅ Task 1: All migrations (306, 308, 309) deployed and verified
+- ✅ Task 2: Deployment verification checkpoint complete
+- ✅ Task 3.1-3.2: Error handling standardized in useOrderReassignment
+- ⏳ Task 3.3: Retry logic integration pending
+- ⏳ Task 4: Accessibility improvements needed for OrderReassignmentModal
+- ⏳ Task 5: Integration tests not yet created
+- ⏳ Tasks 6-13: Remaining P1, P2, P3 tasks pending
+
+**Key Findings**:
+
+- Error handling infrastructure exists (AdminError, AdminErrorCode) and is already integrated into useOrderReassignment
+- Retry logic utility exists (withRetry in src/lib/retry.ts) but not yet integrated
+- Focus trap utility exists (useFocusTrap in src/composables/usePerformance.ts) but not yet used
+- OrderReassignmentModal exists but needs accessibility improvements (ARIA attributes, focus management)
+- No integration tests or property-based tests exist yet
+- Rollback migrations not yet created
+
+## Tasks
+
+- [ ] 1. Deploy Migrations to Production (P0 - CRITICAL)
+  - [x] 1.1 Create deployment verification script
+    - Create SQL script to verify RPC functions exist
+    - Create SQL script to verify RLS policies exist
+    - Create SQL script to test function calls
+    - _Requirements: 1.1, 1.3, 1.4, 11.1, 11.2, 11.3_
+  - [x] 1.2 Create deployment guide document
+    - Document manual deployment steps via Supabase Dashboard
+    - Include screenshots and verification steps
+    - Document rollback procedures
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 1.3 Deploy migration 306 (Admin Order Reassignment)
+    - Copy migration 306 content to Supabase Dashboard SQL Editor
+    - Execute migration
+    - Run verification queries for get_available_providers function
+    - Test function with sample parameters
+    - _Requirements: 1.1, 1.4, 1.5_
+  - [x] 1.4 Deploy migration 308 (Customer Suspension System)
+    - Copy migration 308 content to Supabase Dashboard SQL Editor
+    - Execute migration
+    - Run verification queries for suspend_customer and unsuspend_customer functions
+    - Test functions with sample parameters
+    - _Requirements: 1.2, 1.4, 1.5_
+  - [x] 1.5 Deploy migration 309 (Fix get_admin_customers)
+    - Copy migration 309 content to Supabase Dashboard SQL Editor
+    - Execute migration
+    - Run verification queries for get_admin_customers function
+    - Test function returns correct status values
+    - _Requirements: 1.3, 1.4, 1.5_
+  - [x] 1.6 Verify dual-role system integrity
+    - Query information_schema to verify providers_v2.user_id column exists
+    - Query pg_policies to verify RLS policies use dual-role JOIN pattern
+    - Query storage policies to verify bucket policies use dual-role checks
+    - _Requirements: 12.1, 12.2, 12.3_
+
+- [ ] 2. Checkpoint - Verify Production Deployment
+  - Ensure all migrations deployed successfully
+  - Ensure all RPC functions callable in production
+  - Ensure dual-role system verified
+  - Ask the user if questions arise
+
+- [x] 3. Standardize Error Handling in useOrderReassignment (P1 - HIGH)
+  - [x] 3.1 Create unified error utility for admin composables
+    - Create src/admin/utils/errors.ts
+    - Define AdminErrorCode enum with ORDER_REASSIGNMENT_FAILED, NO_AVAILABLE_PROVIDERS, PROVIDER_ALREADY_ASSIGNED
+    - Define AdminErrorContext interface (userId, action, timestamp, orderId, providerId)
+    - Create createAdminError helper function
+    - Add Thai error messages map
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 3.2 Refactor useOrderReassignment to use standardized errors
+    - Import createAdminError from admin/utils/errors
+    - Replace all error handling with createAdminError calls
+    - Add proper error context to all errors (orderId, providerId, action)
+    - Map Supabase errors to appropriate AdminErrorCode values
+    - Ensure all errors include timestamp
+    - _Requirements: 2.1, 2.2, 2.4, 2.5_
+  - [ ] 3.3 Integrate retry logic into useOrderReassignment
+    - Import withRetry from src/lib/retry.ts
+    - Wrap getAvailableProviders with withRetry
+    - Wrap reassignOrder with withRetry
+    - Configure retry options for network errors only
+    - Add onRetry callback to log retry attempts
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
+- [ ] 4. Implement Accessibility Improvements (P1 - HIGH)
+  - [ ] 4.1 Refactor OrderReassignmentModal for accessibility
+    - Add role="dialog" and aria-modal="true" to modal container
+    - Add aria-labelledby pointing to modal title (id="modal-title")
+    - Add aria-describedby pointing to modal description (add description element)
+    - Update close button aria-label to "ปิดหน้าต่าง" (currently "ปิด")
+    - Add aria-label to submit button ("ยืนยันการย้ายงาน")
+    - Add aria-label to cancel button ("ยกเลิกการย้ายงาน")
+    - Add aria-hidden="true" to all decorative SVG icons (search, close, checkmark)
+    - Add aria-live="assertive" to error message container
+    - Verify Escape key handler closes modal (already implemented via @click.self)
+    - _Requirements: 3.1, 3.2, 3.3, 3.6, 3.8_
+  - [ ] 4.2 Implement focus management in OrderReassignmentModal
+    - Import useFocusTrap from src/composables/usePerformance.ts
+    - Store previousActiveElement when modal opens (in watch for props.show)
+    - Call useFocusTrap.activate() when modal opens to trap focus
+    - Focus first interactive element (close button) on open using nextTick
+    - Call useFocusTrap.deactivate() when modal closes to release trap
+    - Restore focus to previousActiveElement on close
+    - _Requirements: 3.4, 3.5, 3.7_
+  - [ ] 4.3 Write unit test for modal accessibility
+    - Create src/tests/order-reassignment-modal-accessibility.unit.test.ts
+    - Test role="dialog" and aria-modal="true" exist on modal container
+    - Test aria-labelledby points to modal title element
+    - Test aria-describedby points to description element
+    - Test close button has aria-label="ปิดหน้าต่าง"
+    - Test submit button has aria-label
+    - Test cancel button has aria-label
+    - Test all SVG icons have aria-hidden="true"
+    - Test error container has aria-live="assertive"
+    - Test Escape key closes modal
+    - Test focus moves to close button on open
+    - Test focus returns to trigger element on close
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.8_
+
+- [ ] 5. Write Integration Tests (P1 - HIGH)
+  - [ ] 5.1 Create order reassignment integration test
+    - Create src/tests/integration/order-reassignment-flow.integration.test.ts
+    - Test complete flow: open modal → fetch providers → select provider → reassign → order updated → modal closes
+    - Test error scenario: network failure → retry → success (verify withRetry integration)
+    - Test validation scenario: invalid provider ID → error message displayed
+    - Test validation scenario: empty provider ID → error message displayed
+    - Verify error messages display in Thai language
+    - Verify retry logic triggers on network errors (timeout, 503)
+    - Verify retry does NOT trigger on validation errors (400, 401, 403)
+    - Mock supabase.rpc calls for get_available_providers and reassign_order
+    - _Requirements: 4.1, 4.3, 4.5, 5.1, 5.3_
+  - [ ] 5.2 Create error handling integration test
+    - Create src/tests/integration/admin-error-handling.integration.test.ts
+    - Test network timeout triggers retry with exponential backoff (1s, 2s, 4s delays)
+    - Test validation errors (400, 401, 403) don't trigger retry
+    - Test error context includes orderId and providerId in metadata
+    - Test Thai error messages display correctly for all AdminErrorCode values
+    - Verify retry exhaustion after maxAttempts (default 3)
+    - Test onRetry callback is called with correct attempt number and delay
+    - Mock Date.now() to verify timestamp in error context
+    - _Requirements: 2.1, 2.3, 2.4, 5.1, 5.2, 5.3, 5.5_
+
+- [ ] 6. Checkpoint - Verify Core Improvements
+  - Ensure error handling uses standardized pattern
+  - Ensure retry logic works for network errors
+  - Ensure modal is accessible with keyboard
+  - Ensure integration tests pass
+  - Ask the user if questions arise
+
+- [ ] 7. Implement Loading State Improvements (P2 - MEDIUM)
+  - [ ] 7.1 Add skeleton loader to OrderReassignmentModal
+    - Create inline skeleton loader component for provider list (within template)
+    - Show skeleton when reassignment.isLoading.value is true
+    - Match skeleton dimensions to real provider cards (height ~120px, padding 1rem)
+    - Add smooth transition from skeleton to content using CSS transitions (fade-in 200ms)
+    - Show 3 skeleton items to match typical provider list
+    - Use Tailwind animate-pulse utility for skeleton animation
+    - Replace current loading-state div with skeleton loader
+    - _Requirements: 6.1, 6.2, 6.3_
+
+- [ ] 8. Create Rollback Migrations (P2 - MEDIUM)
+  - [ ] 8.1 Create rollback script for migration 306
+    - Create supabase/migrations/306_rollback_admin_order_reassignment.sql
+    - Drop get_available_providers function (IF EXISTS)
+    - Drop reassign_order function (IF EXISTS)
+    - Drop get_reassignment_history function (IF EXISTS)
+    - Drop order_reassignment_audit table if created (CASCADE)
+    - Drop any RLS policies added by migration 306
+    - Add detailed comments explaining each rollback step
+    - Test rollback script in local environment
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - [ ] 8.2 Create rollback script for migration 308
+    - Create supabase/migrations/308_rollback_customer_suspension.sql
+    - Drop suspend_customer function (IF EXISTS)
+    - Drop unsuspend_customer function (IF EXISTS)
+    - Remove status column from profiles table if added (ALTER TABLE profiles DROP COLUMN IF EXISTS status)
+    - Restore previous schema state (document original state in comments)
+    - Preserve existing data (no DELETE statements)
+    - Add detailed comments explaining each rollback step
+    - Test rollback script in local environment
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - [ ] 8.3 Create rollback script for migration 309
+    - Create supabase/migrations/309_rollback_fix_get_admin_customers.sql
+    - Restore previous get_admin_customers function definition
+    - Document original function signature in comments
+    - Add detailed comments explaining rollback steps
+    - Test rollback script in local environment
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+- [ ] 9. Write Property-Based Tests (P2 - OPTIONAL)
+  - [ ]\* 9.1 Write property test for error wrapping
+    - Create src/tests/admin-error-wrapping.property.test.ts
+    - **Property 7: AppError Wrapping** - All errors in useOrderReassignment wrapped in AdminError
+    - **Property 8: Valid ErrorCode** - All AdminError instances have valid AdminErrorCode
+    - **Property 9: Thai Error Messages** - All AdminErrorCode values have Thai messages in ERROR_MESSAGES map
+    - **Property 10: Error Context Completeness** - All AdminError instances have action and timestamp in context
+    - Use fast-check with fc.constantFrom(...Object.values(AdminErrorCode))
+    - Use 100 iterations (numRuns: 100)
+    - Tag tests with "Feature: production-deployment-and-code-quality-fixes, Property N"
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [ ]\* 9.2 Write property test for retry logic
+    - Create src/tests/retry-logic.property.test.ts
+    - **Property 19: Retry on Transient Errors** - Network errors (timeout, 503) trigger retry up to maxAttempts
+    - **Property 20: Exponential Backoff Timing** - Delays follow pattern: initialDelay \* (backoffMultiplier ^ (attempt-1))
+    - **Property 21: Retry Exhaustion Error** - Final error after maxAttempts includes retry context with attempt count
+    - **Property 23: Non-Retryable Error Handling** - Validation errors (400, 401, 403) don't trigger retry
+    - Use fast-check with fc.integer() for attempt counts and delays
+    - Use 100 iterations (numRuns: 100)
+    - Mock setTimeout to test timing without actual delays
+    - Tag tests with "Feature: production-deployment-and-code-quality-fixes, Property N"
+    - _Requirements: 5.1, 5.2, 5.3, 5.5_
+  - [ ]\* 9.3 Write property test for accessibility
+    - Create src/tests/modal-accessibility.property.test.ts
+    - **Property 13: Button Accessibility Labels** - All buttons in OrderReassignmentModal have aria-label
+    - **Property 14: Icon Accessibility Hiding** - All decorative SVG icons have aria-hidden="true"
+    - **Property 17: Focus Trap Behavior** - Tab key cycles focus within modal (first → last → first)
+    - Use @vue/test-utils to mount OrderReassignmentModal
+    - Use fast-check with fc.array() to generate button lists
+    - Use 100 iterations (numRuns: 100)
+    - Tag tests with "Feature: production-deployment-and-code-quality-fixes, Property N"
+    - _Requirements: 3.1, 3.2, 3.7_
+
+- [ ] 10. Implement Caching System (P3 - LOW - OPTIONAL)
+  - [ ]\* 10.1 Create cache utility
+    - Create src/utils/cache.ts
+    - Implement CacheEntry interface with data, expires timestamp, and accessedAt
+    - Implement cache storage using Map<string, CacheEntry>
+    - Implement cache hit/miss logic (check expires > Date.now())
+    - Implement cache invalidation by key or pattern
+    - Implement LRU eviction when cache size exceeds limit (default 100 entries)
+    - Add cache statistics tracking (hits, misses, evictions)
+    - Export cached<T> function wrapper
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
+  - [ ]\* 10.2 Integrate caching into useOrderReassignment
+    - Import cached function from src/utils/cache.ts
+    - Cache getAvailableProviders results with 5-minute TTL (300000ms)
+    - Use cache key format: `providers:${serviceType || 'all'}`
+    - Invalidate cache on reassignOrder success (provider availability changed)
+    - Add cache statistics to console.debug logs
+    - Test cache hit/miss behavior in unit tests
+    - _Requirements: 9.1, 9.2, 9.4_
+
+- [ ] 11. Implement Circuit Breaker (P3 - LOW - OPTIONAL)
+  - [ ]\* 11.1 Create circuit breaker utility
+    - Create src/utils/circuitBreaker.ts
+    - Implement CircuitState enum (CLOSED, OPEN, HALF_OPEN)
+    - Implement CircuitBreaker class with state management
+    - Implement failure threshold detection (default 5 consecutive failures)
+    - Implement timeout and state transitions (default 30s timeout for OPEN → HALF_OPEN)
+    - Implement success counter for HALF_OPEN → CLOSED transition
+    - Add circuit state change event callbacks
+    - Export withCircuitBreaker<T> function wrapper
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
+  - [ ]\* 11.2 Integrate circuit breaker into useOrderReassignment
+    - Import withCircuitBreaker from src/utils/circuitBreaker.ts
+    - Wrap getAvailableProviders with circuit breaker
+    - Configure failure threshold: 5 failures
+    - Configure timeout: 30 seconds
+    - Add circuit state monitoring to console.debug logs
+    - Show user-friendly message when circuit is OPEN ("ระบบกำลังฟื้นตัว กรุณารอสักครู่")
+    - Test circuit breaker behavior in unit tests
+    - _Requirements: 10.1, 10.2, 10.3_
+
+- [ ] 12. Implement Virtual Scrolling (P3 - LOW - OPTIONAL)
+  - [ ]\* 12.1 Add virtual scrolling to provider list
+    - Install vue-virtual-scroller library (npm install vue-virtual-scroller)
+    - Import RecycleScroller component from vue-virtual-scroller
+    - Replace provider-list div with RecycleScroller component in OrderReassignmentModal
+    - Configure item-size prop to match provider card height (~120px)
+    - Configure buffer prop to 5 items (render 5 extra items above/below viewport)
+    - Test with 1000+ mock providers to verify performance
+    - Ensure keyboard navigation still works with virtual scrolling
+    - Ensure selected provider remains visible when scrolling
+    - _Requirements: 8.1, 8.2_
+
+- [ ] 13. Final Checkpoint - Complete Verification
+  - Ensure all P0 and P1 tasks complete
+  - Ensure all integration tests pass
+  - Ensure accessibility compliance (WCAG 2.1 AA)
+  - Run manual testing checklist
+  - Verify production deployment successful
+  - Ask the user if questions arise
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- P0 tasks must be completed first (production deployment)
+- P1 tasks are high priority (error handling, accessibility, integration tests)
+- P2 tasks are medium priority (loading states, rollback migrations, property tests)
+- P3 tasks are low priority (caching, circuit breaker, virtual scrolling)
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation
+- **Existing infrastructure**: AppError, ErrorType, withRetry, useFocusTrap already exist
+- **Focus on integration**: Refactor existing code to use existing utilities consistently
+- **Accessibility priority**: WCAG 2.1 AA compliance is critical for admin panel

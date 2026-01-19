@@ -81,7 +81,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "rollup-plugin-visualizer": "^6.0.5",
-    "supabase": "^2.72.6",
+    "supabase": "^2.72.8",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.51.0",
     "vite": "^7.2.4",

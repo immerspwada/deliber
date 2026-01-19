@@ -6,6 +6,7 @@ import { useAdminRealtime } from "../composables/useAdminRealtime";
 import { useDebounceFn } from "@vueuse/core";
 import type { Order, OrderFilters, OrderStatus } from "../types";
 import StatusDropdown from "../components/StatusDropdown.vue";
+import OrderReassignmentModal from "../components/OrderReassignmentModal.vue";
 
 const api = useAdminAPI();
 const uiStore = useAdminUIStore();
@@ -30,6 +31,7 @@ const showDetailModal = ref(false);
 const showStatusModal = ref(false);
 const showBulkModal = ref(false);
 const showAnalyticsModal = ref(false);
+const showReassignmentModal = ref(false);
 const newStatus = ref<OrderStatus>("pending");
 const bulkStatus = ref<OrderStatus>("pending");
 const bulkReason = ref("");
@@ -184,6 +186,16 @@ function openBulkModal() {
 function openAnalyticsModal() {
   loadAnalytics();
   showAnalyticsModal.value = true;
+}
+
+function openReassignmentModal(order: Order) {
+  selectedOrder.value = order;
+  showReassignmentModal.value = true;
+}
+
+function handleReassignmentSuccess() {
+  showReassignmentModal.value = false;
+  loadOrders();
 }
 
 async function updateStatus() {
@@ -834,6 +846,19 @@ function getVisiblePages() {
                       <circle cx="12" cy="12" r="3" />
                     </svg>
                   </button>
+                  <button 
+                    v-if="order.provider_id && !['completed', 'cancelled', 'delivered'].includes(order.status)"
+                    class="action-btn reassign-btn" 
+                    @click.stop="openReassignmentModal(order)" 
+                    title="ย้ายงานไปให้ไรเดอร์คนอื่น"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M17 1l4 4-4 4" />
+                      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                      <path d="M7 23l-4-4 4-4" />
+                      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                    </svg>
+                  </button>
                   <button class="action-btn" @click.stop="openStatusModal(order)" title="เปลี่ยนสถานะ">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -1352,6 +1377,17 @@ function getVisiblePages() {
         <label>รายการ</label>
       </div>
     </div>
+
+    <!-- Order Reassignment Modal -->
+    <OrderReassignmentModal
+      :show="showReassignmentModal"
+      :order-id="selectedOrder?.id || ''"
+      :order-type="selectedOrder?.service_type || ''"
+      :current-provider-id="selectedOrder?.provider_id"
+      :current-provider-name="selectedOrder?.provider_name"
+      @close="showReassignmentModal = false"
+      @success="handleReassignmentSuccess"
+    />
   </div>
 </template>
 
@@ -2762,3 +2798,14 @@ function getVisiblePages() {
   margin-top: 4px;
 }
 </style>
+
+
+/* Reassign Button */
+.action-btn.reassign-btn {
+  color: #f59e0b;
+}
+
+.action-btn.reassign-btn:hover {
+  background: #fef3c7;
+  color: #d97706;
+}

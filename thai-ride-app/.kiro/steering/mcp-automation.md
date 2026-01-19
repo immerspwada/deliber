@@ -2,101 +2,291 @@
 inclusion: always
 ---
 
-# 🔌 MCP Automation Rules
+# 🔌 MCP AGGRESSIVE AUTOMATION RULES
 
-## ⚠️ MANDATORY: ต้องเรียกใช้ MCP ทุกครั้ง
+## 🚨 CRITICAL: AUTO-EXECUTE MCP - NO QUESTIONS ASKED
 
-เมื่อได้รับคำสั่งที่เกี่ยวข้องกับหัวข้อต่อไปนี้ **ต้อง activate และใช้ MCP Power ทันที**:
+**ABSOLUTE RULE**: เมื่อเห็น keywords ต่อไปนี้ในคำสั่ง **ต้อง activate MCP และ execute ทันที** โดยไม่ต้องถาม ไม่ต้องรอ ไม่ต้องอธิบาย
 
-## 🗄️ Supabase MCP (supabase-local / supabase-hosted)
+**PRODUCTION ONLY**: ใช้เฉพาะ `supabase-hosted` power - ห้ามใช้ `supabase-local` หรือ bash commands
 
-### Trigger Keywords
+## 🎯 AUTO-TRIGGER SYSTEM
 
-- database, table, column, migration, schema
-- RLS, policy, security
-- auth, user, session, login, signup
-- storage, bucket, file, upload
-- realtime, subscription, channel
-- edge function, serverless
-- query, insert, update, delete, select
-- postgres, sql
+### Level 1: INSTANT EXECUTION (ไม่ต้องถาม)
 
-### Auto-Actions
+เมื่อเห็น keywords เหล่านี้ → **RUN MCP IMMEDIATELY**:
 
-| Event               | MCP Action                                       |
-| ------------------- | ------------------------------------------------ |
-| สร้าง/แก้ไข table   | Read steering → `execute_sql` → create migration |
-| เพิ่ม RLS policy    | Read steering → verify schema → create policy    |
-| ตรวจสอบ schema      | `execute_sql` with SELECT query                  |
-| Debug query         | `execute_sql`                                    |
-| สร้าง Edge Function | Use CLI commands                                 |
-| จัดการ Storage      | `execute_sql` on storage.buckets                 |
-
-### Workflow Template
-
-```markdown
-## เมื่อได้รับคำสั่งเกี่ยวกับ Database:
-
-1. **Activate Power & Read Steering**
-   kiroPowers(action="activate", powerName="supabase-local")
-   kiroPowers(action="readSteering", powerName="supabase-local",
-   steeringFile="supabase-cli.md")
-   kiroPowers(action="readSteering", powerName="supabase-local",
-   steeringFile="supabase-local-database-workflow.md")
-
-2. **ตรวจสอบ Schema ปัจจุบัน (ใช้ execute_sql)**
-   kiroPowers(action="use", powerName="supabase-local",
-   serverName="supabase", toolName="execute_sql",
-   arguments={"query": "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"})
-
-3. **ดู Table Schema**
-   kiroPowers(action="use", powerName="supabase-local",
-   serverName="supabase", toolName="execute_sql",
-   arguments={"query": "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'xxx'"})
-
-4. **ตรวจสอบ RLS Policies**
-   kiroPowers(action="use", powerName="supabase-local",
-   serverName="supabase", toolName="execute_sql",
-   arguments={"query": "SELECT \* FROM pg_policies WHERE tablename = 'xxx'"})
-
-5. **สร้าง Migration File**
-   สร้างไฟล์ใน supabase/migrations/ ตาม steering guide
-
-6. **Apply Migration**
-   executeBash: npx supabase db push --local
+```
+database, table, column, migration, schema, RLS, policy,
+auth, storage, realtime, edge function, query, SQL, postgres,
+provider, customer, admin, wallet, ride, order, payment
 ```
 
-## 🎨 Figma MCP
+### Level 2: POST-COMMAND AUTO-RUN
 
-### Trigger Keywords
+หลังจากทำงานเสร็จ ถ้าเจอ pattern เหล่านี้ → **AUTO-EXECUTE**:
 
-- design, UI, mockup, layout
-- component, frame, figma
-- design system, style guide
-- frontend, visual
+```
+- สร้าง/แก้ไข .vue component → Check if needs database
+- แก้ไข composable → Check if needs RLS policy
+- เพิ่ม feature ใหม่ → Check database schema
+- Fix bug → Check related migrations
+```
+
+## 🗄️ SUPABASE MCP - INSTANT EXECUTION PROTOCOL
+
+### 🔥 TRIGGER KEYWORDS (Auto-Execute)
+
+```typescript
+const AUTO_TRIGGERS = {
+  // Database Operations
+  database: [
+    "table",
+    "column",
+    "migration",
+    "schema",
+    "alter",
+    "create table",
+    "drop",
+  ],
+
+  // Security
+  security: ["RLS", "policy", "permission", "access", "role"],
+
+  // Auth
+  auth: ["user", "session", "login", "signup", "auth.uid()"],
+
+  // Storage
+  storage: ["bucket", "upload", "file", "image", "storage.objects"],
+
+  // Realtime
+  realtime: ["subscription", "channel", "broadcast", "presence"],
+
+  // Business Logic
+  business: [
+    "provider",
+    "customer",
+    "ride",
+    "order",
+    "wallet",
+    "payment",
+    "tip",
+  ],
+
+  // Performance
+  performance: ["index", "slow query", "optimize", "performance"],
+
+  // Errors
+  errors: ["403", "401", "forbidden", "unauthorized", "violates", "constraint"],
+};
+```
+
+### ⚡ AUTO-ACTIONS (No Confirmation Needed)
+
+| Trigger              | Instant MCP Actions                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **"สร้าง table"**    | 1. Activate MCP<br>2. Check schema<br>3. Execute CREATE TABLE<br>4. Verify<br>5. Generate types                      |
+| **"แก้ไข column"**   | 1. Activate MCP<br>2. Check current schema<br>3. Execute ALTER TABLE<br>4. Verify + Generate types                   |
+| **"เพิ่ม RLS"**      | 1. Activate MCP<br>2. Check existing policies<br>3. Verify dual-role system<br>4. Execute CREATE POLICY<br>5. Verify |
+| **"403 error"**      | 1. Activate MCP<br>2. Check RLS policies<br>3. Check dual-role joins<br>4. Fix policy<br>5. Execute                  |
+| **"storage upload"** | 1. Activate MCP<br>2. Check bucket policies<br>3. Fix RLS with dual-role<br>4. Execute                               |
+| **"slow query"**     | 1. Activate MCP<br>2. Check indexes<br>3. Execute CREATE INDEX<br>4. Verify                                          |
+| **"migration"**      | 1. Activate MCP<br>2. Verify schema<br>3. Execute SQL<br>4. **AUTO-VERIFY**                                          |
+
+### 🤖 AUTOMATED WORKFLOW (Zero Human Intervention)
+
+```typescript
+// BEFORE (Manual - ❌ BAD)
+User: "สร้าง table tips"
+Agent: "คุณต้องการให้ฉันสร้าง migration ไหม?"
+User: "ใช่"
+Agent: "ให้ฉัน apply migration ไหม?"
+User: "ใช่"
+// 😤 TOO MANY STEPS!
+
+// AFTER (Auto - ✅ GOOD)
+User: "สร้าง table tips"
+Agent: [INSTANT EXECUTION]
+  ✅ Activated: supabase-hosted
+  ✅ Checked: current schema
+  ✅ Executed: CREATE TABLE tips (...)
+  ✅ Verified: Table created
+  ✅ Generated: types
+  ✅ Done in 5 seconds!
+```
+
+### 📋 MANDATORY EXECUTION SEQUENCE
+
+**EVERY database-related command MUST follow this sequence:**
+
+```markdown
+## 1. INSTANT ACTIVATION (0.5s)
+
+kiroPowers(action="activate", powerName="supabase-hosted")
+
+## 2. SCHEMA VERIFICATION (1s)
+
+execute_sql: SELECT table_name FROM information_schema.tables
+execute_sql: SELECT column_name FROM information_schema.columns WHERE table_name = 'xxx'
+execute_sql: SELECT \* FROM pg_policies WHERE tablename = 'xxx'
+
+## 3. DUAL-ROLE CHECK (0.5s)
+
+execute_sql: SELECT \* FROM providers_v2 LIMIT 1
+// Verify user_id column exists
+
+## 4. EXECUTE CHANGE (2s)
+
+execute_sql: ALTER TABLE ... / CREATE POLICY ... / CREATE FUNCTION ...
+
+## 5. VERIFY (1s)
+
+execute_sql: Test query to verify changes
+
+## 6. GENERATE TYPES (Optional - 2s)
+
+generate_types: Update TypeScript types if schema changed
+
+TOTAL TIME: ~5-7 seconds ⚡
+```
+
+## 🎨 FIGMA MCP - AUTO DESIGN SYNC
+
+### Trigger Keywords (Auto-Execute)
+
+```
+design, UI, mockup, layout, component, frame, figma,
+design system, style guide, frontend, visual, colors, spacing
+```
 
 ### Auto-Actions
 
-| Event                | MCP Action                |
-| -------------------- | ------------------------- |
-| สร้าง Component ใหม่ | ตรวจสอบ Figma design ก่อน |
-| แก้ไข UI             | เทียบกับ design           |
-| Design System        | sync กับ Figma            |
+| Event                 | Instant MCP Actions                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **"สร้าง component"** | 1. Activate Figma MCP<br>2. Check design file<br>3. Extract styles<br>4. Generate component<br>5. Apply design tokens |
+| **"แก้ไข UI"**        | 1. Activate Figma MCP<br>2. Compare with design<br>3. Sync changes<br>4. Update component                             |
+| **"design system"**   | 1. Activate Figma MCP<br>2. Extract all tokens<br>3. Generate CSS variables<br>4. Update Tailwind config              |
 
-## 📋 Execution Checklist
+## 🔄 POST-COMMAND AUTO-EXECUTION
 
-ก่อนตอบคำถามที่เกี่ยวกับ database/backend:
+### Pattern Detection & Auto-Run
 
-- [ ] ✅ Activate supabase-local
-- [ ] ✅ Read steering guides (cli, workflow, และ topic-specific)
-- [ ] ✅ ตรวจสอบ schema ปัจจุบันด้วย `execute_sql`
-- [ ] ✅ ตรวจสอบ table schema ที่เกี่ยวข้อง
-- [ ] ✅ ตรวจสอบ RLS policies ที่มีอยู่
-- [ ] ✅ ตรวจสอบ dual-role system (providers_v2.user_id)
-- [ ] ✅ สร้าง migration file ที่ถูกต้อง
-- [ ] ✅ ทดสอบ query ก่อน apply
-- [ ] ✅ Run advisors (security, performance) ก่อน commit
-- [ ] ✅ Generate types หลัง apply migration
+```typescript
+// After ANY command completion, check these patterns:
+
+const POST_COMMAND_CHECKS = {
+  // Component created → Check database needs
+  "*.vue created": async () => {
+    if (hasDataFetching) {
+      await autoExecuteMCP("check-schema");
+      await autoExecuteMCP("verify-rls");
+    }
+  },
+
+  // Composable modified → Check RLS
+  "composables/*.ts modified": async () => {
+    if (hasSupabaseQuery) {
+      await autoExecuteMCP("check-rls-policies");
+      await autoExecuteMCP("verify-dual-role");
+    }
+  },
+
+  // Migration created → Auto apply
+  "migrations/*.sql created": async () => {
+    await autoExecuteMCP("apply-migration");
+    await autoExecuteMCP("generate-types");
+    await autoExecuteMCP("verify-advisors");
+  },
+
+  // Error mentioned → Auto diagnose
+  "error: 403|401|violates": async () => {
+    await autoExecuteMCP("check-rls");
+    await autoExecuteMCP("check-dual-role");
+    await autoExecuteMCP("fix-policy");
+  },
+};
+```
+
+## 📊 EXECUTION METRICS
+
+Track and report MCP execution speed:
+
+```markdown
+## ⚡ MCP Execution Report:
+
+| Action           | Time     | Status |
+| ---------------- | -------- | ------ |
+| Activate MCP     | 0.5s     | ✅     |
+| Load Steering    | 1.0s     | ✅     |
+| Check Schema     | 0.8s     | ✅     |
+| Create Migration | 2.0s     | ✅     |
+| Apply Migration  | 1.5s     | ✅     |
+| Generate Types   | 1.2s     | ✅     |
+| Verify Security  | 0.8s     | ✅     |
+| **TOTAL**        | **7.8s** | ✅     |
+
+🎯 Target: < 10s | Actual: 7.8s | Performance: 🔥 EXCELLENT
+```
+
+## 📋 PRE-EXECUTION CHECKLIST (Auto-Verify)
+
+**BEFORE any database operation, AUTO-CHECK:**
+
+```typescript
+const PRE_EXECUTION_CHECKS = {
+  "✅ MCP Activated": "supabase-local",
+  "✅ Steering Loaded": ["cli", "workflow", "rls", "dual-role"],
+  "✅ Schema Verified": "information_schema checked",
+  "✅ Dual-Role System": "providers_v2.user_id verified",
+  "✅ RLS Policies": "existing policies checked",
+  "✅ Performance": "indexes verified",
+  "✅ Security": "advisors checked",
+};
+
+// If ANY check fails → Auto-fix before proceeding
+```
+
+## 🚨 ERROR AUTO-RECOVERY
+
+### Automatic Error Detection & Fix
+
+```typescript
+const ERROR_PATTERNS = {
+  // RLS Violation
+  "violates row-level security": async () => {
+    await autoExecuteMCP("check-rls-policies");
+    await autoExecuteMCP("verify-dual-role-join");
+    await autoExecuteMCP("create-fix-migration");
+    await autoExecuteMCP("apply-migration");
+    return "Fixed RLS policy with dual-role check";
+  },
+
+  // Storage 403
+  "StorageApiError.*403": async () => {
+    await autoExecuteMCP("check-storage-policies");
+    await autoExecuteMCP("fix-bucket-rls");
+    await autoExecuteMCP("apply-migration");
+    return "Fixed storage bucket RLS";
+  },
+
+  // Missing Column
+  "column.*does not exist": async () => {
+    await autoExecuteMCP("check-schema");
+    await autoExecuteMCP("create-alter-migration");
+    await autoExecuteMCP("apply-migration");
+    await autoExecuteMCP("generate-types");
+    return "Added missing column";
+  },
+
+  // Slow Query
+  "execution time > 1000ms": async () => {
+    await autoExecuteMCP("run-performance-advisor");
+    await autoExecuteMCP("create-index-migration");
+    await autoExecuteMCP("apply-migration");
+    return "Added performance index";
+  },
+};
+```
 
 ## 🚨 Error Prevention & Common Pitfalls
 
@@ -181,61 +371,235 @@ CREATE POLICY "fast_policy" ON table_name
   USING ((SELECT auth.uid()) = user_id);
 ```
 
-## 🔄 Auto-Sync Pattern
+## 🔄 AUTO-SYNC PATTERN (Zero Manual Steps)
 
-เมื่อแก้ไข database schema:
+### After Schema Changes - AUTO-EXECUTE:
 
-```bash
-# 1. Apply migration
-npx supabase db push --local
+```typescript
+// 1. Execute change directly on production (AUTO - NO CONFIRMATION)
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: "ALTER TABLE ...",
+  },
+});
 
-# 2. Generate TypeScript types
-npx supabase gen types --local > src/types/database.ts
+// 2. Generate types (AUTO)
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "generate_types",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+  },
+});
 
-# 3. Check advisors (security, performance)
-# Use MCP execute_sql to check pg_stat_statements, pg_policies, etc.
+// 3. Verify (AUTO)
+await execute_sql("SELECT * FROM ...");
 
-# 4. Restart dev server (ถ้าจำเป็น)
+// 4. Report (AUTO)
+log("✅ Schema updated");
+log("✅ Types generated");
+log("✅ Verified");
 ```
 
-## 🛠️ MCP Tools Available
+### Migration Naming Convention (NOT NEEDED FOR PRODUCTION)
 
-### Note: Limited Tools in Local MCP
+```typescript
+// ❌ OLD WAY: Create migration files
+// Migration files are NOT needed when working directly with production
 
-The local Supabase MCP server has **limited tools** compared to hosted. Most operations use:
+// ✅ NEW WAY: Execute directly
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: "ALTER TABLE ...",
+  },
+});
+```
 
-1. **execute_sql** - Main tool for all database operations
+## 🛠️ MCP TOOLS - INSTANT USAGE
 
-   - Query schema: `SELECT * FROM information_schema.tables`
-   - Check policies: `SELECT * FROM pg_policies`
-   - Test queries: `SELECT * FROM table_name LIMIT 1`
-   - Create/modify: Use for development iteration
+### execute_sql - Main Workhorse (AUTO-EXECUTE)
 
-2. **get_logs** - View Supabase logs
+```typescript
+// Auto-execute for ALL database operations:
 
-   - `api` logs: PostgREST endpoint failures, RLS issues
-   - `postgres` logs: Slow queries, errors, connections
+// 1. Schema Discovery (AUTO)
+await execute_sql(`
+  SELECT table_name, table_type 
+  FROM information_schema.tables 
+  WHERE table_schema = 'public'
+  ORDER BY table_name
+`);
 
-3. **get_advisors** - Check security and performance
-   - `security`: RLS issues, exposed tables
-   - `performance`: Missing indexes, slow queries
+// 2. Column Check (AUTO)
+await execute_sql(`
+  SELECT column_name, data_type, is_nullable
+  FROM information_schema.columns
+  WHERE table_name = '${tableName}'
+  ORDER BY ordinal_position
+`);
 
-### CLI Commands (via executeBash)
+// 3. RLS Policies (AUTO)
+await execute_sql(`
+  SELECT schemaname, tablename, policyname, 
+         permissive, roles, cmd, qual, with_check
+  FROM pg_policies
+  WHERE tablename = '${tableName}'
+`);
 
-```bash
-# Schema management
-npx supabase db diff --local              # See schema changes
-npx supabase db push --local              # Apply migrations
-npx supabase db reset --local             # Reset database
-npx supabase migration list --local       # List migrations
+// 4. Dual-Role Verification (AUTO)
+await execute_sql(`
+  SELECT column_name 
+  FROM information_schema.columns
+  WHERE table_name = 'providers_v2' 
+  AND column_name = 'user_id'
+`);
 
-# Type generation
-npx supabase gen types --local > src/types/database.ts
+// 5. Performance Check (AUTO)
+await execute_sql(`
+  SELECT schemaname, tablename, indexname, indexdef
+  FROM pg_indexes
+  WHERE tablename = '${tableName}'
+`);
+```
 
-# Status
-npx supabase status                       # Check if running
-npx supabase start                        # Start local stack
-npx supabase stop                         # Stop local stack
+### get_logs - Auto-Diagnose
+
+```typescript
+// Auto-check logs on errors (if available):
+
+// API logs (RLS issues)
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "get_logs",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    type: "api",
+    limit: 50,
+  },
+});
+```
+
+### get_advisors - Auto-Security
+
+```typescript
+// Auto-run after every change (if available):
+
+// Security check
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "get_advisors",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    type: "security",
+  },
+});
+```
+
+### NO CLI Commands - Use MCP Only
+
+```typescript
+// ❌ NEVER USE THESE
+executeBash("npx supabase db push");
+executeBash("npx supabase gen types");
+executeBash("npx supabase start");
+
+// ✅ ALWAYS USE MCP
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: { project_id: "onsflqhkgqhydeupiqyt", query: "..." },
+});
+```
+
+## 🎯 COMPLETE AUTO-WORKFLOW EXAMPLE
+
+### User Command: "เพิ่ม column tip_amount ใน ride_requests"
+
+```typescript
+// INSTANT AUTO-EXECUTION (No questions, no waiting)
+
+// Step 1: Activate MCP (0.5s)
+await kiroPowers({ action: "activate", powerName: "supabase-hosted" });
+
+// Step 2: Check Current Schema (0.8s)
+const schema = await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'ride_requests'
+    `,
+  },
+});
+
+// Step 3: Verify No Conflicts (0.2s)
+if (schema.some((col) => col.column_name === "tip_amount")) {
+  throw new Error("Column already exists");
+}
+
+// Step 4: Execute ALTER TABLE (1.5s)
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: `
+      ALTER TABLE ride_requests 
+      ADD COLUMN tip_amount DECIMAL(10,2) DEFAULT 0 CHECK (tip_amount >= 0);
+    `,
+  },
+});
+
+// Step 5: AUTO-VERIFY (0.5s)
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: "SELECT tip_amount FROM ride_requests LIMIT 1",
+  },
+});
+
+// Step 6: AUTO-GENERATE Types (2s)
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "generate_types",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+  },
+});
+
+// TOTAL: 5.5 seconds ⚡
+// Result: Column added, types generated, verified - ALL AUTOMATIC!
 ```
 
 ## 📝 Response Format
@@ -245,13 +609,12 @@ npx supabase stop                         # Stop local stack
 ```markdown
 ## 🔌 MCP Actions Performed:
 
-1. ✅ Activated: supabase-local
-2. ✅ Read steering: supabase-cli.md, supabase-local-database-workflow.md, [topic].md
-3. ✅ Checked schema: [tables checked]
-4. ✅ Verified RLS: [policies checked]
-5. ✅ Created migration: XXX_description.sql
-6. ✅ Applied: npx supabase db push --local
-7. ✅ Generated types: npx supabase gen types --local
+1. ✅ Activated: supabase-hosted
+2. ✅ Checked schema: [tables checked]
+3. ✅ Verified RLS: [policies checked]
+4. ✅ Executed: ALTER TABLE / CREATE POLICY / CREATE FUNCTION
+5. ✅ Verified: Changes applied successfully
+6. ✅ Generated types: TypeScript types updated
 
 ## 📊 Schema Changes:
 
@@ -263,7 +626,7 @@ npx supabase stop                         # Stop local stack
 
 - Fixed provider_id check to use providers_v2.user_id
 - Added performance optimization with SELECT wrapper
-- Verified security with advisors
+- Verified security
 ```
 
 ## 🎯 Real-World Example: Storage Bucket RLS Fix
@@ -277,22 +640,29 @@ POST /storage/v1/object/ride-evidence/... 403 (Forbidden)
 
 ### MCP Workflow:
 
-1. **Activate & Read Steering**
+1. **Activate MCP**
 
 ```typescript
-kiroPowers((action = "activate"), (powerName = "supabase-local"));
-kiroPowers(
-  (action = "readSteering"),
-  (steeringFile = "supabase-prompts-database-rls-policies.md")
-);
+await kiroPowers({ action: "activate", powerName: "supabase-hosted" });
 ```
 
 2. **Check Current Policies**
 
-```sql
-SELECT * FROM pg_policies
-WHERE tablename = 'objects'
-AND policyname LIKE '%ride_evidence%';
+```typescript
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: `
+      SELECT * FROM pg_policies
+      WHERE tablename = 'objects'
+      AND policyname LIKE '%ride_evidence%'
+    `,
+  },
+});
 ```
 
 3. **Identify Issue**
@@ -310,31 +680,51 @@ USING (
 
 4. **Fix with Dual-Role Check**
 
-```sql
--- ✅ New policy (works with dual-role)
-USING (
-  EXISTS (
-    SELECT 1 FROM ride_requests rr
-    INNER JOIN providers_v2 p ON p.id = rr.provider_id
-    WHERE rr.id::text = (string_to_array(name, '/'))[1]
-    AND p.user_id = auth.uid()
-    AND p.status = 'approved'
-  )
-)
+```typescript
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: `
+      DROP POLICY IF EXISTS "provider_upload" ON storage.objects;
+      
+      CREATE POLICY "provider_upload" ON storage.objects
+      FOR INSERT TO authenticated
+      WITH CHECK (
+        bucket_id = 'ride-evidence' AND
+        EXISTS (
+          SELECT 1 FROM ride_requests rr
+          INNER JOIN providers_v2 p ON p.id = rr.provider_id
+          WHERE rr.id::text = (string_to_array(name, '/'))[1]
+          AND p.user_id = auth.uid()
+          AND p.status = 'approved'
+        )
+      );
+    `,
+  },
+});
 ```
 
-5. **Create Migration**
+5. **Verify**
 
-```bash
-# Create file: supabase/migrations/269_ride_evidence_storage.sql
-# Include DROP POLICY IF EXISTS and CREATE POLICY
-```
-
-6. **Apply & Verify**
-
-```bash
-npx supabase db push --local
-npx supabase gen types --local > src/types/database.ts
+```typescript
+await kiroPowers({
+  action: "use",
+  powerName: "supabase-hosted",
+  serverName: "supabase",
+  toolName: "execute_sql",
+  arguments: {
+    project_id: "onsflqhkgqhydeupiqyt",
+    query: `
+      SELECT * FROM pg_policies
+      WHERE tablename = 'objects'
+      AND policyname = 'provider_upload'
+    `,
+  },
+});
 ```
 
 ### Result:
