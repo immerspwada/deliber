@@ -25,6 +25,7 @@ const WithdrawalsView = () => import('./views/WithdrawalsView.vue')
 const AdminRefundsView = () => import('../views/AdminRefundsView.vue')
 const PaymentSettingsView = () => import('./views/PaymentSettingsView.vue')
 const PaymentAccountsView = () => import('./views/PaymentAccountsView.vue')
+const AdminFinancialSettingsView = () => import('./views/AdminFinancialSettingsView.vue')
 const PromosView = () => import('./views/PromosView.vue')
 const PromoManagementView = () => import('./views/PromoManagementView.vue')
 const AdminReferralsView = () => import('../views/AdminReferralsView.vue')
@@ -38,7 +39,7 @@ const AdminAnalyticsView = () => import('../views/AdminAnalyticsView.vue')
 const AdminReportsView = () => import('../views/AdminReportsView.vue')
 const AdminUXAnalyticsView = () => import('../views/AdminUXAnalyticsView.vue')
 const CustomerUXAnalyticsView = () => import('./views/CustomerUXAnalyticsView.vue')
-const AdminSettingsView = () => import('../views/AdminSettingsView.vue')
+// Settings views - ใช้ไฟล์ใหม่ทั้งหมด
 const AdminNotificationsView = () => import('../views/AdminNotificationsView.vue')
 const AdminServiceAreasView = () => import('../views/AdminServiceAreaView.vue')
 const AdminServiceZonesView = () => import('../views/AdminServiceZonesView.vue')
@@ -227,6 +228,7 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: PaymentAccountsView,
         meta: { module: 'finance' }
       },
+
       
       // Marketing
       {
@@ -336,47 +338,53 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { module: 'analytics' }
       },
       
-      // Settings
-      {
-        path: 'system-logs',
-        name: 'AdminSystemLogsV2',
-        component: SystemLogsView,
-        meta: { module: 'settings' }
-      },
-      {
-        path: 'system-health',
-        name: 'AdminSystemHealthV2',
-        component: SystemLogsView,
-        meta: { module: 'settings' }
-      },
+      // Settings - ศูนย์กลางการตั้งค่า
       {
         path: 'settings',
         name: 'AdminSettingsV2',
-        component: AdminSettingsView,
+        component: () => import('./views/AdminSettingsView.vue'), // Settings Hub (ใหม่)
         meta: { module: 'settings' }
       },
       {
-        path: 'notifications',
-        name: 'AdminNotificationsV2',
+        path: 'settings/system',
+        name: 'AdminSystemSettingsV2',
+        component: () => import('./views/SystemSettingsView.vue'), // System Settings (ใหม่)
+        meta: { module: 'settings' }
+      },
+      {
+        path: 'settings/financial',
+        name: 'AdminFinancialSettingsV2',
+        component: AdminFinancialSettingsView,
+        meta: { module: 'settings' }
+      },
+      {
+        path: 'settings/notifications',
+        name: 'AdminNotificationSettingsV2',
         component: AdminNotificationsView,
         meta: { module: 'settings' }
       },
       {
-        path: 'service-areas',
-        name: 'AdminServiceAreasV2',
+        path: 'settings/service-areas',
+        name: 'AdminServiceAreasSettingsV2',
         component: AdminServiceAreasView,
         meta: { module: 'settings' }
       },
       {
-        path: 'service-zones',
-        name: 'AdminServiceZonesV2',
+        path: 'settings/service-zones',
+        name: 'AdminServiceZonesSettingsV2',
         component: AdminServiceZonesView,
         meta: { module: 'settings' }
       },
       {
-        path: 'security',
-        name: 'AdminSecurityV2',
+        path: 'settings/security',
+        name: 'AdminSecuritySettingsV2',
         component: AdminSecurityView,
+        meta: { module: 'settings' }
+      },
+      {
+        path: 'system-logs',
+        name: 'AdminSystemLogsV2',
+        component: SystemLogsView,
         meta: { module: 'settings' }
       },
       {

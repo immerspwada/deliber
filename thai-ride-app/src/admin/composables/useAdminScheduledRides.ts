@@ -90,19 +90,15 @@ export function useAdminScheduledRides() {
   )
 
   /**
-   * Fetch scheduled rides with date filters and pagination
+   * Fetch scheduled rides with status filter and pagination
    */
   async function fetchScheduledRides(filters: ScheduledRideFilters = {}): Promise<ScheduledRide[]> {
     loading.value = true
     error.value = null
 
     try {
-      const dateFrom = filters.dateFrom || new Date()
-      const dateTo = filters.dateTo || null
-
-      const { data, error: rpcError } = await supabase.rpc('get_scheduled_rides', {
-        p_date_from: dateFrom.toISOString(),
-        p_date_to: dateTo?.toISOString() || null,
+      const { data, error: rpcError } = await supabase.rpc('get_all_scheduled_rides_for_admin', {
+        p_status: null, // null = all statuses
         p_limit: filters.limit || 20,
         p_offset: filters.offset || 0
       })
@@ -127,12 +123,8 @@ export function useAdminScheduledRides() {
    */
   async function fetchCount(filters: Omit<ScheduledRideFilters, 'limit' | 'offset'> = {}): Promise<number> {
     try {
-      const dateFrom = filters.dateFrom || new Date()
-      const dateTo = filters.dateTo || null
-
-      const { data, error: rpcError } = await supabase.rpc('count_scheduled_rides', {
-        p_date_from: dateFrom.toISOString(),
-        p_date_to: dateTo?.toISOString() || null
+      const { data, error: rpcError } = await supabase.rpc('count_scheduled_rides_for_admin', {
+        p_status: null // null = all statuses
       })
 
       if (rpcError) throw rpcError

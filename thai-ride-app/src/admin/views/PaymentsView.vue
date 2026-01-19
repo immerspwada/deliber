@@ -28,11 +28,11 @@ async function loadPayments() {
     let query = supabase
       .from('ride_requests')
       .select(`
-        id, tracking_id, total_fare, payment_method, payment_status, 
+        id, tracking_id, final_fare, payment_method, payment_status, 
         created_at, completed_at, user_id,
         users!ride_requests_user_id_fkey(first_name, last_name, phone_number)
       `, { count: 'exact' })
-      .not('total_fare', 'is', null)
+      .not('final_fare', 'is', null)
 
     if (searchQuery.value) {
       query = query.or(`tracking_id.ilike.%${searchQuery.value}%`)
@@ -54,7 +54,7 @@ async function loadPayments() {
     payments.value = (data || []).map((p: any) => ({
       id: p.id,
       tracking_id: p.tracking_id || p.id.slice(0, 8).toUpperCase(),
-      amount: p.total_fare || 0,
+      amount: p.final_fare || 0,
       method: p.payment_method || 'cash',
       status: p.payment_status || 'pending',
       customer_name: p.users ? `${p.users.first_name || ''} ${p.users.last_name || ''}`.trim() : '-',

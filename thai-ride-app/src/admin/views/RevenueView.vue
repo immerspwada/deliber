@@ -47,14 +47,14 @@ async function loadStats() {
     // Get ride stats
     const { data: rides } = await supabase
       .from('ride_requests')
-      .select('id, status, total_fare, tip_amount, promo_discount, payment_status, created_at')
+      .select('id, status, final_fare, tip_amount, promo_discount, payment_status, created_at')
       .gte('created_at', startDate)
 
     const completedRides = rides?.filter(r => r.status === 'completed') || []
     const cancelledRides = rides?.filter(r => r.status === 'cancelled') || []
     const pendingPayment = rides?.filter(r => r.payment_status === 'pending') || []
 
-    const totalRevenue = completedRides.reduce((sum, r) => sum + (r.total_fare || 0), 0)
+    const totalRevenue = completedRides.reduce((sum, r) => sum + (r.final_fare || 0), 0)
     const totalTips = completedRides.reduce((sum, r) => sum + (r.tip_amount || 0), 0)
     const totalPromoDiscount = completedRides.reduce((sum, r) => sum + (r.promo_discount || 0), 0)
 
@@ -64,7 +64,7 @@ async function loadStats() {
       avgOrderValue: completedRides.length > 0 ? totalRevenue / completedRides.length : 0,
       completedOrders: completedRides.length,
       cancelledOrders: cancelledRides.length,
-      pendingPayments: pendingPayment.reduce((sum, r) => sum + (r.total_fare || 0), 0),
+      pendingPayments: pendingPayment.reduce((sum, r) => sum + (r.final_fare || 0), 0),
       totalTips,
       totalPromoDiscount
     }
@@ -110,7 +110,7 @@ async function loadStats() {
       const dateStr = date.toISOString().split('T')[0]
       const dayRevenue = completedRides
         .filter(r => r.created_at?.startsWith(dateStr))
-        .reduce((sum, r) => sum + (r.total_fare || 0), 0)
+        .reduce((sum, r) => sum + (r.final_fare || 0), 0)
       last7Days.push({ date: dateStr, revenue: dayRevenue })
     }
     revenueByDay.value = last7Days

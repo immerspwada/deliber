@@ -2,10 +2,15 @@
  * System Settings Composable
  * ==========================
  * Manage system-wide settings with validation and audit logging
+ * 
+ * PRODUCTION ONLY - No mock data
  */
 
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
+
+// Force production mode - no mocks
+const USE_PRODUCTION = true
 
 export interface SystemSetting {
   id: string

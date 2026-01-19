@@ -137,7 +137,7 @@ export function useReceipt() {
         surgeFare: rideData.surge_fare || 0,
         discount: rideData.discount || 0,
         promoCode: rideData.promo_code,
-        total: rideData.total_fare || 0,
+        total: rideData.final_fare || 0,
         paymentMethod: rideData.payment_method || 'เงินสด',
         paymentStatus: rideData.payment_status || 'paid',
         serviceType: 'ride',
