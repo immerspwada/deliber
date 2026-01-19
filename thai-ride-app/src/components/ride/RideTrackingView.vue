@@ -22,6 +22,8 @@ const props = defineProps<{
   statusText: string
   rideId?: string
   trackingId?: string
+  isRealtimeConnected?: boolean
+  realtimeStatus?: 'connected' | 'connecting' | 'disconnected'
 }>()
 
 // Format order number for display (short version)

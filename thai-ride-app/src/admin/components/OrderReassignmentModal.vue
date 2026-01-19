@@ -131,6 +131,10 @@ watch(() => props.show, async (show) => {
     // Load providers
     loadProviders();
     
+    // Subscribe to realtime updates
+    reassignment.subscribeToProviderUpdates();
+    reassignment.subscribeToReassignmentUpdates(props.orderId);
+    
     // Activate focus trap and focus first element
     await nextTick();
     focusTrap.activate();
@@ -140,6 +144,9 @@ watch(() => props.show, async (show) => {
       closeButtonRef.value.focus();
     }
   } else {
+    // Unsubscribe from realtime updates
+    reassignment.unsubscribeAll();
+    
     // Deactivate focus trap
     focusTrap.deactivate();
     

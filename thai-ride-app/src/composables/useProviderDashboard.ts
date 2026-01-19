@@ -457,9 +457,9 @@ export function useProviderDashboard() {
       if (directError) {
         providerLogger.error('Direct update failed:', directError)
         
-        // FALLBACK: Try RPC function
+        // FALLBACK: Try RPC function (using v2 which updates providers_v2 table)
         try {
-          const { data: toggleData, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online', {
+          const { data: toggleData, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online_v2', {
             p_user_id: authStore.user?.id,
             p_is_online: online,
             p_lat: location?.lat || null,

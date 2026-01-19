@@ -653,8 +653,8 @@ export function useProvider() {
       if (!profile.value?.id) await fetchProfile()
       if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
       
-      // ใช้ toggle_provider_online function (Production-Ready)
-      const { data, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online', {
+      // ใช้ toggle_provider_online_v2 function (Production-Ready - uses providers_v2 table)
+      const { data, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online_v2', {
         p_user_id: authStore.user?.id,
         p_is_online: online,
         p_lat: location?.lat || null,
