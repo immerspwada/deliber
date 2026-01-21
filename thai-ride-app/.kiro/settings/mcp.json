@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@latest",
+        "."
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "read_file",
+        "read_multiple_files",
+        "list_directory",
+        "search_files",
+        "get_file_info",
+        "read_text_file",
+        "write_file",
+        "list_allowed_directories",
+        "edit_file",
+        "create_directory"
+      ]
+    }
+  }
+}

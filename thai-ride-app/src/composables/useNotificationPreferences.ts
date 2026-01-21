@@ -1,283 +1,313 @@
-// @ts-nocheck
 /**
- * useNotificationPreferences - Notification Preferences Management
+ * Notification Preferences Composable
+ * Manages provider notification preferences by category
  * 
- * Feature: F07 - Enhanced Notification System
- * Tables: notification_channels, notification_categories, user_notification_preferences
- * Migration: 062_notification_system_v2.sql
+ * Role Impact:
+ * - Provider: Can view and update own preferences
+ * - Customer: No access
+ * - Admin: Can view all preferences
  */
-
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../lib/supabase'
 
-export interface NotificationChannel {
-  name: string
-  display_name: string
-  display_name_th: string
-  channel_type: 'push' | 'sms' | 'email' | 'in_app' | 'line'
-  is_active: boolean
-}
-
-export interface NotificationCategory {
-  category_key: string
-  category_name: string
-  category_name_th: string
-  is_critical: boolean
-  channels: string[]
-  is_enabled: boolean
-}
+// Notification categories
+export type NotificationCategory = 
+  | 'new_job'
+  | 'job_update'
+  | 'earnings'
+  | 'promotions'
+  | 'system_announcements'
 
 export interface NotificationPreference {
-  category_key: string
-  channels: string[]
-  is_enabled: boolean
-  quiet_hours_start?: string
-  quiet_hours_end?: string
+  id: string
+  provider_id: string
+  category: NotificationCategory
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Category metadata for UI
+export const NOTIFICATION_CATEGORIES: Record<NotificationCategory, {
+  label: string
+  description: string
+  icon: string
+}> = {
+  new_job: {
+    label: 'งานใหม่',
+    description: 'แจ้งเตือนเมื่อมีงานใหม่เข้ามา',
+    icon: '🔔'
+  },
+  job_update: {
+    label: 'อัพเดทงาน',
+    description: 'แจ้งเตือนเมื่อสถานะงานเปลี่ยนแปลง',
+    icon: '📋'
+  },
+  earnings: {
+    label: 'รายได้',
+    description: 'แจ้งเตือนเมื่อได้รับเงิน',
+    icon: '💰'
+  },
+  promotions: {
+    label: 'โปรโมชั่น',
+    description: 'ข่าวสารโปรโมชั่นและส่วนลด',
+    icon: '🎁'
+  },
+  system_announcements: {
+    label: 'ประกาศระบบ',
+    description: 'ข่าวสารสำคัญจากระบบ',
+    icon: '📢'
+  }
 }
 
 export function useNotificationPreferences() {
+  const preferences = ref<NotificationPreference[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  
-  // State
-  const channels = ref<NotificationChannel[]>([])
-  const categories = ref<NotificationCategory[]>([])
-  const preferences = ref<NotificationPreference[]>([])
-  
-  // Quiet hours
-  const quietHoursEnabled = ref(false)
-  const quietHoursStart = ref('22:00')
-  const quietHoursEnd = ref('07:00')
+  const providerId = ref<string | null>(null)
 
-  // Computed
-  const enabledCategories = computed(() => 
-    categories.value.filter(c => c.is_enabled)
-  )
-
-  const criticalCategories = computed(() => 
-    categories.value.filter(c => c.is_critical)
-  )
-
-  // Fetch available channels
-  const fetchChannels = async () => {
-    try {
-      const { data, error: err } = await supabase
-        .from('notification_channels')
-        .select('*')
-        .eq('is_active', true)
-        .order('priority')
-      
-      if (err) throw err
-      channels.value = data || []
-    } catch (e: any) {
-      error.value = e.message
-      // Default channels
-      channels.value = [
-        { name: 'in_app', display_name: 'In-App', display_name_th: 'ในแอป', channel_type: 'in_app', is_active: true },
-        { name: 'push', display_name: 'Push', display_name_th: 'Push', channel_type: 'push', is_active: true },
-        { name: 'email', display_name: 'Email', display_name_th: 'อีเมล', channel_type: 'email', is_active: true }
-      ]
-    }
+  // Get preference by category
+  const getPreference = (category: NotificationCategory): NotificationPreference | undefined => {
+    return preferences.value.find(p => p.category === category)
   }
 
-  // Fetch user preferences
-  const fetchPreferences = async () => {
-    loading.value = true
-    error.value = null
-    
-    try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) throw new Error('Not authenticated')
-      
-      const { data, error: err } = await supabase.rpc('get_user_notification_preferences', {
-        p_user_id: userData.user.id
-      })
-      
-      if (err) throw err
-      categories.value = data || []
-    } catch (e: any) {
-      error.value = e.message
-      // Default categories
-      categories.value = [
-        { category_key: 'ride_updates', category_name: 'Ride Updates', category_name_th: 'อัพเดทการเดินทาง', is_critical: true, channels: ['in_app', 'push'], is_enabled: true },
-        { category_key: 'delivery_updates', category_name: 'Delivery Updates', category_name_th: 'อัพเดทการส่งของ', is_critical: true, channels: ['in_app', 'push'], is_enabled: true },
-        { category_key: 'payment', category_name: 'Payment', category_name_th: 'การชำระเงิน', is_critical: true, channels: ['in_app', 'push', 'email'], is_enabled: true },
-        { category_key: 'promotions', category_name: 'Promotions', category_name_th: 'โปรโมชั่น', is_critical: false, channels: ['in_app', 'push'], is_enabled: true },
-        { category_key: 'safety', category_name: 'Safety Alerts', category_name_th: 'แจ้งเตือนความปลอดภัย', is_critical: true, channels: ['in_app', 'push', 'sms'], is_enabled: true },
-        { category_key: 'rewards', category_name: 'Rewards', category_name_th: 'รางวัลและแต้ม', is_critical: false, channels: ['in_app', 'push'], is_enabled: true }
-      ]
-    } finally {
-      loading.value = false
-    }
+  // Check if category is enabled
+  const isEnabled = (category: NotificationCategory): boolean => {
+    const pref = getPreference(category)
+    // Default to true if no preference exists
+    return pref?.enabled ?? true
   }
 
-  // Update preference for a category
-  const updatePreference = async (
-    categoryKey: string,
-    channels?: string[],
-    isEnabled?: boolean
-  ) => {
+  // Computed: all categories with their status
+  const categoriesWithStatus = computed(() => {
+    return Object.entries(NOTIFICATION_CATEGORIES).map(([key, meta]) => ({
+      category: key as NotificationCategory,
+      ...meta,
+      enabled: isEnabled(key as NotificationCategory)
+    }))
+  })
+
+  // Computed: count of enabled categories
+  const enabledCount = computed(() => {
+    return categoriesWithStatus.value.filter(c => c.enabled).length
+  })
+
+  // Load preferences from database
+  async function loadPreferences(): Promise<void> {
     loading.value = true
     error.value = null
-    
+
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) throw new Error('Not authenticated')
-      
-      const { data, error: err } = await supabase.rpc('update_notification_preference', {
-        p_user_id: userData.user.id,
-        p_category_key: categoryKey,
-        p_channels: channels,
-        p_is_enabled: isEnabled
-      })
-      
-      if (err) throw err
-      
-      // Update local state
-      const category = categories.value.find(c => c.category_key === categoryKey)
-      if (category) {
-        if (channels !== undefined) category.channels = channels
-        if (isEnabled !== undefined) category.is_enabled = isEnabled
+      // Get current user's provider ID
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return
       }
-      
-      return { success: true }
-    } catch (e: any) {
-      error.value = e.message
-      return { success: false, error: e.message }
+
+      const { data: provider } = await supabase
+        .from('providers_v2')
+        .select('id')
+        .eq('user_id', user.id)
+        .single() as { data: { id: string } | null }
+
+      if (!provider) {
+        error.value = 'ไม่พบข้อมูล Provider'
+        return
+      }
+
+      providerId.value = provider.id
+
+      // Load preferences
+      const { data, error: fetchError } = await (supabase
+        .from('notification_preferences') as ReturnType<typeof supabase.from>)
+        .select('*')
+        .eq('provider_id', provider.id)
+
+      if (fetchError) throw fetchError
+
+      preferences.value = data || []
+
+      // Initialize default preferences if none exist
+      if (preferences.value.length === 0) {
+        await initializeDefaults()
+      }
+
+      console.log('[NotificationPreferences] Loaded:', preferences.value.length, 'preferences')
+    } catch (err) {
+      console.error('[NotificationPreferences] Load error:', err)
+      error.value = 'ไม่สามารถโหลดการตั้งค่าได้'
     } finally {
       loading.value = false
     }
   }
 
-  // Toggle category enabled/disabled
-  const toggleCategory = async (categoryKey: string) => {
-    const category = categories.value.find(c => c.category_key === categoryKey)
-    if (!category || category.is_critical) return { success: false, error: 'Cannot toggle critical category' }
-    
-    return await updatePreference(categoryKey, undefined, !category.is_enabled)
-  }
+  // Initialize default preferences for new providers
+  async function initializeDefaults(): Promise<void> {
+    if (!providerId.value) return
 
-  // Toggle channel for a category
-  const toggleChannel = async (categoryKey: string, channelName: string) => {
-    const category = categories.value.find(c => c.category_key === categoryKey)
-    if (!category) return { success: false, error: 'Category not found' }
-    
-    let newChannels: string[]
-    if (category.channels.includes(channelName)) {
-      // Remove channel (but keep at least in_app)
-      newChannels = category.channels.filter(c => c !== channelName)
-      if (newChannels.length === 0) newChannels = ['in_app']
-    } else {
-      // Add channel
-      newChannels = [...category.channels, channelName]
-    }
-    
-    return await updatePreference(categoryKey, newChannels)
-  }
-
-  // Check if channel is enabled for category
-  const isChannelEnabled = (categoryKey: string, channelName: string): boolean => {
-    const category = categories.value.find(c => c.category_key === categoryKey)
-    return category?.channels.includes(channelName) ?? false
-  }
-
-  // Set quiet hours
-  const setQuietHours = async (enabled: boolean, start?: string, end?: string) => {
-    quietHoursEnabled.value = enabled
-    if (start) quietHoursStart.value = start
-    if (end) quietHoursEnd.value = end
-    
-    // Save to user preferences (could be stored in user_notification_preferences or user settings)
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) return
+      // Call the database function to initialize defaults
+      const { error: initError } = await supabase
+        .rpc('initialize_notification_preferences', {
+          p_provider_id: providerId.value
+        })
+
+      if (initError) {
+        // Fallback: insert manually if function doesn't exist
+        const defaultPrefs = Object.keys(NOTIFICATION_CATEGORIES).map(category => ({
+          provider_id: providerId.value,
+          category,
+          enabled: true
+        }))
+
+        await (supabase
+          .from('notification_preferences') as ReturnType<typeof supabase.from>)
+          .upsert(defaultPrefs, { onConflict: 'provider_id,category' })
+      }
+
+      // Reload preferences
+      const { data } = await (supabase
+        .from('notification_preferences') as ReturnType<typeof supabase.from>)
+        .select('*')
+        .eq('provider_id', providerId.value)
+
+      preferences.value = data || []
       
-      // Store in user metadata or separate table
-      await supabase.from('users').update({
-        notification_settings: {
-          quiet_hours_enabled: enabled,
-          quiet_hours_start: start || quietHoursStart.value,
-          quiet_hours_end: end || quietHoursEnd.value
-        }
-      }).eq('id', userData.user.id)
-    } catch {
-      // Silent fail
+      console.log('[NotificationPreferences] Initialized defaults')
+    } catch (err) {
+      console.warn('[NotificationPreferences] Failed to initialize defaults:', err)
     }
   }
 
-  // Check if currently in quiet hours
-  const isInQuietHours = (): boolean => {
-    if (!quietHoursEnabled.value) return false
-    
-    const now = new Date()
-    const currentTime = now.getHours() * 60 + now.getMinutes()
-    
-    const [startHour, startMin] = quietHoursStart.value.split(':').map(Number)
-    const [endHour, endMin] = quietHoursEnd.value.split(':').map(Number)
-    
-    const startTime = startHour * 60 + startMin
-    const endTime = endHour * 60 + endMin
-    
-    if (startTime < endTime) {
-      return currentTime >= startTime && currentTime < endTime
-    } else {
-      // Overnight quiet hours (e.g., 22:00 - 07:00)
-      return currentTime >= startTime || currentTime < endTime
+  // Toggle a category on/off
+  async function toggleCategory(category: NotificationCategory): Promise<boolean> {
+    if (!providerId.value) {
+      error.value = 'ไม่พบข้อมูล Provider'
+      return false
+    }
+
+    const currentPref = getPreference(category)
+    const newEnabled = !(currentPref?.enabled ?? true)
+
+    loading.value = true
+    error.value = null
+
+    try {
+      if (currentPref) {
+        // Update existing preference
+        const { error: updateError } = await (supabase
+          .from('notification_preferences') as ReturnType<typeof supabase.from>)
+          .update({ enabled: newEnabled, updated_at: new Date().toISOString() })
+          .eq('id', currentPref.id)
+
+        if (updateError) throw updateError
+
+        // Update local state
+        currentPref.enabled = newEnabled
+      } else {
+        // Insert new preference
+        const { data, error: insertError } = await (supabase
+          .from('notification_preferences') as ReturnType<typeof supabase.from>)
+          .insert({
+            provider_id: providerId.value,
+            category,
+            enabled: newEnabled
+          })
+          .select()
+          .single()
+
+        if (insertError) throw insertError
+
+        preferences.value.push(data)
+      }
+
+      console.log(`[NotificationPreferences] ${category} set to ${newEnabled}`)
+      return true
+    } catch (err) {
+      console.error('[NotificationPreferences] Toggle error:', err)
+      error.value = 'ไม่สามารถบันทึกการตั้งค่าได้'
+      return false
+    } finally {
+      loading.value = false
     }
   }
 
-  // Get channel icon
-  const getChannelIcon = (channelType: string): string => {
-    const icons: Record<string, string> = {
-      in_app: '📱',
-      push: '🔔',
-      sms: '💬',
-      email: '📧',
-      line: '💚'
+  // Set multiple categories at once
+  async function setCategories(settings: Partial<Record<NotificationCategory, boolean>>): Promise<boolean> {
+    if (!providerId.value) {
+      error.value = 'ไม่พบข้อมูล Provider'
+      return false
     }
-    return icons[channelType] || '📢'
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const updates = Object.entries(settings).map(([category, enabled]) => ({
+        provider_id: providerId.value,
+        category,
+        enabled,
+        updated_at: new Date().toISOString()
+      }))
+
+      const { error: upsertError } = await (supabase
+        .from('notification_preferences') as ReturnType<typeof supabase.from>)
+        .upsert(updates, { onConflict: 'provider_id,category' })
+
+      if (upsertError) throw upsertError
+
+      // Reload preferences
+      await loadPreferences()
+
+      console.log('[NotificationPreferences] Bulk update successful')
+      return true
+    } catch (err) {
+      console.error('[NotificationPreferences] Bulk update error:', err)
+      error.value = 'ไม่สามารถบันทึกการตั้งค่าได้'
+      return false
+    } finally {
+      loading.value = false
+    }
   }
 
-  // Get category icon
-  const getCategoryIcon = (categoryKey: string): string => {
-    const icons: Record<string, string> = {
-      ride_updates: '🚗',
-      delivery_updates: '📦',
-      payment: '💳',
-      promotions: '🎁',
-      safety: '🛡️',
-      account: '👤',
-      rewards: '⭐',
-      system: '⚙️'
-    }
-    return icons[categoryKey] || '📢'
+  // Enable all categories
+  async function enableAll(): Promise<boolean> {
+    const allEnabled = Object.keys(NOTIFICATION_CATEGORIES).reduce((acc, key) => {
+      acc[key as NotificationCategory] = true
+      return acc
+    }, {} as Record<NotificationCategory, boolean>)
+
+    return setCategories(allEnabled)
   }
+
+  // Disable all categories
+  async function disableAll(): Promise<boolean> {
+    const allDisabled = Object.keys(NOTIFICATION_CATEGORIES).reduce((acc, key) => {
+      acc[key as NotificationCategory] = false
+      return acc
+    }, {} as Record<NotificationCategory, boolean>)
+
+    return setCategories(allDisabled)
+  }
+
+  // Load on mount
+  onMounted(() => {
+    loadPreferences()
+  })
 
   return {
-    // State
+    preferences,
     loading,
     error,
-    channels,
-    categories,
-    preferences,
-    quietHoursEnabled,
-    quietHoursStart,
-    quietHoursEnd,
-    
-    // Computed
-    enabledCategories,
-    criticalCategories,
-    
-    // Methods
-    fetchChannels,
-    fetchPreferences,
-    updatePreference,
+    providerId,
+    categoriesWithStatus,
+    enabledCount,
+    isEnabled,
+    loadPreferences,
     toggleCategory,
-    toggleChannel,
-    isChannelEnabled,
-    setQuietHours,
-    isInQuietHours,
-    getChannelIcon,
-    getCategoryIcon
+    setCategories,
+    enableAll,
+    disableAll
   }
 }

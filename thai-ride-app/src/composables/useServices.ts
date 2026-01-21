@@ -81,6 +81,45 @@ const deletePlaceFromLocalStorage = (id: string): boolean => {
   return true
 }
 
+// Helper function to save recent place to localStorage (for demo mode)
+const saveRecentPlaceToLocalStorage = (place: { name: string; address: string; lat: number; lng: number }): RecentPlace => {
+  const STORAGE_KEY = 'demo_recent_places'
+  const existingPlaces: RecentPlace[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+  
+  // Check if place already exists (by address)
+  const existingIndex = existingPlaces.findIndex(p => p.address === place.address)
+  
+  const newPlace: RecentPlace = {
+    id: existingIndex >= 0 ? existingPlaces[existingIndex].id : 'demo-recent-' + Date.now(),
+    name: place.name,
+    address: place.address,
+    lat: place.lat,
+    lng: place.lng,
+    last_used_at: new Date().toISOString()
+  }
+  
+  // Remove existing if found
+  if (existingIndex >= 0) {
+    existingPlaces.splice(existingIndex, 1)
+  }
+  
+  // Add to beginning (most recent first)
+  existingPlaces.unshift(newPlace)
+  
+  // Keep only last 20 places
+  const trimmedPlaces = existingPlaces.slice(0, 20)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmedPlaces))
+  
+  console.log('saveRecentPlaceToLocalStorage: Saved', newPlace)
+  return newPlace
+}
+
+// Helper function to get recent places from localStorage (for demo mode)
+const getRecentPlacesFromLocalStorage = (): RecentPlace[] => {
+  const STORAGE_KEY = 'demo_recent_places'
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+}
+
 export function useServices() {
   const authStore = useAuthStore()
   const rideStore = useRideStore()
@@ -200,6 +239,15 @@ export function useServices() {
   const fetchRecentPlaces = async (limit = 10, forceRefresh = false) => {
     if (!authStore.user?.id) return []
 
+    // Check if demo mode - get from localStorage
+    const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+    if (isDemoMode || authStore.user.id.startsWith('user-')) {
+      console.log('fetchRecentPlaces: Demo mode - loading from localStorage')
+      const demoPlaces = getRecentPlacesFromLocalStorage()
+      recentPlaces.value = demoPlaces.slice(0, limit)
+      return recentPlaces.value
+    }
+
     // Try cache first for speed
     const cached = getCachedRecentPlaces()
     if (cached && !forceRefresh) {
@@ -215,9 +263,11 @@ export function useServices() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 2500) // 2.5s timeout
 
+      // Select specific columns to handle schema differences
+      // The trigger will sync name/place_name and last_used_at/last_visited_at
       const { data, error: fetchError } = await (supabase
         .from('recent_places') as any)
-        .select('*')
+        .select('id, name, address, lat, lng, search_count, last_used_at')
         .eq('user_id', authStore.user!.id)
         .order('last_used_at', { ascending: false })
         .limit(limit)
@@ -227,7 +277,16 @@ export function useServices() {
 
       if (fetchError) throw fetchError
       
-      const result = data || []
+      // Map data to ensure consistent format
+      const result = (data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name || item.place_name || 'สถานที่ล่าสุด',
+        address: item.address,
+        lat: item.lat,
+        lng: item.lng,
+        last_used_at: item.last_used_at || item.last_visited_at
+      }))
+      
       recentPlaces.value = result
       cacheRecentPlaces(result)
       return result
@@ -249,50 +308,89 @@ export function useServices() {
     try {
       const { data } = await (supabase
         .from('recent_places') as any)
-        .select('*')
+        .select('id, name, address, lat, lng, search_count, last_used_at')
         .eq('user_id', authStore.user!.id)
         .order('last_used_at', { ascending: false })
         .limit(limit)
 
       if (data) {
-        recentPlaces.value = data
-        cacheRecentPlaces(data)
+        // Map data to ensure consistent format
+        const result = data.map((item: any) => ({
+          id: item.id,
+          name: item.name || item.place_name || 'สถานที่ล่าสุด',
+          address: item.address,
+          lat: item.lat,
+          lng: item.lng,
+          last_used_at: item.last_used_at || item.last_visited_at
+        }))
+        recentPlaces.value = result
+        cacheRecentPlaces(result)
       }
     } catch {
       // Silent fail for background refresh
     }
   }
 
-  // Add to recent places
+  // Add to recent places (production-ready)
   const addRecentPlace = async (place: { name: string; address: string; lat: number; lng: number }) => {
     if (!authStore.user?.id) return
 
-    try {
-      const { data: existing } = await (supabase
-        .from('recent_places') as any)
-        .select('id, search_count')
-        .eq('user_id', authStore.user.id)
-        .eq('name', place.name)
-        .single()
+    // Check if demo mode - save to localStorage
+    const isDemoMode = localStorage.getItem('demo_mode') === 'true'
+    if (isDemoMode || authStore.user.id.startsWith('user-')) {
+      console.log('addRecentPlace: Demo mode - saving to localStorage')
+      saveRecentPlaceToLocalStorage(place)
+      await fetchRecentPlaces(10, true)
+      return
+    }
 
-      if (existing) {
-        await (supabase
+    try {
+      // Try using the RPC function first (more reliable)
+      const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)('add_or_update_recent_place', {
+        p_user_id: authStore.user.id,
+        p_name: place.name,
+        p_address: place.address,
+        p_lat: place.lat,
+        p_lng: place.lng
+      })
+
+      if (rpcError) {
+        console.warn('RPC add_or_update_recent_place failed, falling back to direct insert:', rpcError.message)
+        
+        // Fallback: Direct insert/update
+        const { data: existing } = await (supabase
           .from('recent_places') as any)
-          .update({
-            search_count: existing.search_count + 1,
+          .select('id, search_count')
+          .eq('user_id', authStore.user.id)
+          .eq('name', place.name)
+          .single()
+
+        if (existing) {
+          await (supabase
+            .from('recent_places') as any)
+            .update({
+              search_count: (existing.search_count || 1) + 1,
+              last_used_at: new Date().toISOString()
+            })
+            .eq('id', existing.id)
+        } else {
+          await (supabase.from('recent_places') as any).insert({
+            user_id: authStore.user.id,
+            name: place.name,
+            address: place.address,
+            lat: place.lat,
+            lng: place.lng,
+            search_count: 1,
             last_used_at: new Date().toISOString()
           })
-          .eq('id', existing.id)
-      } else {
-        await (supabase.from('recent_places') as any).insert({
-          user_id: authStore.user.id,
-          ...place
-        })
+        }
       }
 
-      await fetchRecentPlaces()
+      // Refresh recent places list
+      await fetchRecentPlaces(10, true)
     } catch (err: any) {
-      error.value = err.message
+      console.error('addRecentPlace error:', err.message)
+      // Don't set error.value - this is a non-critical operation
     }
   }
 

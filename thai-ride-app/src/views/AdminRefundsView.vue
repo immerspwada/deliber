@@ -1,377 +1,1423 @@
 <script setup lang="ts">
 /**
- * AdminRefundsView - Refund Management Dashboard
- * Feature: F24 - Admin Refund Management
- * 
- * Capabilities:
- * - View all refunds with filters
- * - Manual refund processing
- * - Refund statistics
+ * Admin Refunds View - Production Ready
+ * =====================================
+ * Refund management with real database integration
+ * Includes: Regular Refunds + Cancellation Refunds (requires approval)
  */
-import { ref, computed, onMounted } from 'vue'
-import { EnhancedAdminLayout, AdminCard, AdminTable, AdminStatCard, AdminButton, AdminModal, AdminStatusBadge } from '../components/admin'
-import { supabase } from '../lib/supabase'
-import { useAdminCleanup } from '../composables/useAdminCleanup'
+import { ref, computed, onMounted, watch } from "vue";
+import { supabase } from "../lib/supabase";
+import { useAuthStore } from "../stores/auth";
 
-// Initialize cleanup utility - Task 13
-const { addCleanup } = useAdminCleanup()
+const authStore = useAuthStore();
+const isLoading = ref(true);
+const refunds = ref<any[]>([]);
+const totalRefunds = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(20);
+const statusFilter = ref("");
+const selectedRefund = ref<any>(null);
+const showModal = ref(false);
+const showActionModal = ref(false);
+const actionType = ref<"approve" | "reject">("approve");
+const actionNotes = ref("");
+const processing = ref(false);
 
-interface Refund {
-  id: string
-  user_id: string
-  service_type: string
-  service_id: string
-  original_amount: number
-  cancellation_fee: number
-  refund_amount: number
-  refund_method: string
-  status: string
-  reason: string
-  created_at: string
-  user?: { name: string; phone: string; member_uid: string }
-}
+// Tab management: 'regular' or 'cancellation'
+const activeTab = ref<"regular" | "cancellation">("cancellation");
 
-interface RefundStats {
-  total_refunds: number
-  total_amount: number
-  total_fees: number
-  pending_count: number
-}
+// Cancellation refunds state
+const cancellationRefunds = ref<any[]>([]);
+const cancellationStats = ref({
+  total: 0,
+  pending: 0,
+  approved: 0,
+  rejected: 0,
+  total_amount: 0,
+  pending_amount: 0,
+});
 
-const loading = ref(false)
-const refunds = ref<Refund[]>([])
-const stats = ref<RefundStats>({ total_refunds: 0, total_amount: 0, total_fees: 0, pending_count: 0 })
+const stats = ref({
+  total_refunds: 0,
+  pending_refunds: 0,
+  approved_refunds: 0,
+  rejected_refunds: 0,
+  total_amount_refunded: 0,
+  total_amount_pending: 0,
+  today_refunds: 0,
+  today_amount: 0,
+  avg_refund_amount: 0,
+  avg_processing_hours: 0,
+});
 
-// Filters
-const filterStatus = ref('all')
-const filterService = ref('all')
-const searchQuery = ref('')
-const dateRange = ref({ start: '', end: '' })
+const totalPages = computed(() =>
+  Math.ceil(totalRefunds.value / pageSize.value)
+);
 
-// Manual refund modal
-const showManualRefund = ref(false)
-const manualRefundForm = ref({
-  userId: '',
-  amount: 0,
-  reason: '',
-  serviceType: 'ride',
-  serviceId: ''
-})
-const manualRefundLoading = ref(false)
-
-const statusOptions = [
-  { value: 'all', label: 'ทั้งหมด' },
-  { value: 'pending', label: 'รอดำเนินการ' },
-  { value: 'processing', label: 'กำลังดำเนินการ' },
-  { value: 'completed', label: 'สำเร็จ' },
-  { value: 'failed', label: 'ล้มเหลว' }
-]
-
-const serviceOptions = [
-  { value: 'all', label: 'ทุกบริการ' },
-  { value: 'ride', label: 'เรียกรถ' },
-  { value: 'delivery', label: 'ส่งของ' },
-  { value: 'shopping', label: 'ซื้อของ' },
-  { value: 'queue', label: 'จองคิว' },
-  { value: 'moving', label: 'ขนย้าย' },
-  { value: 'laundry', label: 'ซักผ้า' }
-]
-
-const filteredRefunds = computed(() => {
-  return refunds.value.filter(r => {
-    if (filterStatus.value !== 'all' && r.status !== filterStatus.value) return false
-    if (filterService.value !== 'all' && r.service_type !== filterService.value) return false
-    if (searchQuery.value) {
-      const q = searchQuery.value.toLowerCase()
-      const userName = r.user?.name?.toLowerCase() || ''
-      const memberUid = r.user?.member_uid?.toLowerCase() || ''
-      if (!userName.includes(q) && !memberUid.includes(q) && !r.id.includes(q)) return false
-    }
-    return true
-  })
-})
-
-const fetchRefunds = async () => {
-  loading.value = true
+// Load cancellation refunds
+async function loadCancellationRefunds() {
+  isLoading.value = true;
   try {
-    const { data, error } = await supabase
-      .from('refunds')
-      .select(`*, user:user_id (name, phone, member_uid)`)
-      .order('created_at', { ascending: false })
-      .limit(200)
-    
-    if (!error && data) refunds.value = data
-  } catch (e) {
-    console.error('Error fetching refunds:', e)
-  }
-  loading.value = false
-}
-
-const fetchStats = async () => {
-  try {
-    const { data } = await supabase.rpc('get_refund_stats')
-    if (data) {
-      stats.value = {
-        total_refunds: data.total_refunds || 0,
-        total_amount: data.total_refund_amount || 0,
-        total_fees: data.total_fees_collected || 0,
-        pending_count: refunds.value.filter(r => r.status === 'pending').length
+    const { data, error } = await (supabase.rpc as any)(
+      "get_all_cancellation_refunds",
+      {
+        p_status: statusFilter.value || null,
+        p_limit: 100,
+        p_offset: 0,
       }
-    }
+    );
+    if (error) throw error;
+    cancellationRefunds.value = data || [];
   } catch (e) {
-    // Calculate from local data
-    stats.value = {
-      total_refunds: refunds.value.length,
-      total_amount: refunds.value.reduce((sum, r) => sum + r.refund_amount, 0),
-      total_fees: refunds.value.reduce((sum, r) => sum + r.cancellation_fee, 0),
-      pending_count: refunds.value.filter(r => r.status === 'pending').length
-    }
+    console.error("Failed to load cancellation refunds:", e);
+    cancellationRefunds.value = [];
+  } finally {
+    isLoading.value = false;
   }
 }
 
-const processManualRefund = async () => {
-  if (!manualRefundForm.value.userId || manualRefundForm.value.amount <= 0) return
-  
-  manualRefundLoading.value = true
+// Load cancellation stats
+async function loadCancellationStats() {
   try {
-    const { error } = await supabase.rpc('process_wallet_refund', {
-      p_user_id: manualRefundForm.value.userId,
-      p_service_type: manualRefundForm.value.serviceType,
-      p_service_id: manualRefundForm.value.serviceId || crypto.randomUUID(),
-      p_original_amount: manualRefundForm.value.amount,
-      p_cancellation_fee: 0,
-      p_reason: manualRefundForm.value.reason || 'Manual refund by admin'
-    })
-    
-    if (!error) {
-      showManualRefund.value = false
-      manualRefundForm.value = { userId: '', amount: 0, reason: '', serviceType: 'ride', serviceId: '' }
-      await fetchRefunds()
-      await fetchStats()
+    const { data, error } = await (supabase.rpc as any)(
+      "get_cancellation_refund_stats"
+    );
+    if (error) throw error;
+    if (data) {
+      cancellationStats.value = {
+        total: data.total || 0,
+        pending: data.pending || 0,
+        approved: data.approved || 0,
+        rejected: data.rejected || 0,
+        total_amount: data.total_amount || 0,
+        pending_amount: data.pending_amount || 0,
+      };
     }
   } catch (e) {
-    console.error('Manual refund error:', e)
+    console.error("Failed to load cancellation stats:", e);
   }
-  manualRefundLoading.value = false
 }
 
-const getStatusVariant = (status: string) => {
-  const map: Record<string, string> = {
-    pending: 'warning', processing: 'info', completed: 'success', failed: 'danger'
+// Approve cancellation refund
+async function approveCancellationRefund() {
+  if (!selectedRefund.value) return;
+  processing.value = true;
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_approve_cancellation_refund",
+      {
+        p_refund_id: selectedRefund.value.id,
+        p_admin_id: authStore.user?.id,
+        p_admin_notes: actionNotes.value || null,
+      }
+    );
+    if (error) throw error;
+    showActionModal.value = false;
+    showModal.value = false;
+    loadCancellationRefunds();
+    loadCancellationStats();
+  } catch (e: any) {
+    console.error("Failed to approve cancellation refund:", e);
+    alert(e.message || "เกิดข้อผิดพลาดในการอนุมัติ");
+  } finally {
+    processing.value = false;
   }
-  return map[status] || 'secondary'
 }
 
-const getServiceLabel = (type: string) => {
-  const map: Record<string, string> = {
-    ride: 'เรียกรถ', delivery: 'ส่งของ', shopping: 'ซื้อของ',
-    queue: 'จองคิว', moving: 'ขนย้าย', laundry: 'ซักผ้า'
+// Reject cancellation refund
+async function rejectCancellationRefund() {
+  if (!selectedRefund.value) return;
+  if (!actionNotes.value.trim()) {
+    alert("กรุณาระบุเหตุผลที่ปฏิเสธ");
+    return;
   }
-  return map[type] || type
+  processing.value = true;
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_reject_cancellation_refund",
+      {
+        p_refund_id: selectedRefund.value.id,
+        p_admin_id: authStore.user?.id,
+        p_rejection_reason: actionNotes.value,
+      }
+    );
+    if (error) throw error;
+    showActionModal.value = false;
+    showModal.value = false;
+    loadCancellationRefunds();
+    loadCancellationStats();
+  } catch (e: any) {
+    console.error("Failed to reject cancellation refund:", e);
+    alert(e.message || "เกิดข้อผิดพลาดในการปฏิเสธ");
+  } finally {
+    processing.value = false;
+  }
 }
 
-const formatDate = (dateStr: string) => {
-  const d = new Date(dateStr)
-  return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
+// Process cancellation action
+async function processCancellationAction() {
+  if (actionType.value === "approve") {
+    await approveCancellationRefund();
+  } else {
+    await rejectCancellationRefund();
+  }
 }
 
-// Register cleanup - Task 13
-addCleanup(() => {
-  refunds.value = []
-  stats.value = { total_refunds: 0, total_amount: 0, total_fees: 0, pending_count: 0 }
-  filterStatus.value = 'all'
-  filterService.value = 'all'
-  searchQuery.value = ''
-  dateRange.value = { start: '', end: '' }
-  showManualRefund.value = false
-  manualRefundForm.value = { userId: '', amount: 0, reason: '', serviceType: 'ride', serviceId: '' }
-  loading.value = false
-  console.log('[AdminRefundsView] Cleanup complete')
-})
+async function loadRefunds() {
+  isLoading.value = true;
+  try {
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const { data, error } = await (supabase.rpc as any)("admin_get_refunds", {
+      p_status: statusFilter.value || null,
+      p_limit: pageSize.value,
+      p_offset: offset,
+    });
+    if (error) throw error;
+    refunds.value = data || [];
 
-onMounted(async () => {
-  await fetchRefunds()
-  await fetchStats()
-})
+    const { data: countData } = await (supabase.rpc as any)(
+      "admin_count_refunds",
+      {
+        p_status: statusFilter.value || null,
+      }
+    );
+    totalRefunds.value = countData || 0;
+  } catch (e) {
+    console.error("Failed to load refunds:", e);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function loadStats() {
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_get_refund_stats"
+    );
+    if (error) throw error;
+    if (data && data.length > 0) stats.value = data[0];
+  } catch (e) {
+    console.error("Failed to load stats:", e);
+  }
+}
+
+function viewRefund(r: any) {
+  selectedRefund.value = r;
+  showModal.value = true;
+}
+
+function openAction(r: any, type: "approve" | "reject") {
+  selectedRefund.value = r;
+  actionType.value = type;
+  actionNotes.value = "";
+  showActionModal.value = true;
+}
+
+async function processRefund() {
+  if (!selectedRefund.value) return;
+  processing.value = true;
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_process_refund",
+      {
+        p_refund_id: selectedRefund.value.id,
+        p_action: actionType.value,
+        p_admin_id: authStore.user?.id,
+        p_notes: actionNotes.value || null,
+      }
+    );
+    if (error) throw error;
+    showActionModal.value = false;
+    showModal.value = false;
+    loadRefunds();
+    loadStats();
+  } catch (e) {
+    console.error("Failed to process refund:", e);
+  } finally {
+    processing.value = false;
+  }
+}
+
+function formatCurrency(n: number) {
+  return new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 0,
+  }).format(n || 0);
+}
+
+function formatDate(d: string) {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getStatusColor(s: string) {
+  return (
+    ({ pending: "#F59E0B", approved: "#10B981", rejected: "#EF4444" } as any)[
+      s
+    ] || "#6B7280"
+  );
+}
+
+function getStatusLabel(s: string) {
+  return (
+    (
+      {
+        pending: "รอดำเนินการ",
+        approved: "อนุมัติแล้ว",
+        rejected: "ปฏิเสธ",
+      } as any
+    )[s] || s
+  );
+}
+
+function getServiceLabel(t: string) {
+  return (
+    (
+      {
+        ride: "เรียกรถ",
+        delivery: "ส่งของ",
+        shopping: "ซื้อของ",
+        queue: "จองคิว",
+        moving: "ขนย้าย",
+        laundry: "ซักผ้า",
+      } as any
+    )[t] || t
+  );
+}
+
+watch([statusFilter], () => {
+  currentPage.value = 1;
+  if (activeTab.value === "regular") {
+    loadRefunds();
+  } else {
+    loadCancellationRefunds();
+  }
+});
+watch(currentPage, loadRefunds);
+watch(activeTab, () => {
+  statusFilter.value = "";
+  if (activeTab.value === "regular") {
+    loadRefunds();
+    loadStats();
+  } else {
+    loadCancellationRefunds();
+    loadCancellationStats();
+  }
+});
+onMounted(() => {
+  // Default to cancellation tab
+  loadCancellationRefunds();
+  loadCancellationStats();
+});
 </script>
 
 <template>
-  <EnhancedAdminLayout>
-    <div class="refunds-page">
-      <div class="page-header">
-        <h1>จัดการการคืนเงิน</h1>
-        <AdminButton variant="primary" @click="showManualRefund = true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          คืนเงินด้วยตนเอง
-        </AdminButton>
+  <div class="refunds-view">
+    <div class="page-header">
+      <div class="header-left">
+        <h1>Refunds</h1>
+        <span class="count"
+          >{{
+            activeTab === "cancellation"
+              ? cancellationStats.pending
+              : stats.pending_refunds
+          }}
+          รอดำเนินการ</span
+        >
       </div>
+      <button
+        class="refresh-btn"
+        @click="
+          activeTab === 'cancellation'
+            ? (loadCancellationRefunds(), loadCancellationStats())
+            : (loadRefunds(), loadStats())
+        "
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M23 4v6h-6M1 20v-6h6" />
+          <path
+            d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+          />
+        </svg>
+      </button>
+    </div>
 
-      <!-- Stats -->
+    <!-- Tabs -->
+    <div class="tabs">
+      <button
+        :class="['tab', { active: activeTab === 'cancellation' }]"
+        @click="activeTab = 'cancellation'"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M15 9l-6 6M9 9l6 6" />
+        </svg>
+        คืนเงินจากการยกเลิก
+        <span v-if="cancellationStats.pending > 0" class="badge-count">{{
+          cancellationStats.pending
+        }}</span>
+      </button>
+      <button
+        :class="['tab', { active: activeTab === 'regular' }]"
+        @click="activeTab = 'regular'"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+        </svg>
+        คืนเงินทั่วไป
+        <span v-if="stats.pending_refunds > 0" class="badge-count">{{
+          stats.pending_refunds
+        }}</span>
+      </button>
+    </div>
+
+    <!-- Cancellation Refunds Tab -->
+    <template v-if="activeTab === 'cancellation'">
+      <!-- Stats Cards -->
       <div class="stats-grid">
-        <AdminStatCard title="รายการคืนเงินทั้งหมด" :value="stats.total_refunds" icon="receipt" />
-        <AdminStatCard title="ยอดคืนเงินรวม" :value="`฿${stats.total_amount.toLocaleString()}`" icon="wallet" variant="success" />
-        <AdminStatCard title="ค่าธรรมเนียมรวม" :value="`฿${stats.total_fees.toLocaleString()}`" icon="coins" variant="warning" />
-        <AdminStatCard title="รอดำเนินการ" :value="stats.pending_count" icon="clock" variant="info" />
+        <div class="stat-card">
+          <div class="stat-icon orange">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ cancellationStats.pending }}</span>
+            <span class="stat-label">รอดำเนินการ</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ cancellationStats.approved }}</span>
+            <span class="stat-label">อนุมัติแล้ว</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{
+              formatCurrency(cancellationStats.pending_amount)
+            }}</span>
+            <span class="stat-label">รอคืนเงิน</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M15 9l-6 6M9 9l6 6" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ cancellationStats.rejected }}</span>
+            <span class="stat-label">ปฏิเสธ</span>
+          </div>
+        </div>
       </div>
 
       <!-- Filters -->
-      <AdminCard title="ตัวกรอง" class="filters-card">
-        <div class="filters-row">
-          <div class="filter-group">
-            <label>สถานะ</label>
-            <select v-model="filterStatus">
-              <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>ประเภทบริการ</label>
-            <select v-model="filterService">
-              <option v-for="opt in serviceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
-          <div class="filter-group search">
-            <label>ค้นหา</label>
-            <input v-model="searchQuery" placeholder="ชื่อ, Member UID, Refund ID..." />
-          </div>
-        </div>
-      </AdminCard>
+      <div class="filters">
+        <select v-model="statusFilter" class="filter-select">
+          <option value="">ทุกสถานะ</option>
+          <option value="pending">รอดำเนินการ</option>
+          <option value="approved">อนุมัติแล้ว</option>
+          <option value="rejected">ปฏิเสธ</option>
+        </select>
+      </div>
 
-      <!-- Refunds Table -->
-      <AdminCard title="รายการคืนเงิน" :loading="loading">
-        <div class="table-container">
-          <table class="refunds-table">
-            <thead>
-              <tr>
-                <th>วันที่</th>
-                <th>ลูกค้า</th>
-                <th>บริการ</th>
-                <th>ยอดเดิม</th>
-                <th>ค่าธรรมเนียม</th>
-                <th>ยอดคืน</th>
-                <th>สถานะ</th>
-                <th>เหตุผล</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="refund in filteredRefunds" :key="refund.id">
-                <td class="date-cell">{{ formatDate(refund.created_at) }}</td>
-                <td class="user-cell">
-                  <div class="user-info">
-                    <span class="user-name">{{ refund.user?.name || '-' }}</span>
-                    <span class="member-uid">{{ refund.user?.member_uid || '-' }}</span>
-                  </div>
-                </td>
-                <td>
-                  <span class="service-badge" :class="refund.service_type">
-                    {{ getServiceLabel(refund.service_type) }}
-                  </span>
-                </td>
-                <td class="amount">฿{{ refund.original_amount.toLocaleString() }}</td>
-                <td class="fee">-฿{{ refund.cancellation_fee.toLocaleString() }}</td>
-                <td class="refund-amount">฿{{ refund.refund_amount.toLocaleString() }}</td>
-                <td>
-                  <AdminStatusBadge :status="refund.status" :variant="getStatusVariant(refund.status)" />
-                </td>
-                <td class="reason-cell">{{ refund.reason || '-' }}</td>
-              </tr>
-              <tr v-if="filteredRefunds.length === 0">
-                <td colspan="8" class="empty-state">ไม่พบรายการคืนเงิน</td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- Cancellation Refunds Table -->
+      <div class="table-container">
+        <div v-if="isLoading" class="loading">
+          <div class="skeleton" v-for="i in 8" :key="i" />
         </div>
-      </AdminCard>
+        <table v-else-if="cancellationRefunds.length" class="data-table">
+          <thead>
+            <tr>
+              <th>Tracking ID</th>
+              <th>ลูกค้า</th>
+              <th>บริการ</th>
+              <th>จำนวนเงิน</th>
+              <th>เหตุผล</th>
+              <th>สถานะ</th>
+              <th>วันที่ยกเลิก</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="r in cancellationRefunds"
+              :key="r.id"
+              @click="viewRefund(r)"
+            >
+              <td>
+                <code class="tracking">{{
+                  r.request_tracking_id || r.id.slice(0, 8)
+                }}</code>
+              </td>
+              <td>
+                <div class="user-info">
+                  <span class="name">{{ r.user_name || "ไม่ระบุ" }}</span>
+                  <span class="uid">{{ r.user_member_uid || "-" }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="service-badge">{{
+                  getServiceLabel(r.request_type)
+                }}</span>
+              </td>
+              <td class="amount">{{ formatCurrency(r.refund_amount) }}</td>
+              <td class="reason-cell">{{ r.cancel_reason || "-" }}</td>
+              <td>
+                <span
+                  class="badge"
+                  :style="{
+                    color: getStatusColor(r.status),
+                    background: getStatusColor(r.status) + '20',
+                  }"
+                  >{{ getStatusLabel(r.status) }}</span
+                >
+              </td>
+              <td class="date">{{ formatDate(r.created_at) }}</td>
+              <td>
+                <div v-if="r.status === 'pending'" class="action-btns">
+                  <button
+                    class="btn-approve"
+                    @click.stop="openAction(r, 'approve')"
+                  >
+                    อนุมัติ
+                  </button>
+                  <button
+                    class="btn-reject"
+                    @click.stop="openAction(r, 'reject')"
+                  >
+                    ปฏิเสธ
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="empty">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#9ca3af"
+            stroke-width="1.5"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M8 12h8M12 8v8" />
+          </svg>
+          <p>ไม่พบคำขอคืนเงินจากการยกเลิก</p>
+        </div>
+      </div>
+    </template>
 
-      <!-- Manual Refund Modal -->
-      <AdminModal v-model="showManualRefund" title="คืนเงินด้วยตนเอง" size="md">
-        <div class="manual-refund-form">
-          <div class="form-group">
-            <label>User ID</label>
-            <input v-model="manualRefundForm.userId" placeholder="UUID ของผู้ใช้" />
+    <!-- Regular Refunds Tab -->
+    <template v-if="activeTab === 'regular'">
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon orange">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
           </div>
-          <div class="form-group">
-            <label>จำนวนเงิน (บาท)</label>
-            <input v-model.number="manualRefundForm.amount" type="number" min="1" />
-          </div>
-          <div class="form-group">
-            <label>ประเภทบริการ</label>
-            <select v-model="manualRefundForm.serviceType">
-              <option value="ride">เรียกรถ</option>
-              <option value="delivery">ส่งของ</option>
-              <option value="shopping">ซื้อของ</option>
-              <option value="other">อื่นๆ</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>เหตุผล</label>
-            <textarea v-model="manualRefundForm.reason" rows="3" placeholder="ระบุเหตุผลในการคืนเงิน"></textarea>
+          <div class="stat-content">
+            <span class="stat-value">{{ stats.pending_refunds }}</span>
+            <span class="stat-label">รอดำเนินการ</span>
           </div>
         </div>
-        <template #footer>
-          <AdminButton variant="secondary" @click="showManualRefund = false">ยกเลิก</AdminButton>
-          <AdminButton variant="primary" :loading="manualRefundLoading" @click="processManualRefund">
-            ยืนยันคืนเงิน
-          </AdminButton>
-        </template>
-      </AdminModal>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{ stats.approved_refunds }}</span>
+            <span class="stat-label">อนุมัติแล้ว</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{
+              formatCurrency(stats.total_amount_refunded)
+            }}</span>
+            <span class="stat-label">คืนเงินแล้ว</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value">{{
+              formatCurrency(stats.total_amount_pending)
+            }}</span>
+            <span class="stat-label">รอคืนเงิน</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <select v-model="statusFilter" class="filter-select">
+          <option value="">ทุกสถานะ</option>
+          <option value="pending">รอดำเนินการ</option>
+          <option value="approved">อนุมัติแล้ว</option>
+          <option value="rejected">ปฏิเสธ</option>
+        </select>
+      </div>
+
+      <!-- Table -->
+      <div class="table-container">
+        <div v-if="isLoading" class="loading">
+          <div class="skeleton" v-for="i in 8" :key="i" />
+        </div>
+        <table v-else-if="refunds.length" class="data-table">
+          <thead>
+            <tr>
+              <th>Tracking ID</th>
+              <th>ลูกค้า</th>
+              <th>บริการ</th>
+              <th>จำนวนเงิน</th>
+              <th>สถานะ</th>
+              <th>วันที่</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in refunds" :key="r.id" @click="viewRefund(r)">
+              <td>
+                <code class="tracking">{{
+                  r.tracking_id || r.id.slice(0, 8)
+                }}</code>
+              </td>
+              <td>
+                <div class="user-info">
+                  <span class="name">{{ r.user_name }}</span>
+                  <span class="uid">{{ r.member_uid }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="service-badge">{{
+                  getServiceLabel(r.service_type)
+                }}</span>
+              </td>
+              <td class="amount">{{ formatCurrency(r.amount) }}</td>
+              <td>
+                <span
+                  class="badge"
+                  :style="{
+                    color: getStatusColor(r.status),
+                    background: getStatusColor(r.status) + '20',
+                  }"
+                  >{{ getStatusLabel(r.status) }}</span
+                >
+              </td>
+              <td class="date">{{ formatDate(r.created_at) }}</td>
+              <td>
+                <div v-if="r.status === 'pending'" class="action-btns">
+                  <button
+                    class="btn-approve"
+                    @click.stop="openAction(r, 'approve')"
+                  >
+                    อนุมัติ
+                  </button>
+                  <button
+                    class="btn-reject"
+                    @click.stop="openAction(r, 'reject')"
+                  >
+                    ปฏิเสธ
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="empty"><p>ไม่พบคำขอคืนเงิน</p></div>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="pagination">
+        <button :disabled="currentPage === 1" @click="currentPage--">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <span>{{ currentPage }}/{{ totalPages }}</span>
+        <button :disabled="currentPage === totalPages" @click="currentPage++">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+    </template>
+
+    <!-- Detail Modal -->
+    <div
+      v-if="showModal && selectedRefund"
+      class="modal-overlay"
+      @click.self="showModal = false"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2>รายละเอียดคำขอคืนเงิน</h2>
+          <button @click="showModal = false">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="info-row">
+            <span class="label">Tracking ID</span>
+            <code>{{
+              selectedRefund.request_tracking_id ||
+              selectedRefund.tracking_id ||
+              selectedRefund.id.slice(0, 8)
+            }}</code>
+          </div>
+          <div class="info-row">
+            <span class="label">ลูกค้า</span>
+            <span>{{ selectedRefund.user_name }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Member UID</span>
+            <code>{{
+              selectedRefund.user_member_uid || selectedRefund.member_uid
+            }}</code>
+          </div>
+          <div class="info-row">
+            <span class="label">บริการ</span>
+            <span>{{
+              getServiceLabel(
+                selectedRefund.request_type || selectedRefund.service_type
+              )
+            }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">จำนวนเงิน</span>
+            <span class="amount">{{
+              formatCurrency(
+                selectedRefund.refund_amount || selectedRefund.amount
+              )
+            }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">สถานะ</span>
+            <span
+              class="badge"
+              :style="{
+                color: getStatusColor(selectedRefund.status),
+                background: getStatusColor(selectedRefund.status) + '20',
+              }"
+              >{{ getStatusLabel(selectedRefund.status) }}</span
+            >
+          </div>
+          <div class="reason-box">
+            <h4>เหตุผลการยกเลิก</h4>
+            <p>
+              {{ selectedRefund.cancel_reason || selectedRefund.reason || "-" }}
+            </p>
+          </div>
+          <div
+            v-if="selectedRefund.admin_notes || selectedRefund.rejection_reason"
+            class="reason-box"
+          >
+            <h4>หมายเหตุ Admin</h4>
+            <p>
+              {{
+                selectedRefund.admin_notes || selectedRefund.rejection_reason
+              }}
+            </p>
+          </div>
+          <div v-if="selectedRefund.status === 'pending'" class="modal-actions">
+            <button
+              class="btn-approve"
+              @click="openAction(selectedRefund, 'approve')"
+            >
+              อนุมัติ
+            </button>
+            <button
+              class="btn-reject"
+              @click="openAction(selectedRefund, 'reject')"
+            >
+              ปฏิเสธ
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-  </EnhancedAdminLayout>
+
+    <!-- Action Modal -->
+    <div
+      v-if="showActionModal"
+      class="modal-overlay"
+      @click.self="showActionModal = false"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2>
+            {{ actionType === "approve" ? "อนุมัติคืนเงิน" : "ปฏิเสธคืนเงิน" }}
+          </h2>
+          <button @click="showActionModal = false">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="confirm-amount">
+            จำนวนเงิน:
+            <strong>{{
+              formatCurrency(
+                selectedRefund?.refund_amount || selectedRefund?.amount
+              )
+            }}</strong>
+          </div>
+          <div v-if="actionType === 'approve'" class="approve-info">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#059669"
+              stroke-width="2"
+            >
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>เงินจะถูกคืนเข้า Wallet ของลูกค้าทันที</span>
+          </div>
+          <div class="form-row">
+            <label>{{
+              actionType === "approve"
+                ? "หมายเหตุ (ถ้ามี)"
+                : "เหตุผลที่ปฏิเสธ *"
+            }}</label>
+            <textarea
+              v-model="actionNotes"
+              :placeholder="
+                actionType === 'approve'
+                  ? 'หมายเหตุ (ถ้ามี)'
+                  : 'ระบุเหตุผลที่ปฏิเสธ'
+              "
+              :required="actionType === 'reject'"
+            ></textarea>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showActionModal = false">
+              ยกเลิก
+            </button>
+            <button
+              :class="actionType === 'approve' ? 'btn-approve' : 'btn-reject'"
+              @click="
+                activeTab === 'cancellation'
+                  ? processCancellationAction()
+                  : processRefund()
+              "
+              :disabled="
+                processing || (actionType === 'reject' && !actionNotes.trim())
+              "
+            >
+              {{
+                processing
+                  ? "กำลังดำเนินการ..."
+                  : actionType === "approve"
+                  ? "อนุมัติ"
+                  : "ปฏิเสธ"
+              }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.refunds-page { padding: 24px; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.page-header h1 { font-size: 24px; font-weight: 700; color: #1A1A1A; margin: 0; }
-
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-@media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 640px) { .stats-grid { grid-template-columns: 1fr; } }
-
-.filters-card { margin-bottom: 24px; }
-.filters-row { display: flex; gap: 16px; flex-wrap: wrap; }
-.filter-group { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
-.filter-group.search { flex: 1; min-width: 200px; }
-.filter-group label { font-size: 13px; font-weight: 500; color: #666; }
-.filter-group select, .filter-group input {
-  padding: 10px 12px; border: 1px solid #E8E8E8; border-radius: 8px;
-  font-size: 14px; background: #FFF;
+.refunds-view {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
 }
-
-.table-container { overflow-x: auto; }
-.refunds-table { width: 100%; border-collapse: collapse; }
-.refunds-table th, .refunds-table td { padding: 12px; text-align: left; border-bottom: 1px solid #F0F0F0; }
-.refunds-table th { font-size: 13px; font-weight: 600; color: #666; background: #FAFAFA; }
-.refunds-table td { font-size: 14px; color: #1A1A1A; }
-
-.date-cell { white-space: nowrap; color: #666; font-size: 13px; }
-.user-cell .user-info { display: flex; flex-direction: column; gap: 2px; }
-.user-name { font-weight: 500; }
-.member-uid { font-size: 12px; color: #999; font-family: monospace; }
-
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+.count {
+  padding: 4px 12px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 16px;
+}
+.refresh-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #6b7280;
+}
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 12px;
+}
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab:hover {
+  color: #374151;
+}
+.tab.active {
+  background: #fff;
+  color: #00a86b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.badge-count {
+  padding: 2px 8px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+.tab.active .badge-count {
+  background: #d1fae5;
+  color: #059669;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f3f4f6;
+}
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+.stat-icon.green {
+  background: #d1fae5;
+  color: #059669;
+}
+.stat-icon.blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.stat-icon.orange {
+  background: #fef3c7;
+  color: #d97706;
+}
+.stat-icon.purple {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.stat-icon.red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+}
+.stat-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+.filters {
+  margin-bottom: 20px;
+}
+.filter-select {
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.table-container {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.loading {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.skeleton {
+  height: 56px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table th {
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+.data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.data-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.data-table tbody tr:hover {
+  background: #f9fafb;
+}
+.tracking {
+  font-family: monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-info .name {
+  font-weight: 500;
+  color: #1f2937;
+}
+.user-info .uid {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: monospace;
+}
 .service-badge {
-  display: inline-block; padding: 4px 10px; border-radius: 12px;
-  font-size: 12px; font-weight: 500;
+  padding: 4px 10px;
+  background: #ede9fe;
+  color: #7c3aed;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
 }
-.service-badge.ride { background: #E8F5EF; color: #00A86B; }
-.service-badge.delivery { background: #E3F2FD; color: #1976D2; }
-.service-badge.shopping { background: #FFF3E0; color: #F57C00; }
-.service-badge.queue { background: #F3E5F5; color: #9C27B0; }
-.service-badge.moving { background: #FFEBEE; color: #E53935; }
-.service-badge.laundry { background: #E0F7FA; color: #00ACC1; }
-
-.amount { font-weight: 500; }
-.fee { color: #E53935; }
-.refund-amount { font-weight: 600; color: #00A86B; }
-.reason-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #666; }
-.empty-state { text-align: center; padding: 40px; color: #999; }
-
-.manual-refund-form { display: flex; flex-direction: column; gap: 16px; }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-group label { font-size: 14px; font-weight: 500; color: #333; }
-.form-group input, .form-group select, .form-group textarea {
-  padding: 12px; border: 1px solid #E8E8E8; border-radius: 8px; font-size: 14px;
+.amount {
+  font-weight: 600;
+  color: #059669;
 }
-.form-group textarea { resize: vertical; }
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.date {
+  font-size: 13px;
+  color: #6b7280;
+}
+.reason-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #6b7280;
+}
+.action-btns {
+  display: flex;
+  gap: 8px;
+}
+.btn-approve {
+  padding: 6px 12px;
+  background: #d1fae5;
+  color: #059669;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-approve:hover {
+  background: #a7f3d0;
+}
+.btn-approve:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-reject {
+  padding: 6px 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-reject:hover {
+  background: #fecaca;
+}
+.btn-reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #9ca3af;
+  gap: 16px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+.pagination button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pagination button:disabled {
+  opacity: 0.5;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+.modal-header button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #6b7280;
+}
+.modal-body {
+  padding: 24px;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.info-row .label {
+  font-size: 13px;
+  color: #6b7280;
+}
+.reason-box {
+  margin-top: 16px;
+}
+.reason-box h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px 0;
+}
+.reason-box p {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  font-size: 14px;
+  margin: 0;
+}
+.confirm-amount {
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+.approve-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #d1fae5;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #059669;
+}
+.form-row {
+  margin-bottom: 16px;
+}
+.form-row label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 8px;
+}
+.form-row textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  min-height: 80px;
+  resize: vertical;
+}
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.btn-cancel {
+  flex: 1;
+  padding: 12px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
 </style>

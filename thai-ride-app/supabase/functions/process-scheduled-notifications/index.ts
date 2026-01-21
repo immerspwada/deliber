@@ -1,6 +1,8 @@
+// @ts-nocheck
 /**
  * Edge Function: Process Scheduled Notifications
  * Feature: F07 - Push Notifications
+ * Note: This file runs in Deno runtime, not Node.js
  * 
  * ประมวลผล scheduled_notifications ที่ถึงเวลาส่ง
  * และเพิ่มเข้า push_notification_queue

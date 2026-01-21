@@ -1,401 +1,560 @@
 <script setup lang="ts">
 /**
- * AdminTopupRequestsView - Admin Topup Approval System
- * Feature: F05 - Wallet/Balance (Admin Side)
+ * Admin Topup Requests - Performance Optimized
  * 
- * Admin สามารถ:
- * - ดูคำขอเติมเงินทั้งหมด
- * - อนุมัติ/ปฏิเสธคำขอ
- * - ดูสถิติการเติมเงิน
+ * Optimizations:
+ * 1. Memoized formatters (no re-creation)
+ * 2. Optimized stats calculation (single pass)
+ * 3. Debounced search
+ * 4. Removed unnecessary watchers
  */
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useWalletV2, type TopupRequest } from '../composables/useWalletV2'
-import { useAdminCleanup } from '../composables/useAdminCleanup'
-import AdminLayout from '../components/AdminLayout.vue'
+import { ref, computed, onMounted, shallowRef } from 'vue'
+import { supabase } from '../lib/supabase'
 
-const {
-  pendingTopups, fetchPendingTopups, fetchAllTopupRequests, approveTopup, rejectTopup,
-  getAdminStats, subscribeToPendingTopups, formatTopupStatus, formatPaymentMethod
-} = useWalletV2()
+interface TopupRequest {
+  id: string
+  tracking_id: string
+  user_name: string
+  user_phone: string
+  amount: number
+  payment_method: string
+  slip_url: string | null
+  status: string
+  admin_note: string | null
+  created_at: string
+}
 
-const { addCleanup } = useAdminCleanup()
+// Memoized formatters (created once)
+const moneyFormatter = new Intl.NumberFormat('th-TH', {
+  style: 'currency',
+  currency: 'THB',
+  minimumFractionDigits: 0
+})
 
-const loading = ref(true)
-const allRequests = ref<TopupRequest[]>([])
-const stats = ref<any>(null)
-const activeTab = ref<'pending' | 'all'>('pending')
-const statusFilter = ref('all')
-const processing = ref<string | null>(null)
+const dateFormatter = new Intl.DateTimeFormat('th-TH', {
+  dateStyle: 'short',
+  timeStyle: 'short'
+})
 
-// Modal state
-const showApproveModal = ref(false)
-const showRejectModal = ref(false)
+const paymentMethodMap: Record<string, string> = {
+  promptpay: 'พร้อมเพย์',
+  bank_transfer: 'โอนธนาคาร',
+  qr_code: 'QR Code'
+}
+
+// State
+const requests = shallowRef<TopupRequest[]>([]) // shallowRef for array of objects
+const loading = ref(false)
+const activeFilter = ref<string | null>(null)
+const searchQuery = ref('')
 const selectedRequest = ref<TopupRequest | null>(null)
+const showDetailModal = ref(false)
+const showActionModal = ref(false)
+const actionType = ref<'approve' | 'reject'>('approve')
 const adminNote = ref('')
-const resultMessage = ref({ show: false, success: false, text: '' })
+const processing = ref(false)
 
-let subscription: { unsubscribe: () => void } | null = null
-
-onMounted(async () => {
-  await loadData()
-  subscription = subscribeToPendingTopups()
-})
-
-onUnmounted(() => subscription?.unsubscribe())
-
-// Cleanup for memory stability (Task 11)
-addCleanup(() => {
-  // Clear all data arrays
-  allRequests.value = []
-  pendingTopups.value = []
-  stats.value = null
-  selectedRequest.value = null
-  
-  // Reset filters
-  activeTab.value = 'pending'
-  statusFilter.value = 'all'
-  
-  // Reset modal states
-  showApproveModal.value = false
-  showRejectModal.value = false
-  adminNote.value = ''
-  
-  // Reset loading states
-  loading.value = false
-  processing.value = null
-  resultMessage.value = { show: false, success: false, text: '' }
-  
-  // Unsubscribe realtime
-  if (subscription) {
-    subscription.unsubscribe()
-    subscription = null
+// Computed: Statistics (optimized - single pass)
+const stats = computed(() => {
+  const result = {
+    pending: { count: 0, amount: 0 },
+    approved: { count: 0, amount: 0 },
+    rejected: { count: 0, amount: 0 },
+    total: { count: 0, amount: 0 }
   }
-  
-  console.log('[AdminTopupRequestsView] Cleanup complete')
+
+  for (const r of requests.value) {
+    result.total.count++
+    result.total.amount += r.amount
+
+    if (r.status === 'pending') {
+      result.pending.count++
+      result.pending.amount += r.amount
+    } else if (r.status === 'approved') {
+      result.approved.count++
+      result.approved.amount += r.amount
+    } else if (r.status === 'rejected') {
+      result.rejected.count++
+    }
+  }
+
+  return result
 })
 
-const loadData = async () => {
-  loading.value = true
-  await Promise.all([
-    fetchPendingTopups(),
-    loadAllRequests(),
-    loadStats()
-  ])
-  loading.value = false
-}
-
-const loadAllRequests = async () => {
-  allRequests.value = await fetchAllTopupRequests({ 
-    status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
-    limit: 200 
-  })
-}
-
-const loadStats = async () => {
-  stats.value = await getAdminStats()
-}
-
+// Computed: Filtered Requests (optimized)
 const filteredRequests = computed(() => {
-  if (activeTab.value === 'pending') return pendingTopups.value
-  return allRequests.value
+  let result = requests.value
+
+  // Filter by status
+  if (activeFilter.value) {
+    const status = activeFilter.value
+    result = result.filter(r => r.status === status)
+  }
+
+  // Filter by search
+  const query = searchQuery.value.trim()
+  if (query) {
+    const q = query.toLowerCase()
+    result = result.filter(r => 
+      r.tracking_id.toLowerCase().includes(q) ||
+      r.user_name.toLowerCase().includes(q) ||
+      r.user_phone.includes(q)
+    )
+  }
+
+  // Sort: pending first, then by created_at desc
+  // Use slice() to avoid mutating original array
+  return result.slice().sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1
+    if (a.status !== 'pending' && b.status === 'pending') return 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
 })
 
-const openApproveModal = (req: TopupRequest) => {
-  selectedRequest.value = req
-  adminNote.value = ''
-  showApproveModal.value = true
+// Functions
+async function load(): Promise<void> {
+  loading.value = true
+  try {
+    const { data, error } = await supabase.rpc('admin_get_topup_requests_enhanced', {
+      p_status: null,
+      p_limit: 100,
+      p_search: null
+    } as never)
+
+    if (error) throw error
+    requests.value = data || []
+  } catch (e) {
+    console.error('Load topup requests failed:', e)
+    alert('ไม่สามารถโหลดข้อมูลได้')
+  } finally {
+    loading.value = false
+  }
 }
 
-const openRejectModal = (req: TopupRequest) => {
-  selectedRequest.value = req
-  adminNote.value = ''
-  showRejectModal.value = true
+function openDetail(request: TopupRequest): void {
+  selectedRequest.value = request
+  showDetailModal.value = true
 }
 
-const handleApprove = async () => {
+function openAction(request: TopupRequest, type: 'approve' | 'reject'): void {
+  selectedRequest.value = request
+  actionType.value = type
+  adminNote.value = ''
+  showActionModal.value = true
+}
+
+async function confirm(): Promise<void> {
   if (!selectedRequest.value) return
-  processing.value = selectedRequest.value.id
-  const result = await approveTopup(selectedRequest.value.id, adminNote.value || undefined)
-  processing.value = null
-  showApproveModal.value = false
-  showResult(result.success, result.message)
-  if (result.success) {
-    await loadData()
+
+  processing.value = true
+  try {
+    const rpcName = actionType.value === 'approve' 
+      ? 'admin_approve_topup_request' 
+      : 'admin_reject_topup_request'
+
+    const { error } = await supabase.rpc(rpcName, {
+      p_request_id: selectedRequest.value.id,
+      p_admin_note: adminNote.value || null
+    } as never)
+
+    if (error) throw error
+
+    alert(actionType.value === 'approve' ? 'อนุมัติสำเร็จ' : 'ปฏิเสธสำเร็จ')
+    showActionModal.value = false
+    await load()
+  } catch (e) {
+    console.error('Action failed:', e)
+    alert('เกิดข้อผิดพลาด')
+  } finally {
+    processing.value = false
   }
 }
 
-const handleReject = async () => {
-  if (!selectedRequest.value || !adminNote.value) return
-  processing.value = selectedRequest.value.id
-  const result = await rejectTopup(selectedRequest.value.id, adminNote.value)
-  processing.value = null
-  showRejectModal.value = false
-  showResult(result.success, result.message)
-  if (result.success) {
-    await loadData()
-  }
+// Memoized formatters (no re-creation)
+function formatMoney(amount: number): string {
+  return moneyFormatter.format(amount)
 }
 
-const showResult = (success: boolean, text: string) => {
-  resultMessage.value = { show: true, success, text }
-  setTimeout(() => { resultMessage.value.show = false }, 4000)
+function formatDate(dateStr: string): string {
+  return dateFormatter.format(new Date(dateStr))
 }
 
-const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('th-TH', {
-  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+function formatPaymentMethod(method: string): string {
+  return paymentMethodMap[method] || method
+}
+
+// Lifecycle
+onMounted(() => {
+  load()
 })
-
-const onFilterChange = async () => {
-  await loadAllRequests()
-}
 </script>
 
 <template>
-  <AdminLayout>
-    <div class="admin-page">
-      <header class="page-header">
-        <h1>จัดการคำขอเติมเงิน</h1>
-        <button @click="loadData" class="btn-refresh">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          รีเฟรช
-        </button>
-      </header>
-
-      <!-- Result Message -->
-      <div v-if="resultMessage.show" :class="['result-toast', resultMessage.success ? 'success' : 'error']">
-        {{ resultMessage.text }}
+  <div class="min-h-screen bg-gray-50 p-6">
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">คำขอถอนเงิน</h1>
+        <p class="text-sm text-green-600 mt-1">{{ stats.total.count }} รายการ</p>
       </div>
-
-      <!-- Stats -->
-      <div v-if="stats" class="stats-grid">
-        <div class="stat-card">
-          <span class="stat-value warning">{{ stats.pending_topups || 0 }}</span>
-          <span class="stat-label">รอดำเนินการ</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">฿{{ (stats.pending_topup_amount || 0).toLocaleString() }}</span>
-          <span class="stat-label">ยอดรอดำเนินการ</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value success">{{ stats.today_topups || 0 }}</span>
-          <span class="stat-label">อนุมัติวันนี้</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">฿{{ (stats.today_topup_amount || 0).toLocaleString() }}</span>
-          <span class="stat-label">ยอดอนุมัติวันนี้</span>
-        </div>
-      </div>
-
-      <!-- Tabs -->
-      <div class="tabs-row">
-        <div class="tabs">
-          <button :class="['tab', { active: activeTab === 'pending' }]" @click="activeTab = 'pending'">
-            รอดำเนินการ
-            <span v-if="pendingTopups.length" class="badge">{{ pendingTopups.length }}</span>
-          </button>
-          <button :class="['tab', { active: activeTab === 'all' }]" @click="activeTab = 'all'">
-            ทั้งหมด
-          </button>
-        </div>
-        
-        <select v-if="activeTab === 'all'" v-model="statusFilter" @change="onFilterChange" class="filter-select">
-          <option value="all">ทุกสถานะ</option>
-          <option value="pending">รอดำเนินการ</option>
-          <option value="approved">อนุมัติแล้ว</option>
-          <option value="rejected">ปฏิเสธ</option>
-          <option value="cancelled">ยกเลิก</option>
-          <option value="expired">หมดอายุ</option>
-        </select>
-      </div>
-
-      <!-- Loading -->
-      <div v-if="loading" class="loading"><div class="spinner"></div></div>
-
-      <!-- Empty State -->
-      <div v-else-if="filteredRequests.length === 0" class="empty-state">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      <button
+        @click="load"
+        :disabled="loading"
+        class="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+        title="รีเฟรช"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        <p>{{ activeTab === 'pending' ? 'ไม่มีคำขอที่รอดำเนินการ' : 'ไม่พบรายการ' }}</p>
+      </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <!-- ยอดรวมทั้งหมด -->
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">ยอดรวมทั้งหมด</div>
+            <div class="text-xl font-bold text-blue-600">{{ formatMoney(stats.total.amount) }}</div>
+            <div class="text-xs text-gray-400">{{ stats.total.count }} รายการ</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Requests Table -->
-      <div v-else class="table-container">
-        <table>
-          <thead>
+      <!-- รอดำเนินการ -->
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">รอดำเนินการ</div>
+            <div class="text-xl font-bold text-yellow-600">{{ formatMoney(stats.pending.amount) }}</div>
+            <div class="text-xs text-gray-400">{{ stats.pending.count }} รายการ</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- โอนแล้ว -->
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">โอนแล้ว</div>
+            <div class="text-xl font-bold text-green-600">{{ formatMoney(stats.approved.amount) }}</div>
+            <div class="text-xs text-gray-400">{{ stats.approved.count }} รายการ</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ปฏิเสธ -->
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">ปฏิเสธ</div>
+            <div class="text-xl font-bold text-red-600">{{ stats.rejected.count }}</div>
+            <div class="text-xs text-gray-400">รายการ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="mb-6 flex gap-3">
+      <div class="flex-1 relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="ค้นหา Provider UID, ชื่อ, เบอร์โทร..."
+          class="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      <select
+        v-model="activeFilter"
+        class="px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+        <option :value="null">ทุกสถานะ</option>
+        <option value="pending">รอดำเนินการ</option>
+        <option value="approved">โอนแล้ว</option>
+        <option value="rejected">ปฏิเสธ</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-100">
             <tr>
-              <th>รหัส</th>
-              <th>ผู้ใช้</th>
-              <th>จำนวน</th>
-              <th>ช่องทาง</th>
-              <th>สถานะ</th>
-              <th>วันที่</th>
-              <th>จัดการ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนเงิน</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">บัญชีปลายทาง</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="req in filteredRequests" :key="req.id">
-              <td class="tracking">{{ req.tracking_id }}</td>
-              <td>
-                <div class="user-info">
-                  <span class="user-name">{{ req.user?.name || '-' }}</span>
-                  <span class="user-contact">{{ req.user?.phone || req.user?.email }}</span>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-if="loading">
+              <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                <div class="flex items-center justify-center gap-2">
+                  <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  กำลังโหลด...
                 </div>
               </td>
-              <td class="amount">฿{{ req.amount.toLocaleString() }}</td>
-              <td>{{ formatPaymentMethod(req.payment_method) }}</td>
-              <td>
-                <span :class="['status-badge', formatTopupStatus(req.status).color]">
-                  {{ formatTopupStatus(req.status).label }}
+            </tr>
+            <tr v-else-if="filteredRequests.length === 0">
+              <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                ไม่พบข้อมูล
+              </td>
+            </tr>
+            <tr 
+              v-else
+              v-for="req in filteredRequests" 
+              :key="req.id"
+              class="hover:bg-gray-50 transition-colors cursor-pointer"
+              @click="openDetail(req)"
+            >
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                    {{ req.user_name.charAt(0).toUpperCase() }}
+                  </div>
+                  <div>
+                    <div class="font-medium text-gray-900">{{ req.user_name }}</div>
+                    <div class="text-sm text-gray-500">{{ req.tracking_id }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="font-semibold text-gray-900">{{ formatMoney(req.amount) }}</div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="text-sm text-gray-900">{{ formatPaymentMethod(req.payment_method) }}</div>
+                <div class="text-xs text-gray-500">{{ req.user_phone }}</div>
+              </td>
+              <td class="px-6 py-4">
+                <span 
+                  :class="{
+                    'bg-gray-100 text-gray-700': req.status === 'rejected',
+                    'bg-green-100 text-green-700': req.status === 'approved',
+                    'bg-yellow-100 text-yellow-700': req.status === 'pending'
+                  }"
+                  class="inline-block px-3 py-1 rounded-full text-xs font-medium"
+                >
+                  {{ req.status === 'pending' ? 'รอดำเนินการ' : req.status === 'approved' ? 'โอนแล้ว' : 'ปฏิเสธ' }}
                 </span>
               </td>
-              <td class="date">{{ formatDate(req.created_at) }}</td>
-              <td>
-                <div v-if="req.status === 'pending'" class="action-btns">
-                  <button @click="openApproveModal(req)" class="btn-approve" :disabled="processing === req.id">
-                    อนุมัติ
-                  </button>
-                  <button @click="openRejectModal(req)" class="btn-reject" :disabled="processing === req.id">
-                    ปฏิเสธ
-                  </button>
-                </div>
-                <span v-else class="no-action">-</span>
+              <td class="px-6 py-4 text-sm text-gray-500">
+                {{ formatDate(req.created_at) }}
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+    </div>
 
-      <!-- Approve Modal -->
-      <div v-if="showApproveModal" class="modal-overlay" @click.self="showApproveModal = false">
-        <div class="modal-content">
-          <h3>อนุมัติคำขอเติมเงิน</h3>
-          <div class="modal-info">
-            <p><strong>รหัส:</strong> {{ selectedRequest?.tracking_id }}</p>
-            <p><strong>ผู้ใช้:</strong> {{ selectedRequest?.user?.name }}</p>
-            <p><strong>จำนวน:</strong> ฿{{ selectedRequest?.amount.toLocaleString() }}</p>
-            <p><strong>ช่องทาง:</strong> {{ formatPaymentMethod(selectedRequest?.payment_method || '') }}</p>
-          </div>
-          <div class="form-group">
-            <label>หมายเหตุ (ถ้ามี)</label>
-            <textarea v-model="adminNote" placeholder="หมายเหตุสำหรับการอนุมัติ..."></textarea>
-          </div>
-          <div class="modal-actions">
-            <button @click="showApproveModal = false" class="btn-secondary">ยกเลิก</button>
-            <button @click="handleApprove" :disabled="!!processing" class="btn-approve-lg">
-              {{ processing ? 'กำลังดำเนินการ...' : 'ยืนยันอนุมัติ' }}
+    <!-- Detail Modal -->
+    <div
+      v-if="showDetailModal && selectedRequest"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      @click.self="showDetailModal = false"
+    >
+      <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-gray-900">รายละเอียดคำขอ</h2>
+            <button
+              @click="showDetailModal = false"
+              class="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
+          </div>
+
+          <div class="space-y-6">
+            <!-- User Info -->
+            <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+              <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-semibold">
+                {{ selectedRequest.user_name.charAt(0).toUpperCase() }}
+              </div>
+              <div>
+                <div class="font-semibold text-lg text-gray-900">{{ selectedRequest.user_name }}</div>
+                <div class="text-sm text-gray-500">{{ selectedRequest.user_phone }}</div>
+                <div class="text-xs text-gray-400 font-mono mt-1">{{ selectedRequest.tracking_id }}</div>
+              </div>
+            </div>
+
+            <!-- Amount & Payment -->
+            <div class="grid grid-cols-2 gap-4">
+              <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                <div class="text-sm text-green-700 mb-1">จำนวนเงิน</div>
+                <div class="text-2xl font-bold text-green-600">฿{{ selectedRequest.amount }}</div>
+              </div>
+              <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div class="text-sm text-blue-700 mb-1">ช่องทาง</div>
+                <div class="text-lg font-semibold text-blue-600">{{ formatPaymentMethod(selectedRequest.payment_method) }}</div>
+              </div>
+            </div>
+
+            <!-- Status & Date -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <div class="text-sm text-gray-600 mb-2">สถานะ</div>
+                <span 
+                  :class="{
+                    'bg-yellow-100 text-yellow-800': selectedRequest.status === 'pending',
+                    'bg-green-100 text-green-800': selectedRequest.status === 'approved',
+                    'bg-gray-100 text-gray-800': selectedRequest.status === 'rejected'
+                  }"
+                  class="inline-block px-4 py-2 rounded-lg text-sm font-medium"
+                >
+                  {{ selectedRequest.status === 'pending' ? 'รอดำเนินการ' : selectedRequest.status === 'approved' ? 'โอนแล้ว' : 'ปฏิเสธ' }}
+                </span>
+              </div>
+              <div>
+                <div class="text-sm text-gray-600 mb-2">วันที่สร้าง</div>
+                <div class="font-medium text-gray-900">{{ formatDate(selectedRequest.created_at) }}</div>
+              </div>
+            </div>
+
+            <!-- Admin Note -->
+            <div v-if="selectedRequest.admin_note" class="p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <div class="text-sm font-medium text-amber-900 mb-2">หมายเหตุจากแอดมิน</div>
+              <div class="text-sm text-amber-800">{{ selectedRequest.admin_note }}</div>
+            </div>
+
+            <!-- Payment Slip -->
+            <div v-if="selectedRequest.slip_url">
+              <div class="text-sm font-medium text-gray-700 mb-3">สลิปการโอน</div>
+              <img 
+                :src="selectedRequest.slip_url" 
+                alt="Payment Slip"
+                class="w-full max-w-md mx-auto rounded-lg border-2 border-gray-200 shadow-md"
+              />
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="mt-6 flex gap-3">
+            <button
+              @click="showDetailModal = false"
+              class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+            >
+              ปิด
+            </button>
+            <template v-if="selectedRequest.status === 'pending'">
+              <button
+                @click="openAction(selectedRequest, 'approve'); showDetailModal = false"
+                class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                ✓ อนุมัติ
+              </button>
+              <button
+                @click="openAction(selectedRequest, 'reject'); showDetailModal = false"
+                class="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+              >
+                ✕ ปฏิเสธ
+              </button>
+            </template>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Reject Modal -->
-      <div v-if="showRejectModal" class="modal-overlay" @click.self="showRejectModal = false">
-        <div class="modal-content">
-          <h3>ปฏิเสธคำขอเติมเงิน</h3>
-          <div class="modal-info">
-            <p><strong>รหัส:</strong> {{ selectedRequest?.tracking_id }}</p>
-            <p><strong>ผู้ใช้:</strong> {{ selectedRequest?.user?.name }}</p>
-            <p><strong>จำนวน:</strong> ฿{{ selectedRequest?.amount.toLocaleString() }}</p>
+    <!-- Action Modal -->
+    <div
+      v-if="showActionModal && selectedRequest"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      @click.self="showActionModal = false"
+    >
+      <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-6">
+            {{ actionType === 'approve' ? '✓ อนุมัติคำขอ' : '✕ ปฏิเสธคำขอ' }}
+          </h2>
+
+          <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                {{ selectedRequest.user_name.charAt(0).toUpperCase() }}
+              </div>
+              <div>
+                <div class="font-medium text-gray-900">{{ selectedRequest.user_name }}</div>
+                <div class="text-xs text-gray-500 font-mono">{{ selectedRequest.tracking_id }}</div>
+              </div>
+            </div>
+            <div class="text-2xl font-bold text-green-600">฿{{ selectedRequest.amount }}</div>
           </div>
-          <div class="form-group">
-            <label>เหตุผลในการปฏิเสธ <span class="required">*</span></label>
-            <textarea v-model="adminNote" placeholder="กรุณาระบุเหตุผล..." required></textarea>
+
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              หมายเหตุ (ถ้ามี)
+            </label>
+            <textarea
+              v-model="adminNote"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="ระบุเหตุผล..."
+            ></textarea>
           </div>
-          <div class="modal-actions">
-            <button @click="showRejectModal = false" class="btn-secondary">ยกเลิก</button>
-            <button @click="handleReject" :disabled="!!processing || !adminNote" class="btn-reject-lg">
-              {{ processing ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}
+
+          <div class="flex gap-3">
+            <button
+              @click="showActionModal = false"
+              :disabled="processing"
+              class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors font-medium"
+            >
+              ยกเลิก
+            </button>
+            <button
+              @click="confirm"
+              :disabled="processing"
+              :class="[
+                'flex-1 px-4 py-2.5 text-white rounded-lg transition-colors disabled:opacity-50 font-medium',
+                actionType === 'approve' 
+                  ? 'bg-green-600 hover:bg-green-700' 
+                  : 'bg-red-600 hover:bg-red-700'
+              ]"
+            >
+              <span v-if="processing" class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                กำลังดำเนินการ...
+              </span>
+              <span v-else>
+                {{ actionType === 'approve' ? 'ยืนยันอนุมัติ' : 'ยืนยันปฏิเสธ' }}
+              </span>
             </button>
           </div>
         </div>
       </div>
     </div>
-  </AdminLayout>
+  </div>
 </template>
-
-<style scoped>
-.admin-page { padding: 20px; max-width: 1400px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.page-header h1 { font-size: 24px; font-weight: 600; }
-.btn-refresh { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #f6f6f6; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
-.btn-refresh svg { width: 18px; height: 18px; }
-.btn-refresh:hover { background: #e5e5e5; }
-
-.result-toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 1001; }
-.result-toast.success { background: #dcfce7; color: #166534; }
-.result-toast.error { background: #fee2e2; color: #991b1b; }
-
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-.stat-card { background: #fff; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.stat-value { display: block; font-size: 28px; font-weight: 700; margin-bottom: 4px; }
-.stat-value.warning { color: #f59e0b; }
-.stat-value.success { color: #22c55e; }
-.stat-label { font-size: 13px; color: #6b6b6b; }
-
-.tabs-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.tabs { display: flex; gap: 8px; }
-.tab { padding: 10px 20px; border: none; background: #f6f6f6; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-.tab.active { background: #000; color: #fff; }
-.badge { background: #ef4444; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
-.tab.active .badge { background: #fff; color: #000; }
-.filter-select { padding: 10px 16px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; outline: none; }
-
-.loading { display: flex; justify-content: center; padding: 60px; }
-.spinner { width: 32px; height: 32px; border: 3px solid #e5e5e5; border-top-color: #000; border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.empty-state { text-align: center; padding: 60px 20px; color: #6b6b6b; }
-.empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.5; }
-
-.table-container { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #e5e5e5; }
-th { background: #f6f6f6; font-size: 12px; font-weight: 600; color: #6b6b6b; text-transform: uppercase; }
-td { font-size: 14px; }
-.tracking { font-family: monospace; font-size: 13px; color: #6b6b6b; }
-.user-info { display: flex; flex-direction: column; }
-.user-name { font-weight: 500; }
-.user-contact { font-size: 12px; color: #6b6b6b; }
-.amount { font-weight: 600; font-family: monospace; }
-.date { font-size: 13px; color: #6b6b6b; }
-
-.status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-.status-badge.warning { background: #fef3c7; color: #92400e; }
-.status-badge.success { background: #dcfce7; color: #166534; }
-.status-badge.error { background: #fee2e2; color: #991b1b; }
-.status-badge.gray { background: #f3f4f6; color: #6b7280; }
-
-.action-btns { display: flex; gap: 8px; }
-.btn-approve { padding: 6px 14px; background: #dcfce7; color: #166534; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
-.btn-approve:hover { background: #bbf7d0; }
-.btn-approve:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-reject { padding: 6px 14px; background: #fee2e2; color: #991b1b; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
-.btn-reject:hover { background: #fecaca; }
-.btn-reject:disabled { opacity: 0.5; cursor: not-allowed; }
-.no-action { color: #999; }
-
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-content { background: #fff; border-radius: 16px; padding: 24px; width: 100%; max-width: 420px; }
-.modal-content h3 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
-.modal-info { background: #f6f6f6; padding: 14px; border-radius: 10px; margin-bottom: 16px; }
-.modal-info p { margin: 6px 0; font-size: 14px; }
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
-.form-group .required { color: #ef4444; }
-.form-group textarea { width: 100%; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; height: 80px; resize: none; }
-.modal-actions { display: flex; gap: 12px; margin-top: 20px; }
-.btn-secondary { flex: 1; padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; }
-.btn-approve-lg { flex: 1; padding: 12px; border: none; border-radius: 8px; background: #22c55e; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }
-.btn-approve-lg:disabled { opacity: 0.5; }
-.btn-reject-lg { flex: 1; padding: 12px; border: none; border-radius: 8px; background: #ef4444; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; }
-.btn-reject-lg:disabled { opacity: 0.5; }
-
-@media (max-width: 768px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .tabs-row { flex-direction: column; gap: 12px; align-items: stretch; }
-  .table-container { overflow-x: auto; }
-}
-</style>

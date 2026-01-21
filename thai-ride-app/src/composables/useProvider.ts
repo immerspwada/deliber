@@ -15,6 +15,7 @@ import { useAuthStore } from '../stores/auth'
 import { useProviderEarnings } from './useProviderEarnings'
 import { useSoundNotification } from './useSoundNotification'
 import { useProviderNotificationSettings } from './useProviderNotificationSettings'
+import { providerLogger } from '../lib/logger'
 
 export interface ProviderProfile {
   id: string
@@ -99,6 +100,10 @@ export interface DeliveryRequest {
   status: string
   created_at: string
   customer_name?: string
+  // Promo fields
+  promo_code?: string | null
+  promo_code_id?: string | null
+  promo_discount_amount?: number
 }
 
 // Shopping Request Interface
@@ -122,6 +127,10 @@ export interface ShoppingRequest {
   status: string
   created_at: string
   customer_name?: string
+  // Promo fields
+  promo_code?: string | null
+  promo_code_id?: string | null
+  promo_discount_amount?: number
 }
 
 // Active Job (can be ride, delivery, or shopping)
@@ -176,7 +185,7 @@ export function useProvider() {
   let reconnectTimeout: number | null = null
   let fetchInterval: number | null = null
 
-  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+  const isDemoMode = () => false // Demo mode disabled - production only
   const hasActiveRide = () => activeRide.value !== null
   const hasActiveJob = () => activeJob.value !== null
 
@@ -200,7 +209,7 @@ export function useProvider() {
         }
       }
     } catch (e) {
-      console.debug('[Provider] Badge API not supported:', e)
+      providerLogger.debug('Badge API not supported:', e)
     }
   }
 
@@ -211,7 +220,7 @@ export function useProvider() {
     
     // Check if push notification should be sent based on settings
     if (!notificationSettings.shouldSendPush(jobType)) {
-      console.debug('[Provider] Push notification skipped for', jobType, '(disabled in settings)')
+      providerLogger.debug('Push notification skipped for', jobType, '(disabled in settings)')
       return
     }
     
@@ -265,16 +274,16 @@ export function useProvider() {
           }
         }
       })
-      console.debug('[Provider] Push notification sent for', jobType)
+      providerLogger.debug('Push notification sent for', jobType)
     } catch (e) {
-      console.debug('[Provider] Push notification failed:', e)
+      providerLogger.debug('Push notification failed:', e)
     }
   }
 
   // Play sound notification for new job (respects settings)
   const playJobSoundNotification = (jobType: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
     if (!notificationSettings.shouldPlaySound()) {
-      console.debug('[Provider] Sound notification skipped (disabled in settings)')
+      providerLogger.debug('Sound notification skipped (disabled in settings)')
       return
     }
     
@@ -301,7 +310,7 @@ export function useProvider() {
         timestamp: Date.now()
       }))
     } catch (e) {
-      console.warn('Failed to save to cache:', e)
+      providerLogger.warn('Failed to save to cache:', e)
     }
   }
 
@@ -332,13 +341,13 @@ export function useProvider() {
     const cachedRide = loadFromCache<ActiveRide>(CACHE_KEY_RIDE)
     if (cachedRide && !activeRide.value) {
       activeRide.value = cachedRide
-      console.log('[Provider] Restored ride from cache:', cachedRide.id)
+      providerLogger.debug('Restored ride from cache:', cachedRide.id)
     }
     
     const cachedJob = loadFromCache<ActiveJob>(CACHE_KEY_JOB)
     if (cachedJob && !activeJob.value) {
       activeJob.value = cachedJob
-      console.log('[Provider] Restored job from cache:', cachedJob.id)
+      providerLogger.debug('Restored job from cache:', cachedJob.id)
     }
   }
 
@@ -377,7 +386,7 @@ export function useProvider() {
         .maybeSingle()
       
       if (rideError) {
-        console.warn('Error fetching active ride:', rideError)
+        providerLogger.warn('Error fetching active ride:', rideError)
         return null
       }
       
@@ -426,7 +435,7 @@ export function useProvider() {
         // Save to cache for fast restore
         saveToCache(CACHE_KEY_RIDE, activeRide.value)
         
-        console.log('[Provider] Restored active ride:', activeRideData.id)
+        providerLogger.debug('Restored active ride:', activeRideData.id)
         return activeRide.value
       }
       
@@ -434,7 +443,7 @@ export function useProvider() {
       clearCache(CACHE_KEY_RIDE)
       return null
     } catch (e: any) {
-      console.warn('Error in fetchActiveRide:', e)
+      providerLogger.warn('Error in fetchActiveRide:', e)
       return null
     }
   }
@@ -499,7 +508,7 @@ export function useProvider() {
         
         subscribeToJob(activeDelivery.id, 'delivery')
         saveToCache(CACHE_KEY_JOB, activeJob.value)
-        console.log('[Provider] Restored active delivery:', activeDelivery.id)
+        providerLogger.debug('Restored active delivery:', activeDelivery.id)
         return activeJob.value
       }
       
@@ -555,7 +564,7 @@ export function useProvider() {
         
         subscribeToJob(activeShopping.id, 'shopping')
         saveToCache(CACHE_KEY_JOB, activeJob.value)
-        console.log('[Provider] Restored active shopping:', activeShopping.id)
+        providerLogger.debug('Restored active shopping:', activeShopping.id)
         return activeJob.value
       }
       
@@ -563,7 +572,7 @@ export function useProvider() {
       clearCache(CACHE_KEY_JOB)
       return null
     } catch (e: any) {
-      console.warn('Error in fetchActiveJob:', e)
+      providerLogger.warn('Error in fetchActiveJob:', e)
       return null
     }
   }
@@ -571,23 +580,10 @@ export function useProvider() {
   const fetchProfile = async () => {
     loading.value = true
     
-    // ✅ Restore from cache immediately for fast UI
+    // Restore from cache immediately for fast UI
     restoreFromCache()
     
     try {
-      if (isDemoMode()) {
-        const demoUser = JSON.parse(localStorage.getItem('demo_user') || '{}')
-        profile.value = {
-          id: 'demo-provider-' + (demoUser.role || 'driver'), user_id: demoUser.id || 'demo-user',
-          provider_type: demoUser.role === 'driver' ? 'driver' : 'delivery',
-          license_number: 'กข 1234', vehicle_type: demoUser.role === 'driver' ? 'รถยนต์' : 'มอเตอร์ไซค์',
-          vehicle_plate: 'กข 1234 กรุงเทพ', vehicle_color: 'สีดำ',
-          is_verified: true, is_available: false, rating: 4.8, total_trips: 156,
-          current_lat: 13.7563, current_lng: 100.5018
-        }
-        isOnline.value = false
-        return profile.value
-      }
       if (!authStore.user?.id) { profile.value = null; return null }
       // Use maybeSingle() to avoid 406 error when user is not a provider
       const { data } = await (supabase.from('service_providers') as any).select('*').eq('user_id', authStore.user.id).maybeSingle()
@@ -597,7 +593,7 @@ export function useProvider() {
       // ดึง allowed_services จาก profile
       allowedServices.value = data.allowed_services || []
       
-      // ✅ FIX: Fetch active ride and job if provider is online
+      // Fetch active ride and job if provider is online
       if (isOnline.value) {
         // Fetch in parallel for speed
         await Promise.all([
@@ -620,12 +616,6 @@ export function useProvider() {
         if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
       }
       
-      if (isDemoMode()) {
-        // Demo mode: update local profile
-        profile.value = { ...profile.value, ...updates } as ProviderProfile
-        return profile.value
-      }
-      
       const { data, error: updateError } = await (supabase.from('service_providers') as any)
         .update(updates)
         .eq('id', profile.value.id)
@@ -645,19 +635,6 @@ export function useProvider() {
 
   const fetchEarnings = async () => {
     if (!profile.value?.id) return
-    if (isDemoMode()) {
-      earnings.value = { today: 1250, thisWeek: 8500, thisMonth: 32000, todayTrips: 8, weekTrips: 45, monthTrips: 180 }
-      weeklyEarnings.value = [
-        { date: '2025-12-10', day: 'จ.', earnings: 1200, trips: 7, hours_online: 8 },
-        { date: '2025-12-11', day: 'อ.', earnings: 1450, trips: 9, hours_online: 9 },
-        { date: '2025-12-12', day: 'พ.', earnings: 980, trips: 5, hours_online: 6 },
-        { date: '2025-12-13', day: 'พฤ.', earnings: 1680, trips: 10, hours_online: 10 },
-        { date: '2025-12-14', day: 'ศ.', earnings: 1890, trips: 11, hours_online: 11 },
-        { date: '2025-12-15', day: 'ส.', earnings: 1050, trips: 6, hours_online: 7 },
-        { date: '2025-12-16', day: 'อา.', earnings: 1250, trips: 8, hours_online: 8 }
-      ]
-      return
-    }
     try {
       const { data } = await (supabase.rpc as any)('get_provider_earnings_summary', { p_provider_id: profile.value.id })
       if (data?.[0]) {
@@ -666,7 +643,7 @@ export function useProvider() {
           todayTrips: data[0].today_trips || 0, weekTrips: data[0].week_trips || 0, monthTrips: data[0].month_trips || 0
         }
       }
-    } catch (e) { console.warn('Error fetching earnings:', e) }
+    } catch (e) { providerLogger.warn('Error fetching earnings:', e) }
   }
 
   const toggleOnline = async (online: boolean, location?: { lat: number; lng: number }) => {
@@ -674,30 +651,58 @@ export function useProvider() {
     error.value = null
     try {
       if (!profile.value?.id) await fetchProfile()
-      if (isDemoMode()) {
-        isOnline.value = online
-        if (profile.value?.id) {
-          if (online) await startOnlineSession(profile.value.id)
-          else await endOnlineSession(profile.value.id)
-        }
-        if (online) { subscribeToRequests(); startLocationUpdates() }
-        else { unsubscribeFromRequests(); stopLocationUpdates(); pendingRequests.value = [] }
-        return true
-      }
       if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
-      const { data, error: updateError } = await (supabase.rpc as any)('set_provider_availability', {
-        p_provider_id: profile.value.id, p_is_available: online, p_lat: location?.lat || null, p_lng: location?.lng || null
+      
+      // ใช้ toggle_provider_online_v2 function (Production-Ready - uses providers_v2 table)
+      const { data, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online_v2', {
+        p_user_id: authStore.user?.id,
+        p_is_online: online,
+        p_lat: location?.lat || null,
+        p_lng: location?.lng || null
       })
-      if (updateError) throw updateError
-      if (data?.[0] && !data[0].success) throw new Error(data[0].message)
-      if (online) await startOnlineSession(profile.value.id)
-      else await endOnlineSession(profile.value.id)
+      
+      if (toggleError) throw toggleError
+      
+      // ตรวจสอบ response (JSONB format)
+      if (!data?.success) {
+        throw new Error(data?.error || 'ไม่สามารถเปลี่ยนสถานะได้')
+      }
+      
+      // อัพเดท local state
       isOnline.value = online
-      if (online) { subscribeToRequests(); startLocationUpdates(); await fetchPendingRequests(); await fetchPendingDeliveries(); await fetchPendingShopping() }
-      else { unsubscribeFromRequests(); stopLocationUpdates(); pendingRequests.value = []; pendingDeliveries.value = []; pendingShopping.value = [] }
+      if (profile.value) {
+        profile.value.is_available = online
+        if (location) {
+          profile.value.current_lat = location.lat
+          profile.value.current_lng = location.lng
+        }
+      }
+      
+      // จัดการ online/offline logic
+      if (online) {
+        await startOnlineSession(profile.value.id)
+        subscribeToRequests()
+        startLocationUpdates()
+        await fetchPendingRequests()
+        await fetchPendingDeliveries()
+        await fetchPendingShopping()
+      } else {
+        await endOnlineSession(profile.value.id)
+        unsubscribeFromRequests()
+        stopLocationUpdates()
+        pendingRequests.value = []
+        pendingDeliveries.value = []
+        pendingShopping.value = []
+      }
+      
       return true
-    } catch (e: any) { error.value = e.message; return false }
-    finally { loading.value = false }
+    } catch (e: any) {
+      error.value = e.message
+      providerLogger.error('Toggle online error:', e)
+      return false
+    } finally {
+      loading.value = false
+    }
   }
 
   const fetchPendingRequests = async () => {
@@ -714,7 +719,7 @@ export function useProvider() {
           passenger_name: r.passenger_name, passenger_phone: r.passenger_phone, passenger_rating: r.passenger_rating || 4.5
         }))
       } else { pendingRequests.value = [] }
-    } catch (e) { console.warn('Error fetching requests:', e) }
+    } catch (e) { providerLogger.warn('Error fetching requests:', e) }
   }
 
   const subscribeToRequests = () => {
@@ -867,32 +872,47 @@ export function useProvider() {
     error.value = null
     try {
       if (!profile.value?.id) throw new Error('ไม่พบข้อมูลผู้ให้บริการ')
-      if (isDemoMode() || profile.value.id.startsWith('demo')) {
-        const request = pendingRequests.value.find(r => r.id === requestId)
-        if (!request) throw new Error('ไม่พบคำขอนี้')
-        activeRide.value = {
-          id: request.id, tracking_id: request.tracking_id || 'TR' + request.id.slice(0, 8).toUpperCase(),
-          passenger: { id: request.user_id, name: request.passenger_name || 'ผู้โดยสาร', phone: request.passenger_phone || '', rating: request.passenger_rating || 4.5 },
-          pickup: { lat: request.pickup_lat, lng: request.pickup_lng, address: request.pickup_address },
-          destination: { lat: request.destination_lat, lng: request.destination_lng, address: request.destination_address },
-          fare: request.estimated_fare, status: 'matched', distance: request.distance || 0, duration: request.duration || 0,
-          ride_type: request.ride_type, created_at: request.created_at
+      
+      // Generate idempotency key for race condition prevention
+      const idempotencyKey = `${profile.value.id}-${requestId}-${Date.now()}`
+      
+      // Try V2 atomic function first (production-ready with race condition prevention)
+      let rideData: any = null
+      try {
+        const { data, error: acceptError } = await (supabase.rpc as any)('accept_ride_atomic_v2', { 
+          p_ride_id: requestId, 
+          p_provider_id: profile.value.id,
+          p_idempotency_key: idempotencyKey
+        })
+        
+        if (acceptError) throw acceptError
+        
+        // V2 returns JSONB directly
+        if (!data?.success) {
+          pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
+          throw new Error(data?.message || 'ไม่สามารถรับงานได้')
         }
-        saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Save to cache
-        pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
-        return true
+        
+        rideData = data.ride_data || data
+      } catch (v2Error: any) {
+        // Fallback to V1 if V2 doesn't exist
+        if (v2Error.message?.includes('does not exist')) {
+          const { data, error: acceptError } = await (supabase.rpc as any)('accept_ride_request', { p_ride_id: requestId, p_provider_id: profile.value.id })
+          if (acceptError) throw acceptError
+          const result = data?.[0]
+          if (!result?.success) {
+            pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
+            throw new Error(result?.message || 'ไม่สามารถรับงานได้')
+          }
+          rideData = result.ride_data
+        } else {
+          throw v2Error
+        }
       }
-      const { data, error: acceptError } = await (supabase.rpc as any)('accept_ride_request', { p_ride_id: requestId, p_provider_id: profile.value.id })
-      if (acceptError) throw acceptError
-      const result = data?.[0]
-      if (!result?.success) {
-        pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
-        throw new Error(result?.message || 'ไม่สามารถรับงานได้')
-      }
-      const rideData = result.ride_data
+      
       activeRide.value = {
         id: rideData.id, tracking_id: rideData.tracking_id || 'TR' + rideData.id.slice(0, 8).toUpperCase(),
-        passenger: { id: rideData.passenger?.id || rideData.user_id, name: rideData.passenger?.name || 'ผู้โดยสาร', phone: rideData.passenger?.phone || '', rating: 4.5, photo: rideData.passenger?.avatar_url },
+        passenger: { id: rideData.passenger?.id || rideData.user_id || rideData.customer?.id, name: rideData.passenger?.name || rideData.customer?.name || 'ผู้โดยสาร', phone: rideData.passenger?.phone || rideData.customer?.phone || '', rating: 4.5, photo: rideData.passenger?.avatar_url },
         pickup: { lat: rideData.pickup_lat, lng: rideData.pickup_lng, address: rideData.pickup_address },
         destination: { lat: rideData.destination_lat, lng: rideData.destination_lng, address: rideData.destination_address },
         fare: rideData.estimated_fare, status: 'matched',
@@ -918,7 +938,38 @@ export function useProvider() {
       let dbStatus: string = status
       if (status === 'arriving' || status === 'arrived') dbStatus = 'pickup'
       if (status === 'picked_up') dbStatus = 'in_progress'
-      if (isDemoMode() || profile.value?.id?.startsWith('demo')) {
+      
+      // Try V2 function first (production-ready with validation)
+      let updateSuccess = false
+      try {
+        const { data, error: updateError } = await (supabase.rpc as any)('update_ride_status_v2', {
+          p_ride_id: activeRide.value.id, 
+          p_provider_id: profile.value?.id, 
+          p_new_status: dbStatus
+        })
+        
+        if (updateError) throw updateError
+        
+        // V2 returns JSONB directly
+        if (data && !data.success) {
+          throw new Error(data.message || 'ไม่สามารถอัพเดทสถานะได้')
+        }
+        updateSuccess = true
+      } catch (v2Error: any) {
+        // Fallback to V1 if V2 doesn't exist
+        if (v2Error.message?.includes('does not exist')) {
+          const { data, error: updateError } = await (supabase.rpc as any)('update_ride_status', {
+            p_ride_id: activeRide.value.id, p_provider_id: profile.value?.id, p_new_status: dbStatus
+          })
+          if (updateError) throw updateError
+          if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
+          updateSuccess = true
+        } else {
+          throw v2Error
+        }
+      }
+      
+      if (updateSuccess) {
         activeRide.value.status = status
         saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache
         if (status === 'completed') {
@@ -927,20 +978,6 @@ export function useProvider() {
           clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on complete
           setTimeout(() => { activeRide.value = null; unsubscribeFromRide() }, 3000)
         }
-        return true
-      }
-      const { data, error: updateError } = await (supabase.rpc as any)('update_ride_status', {
-        p_ride_id: activeRide.value.id, p_provider_id: profile.value?.id, p_new_status: dbStatus
-      })
-      if (updateError) throw updateError
-      if (data?.[0] && !data[0].success) throw new Error(data[0].message || 'ไม่สามารถอัพเดทสถานะได้')
-      activeRide.value.status = status
-      saveToCache(CACHE_KEY_RIDE, activeRide.value) // ✅ Update cache
-      if (status === 'completed') {
-        earnings.value.today += activeRide.value.fare
-        earnings.value.todayTrips += 1
-        clearCache(CACHE_KEY_RIDE) // ✅ Clear cache on complete
-        setTimeout(() => { activeRide.value = null; unsubscribeFromRide() }, 3000)
       }
       return true
     } catch (e: any) { error.value = e.message; return false }
@@ -951,7 +988,6 @@ export function useProvider() {
     if (!activeRide.value) return false
     loading.value = true
     try {
-      if (isDemoMode()) { activeRide.value = null; return true }
       await (supabase.from('ride_requests') as any).update({ status: 'cancelled', cancel_reason: reason }).eq('id', activeRide.value.id)
       activeRide.value = null
       unsubscribeFromRide()
@@ -978,10 +1014,14 @@ export function useProvider() {
           recipient_lat: d.recipient_lat, recipient_lng: d.recipient_lng,
           package_type: d.package_type, package_description: d.package_description,
           estimated_fee: d.estimated_fee || 0, distance_km: d.distance_km,
-          status: 'pending', created_at: d.created_at, customer_name: d.customer_name
+          status: 'pending', created_at: d.created_at, customer_name: d.customer_name,
+          // Promo fields for Provider visibility
+          promo_code: d.promo_code || null,
+          promo_code_id: d.promo_code_id || null,
+          promo_discount_amount: d.promo_discount_amount || 0
         }))
       } else { pendingDeliveries.value = [] }
-    } catch (e) { console.warn('Error fetching deliveries:', e) }
+    } catch (e) { providerLogger.warn('Error fetching deliveries:', e) }
   }
 
   const acceptDelivery = async (deliveryId: string) => {
@@ -1049,10 +1089,14 @@ export function useProvider() {
           store_name: s.store_name, store_address: s.store_address, store_lat: s.store_lat, store_lng: s.store_lng,
           delivery_address: s.delivery_address, delivery_lat: s.delivery_lat, delivery_lng: s.delivery_lng,
           items: s.items || [], item_list: s.item_list, budget_limit: s.budget_limit, service_fee: s.service_fee || 0,
-          special_instructions: s.special_instructions, status: 'pending', created_at: s.created_at, customer_name: s.customer_name
+          special_instructions: s.special_instructions, status: 'pending', created_at: s.created_at, customer_name: s.customer_name,
+          // Promo fields for Provider visibility
+          promo_code: s.promo_code || null,
+          promo_code_id: s.promo_code_id || null,
+          promo_discount_amount: s.promo_discount_amount || 0
         }))
       } else { pendingShopping.value = [] }
-    } catch (e) { console.warn('Error fetching shopping:', e) }
+    } catch (e) { providerLogger.warn('Error fetching shopping:', e) }
   }
 
   const acceptShopping = async (shoppingId: string) => {
@@ -1171,7 +1215,7 @@ export function useProvider() {
     try {
       await (supabase.from('service_providers') as any).update({ current_lat: lat, current_lng: lng }).eq('id', profile.value.id)
       if (profile.value) { profile.value.current_lat = lat; profile.value.current_lng = lng }
-    } catch (e) { console.warn('Error updating location:', e) }
+    } catch (e) { providerLogger.warn('Error updating location:', e) }
   }
 
   const startLocationUpdates = () => {
@@ -1202,7 +1246,7 @@ export function useProvider() {
         p_provider_id: profile.value.id
       })
       pendingQueueJobs.value = data || []
-    } catch (e) { console.error('Error fetching queue jobs:', e) }
+    } catch (e) { providerLogger.error('Error fetching queue jobs:', e) }
   }
 
   // Fetch pending moving requests (Requirements 4.1)
@@ -1215,7 +1259,7 @@ export function useProvider() {
         p_lng: profile.value.current_lng
       })
       pendingMovingJobs.value = data || []
-    } catch (e) { console.error('Error fetching moving jobs:', e) }
+    } catch (e) { providerLogger.error('Error fetching moving jobs:', e) }
   }
 
   // Fetch pending laundry requests (Requirements 4.1)
@@ -1228,7 +1272,7 @@ export function useProvider() {
         p_lng: profile.value.current_lng
       })
       pendingLaundryJobs.value = data || []
-    } catch (e) { console.error('Error fetching laundry jobs:', e) }
+    } catch (e) { providerLogger.error('Error fetching laundry jobs:', e) }
   }
 
   // Accept queue booking (Requirements 4.2)
@@ -1392,7 +1436,7 @@ export function useProvider() {
         })
       
       if (uploadError) {
-        console.error('Upload error:', uploadError)
+        providerLogger.error('Upload error:', uploadError)
         return { success: false, error: 'ไม่สามารถอัพโหลดรูปได้' }
       }
       
@@ -1414,7 +1458,7 @@ export function useProvider() {
       })
       
       if (dbError) {
-        console.error('DB error:', dbError)
+        providerLogger.error('DB error:', dbError)
         return { success: false, error: 'ไม่สามารถบันทึกข้อมูลได้' }
       }
       
@@ -1424,7 +1468,7 @@ export function useProvider() {
       
       return { success: true, photoUrl }
     } catch (e: any) {
-      console.error('Error uploading proof:', e)
+      providerLogger.error('Error uploading proof:', e)
       return { success: false, error: e.message || 'เกิดข้อผิดพลาด' }
     }
   }
@@ -1468,7 +1512,7 @@ export function useProvider() {
       })
 
       if (dbError) {
-        console.error('Signature save error:', dbError)
+        providerLogger.error('Signature save error:', dbError)
         return { success: false, error: 'ไม่สามารถบันทึกลายเซ็นได้' }
       }
 
@@ -1478,7 +1522,7 @@ export function useProvider() {
 
       return { success: true }
     } catch (e: any) {
-      console.error('Error saving signature:', e)
+      providerLogger.error('Error saving signature:', e)
       return { success: false, error: e.message || 'เกิดข้อผิดพลาด' }
     }
   }
@@ -1500,7 +1544,7 @@ export function useProvider() {
     if (signatureData) {
       const signatureResult = await saveDeliverySignature(deliveryId, signatureData, signerName)
       if (!signatureResult.success) {
-        console.warn('Signature save failed:', signatureResult.error)
+        providerLogger.warn('Signature save failed:', signatureResult.error)
         // Continue anyway - signature is optional
       }
     }
@@ -1566,7 +1610,7 @@ export function useProvider() {
         .order('scheduled_datetime', { ascending: true })
       
       if (err) {
-        console.error('Error fetching scheduled rides:', err)
+        providerLogger.error('Error fetching scheduled rides:', err)
         return
       }
       
@@ -1592,7 +1636,7 @@ export function useProvider() {
       
       upcomingScheduledRides.value = ridesWithCustomer
     } catch (e) {
-      console.error('Error fetching scheduled rides:', e)
+      providerLogger.error('Error fetching scheduled rides:', e)
     }
   }
   
@@ -1637,7 +1681,7 @@ export function useProvider() {
         .single()
       
       if (createErr) {
-        console.error('Error creating ride from scheduled:', createErr)
+        providerLogger.error('Error creating ride from scheduled:', createErr)
         return { success: false, error: 'ไม่สามารถสร้างงานได้' }
       }
       
@@ -1657,7 +1701,7 @@ export function useProvider() {
       
       return { success: true, rideId: newRide.id }
     } catch (e: any) {
-      console.error('Error accepting scheduled ride:', e)
+      providerLogger.error('Error accepting scheduled ride:', e)
       return { success: false, error: e.message || 'เกิดข้อผิดพลาด' }
     }
   }

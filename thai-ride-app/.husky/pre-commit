@@ -1,1 +1,61 @@
-npm test
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. Lint
+echo "📝 Linting..."
+npm run lint || exit 1
+
+# 2. Type check
+echo "🔷 Type checking..."
+npm run type-check || exit 1
+
+# 3. Tests
+echo "🧪 Running tests..."
+npm run test -- --run || exit 1
+
+# 4. Check for secrets
+echo "🔐 Checking for secrets..."
+if git diff --cached --name-only | xargs grep -l -E "(SUPABASE_SERVICE_ROLE|sk_live_|password\s*=)" 2>/dev/null; then
+  echo "❌ Potential secrets detected! Please remove before committing."
+  exit 1
+fi
+
+# 5. Validate SQL migrations (if any staged)
+if git diff --cached --name-only | grep -q "\.sql$"; then
+  echo "🗄️ SQL files detected - validating..."
+  
+  # Check for RLS in new tables
+  for file in $(git diff --cached --name-only | grep "\.sql$"); do
+    if grep -q "CREATE TABLE" "$file" && ! grep -q "ENABLE ROW LEVEL SECURITY" "$file"; then
+      echo "⚠️ Warning: $file creates table without RLS. Consider adding RLS policies."
+    fi
+    
+    if grep -q "CREATE TABLE" "$file" && ! grep -q "CREATE POLICY" "$file"; then
+      echo "⚠️ Warning: $file creates table without policies. Add RLS policies for security."
+    fi
+  done
+fi
+
+# 6. Check for duplicate file suffixes
+echo "🔍 Checking for duplicate file patterns..."
+DUPLICATE_PATTERNS="New\.vue|V2\.vue|Enhanced\.vue|Minimal\.vue|Pro\.vue|Stable\.vue|Copy\.vue|Backup\.vue|Old\.vue|Temp\.vue"
+DUPLICATES=$(git diff --cached --name-only | grep -E "$DUPLICATE_PATTERNS" || true)
+
+if [ -n "$DUPLICATES" ]; then
+  echo "⚠️  WARNING: Found files with duplicate-indicating suffixes:"
+  echo "$DUPLICATES"
+  echo ""
+  echo "💡 Consider using:"
+  echo "   - Feature flags for gradual rollouts"
+  echo "   - Separate routes for beta features"
+  echo "   - Composition pattern for version switching"
+  echo ""
+  echo "📖 See: .kiro/specs/admin-customers-enhancement/PREVENT-DUPLICATES-GUIDE.md"
+  echo ""
+  echo "⚠️  This is a WARNING - commit will proceed, but please review."
+  echo ""
+fi
+
+echo "✅ All pre-commit checks passed!"

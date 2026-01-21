@@ -13,6 +13,7 @@
 
 import { ref, computed, onUnmounted, watch } from 'vue'
 import { supabase } from '../lib/supabase'
+import { realtimeLogger } from '../lib/logger'
 
 // =====================================================
 // TYPES
@@ -175,7 +176,7 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
       
       // Subscribe with status callback
       await mainChannel.subscribe((status: string) => {
-        console.log('[Realtime] Channel status:', status)
+        realtimeLogger.debug('Channel status:', status)
         
         if (status === 'SUBSCRIBED') {
           connectionStatus.value.state = 'connected'
@@ -203,7 +204,7 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
       startPolling()
       
     } catch (error) {
-      console.error('[Realtime] Subscribe error:', error)
+      realtimeLogger.error('Subscribe error:', error)
       connectionStatus.value.state = 'error'
       scheduleReconnect()
     }
@@ -216,7 +217,7 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
     const { eventType, new: newRecord, old: oldRecord } = payload
     const pid = providerId()
     
-    console.log(`[Realtime] ${type} ${eventType}:`, newRecord?.id || oldRecord?.id)
+    realtimeLogger.debug(`${type} ${eventType}:`, newRecord?.id || oldRecord?.id)
     
     switch (eventType) {
       case 'INSERT':
@@ -353,7 +354,7 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
         expires_at: new Date(Date.now() + cfg.jobExpirationSeconds * 1000).toISOString()
       }
     } catch (error) {
-      console.error('[Realtime] Error enriching job data:', error)
+      realtimeLogger.error('Error enriching job data:', error)
       return null
     }
   }
@@ -429,9 +430,9 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
       const existingIds = new Set(pendingJobs.value.filter(j => (j as any)._accepting).map(j => j.id))
       pendingJobs.value = jobs.filter(j => !existingIds.has(j.id))
       
-      console.log(`[Realtime] Fetched ${jobs.length} pending jobs`)
+      realtimeLogger.debug(`Fetched ${jobs.length} pending jobs`)
     } catch (error) {
-      console.error('[Realtime] Error fetching jobs:', error)
+      realtimeLogger.error('Error fetching jobs:', error)
     }
   }
 
@@ -498,7 +499,7 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
           throw error
         }
       } catch (error) {
-        console.warn('[Realtime] Heartbeat failed:', error)
+        realtimeLogger.warn('Heartbeat failed:', error)
         connectionStatus.value.state = 'error'
         scheduleReconnect()
       }
@@ -540,13 +541,13 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
     
     const attempts = connectionStatus.value.reconnectAttempts
     if (attempts >= cfg.maxReconnectAttempts) {
-      console.error('[Realtime] Max reconnect attempts reached')
+      realtimeLogger.error('Max reconnect attempts reached')
       connectionStatus.value.state = 'error'
       return
     }
     
     const delay = cfg.reconnectBaseDelay * Math.pow(2, attempts)
-    console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${attempts + 1})`)
+    realtimeLogger.debug(`Reconnecting in ${delay}ms (attempt ${attempts + 1})`)
     
     connectionStatus.value.state = 'connecting'
     connectionStatus.value.reconnectAttempts++
@@ -571,7 +572,7 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
   async function processOfflineQueue() {
     if (offlineQueue.value.length === 0) return
     
-    console.log(`[Realtime] Processing ${offlineQueue.value.length} offline actions`)
+    realtimeLogger.debug(`Processing ${offlineQueue.value.length} offline actions`)
     
     const queue = [...offlineQueue.value]
     offlineQueue.value = []
@@ -580,9 +581,9 @@ export function useProviderRealtime(providerId: () => string | null, config: Par
       try {
         // Process based on action type
         // This would be implemented based on specific actions
-        console.log('[Realtime] Processing offline action:', item.action)
+        realtimeLogger.debug('Processing offline action:', item.action)
       } catch (error) {
-        console.error('[Realtime] Error processing offline action:', error)
+        realtimeLogger.error('Error processing offline action:', error)
       }
     }
   }

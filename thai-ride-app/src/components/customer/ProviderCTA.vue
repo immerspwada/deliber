@@ -8,10 +8,10 @@ import { useRouter } from 'vue-router'
 import { useHapticFeedback } from '../../composables/useHapticFeedback'
 
 const router = useRouter()
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const handleClick = () => {
-  haptic.medium()
+  vibrate('medium')
   // Navigate to provider onboarding page
   router.push('/provider/onboarding')
 }

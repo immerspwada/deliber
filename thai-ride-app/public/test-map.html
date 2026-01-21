@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Map Test</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #map { height: 400px; width: 100%; }
+  </style>
+</head>
+<body>
+  <h1>Leaflet Map Test</h1>
+  <div id="map"></div>
+  <script>
+    // Test if Leaflet works with OpenStreetMap tiles
+    const map = L.map('map').setView([13.7563, 100.5018], 13);
+    
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+    
+    L.marker([13.7563, 100.5018]).addTo(map)
+      .bindPopup('Bangkok, Thailand')
+      .openPopup();
+      
+    console.log('Map initialized successfully!');
+  </script>
+</body>
+</html>

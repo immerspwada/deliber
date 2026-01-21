@@ -41,6 +41,9 @@ export interface Customer {
   avatar_url: string | null
   created_at: string
   updated_at: string
+  // Email verification (optional)
+  email_verified?: boolean
+  email_verified_at?: string | null
   // Computed/joined fields
   total_rides?: number
   total_spent?: number
@@ -315,6 +318,8 @@ export function useCustomerManagement() {
     pendingRequests.add(currentAbortController)
     
     try {
+      console.log('[useCustomerManagement] Fetching customers...')
+      
       let query = supabase
         .from('users')
         .select('*', { count: 'exact' })
@@ -360,12 +365,21 @@ export function useCustomerManagement() {
       
       const { data, count, error: fetchError } = await query
       
+      console.log('[useCustomerManagement] Query result:', { 
+        dataLength: data?.length, 
+        count, 
+        error: fetchError?.message 
+      })
+      
       // Check if request was aborted
       if (currentAbortController?.signal.aborted) {
         return
       }
       
-      if (fetchError) throw fetchError
+      if (fetchError) {
+        console.error('[useCustomerManagement] Fetch error:', fetchError)
+        throw fetchError
+      }
       
       // Transform data
       const transformedData: Customer[] = (data || []).map(transformCustomer)
@@ -1499,6 +1513,7 @@ export function useCustomerManagement() {
   // =====================================================
 
   const initialize = () => {
+    console.log('[useCustomerManagement] initialize() called')
     syncFromURL()
     setupRealtimeSubscription()
     fetchCustomers()

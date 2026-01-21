@@ -74,7 +74,7 @@ export function useLaundry() {
     return total
   }
 
-  // Create Laundry Request
+  // Create Laundry Request using atomic function
   async function createLaundryRequest(input: CreateLaundryInput): Promise<LaundryRequest | null> {
     loading.value = true
     error.value = null
@@ -86,32 +86,60 @@ export function useLaundry() {
         return null
       }
 
-      const estimatedPrice = input.estimated_weight 
-        ? calculatePrice(input.services, input.estimated_weight)
-        : null
+      const estimatedWeight = input.estimated_weight || 5 // Default 5kg
+      const estimatedPrice = calculatePrice(input.services, estimatedWeight)
 
-      const { data, error: insertError } = await (supabase
-        .from('laundry_requests') as any)
-        .insert({
-          user_id: user.id,
-          services: input.services,
-          pickup_address: input.pickup_address,
-          pickup_lat: input.pickup_lat || null,
-          pickup_lng: input.pickup_lng || null,
-          scheduled_pickup: input.scheduled_pickup,
-          estimated_weight: input.estimated_weight || null,
-          estimated_price: estimatedPrice,
-          notes: input.notes || null,
-          status: 'pending'
-        })
-        .select()
-        .single()
+      // Map service type for atomic function
+      const serviceTypeMap: Record<string, string> = {
+        'wash-fold': 'wash',
+        'wash-iron': 'wash_iron',
+        'dry-clean': 'dry_clean',
+        'express': 'wash' // Express is an add-on
+      }
+      const primaryService = input.services.find(s => s !== 'express') || 'wash-fold'
 
-      if (insertError) throw insertError
+      // Use atomic function for wallet check and order creation
+      const { data: result, error: rpcError } = await supabase.rpc('create_laundry_atomic', {
+        p_user_id: user.id,
+        p_pickup_lat: input.pickup_lat || 0,
+        p_pickup_lng: input.pickup_lng || 0,
+        p_pickup_address: input.pickup_address,
+        p_service_type: serviceTypeMap[primaryService] || 'wash',
+        p_weight_kg: estimatedWeight,
+        p_special_instructions: input.notes || null,
+        p_estimated_fare: estimatedPrice,
+        p_promo_code: null
+      })
 
-      currentRequest.value = data
-      requests.value.unshift(data)
-      return data
+      if (rpcError) {
+        console.error('Atomic create error:', rpcError)
+        // Handle specific error types
+        if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
+          error.value = 'ยอดเงินใน Wallet ไม่เพียงพอ กรุณาเติมเงินก่อนสั่งบริการ'
+          return null
+        }
+        if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
+          error.value = 'ไม่พบ Wallet กรุณาติดต่อฝ่ายสนับสนุน'
+          return null
+        }
+        throw rpcError
+      }
+
+      if (result?.success) {
+        // Fetch the created laundry request
+        const { data, error: fetchError } = await supabase
+          .from('laundry_requests')
+          .select('*')
+          .eq('id', result.laundry_id)
+          .single()
+
+        if (!fetchError && data) {
+          currentRequest.value = data
+          requests.value.unshift(data)
+          return data
+        }
+      }
+      return null
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการสร้างคำขอ'
       return null
@@ -264,41 +292,65 @@ export function useLaundry() {
     }
   }
 
-  // Cancel Request
-  async function cancelRequest(requestId: string, reason?: string): Promise<boolean> {
+  // Cancel Request with pending refund (requires Admin approval)
+  async function cancelRequest(requestId: string, reason?: string): Promise<{ success: boolean; refundAmount?: number; message?: string } | null> {
     loading.value = true
     error.value = null
 
     try {
-      const { error: updateError } = await (supabase
-        .from('laundry_requests') as any)
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancel_reason: reason || null
-        })
-        .eq('id', requestId)
-
-      if (updateError) throw updateError
-
-      // Update local state
-      const index = requests.value.findIndex(r => r.id === requestId)
-      if (index !== -1) {
-        requests.value[index]!.status = 'cancelled'
-        requests.value[index]!.cancelled_at = new Date().toISOString()
-        requests.value[index]!.cancel_reason = reason || null
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return null
       }
 
-      if (currentRequest.value && currentRequest.value.id === requestId) {
-        currentRequest.value.status = 'cancelled'
-        currentRequest.value.cancelled_at = new Date().toISOString()
-        currentRequest.value.cancel_reason = reason || null
+      // Use atomic cancel function with pending refund
+      const { data: result, error: rpcError } = await supabase.rpc('cancel_request_with_pending_refund', {
+        p_request_id: requestId,
+        p_request_type: 'laundry',
+        p_cancelled_by: user.id,
+        p_cancelled_by_role: 'customer',
+        p_cancel_reason: reason || 'ลูกค้ายกเลิก'
+      })
+
+      if (rpcError) {
+        console.error('Cancel error:', rpcError)
+        if (rpcError.message?.includes('REQUEST_NOT_FOUND')) {
+          error.value = 'ไม่พบคำขอนี้'
+        } else if (rpcError.message?.includes('REQUEST_ALREADY_FINALIZED')) {
+          error.value = 'ไม่สามารถยกเลิกได้ คำขอนี้ดำเนินการเสร็จสิ้นแล้ว'
+        } else {
+          error.value = rpcError.message || 'เกิดข้อผิดพลาดในการยกเลิก'
+        }
+        return null
       }
 
-      return true
+      if (result?.success) {
+        // Update local state
+        const index = requests.value.findIndex(r => r.id === requestId)
+        if (index !== -1) {
+          requests.value[index]!.status = 'cancelled'
+          requests.value[index]!.cancelled_at = new Date().toISOString()
+          requests.value[index]!.cancel_reason = reason || null
+        }
+
+        if (currentRequest.value && currentRequest.value.id === requestId) {
+          currentRequest.value.status = 'cancelled'
+          currentRequest.value.cancelled_at = new Date().toISOString()
+          currentRequest.value.cancel_reason = reason || null
+        }
+
+        return {
+          success: true,
+          refundAmount: result.refund_amount,
+          message: result.message || 'ยกเลิกสำเร็จ คำขอคืนเงินรอการอนุมัติจาก Admin'
+        }
+      }
+
+      return null
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการยกเลิก'
-      return false
+      return null
     } finally {
       loading.value = false
     }

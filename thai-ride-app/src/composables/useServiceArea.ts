@@ -40,9 +40,9 @@ export function useServiceArea() {
   const areas = ref<ServiceArea[]>([])
   const areaStats = ref<AreaStats[]>([])
 
-  const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
+  // PRODUCTION ONLY - No demo mode
 
-  // Default Bangkok service areas
+  // Default Bangkok service areas (fallback)
   const defaultAreas: ServiceArea[] = [
     {
       id: 'area-1',
@@ -97,17 +97,12 @@ export function useServiceArea() {
     }
   ]
 
-  // Fetch all service areas
+  // Fetch all service areas - PRODUCTION ONLY
   const fetchAreas = async () => {
     loading.value = true
     error.value = null
 
     try {
-      if (isDemoMode()) {
-        areas.value = defaultAreas
-        return areas.value
-      }
-
       const { data, error: fetchError } = await (supabase
         .from('service_areas') as any)
         .select('*')
@@ -126,21 +121,11 @@ export function useServiceArea() {
     }
   }
 
-  // Create new service area
+  // Create new service area - PRODUCTION ONLY
   const createArea = async (area: Omit<ServiceArea, 'id' | 'created_at'>) => {
     loading.value = true
 
     try {
-      if (isDemoMode()) {
-        const newArea: ServiceArea = {
-          ...area,
-          id: `area-${Date.now()}`,
-          created_at: new Date().toISOString()
-        }
-        areas.value.push(newArea)
-        return { success: true, data: newArea }
-      }
-
       const { data, error: insertError } = await (supabase
         .from('service_areas') as any)
         .insert(area)
@@ -159,19 +144,11 @@ export function useServiceArea() {
     }
   }
 
-  // Update service area
+  // Update service area - PRODUCTION ONLY
   const updateArea = async (id: string, updates: Partial<ServiceArea>) => {
     loading.value = true
 
     try {
-      if (isDemoMode()) {
-        const idx = areas.value.findIndex(a => a.id === id)
-        if (idx !== -1 && areas.value[idx]) {
-          areas.value[idx] = { ...areas.value[idx]!, ...updates }
-        }
-        return { success: true }
-      }
-
       const { error: updateError } = await (supabase
         .from('service_areas') as any)
         .update(updates)
@@ -248,24 +225,11 @@ export function useServiceArea() {
     return null
   }
 
-  // Get area statistics
+  // Get area statistics - PRODUCTION ONLY
   const fetchAreaStats = async () => {
     loading.value = true
 
     try {
-      if (isDemoMode()) {
-        areaStats.value = areas.value.map(area => ({
-          area_id: area.id,
-          area_name: area.name,
-          total_rides: Math.floor(Math.random() * 500) + 100,
-          total_revenue: Math.floor(Math.random() * 50000) + 10000,
-          avg_wait_time: Math.floor(Math.random() * 10) + 3,
-          active_providers: Math.floor(Math.random() * 30) + 5,
-          demand_level: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)] as 'low' | 'medium' | 'high'
-        }))
-        return areaStats.value
-      }
-
       // In real implementation, aggregate from ride_requests
       const { data, error: fetchError } = await (supabase
         .rpc('get_area_stats') as any)

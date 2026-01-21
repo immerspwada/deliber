@@ -1,507 +1,621 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import AdminLayout from '../components/AdminLayout.vue'
-import { useCustomerFeedback, type FeedbackType, type CustomerFeedback } from '../composables/useCustomerFeedback'
-import { useAdminCleanup } from '../composables/useAdminCleanup'
+/**
+ * Admin Feedback View - Production Ready
+ * ======================================
+ * Customer feedback management with NPS tracking
+ */
+import { ref, computed, onMounted, watch } from "vue";
+import { supabase } from "../lib/supabase";
+import { useAuthStore } from "../stores/auth";
 
-const { addCleanup } = useAdminCleanup()
+const authStore = useAuthStore();
+const isLoading = ref(true);
+const feedbacks = ref<any[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(20);
+const typeFilter = ref("");
+const statusFilter = ref("");
+const selectedFeedback = ref<any>(null);
+const showModal = ref(false);
+const showResponseModal = ref(false);
+const responseText = ref("");
+const processing = ref(false);
 
-const { 
-  loading, 
-  feedbackList, 
-  stats, 
-  getAllFeedback, 
-  respondToFeedback, 
-  getFeedbackStats 
-} = useCustomerFeedback()
+const stats = ref({
+  total_feedback: 0,
+  pending_feedback: 0,
+  resolved_feedback: 0,
+  avg_rating: 0,
+  nps_score: 0,
+  promoters: 0,
+  passives: 0,
+  detractors: 0,
+  today_feedback: 0,
+  avg_response_hours: 0,
+});
 
-// Filters
-const filterType = ref<FeedbackType | ''>('')
-const filterResolved = ref<'all' | 'resolved' | 'pending'>('all')
-const filterRating = ref<number | null>(null)
-
-// Modal state
-const showResponseModal = ref(false)
-const selectedFeedback = ref<CustomerFeedback | null>(null)
-const responseText = ref('')
-const isSubmitting = ref(false)
-
-// Filtered feedback
-const filteredFeedback = computed(() => {
-  let result = feedbackList.value
-
-  if (filterType.value) {
-    result = result.filter(f => f.type === filterType.value)
+async function loadFeedbacks() {
+  isLoading.value = true;
+  try {
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const { data, error } = await (supabase.rpc as any)("admin_get_feedback", {
+      p_type: typeFilter.value || null,
+      p_status: statusFilter.value || null,
+      p_limit: pageSize.value,
+      p_offset: offset,
+    });
+    if (error) throw error;
+    feedbacks.value = data || [];
+  } catch (e) {
+    console.error("Failed to load feedbacks:", e);
+  } finally {
+    isLoading.value = false;
   }
+}
 
-  if (filterResolved.value === 'resolved') {
-    result = result.filter(f => f.is_resolved)
-  } else if (filterResolved.value === 'pending') {
-    result = result.filter(f => !f.is_resolved)
+async function loadStats() {
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_get_feedback_stats"
+    );
+    if (error) throw error;
+    if (data && data.length > 0) stats.value = data[0];
+  } catch (e) {
+    console.error("Failed to load stats:", e);
   }
+}
 
-  if (filterRating.value) {
-    result = result.filter(f => f.rating === filterRating.value)
+function viewFeedback(f: any) {
+  selectedFeedback.value = f;
+  showModal.value = true;
+}
+
+function openResponse(f: any) {
+  selectedFeedback.value = f;
+  responseText.value = "";
+  showResponseModal.value = true;
+}
+
+async function submitResponse() {
+  if (!selectedFeedback.value || !responseText.value) return;
+  processing.value = true;
+  try {
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_respond_feedback",
+      {
+        p_feedback_id: selectedFeedback.value.id,
+        p_admin_id: authStore.user?.id,
+        p_response: responseText.value,
+      }
+    );
+    if (error) throw error;
+    showResponseModal.value = false;
+    showModal.value = false;
+    loadFeedbacks();
+    loadStats();
+  } catch (e) {
+    console.error("Failed to respond:", e);
+  } finally {
+    processing.value = false;
   }
-
-  return result
-})
-
-// Load data
-onMounted(async () => {
-  await Promise.all([
-    getAllFeedback({ limit: 100 }),
-    getFeedbackStats(30)
-  ])
-})
-
-// Cleanup on unmount
-addCleanup(() => {
-  filterType.value = ''
-  filterResolved.value = 'all'
-  filterRating.value = null
-  showResponseModal.value = false
-  selectedFeedback.value = null
-  responseText.value = ''
-  console.log('[AdminFeedbackView] Cleanup complete')
-})
-
-// Open response modal
-const openResponseModal = (feedback: CustomerFeedback) => {
-  selectedFeedback.value = feedback
-  responseText.value = feedback.admin_response || ''
-  showResponseModal.value = true
 }
 
-// Submit response
-const submitResponse = async () => {
-  if (!selectedFeedback.value || !responseText.value.trim()) return
-
-  isSubmitting.value = true
-  const result = await respondToFeedback(selectedFeedback.value.id, responseText.value)
-  
-  if (result.success) {
-    showResponseModal.value = false
-    await getAllFeedback({ limit: 100 })
-  }
-  isSubmitting.value = false
+function formatDate(d: string) {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-// Format date
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+function getTypeLabel(t: string) {
+  return (
+    (
+      {
+        suggestion: "ข้อเสนอแนะ",
+        complaint: "ร้องเรียน",
+        praise: "ชื่นชม",
+        bug: "แจ้งปัญหา",
+        other: "อื่นๆ",
+      } as any
+    )[t] || t
+  );
 }
 
-// Get type label
-const getTypeLabel = (type: FeedbackType) => {
-  const labels: Record<FeedbackType, string> = {
-    ride: 'เรียกรถ',
-    delivery: 'ส่งของ',
-    shopping: 'ซื้อของ',
-    app: 'แอพ',
-    support: 'ซัพพอร์ต'
-  }
-  return labels[type] || type
+function getStatusColor(s: string) {
+  return (
+    (
+      { pending: "#F59E0B", resolved: "#10B981", in_progress: "#3B82F6" } as any
+    )[s] || "#6B7280"
+  );
 }
 
-// Get NPS color
-const getNpsColor = (score: number) => {
-  if (score >= 50) return '#22c55e'
-  if (score >= 0) return '#f59e0b'
-  return '#ef4444'
+function getNPSColor(score: number) {
+  if (score >= 50) return "#10B981";
+  if (score >= 0) return "#F59E0B";
+  return "#EF4444";
 }
 
-// Get rating stars
-const getRatingStars = (rating: number) => {
-  return '★'.repeat(rating) + '☆'.repeat(5 - rating)
-}
+watch([typeFilter, statusFilter], () => {
+  currentPage.value = 1;
+  loadFeedbacks();
+});
+watch(currentPage, loadFeedbacks);
+onMounted(() => {
+  loadFeedbacks();
+  loadStats();
+});
 </script>
 
 <template>
-  <AdminLayout>
-    <div class="feedback-view">
-      <!-- Header -->
-      <div class="page-header">
+  <div class="feedback-view">
+    <div class="page-header">
+      <div class="header-left">
         <h1>Customer Feedback</h1>
-        <p class="subtitle">จัดการ feedback และความคิดเห็นจากลูกค้า</p>
+        <span class="count">{{ stats.total_feedback }}</span>
       </div>
-
-      <!-- Stats Cards -->
-      <div class="stats-grid" v-if="stats">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ stats.totalFeedback }}</span>
-            <span class="stat-label">Total Feedback</span>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-icon rating">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ stats.avgRating }}/5</span>
-            <span class="stat-label">Average Rating</span>
-            <span class="stat-trend" :class="stats.recentTrend">
-              {{ stats.recentTrend === 'up' ? '↑' : stats.recentTrend === 'down' ? '↓' : '→' }}
-            </span>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-icon nps" :style="{ color: getNpsColor(stats.npsScore) }">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value" :style="{ color: getNpsColor(stats.npsScore) }">{{ stats.npsScore }}</span>
-            <span class="stat-label">NPS Score</span>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-icon pending">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ feedbackList.filter(f => !f.is_resolved).length }}</span>
-            <span class="stat-label">Pending Response</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- NPS Breakdown -->
-      <div class="nps-breakdown" v-if="stats">
-        <h3>NPS Breakdown</h3>
-        <div class="nps-bars">
-          <div class="nps-bar promoters">
-            <span class="nps-label">Promoters (9-10)</span>
-            <div class="nps-progress">
-              <div class="nps-fill" :style="{ width: `${(stats.promoters / (stats.promoters + stats.passives + stats.detractors)) * 100}%` }"></div>
-            </div>
-            <span class="nps-count">{{ stats.promoters }}</span>
-          </div>
-          <div class="nps-bar passives">
-            <span class="nps-label">Passives (7-8)</span>
-            <div class="nps-progress">
-              <div class="nps-fill" :style="{ width: `${(stats.passives / (stats.promoters + stats.passives + stats.detractors)) * 100}%` }"></div>
-            </div>
-            <span class="nps-count">{{ stats.passives }}</span>
-          </div>
-          <div class="nps-bar detractors">
-            <span class="nps-label">Detractors (0-6)</span>
-            <div class="nps-progress">
-              <div class="nps-fill" :style="{ width: `${(stats.detractors / (stats.promoters + stats.passives + stats.detractors)) * 100}%` }"></div>
-            </div>
-            <span class="nps-count">{{ stats.detractors }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Filters -->
-      <div class="filters">
-        <select v-model="filterType" class="filter-select">
-          <option value="">ทุกประเภท</option>
-          <option value="ride">เรียกรถ</option>
-          <option value="delivery">ส่งของ</option>
-          <option value="shopping">ซื้อของ</option>
-          <option value="app">แอพ</option>
-          <option value="support">ซัพพอร์ต</option>
-        </select>
-
-        <select v-model="filterResolved" class="filter-select">
-          <option value="all">ทั้งหมด</option>
-          <option value="pending">รอตอบกลับ</option>
-          <option value="resolved">ตอบกลับแล้ว</option>
-        </select>
-
-        <select v-model="filterRating" class="filter-select">
-          <option :value="null">ทุกคะแนน</option>
-          <option :value="5">5 ดาว</option>
-          <option :value="4">4 ดาว</option>
-          <option :value="3">3 ดาว</option>
-          <option :value="2">2 ดาว</option>
-          <option :value="1">1 ดาว</option>
-        </select>
-      </div>
-
-      <!-- Feedback List -->
-      <div class="feedback-list" v-if="!loading">
-        <div 
-          v-for="feedback in filteredFeedback" 
-          :key="feedback.id"
-          class="feedback-card"
-          :class="{ resolved: feedback.is_resolved }"
+      <button
+        class="refresh-btn"
+        @click="
+          loadFeedbacks();
+          loadStats();
+        "
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
         >
-          <div class="feedback-header">
-            <div class="feedback-meta">
-              <span class="feedback-type">{{ getTypeLabel(feedback.type) }}</span>
-              <span class="feedback-date">{{ formatDate(feedback.created_at) }}</span>
-            </div>
-            <div class="feedback-rating">
-              <span class="stars">{{ getRatingStars(feedback.rating) }}</span>
-              <span v-if="feedback.nps_score !== undefined" class="nps-badge" :class="{
-                promoter: feedback.nps_score >= 9,
-                passive: feedback.nps_score >= 7 && feedback.nps_score < 9,
-                detractor: feedback.nps_score < 7
-              }">
-                NPS: {{ feedback.nps_score }}
-              </span>
-            </div>
-          </div>
+          <path d="M23 4v6h-6M1 20v-6h6" />
+          <path
+            d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+          />
+        </svg>
+      </button>
+    </div>
 
-          <div class="feedback-body">
-            <p v-if="feedback.comment" class="feedback-comment">{{ feedback.comment }}</p>
-            <p v-else class="no-comment">ไม่มีความคิดเห็น</p>
-
-            <div class="feedback-categories" v-if="feedback.categories?.length">
-              <span v-for="cat in feedback.categories" :key="cat" class="category-tag">
-                {{ cat }}
-              </span>
-            </div>
-          </div>
-
-          <div class="feedback-response" v-if="feedback.admin_response">
-            <div class="response-label">ตอบกลับจาก Admin:</div>
-            <p>{{ feedback.admin_response }}</p>
-          </div>
-
-          <div class="feedback-actions">
-            <span v-if="feedback.is_resolved" class="status-badge resolved">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              ตอบกลับแล้ว
-            </span>
-            <button 
-              v-else 
-              class="btn-respond"
-              @click="openResponseModal(feedback)"
-            >
-              ตอบกลับ
-            </button>
+    <!-- NPS Card -->
+    <div class="nps-card">
+      <div class="nps-score" :style="{ color: getNPSColor(stats.nps_score) }">
+        <span class="value">{{ stats.nps_score.toFixed(0) }}</span>
+        <span class="label">NPS Score</span>
+      </div>
+      <div class="nps-breakdown">
+        <div class="nps-item promoters">
+          <span class="count">{{ stats.promoters }}</span>
+          <span class="label">Promoters (9-10)</span>
+          <div class="bar">
+            <div
+              class="fill"
+              :style="{
+                width:
+                  ((stats.promoters / stats.total_feedback) * 100 || 0) + '%',
+              }"
+            ></div>
           </div>
         </div>
+        <div class="nps-item passives">
+          <span class="count">{{ stats.passives }}</span>
+          <span class="label">Passives (7-8)</span>
+          <div class="bar">
+            <div
+              class="fill"
+              :style="{
+                width:
+                  ((stats.passives / stats.total_feedback) * 100 || 0) + '%',
+              }"
+            ></div>
+          </div>
+        </div>
+        <div class="nps-item detractors">
+          <span class="count">{{ stats.detractors }}</span>
+          <span class="label">Detractors (0-6)</span>
+          <div class="bar">
+            <div
+              class="fill"
+              :style="{
+                width:
+                  ((stats.detractors / stats.total_feedback) * 100 || 0) + '%',
+              }"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        <div v-if="filteredFeedback.length === 0" class="empty-state">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon orange">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
           </svg>
-          <p>ไม่พบ feedback ที่ตรงกับเงื่อนไข</p>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{ stats.pending_feedback }}</span
+          ><span class="stat-label">รอตอบกลับ</span>
         </div>
       </div>
-
-      <!-- Loading -->
-      <div v-else class="loading-state">
-        <div class="spinner"></div>
-        <p>กำลังโหลด...</p>
+      <div class="stat-card">
+        <div class="stat-icon green">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{ stats.resolved_feedback }}</span
+          ><span class="stat-label">ตอบกลับแล้ว</span>
+        </div>
       </div>
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value"
+            >{{ stats.avg_response_hours.toFixed(1) }}h</span
+          ><span class="stat-label">เวลาตอบเฉลี่ย</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+            />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{ stats.avg_rating.toFixed(1) }}</span
+          ><span class="stat-label">คะแนนเฉลี่ย</span>
+        </div>
+      </div>
+    </div>
 
-      <!-- Response Modal -->
-      <div v-if="showResponseModal" class="modal-overlay" @click.self="showResponseModal = false">
-        <div class="modal">
-          <div class="modal-header">
-            <h3>ตอบกลับ Feedback</h3>
-            <button class="close-btn" @click="showResponseModal = false">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
+    <!-- Filters -->
+    <div class="filters">
+      <select v-model="typeFilter" class="filter-select">
+        <option value="">ทุกประเภท</option>
+        <option value="suggestion">ข้อเสนอแนะ</option>
+        <option value="complaint">ร้องเรียน</option>
+        <option value="praise">ชื่นชม</option>
+        <option value="bug">แจ้งปัญหา</option>
+      </select>
+      <select v-model="statusFilter" class="filter-select">
+        <option value="">ทุกสถานะ</option>
+        <option value="pending">รอตอบกลับ</option>
+        <option value="resolved">ตอบกลับแล้ว</option>
+      </select>
+    </div>
 
-          <div class="modal-body" v-if="selectedFeedback">
-            <div class="original-feedback">
-              <div class="feedback-info">
-                <span class="stars">{{ getRatingStars(selectedFeedback.rating) }}</span>
-                <span class="type">{{ getTypeLabel(selectedFeedback.type) }}</span>
+    <!-- Table -->
+    <div class="table-container">
+      <div v-if="isLoading" class="loading">
+        <div class="skeleton" v-for="i in 8" :key="i" />
+      </div>
+      <table v-else-if="feedbacks.length" class="data-table">
+        <thead>
+          <tr>
+            <th>ประเภท</th>
+            <th>ลูกค้า</th>
+            <th>หัวข้อ</th>
+            <th>คะแนน</th>
+            <th>สถานะ</th>
+            <th>วันที่</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="f in feedbacks" :key="f.id" @click="viewFeedback(f)">
+            <td>
+              <span class="type-badge">{{
+                getTypeLabel(f.feedback_type)
+              }}</span>
+            </td>
+            <td>
+              <div class="user-info">
+                <span class="name">{{ f.user_name }}</span
+                ><span class="uid">{{ f.member_uid }}</span>
               </div>
-              <p v-if="selectedFeedback.comment">{{ selectedFeedback.comment }}</p>
-            </div>
+            </td>
+            <td class="subject">
+              {{ f.subject || f.message?.slice(0, 30) }}...
+            </td>
+            <td>
+              <span v-if="f.rating" class="rating">{{ f.rating }}/10</span
+              ><span v-else>-</span>
+            </td>
+            <td>
+              <span
+                class="badge"
+                :style="{
+                  color: getStatusColor(f.status),
+                  background: getStatusColor(f.status) + '20',
+                }"
+                >{{
+                  f.status === "pending" ? "รอตอบกลับ" : "ตอบกลับแล้ว"
+                }}</span
+              >
+            </td>
+            <td class="date">{{ formatDate(f.created_at) }}</td>
+            <td>
+              <button
+                v-if="f.status === 'pending'"
+                class="action-btn"
+                @click.stop="openResponse(f)"
+              >
+                ตอบกลับ
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="empty"><p>ไม่พบ Feedback</p></div>
+    </div>
 
-            <div class="response-form">
-              <label>ข้อความตอบกลับ</label>
-              <textarea 
-                v-model="responseText"
-                placeholder="พิมพ์ข้อความตอบกลับ..."
-                rows="4"
-              ></textarea>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancel" @click="showResponseModal = false">ยกเลิก</button>
-            <button 
-              class="btn-submit" 
-              @click="submitResponse"
-              :disabled="!responseText.trim() || isSubmitting"
+    <!-- Response Modal -->
+    <div
+      v-if="showResponseModal"
+      class="modal-overlay"
+      @click.self="showResponseModal = false"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2>ตอบกลับ Feedback</h2>
+          <button @click="showResponseModal = false">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
             >
-              {{ isSubmitting ? 'กำลังส่ง...' : 'ส่งตอบกลับ' }}
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="feedback-preview">
+            <h4>{{ selectedFeedback?.subject || "Feedback" }}</h4>
+            <p>{{ selectedFeedback?.message }}</p>
+          </div>
+          <div class="form-row">
+            <label>ข้อความตอบกลับ *</label>
+            <textarea
+              v-model="responseText"
+              placeholder="พิมพ์ข้อความตอบกลับ..."
+            ></textarea>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showResponseModal = false">
+              ยกเลิก
+            </button>
+            <button
+              class="btn-primary"
+              @click="submitResponse"
+              :disabled="processing || !responseText"
+            >
+              {{ processing ? "กำลังส่ง..." : "ส่งตอบกลับ" }}
             </button>
           </div>
         </div>
       </div>
     </div>
-  </AdminLayout>
+  </div>
 </template>
 
 <style scoped>
 .feedback-view {
-  padding: 24px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 24px;
 }
-
 .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 24px;
 }
-
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .page-header h1 {
   font-size: 24px;
   font-weight: 700;
-  color: #000;
-  margin: 0 0 4px 0;
+  color: #1f2937;
+  margin: 0;
+}
+.count {
+  padding: 4px 12px;
+  background: #e8f5ef;
+  color: #00a86b;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 16px;
+}
+.refresh-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #6b7280;
 }
 
-.subtitle {
-  color: #6B6B6B;
-  margin: 0;
+/* NPS Card */
+.nps-card {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 24px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f3f4f6;
+  margin-bottom: 24px;
+}
+.nps-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 120px;
+}
+.nps-score .value {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+}
+.nps-score .label {
+  font-size: 14px;
+  color: #6b7280;
+  margin-top: 8px;
+}
+.nps-breakdown {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nps-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nps-item .count {
+  font-size: 18px;
+  font-weight: 600;
+  min-width: 40px;
+}
+.nps-item .label {
+  font-size: 13px;
+  color: #6b7280;
+  min-width: 120px;
+}
+.nps-item .bar {
+  flex: 1;
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.nps-item .fill {
+  height: 100%;
+  border-radius: 4px;
+}
+.nps-item.promoters .count {
+  color: #10b981;
+}
+.nps-item.promoters .fill {
+  background: #10b981;
+}
+.nps-item.passives .count {
+  color: #f59e0b;
+}
+.nps-item.passives .fill {
+  background: #f59e0b;
+}
+.nps-item.detractors .count {
+  color: #ef4444;
+}
+.nps-item.detractors .fill {
+  background: #ef4444;
 }
 
 /* Stats Grid */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
-
 .stat-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  border: 1px solid #E5E5E5;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f3f4f6;
 }
-
 .stat-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  background: #F6F6F6;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 12px;
 }
-
-.stat-icon svg {
-  width: 24px;
-  height: 24px;
-  color: #000;
+.stat-icon.green {
+  background: #d1fae5;
+  color: #059669;
 }
-
-.stat-icon.rating svg { color: #f59e0b; }
-.stat-icon.pending svg { color: #ef4444; }
-
+.stat-icon.blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.stat-icon.orange {
+  background: #fef3c7;
+  color: #d97706;
+}
+.stat-icon.purple {
+  background: #ede9fe;
+  color: #7c3aed;
+}
 .stat-content {
   display: flex;
   flex-direction: column;
-  position: relative;
 }
-
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #000;
+  color: #1f2937;
 }
-
 .stat-label {
   font-size: 13px;
-  color: #6B6B6B;
-}
-
-.stat-trend {
-  position: absolute;
-  right: -20px;
-  top: 4px;
-  font-size: 14px;
-}
-
-.stat-trend.up { color: #22c55e; }
-.stat-trend.down { color: #ef4444; }
-.stat-trend.stable { color: #6B6B6B; }
-
-/* NPS Breakdown */
-.nps-breakdown {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 24px;
-  border: 1px solid #E5E5E5;
-}
-
-.nps-breakdown h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 16px 0;
-}
-
-.nps-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.nps-bar {
-  display: grid;
-  grid-template-columns: 120px 1fr 40px;
-  align-items: center;
-  gap: 12px;
-}
-
-.nps-label {
-  font-size: 13px;
-  color: #6B6B6B;
-}
-
-.nps-progress {
-  height: 8px;
-  background: #F6F6F6;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.nps-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.promoters .nps-fill { background: #22c55e; }
-.passives .nps-fill { background: #f59e0b; }
-.detractors .nps-fill { background: #ef4444; }
-
-.nps-count {
-  font-size: 14px;
-  font-weight: 600;
-  text-align: right;
+  color: #6b7280;
 }
 
 /* Filters */
@@ -509,195 +623,128 @@ const getRatingStars = (rating: number) => {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
-  flex-wrap: wrap;
 }
-
 .filter-select {
-  padding: 10px 16px;
-  border: 1px solid #E5E5E5;
-  border-radius: 8px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   font-size: 14px;
-  background: #fff;
-  min-width: 140px;
 }
 
-/* Feedback List */
-.feedback-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.feedback-card {
+/* Table */
+.table-container {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.loading {
   padding: 20px;
-  border: 1px solid #E5E5E5;
-}
-
-.feedback-card.resolved {
-  opacity: 0.8;
-}
-
-.feedback-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.feedback-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
-
-.feedback-type {
-  font-size: 12px;
-  font-weight: 600;
-  color: #000;
-  background: #F6F6F6;
-  padding: 4px 8px;
-  border-radius: 4px;
-  display: inline-block;
-  width: fit-content;
-}
-
-.feedback-date {
-  font-size: 12px;
-  color: #6B6B6B;
-}
-
-.feedback-rating {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stars {
-  color: #f59e0b;
-  font-size: 16px;
-}
-
-.nps-badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.nps-badge.promoter { background: #dcfce7; color: #166534; }
-.nps-badge.passive { background: #fef3c7; color: #92400e; }
-.nps-badge.detractor { background: #fee2e2; color: #991b1b; }
-
-.feedback-body {
-  margin-bottom: 12px;
-}
-
-.feedback-comment {
-  color: #000;
-  line-height: 1.5;
-  margin: 0 0 12px 0;
-}
-
-.no-comment {
-  color: #6B6B6B;
-  font-style: italic;
-  margin: 0;
-}
-
-.feedback-categories {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.category-tag {
-  font-size: 11px;
-  padding: 4px 8px;
-  background: #F6F6F6;
-  border-radius: 4px;
-  color: #6B6B6B;
-}
-
-.feedback-response {
-  background: #F6F6F6;
-  padding: 12px;
+.skeleton {
+  height: 56px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
   border-radius: 8px;
-  margin-bottom: 12px;
 }
-
-.response-label {
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table th {
+  padding: 14px 16px;
+  text-align: left;
   font-size: 12px;
   font-weight: 600;
-  color: #6B6B6B;
-  margin-bottom: 4px;
+  color: #6b7280;
+  text-transform: uppercase;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
 }
-
-.feedback-response p {
-  margin: 0;
-  font-size: 14px;
-  color: #000;
+.data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f3f4f6;
 }
-
-.feedback-actions {
-  display: flex;
-  justify-content: flex-end;
+.data-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
 }
-
-.status-badge {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.data-table tbody tr:hover {
+  background: #f9fafb;
+}
+.type-badge {
+  padding: 4px 10px;
+  background: #ede9fe;
+  color: #7c3aed;
+  border-radius: 16px;
   font-size: 12px;
+  font-weight: 500;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-info .name {
+  font-weight: 500;
+  color: #1f2937;
+}
+.user-info .uid {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: monospace;
+}
+.subject {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #374151;
+}
+.rating {
+  font-weight: 600;
+  color: #059669;
+}
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.date {
+  font-size: 13px;
+  color: #6b7280;
+}
+.action-btn {
   padding: 6px 12px;
-  border-radius: 6px;
-}
-
-.status-badge.resolved {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.btn-respond {
-  padding: 8px 16px;
-  background: #000;
+  background: #00a86b;
   color: #fff;
   border: none;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
-
-/* Empty & Loading States */
-.empty-state,
-.loading-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: #6B6B6B;
-}
-
-.empty-state svg,
-.loading-state svg {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #E5E5E5;
-  border-top-color: #000;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #9ca3af;
 }
 
 /* Modal */
@@ -711,146 +758,103 @@ const getRatingStars = (rating: number) => {
   z-index: 1000;
   padding: 20px;
 }
-
 .modal {
   background: #fff;
   border-radius: 16px;
   width: 100%;
   max-width: 500px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
-
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #E5E5E5;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
 }
-
-.modal-header h3 {
-  margin: 0;
+.modal-header h2 {
   font-size: 18px;
   font-weight: 600;
+  margin: 0;
 }
-
-.close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  color: #6B6B6B;
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.original-feedback {
-  background: #F6F6F6;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.feedback-info {
+.modal-header button {
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #6b7280;
 }
-
-.feedback-info .type {
-  font-size: 12px;
-  background: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
+.modal-body {
+  padding: 24px;
 }
-
-.original-feedback p {
-  margin: 0;
-  color: #000;
+.feedback-preview {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  margin-bottom: 20px;
 }
-
-.response-form label {
-  display: block;
+.feedback-preview h4 {
   font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px 0;
+}
+.feedback-preview p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+.form-row {
+  margin-bottom: 16px;
+}
+.form-row label {
+  display: block;
+  font-size: 13px;
   font-weight: 500;
+  color: #374151;
   margin-bottom: 8px;
 }
-
-.response-form textarea {
+.form-row textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #E5E5E5;
-  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   font-size: 14px;
+  min-height: 100px;
   resize: vertical;
-  font-family: inherit;
 }
-
-.response-form textarea:focus {
-  outline: none;
-  border-color: #000;
-}
-
-.modal-footer {
+.modal-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 12px;
-  padding: 20px;
-  border-top: 1px solid #E5E5E5;
+  margin-top: 20px;
 }
-
 .btn-cancel {
-  padding: 10px 20px;
-  background: #F6F6F6;
-  color: #000;
+  flex: 1;
+  padding: 12px;
+  background: #f3f4f6;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-submit {
-  padding: 10px 20px;
-  background: #000;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
 }
-
-.btn-submit:disabled {
+.btn-primary {
+  flex: 1;
+  padding: 12px;
+  background: #00a86b;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-@media (max-width: 640px) {
-  .feedback-view {
-    padding: 16px;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .nps-bar {
-    grid-template-columns: 100px 1fr 30px;
-  }
-
-  .filters {
-    flex-direction: column;
-  }
-
-  .filter-select {
-    width: 100%;
-  }
 }
 </style>

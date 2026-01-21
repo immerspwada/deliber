@@ -157,9 +157,8 @@ function createDestinationIcon(): any {
 // Initialize Leaflet map
 async function initMap() {
   try {
-    // Dynamically import Leaflet
+    // Dynamically import Leaflet (CSS already loaded via CDN in index.html)
     L = await import('leaflet')
-    await import('leaflet/dist/leaflet.css')
     
     if (!mapContainer.value) return
     

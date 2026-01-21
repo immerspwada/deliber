@@ -1,51 +1,17 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
+import './styles/transitions.css'
+// Note: Leaflet CSS loaded via CDN in index.html (no need to import here)
+// Leaflet fixes - override any conflicting styles
+import './styles/leaflet-fix.css'
+// NO ANIMATIONS - กดปุ๊บ มาปั๊บ (import LAST but uses specific selectors, not *)
+import './styles/no-animations.css'
 import App from './App.vue'
 
 // Import router with guards
 import router from './router/index'
-import { supabase } from './lib/supabase'
 import { initSentry, setUser as setSentryUser } from './lib/sentry'
-import { getAdminAuthInstance } from './composables/useAdminAuth'
-
-// ========================================
-// Admin Auth Guard (uses useAdminAuth)
-// ========================================
-const adminAuth = getAdminAuthInstance()
-
-router.beforeEach(async (to, from, next) => {
-  const isAdminRoute = to.path.startsWith('/admin')
-  const requiresAdmin = to.meta.requiresAdmin
-
-  // Admin routes - ใช้ admin auth แยก
-  if (isAdminRoute) {
-    const isValidSession = adminAuth.isSessionValid()
-    
-    // ถ้าเป็น route ที่ต้องการ admin auth และ session ไม่ valid
-    if (requiresAdmin && !isValidSession) {
-      next('/admin/login')
-      return
-    }
-    // ถ้าอยู่หน้า login แต่มี valid session แล้ว ให้ไป dashboard
-    if (to.path === '/admin/login' && isValidSession) {
-      next('/admin/dashboard')
-      return
-    }
-  }
-  
-  next()
-})
-
-// ✅ FIX: Add afterEach guard for cleanup trigger
-router.afterEach((to, from) => {
-  // Trigger cleanup event for views to cleanup subscriptions/timers
-  if (from.path !== to.path) {
-    window.dispatchEvent(new CustomEvent('route-cleanup', { 
-      detail: { from: from.path, to: to.path } 
-    }))
-  }
-})
 
 // Create Pinia store
 const pinia = createPinia()
@@ -58,20 +24,48 @@ initSentry(app, router)
 
 app.use(pinia)
 app.use(router)
+
+// ========================================
+// IMPORTANT: Admin and Customer auth are COMPLETELY SEPARATE
+// ========================================
+// - Admin uses: adminAuth.store.ts (Demo Mode with localStorage session)
+// - Customer uses: stores/auth.ts (Supabase Auth)
+// 
+// We DON'T initialize customer auth here anymore.
+// App.vue handles initialization based on route type:
+// - Admin routes (/admin/*) → Skip customer auth, use admin auth
+// - Customer routes → Initialize customer auth
+// ========================================
+
+// Mount app immediately - auth initialization is handled by App.vue
 app.mount('#app')
 
-// Set Sentry user context when auth changes
-supabase.auth.onAuthStateChange((_event, session) => {
-  if (session?.user) {
-    setSentryUser({
-      id: session.user.id,
-      email: session.user.email,
-      role: session.user.user_metadata?.role
-    })
-  } else {
-    setSentryUser(null)
+// Set Sentry user context when customer auth changes (lazy load to avoid admin routes)
+// Only setup listener for non-admin routes
+const setupCustomerAuthListener = async () => {
+  const currentPath = window.location.pathname
+  if (currentPath.startsWith('/admin')) {
+    // Admin route - don't setup customer auth listener
+    return
   }
-})
+  
+  // Customer route - setup Supabase auth listener
+  const { supabase } = await import('./lib/supabase')
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      setSentryUser({
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.user_metadata?.role
+      })
+    } else {
+      setSentryUser(null)
+    }
+  })
+}
+
+// Setup listener after a small delay to ensure router is ready
+setTimeout(setupCustomerAuthListener, 100)
 
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {

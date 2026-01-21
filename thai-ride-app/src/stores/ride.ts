@@ -23,7 +23,8 @@ import { supabase } from '../lib/supabase'
 import { useRequestDedup, RequestKeys } from '../composables/useRequestDedup'
 import { rideLogger as logger } from '../utils/logger'
 import { fromSupabaseError, handleError } from '../utils/errorHandling'
-import type { RideRequest, ServiceProvider } from '../types/database'
+import type { RideRequest } from '../types/ride'
+import type { Provider } from '../types/provider'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface Location {
@@ -51,7 +52,7 @@ export const useRideStore = defineStore('ride', () => {
   const currentRide = ref<RideRequest | null>(null)
   const matchedDriver = ref<MatchedDriver | null>(null)
   const rideHistory = ref<RideRequest[]>([])
-  const nearbyDrivers = ref<ServiceProvider[]>([])
+  const nearbyDrivers = ref<Provider[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const rideSubscription = ref<RealtimeChannel | null>(null)
@@ -97,6 +98,9 @@ export const useRideStore = defineStore('ride', () => {
     error.value = null
     
     try {
+      // Query ride_requests - provider_id now references providers_v2
+      // Include vehicle info: vehicle_type, vehicle_plate, vehicle_color
+      // Include media: avatar_url, vehicle_photo_url
       const { data, error: queryError } = await supabase
         .from('ride_requests')
         .select(`
@@ -104,18 +108,16 @@ export const useRideStore = defineStore('ride', () => {
           provider:provider_id (
             id,
             user_id,
+            first_name,
+            last_name,
+            phone_number,
+            rating,
+            total_trips,
             vehicle_type,
             vehicle_plate,
             vehicle_color,
-            rating,
-            total_trips,
-            current_lat,
-            current_lng,
-            users:user_id (
-              name,
-              phone,
-              avatar_url
-            )
+            avatar_url,
+            vehicle_photo_url
           )
         `)
         .eq('user_id', userId)
@@ -131,22 +133,21 @@ export const useRideStore = defineStore('ride', () => {
       if (data) {
         currentRide.value = data
         
-        // Set matched driver if exists
+        // Set matched driver if exists (providers_v2 schema)
         const provider = (data as any).provider
         if (provider) {
-          const user = provider.users
           matchedDriver.value = {
             id: provider.id,
-            name: user?.name || 'คนขับ',
-            phone: user?.phone || '',
+            name: `${provider.first_name || ''} ${provider.last_name || ''}`.trim() || 'คนขับ',
+            phone: provider.phone_number || '',
             rating: provider.rating || 4.8,
             total_trips: provider.total_trips || 0,
-            vehicle_type: provider.vehicle_type || 'รถยนต์',
-            vehicle_color: provider.vehicle_color || 'สีดำ',
+            vehicle_type: provider.vehicle_type || '',
+            vehicle_color: provider.vehicle_color || '',
             vehicle_plate: provider.vehicle_plate || '',
-            avatar_url: user?.avatar_url,
-            current_lat: provider.current_lat,
-            current_lng: provider.current_lng,
+            avatar_url: provider.avatar_url || undefined,
+            current_lat: 0,
+            current_lng: 0,
             eta: 5
           }
         }
@@ -172,7 +173,7 @@ export const useRideStore = defineStore('ride', () => {
       // Use request deduplication with location-based cache key
       const cacheKey = `nearby_drivers_${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusKm}`
       
-      const data = await dedupRequest<ServiceProvider[]>(
+      const data = await dedupRequest<Provider[]>(
         cacheKey,
         async () => {
           const { data: result, error: fetchError } = await (supabase.rpc as any)('find_nearby_providers', {
@@ -186,7 +187,7 @@ export const useRideStore = defineStore('ride', () => {
             throw fromSupabaseError(fetchError)
           }
           
-          return (result || []) as ServiceProvider[]
+          return (result || []) as Provider[]
         },
         { ttl: 30000 } // Cache for 30 seconds
       )
@@ -211,7 +212,8 @@ export const useRideStore = defineStore('ride', () => {
     rideType: 'standard' | 'premium' | 'shared' = 'standard',
     passengerCount: number = 1,
     specialRequests?: string,
-    scheduledAt?: string // ISO datetime string for scheduled rides
+    scheduledAt?: string, // ISO datetime string for scheduled rides
+    notes?: string // Customer notes for provider
   ) => {
     loading.value = true
     error.value = null
@@ -250,7 +252,8 @@ export const useRideStore = defineStore('ride', () => {
         special_requests: specialRequests,
         estimated_fare: estimatedFare,
         status: scheduledAt ? 'scheduled' : 'pending',
-        scheduled_time: scheduledAt || null
+        scheduled_time: scheduledAt || null,
+        notes: notes || null
       }
       
       console.log('[createRideRequest] Insert payload:', insertPayload)
@@ -369,8 +372,8 @@ export const useRideStore = defineStore('ride', () => {
         phone: user?.phone || '',
         rating: provider.rating || 4.8,
         total_trips: provider.total_trips || 0,
-        vehicle_type: provider.vehicle_type || 'รถยนต์',
-        vehicle_color: provider.vehicle_color || 'สีดำ',
+        vehicle_type: provider.vehicle_type || '',
+        vehicle_color: provider.vehicle_color || '',
         vehicle_plate: provider.vehicle_plate || '',
         avatar_url: user?.avatar_url,
         current_lat: provider.current_lat,
@@ -542,12 +545,9 @@ export const useRideStore = defineStore('ride', () => {
             .select(`
               *,
               provider:provider_id (
-                vehicle_type,
-                vehicle_plate,
-                rating,
-                users:user_id (
-                  name
-                )
+                first_name,
+                last_name,
+                rating
               )
             `)
             .eq('user_id', userId)
@@ -578,6 +578,12 @@ export const useRideStore = defineStore('ride', () => {
 
   // Subscribe to ride updates
   const subscribeToRideUpdates = (rideId: string) => {
+    // Validate rideId before subscribing
+    if (!rideId || rideId === 'undefined' || rideId === 'null') {
+      logger.warn('[subscribeToRideUpdates] Invalid rideId:', rideId)
+      return null
+    }
+
     // Unsubscribe from previous
     if (rideSubscription.value) {
       rideSubscription.value.unsubscribe()
@@ -611,6 +617,12 @@ export const useRideStore = defineStore('ride', () => {
 
   // Subscribe to driver location updates
   const subscribeToDriverLocation = (providerId: string) => {
+    // Validate providerId before subscribing
+    if (!providerId || providerId === 'undefined' || providerId === 'null') {
+      logger.warn('[subscribeToDriverLocation] Invalid providerId:', providerId)
+      return null
+    }
+
     if (driverSubscription.value) {
       driverSubscription.value.unsubscribe()
     }

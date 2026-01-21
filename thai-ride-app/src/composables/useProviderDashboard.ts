@@ -14,6 +14,7 @@ import { ref, computed, watch, onUnmounted, shallowRef, triggerRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
+import { providerLogger } from '../lib/logger'
 
 // =====================================================
 // TYPES
@@ -154,6 +155,72 @@ async function retryWithBackoff<T>(
 }
 
 // =====================================================
+// LOCAL STORAGE CACHE - Persist active job across refresh
+// =====================================================
+const ACTIVE_JOB_CACHE_KEY = 'provider_active_job_cache'
+const CACHE_EXPIRY_MS = 4 * 60 * 60 * 1000 // 4 hours
+
+interface CachedActiveJob {
+  job: ActiveJob
+  cachedAt: number
+  providerId: string
+}
+
+function saveActiveJobToCache(job: ActiveJob | null, providerId: string) {
+  if (!job) {
+    localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+    return
+  }
+  
+  const cached: CachedActiveJob = {
+    job,
+    cachedAt: Date.now(),
+    providerId
+  }
+  
+  try {
+    localStorage.setItem(ACTIVE_JOB_CACHE_KEY, JSON.stringify(cached))
+    providerLogger.debug('Saved active job to cache:', job.tracking_id)
+  } catch (e) {
+    providerLogger.warn('Failed to save to localStorage:', e)
+  }
+}
+
+function loadActiveJobFromCache(providerId: string): ActiveJob | null {
+  try {
+    const cached = localStorage.getItem(ACTIVE_JOB_CACHE_KEY)
+    if (!cached) return null
+    
+    const parsed: CachedActiveJob = JSON.parse(cached)
+    
+    // Check if cache is expired
+    if (Date.now() - parsed.cachedAt > CACHE_EXPIRY_MS) {
+      providerLogger.debug('Cache expired, clearing')
+      localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+      return null
+    }
+    
+    // Check if cache belongs to current provider
+    if (parsed.providerId !== providerId) {
+      providerLogger.debug('Cache belongs to different provider, clearing')
+      localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+      return null
+    }
+    
+    providerLogger.debug('Loaded active job from cache:', parsed.job.tracking_id)
+    return parsed.job
+  } catch (e) {
+    providerLogger.warn('Failed to load from localStorage:', e)
+    return null
+  }
+}
+
+function clearActiveJobCache() {
+  localStorage.removeItem(ACTIVE_JOB_CACHE_KEY)
+  providerLogger.debug('Cache cleared')
+}
+
+// =====================================================
 // SINGLETON STATE - Shared across all component instances
 // This ensures activeJob state is consistent across the app
 // =====================================================
@@ -275,7 +342,6 @@ export function useProviderDashboard() {
   }))
 
   const hasActiveJob = computed(() => activeJob.value !== null)
-  const isDemoMode = computed(() => localStorage.getItem('demo_mode') === 'true')
 
 
   // =====================================================
@@ -286,26 +352,6 @@ export function useProviderDashboard() {
     error.value = null
     
     try {
-      if (isDemoMode.value) {
-        const demoUser = JSON.parse(localStorage.getItem('demo_user') || '{}')
-        profile.value = {
-          id: 'demo-provider-' + (demoUser.role || 'driver'),
-          user_id: demoUser.id || 'demo-user',
-          provider_type: demoUser.role === 'driver' ? 'driver' : 'delivery',
-          license_number: 'กข 1234',
-          vehicle_type: demoUser.role === 'driver' ? 'รถยนต์' : 'มอเตอร์ไซค์',
-          vehicle_plate: 'กข 1234 กรุงเทพ',
-          is_verified: true,
-          is_available: false,
-          rating: 4.8,
-          total_trips: 156,
-          current_lat: 13.7563,
-          current_lng: 100.5018,
-          status: 'approved'
-        }
-        return profile.value
-      }
-
       if (!authStore.user?.id) {
         profile.value = null
         return null
@@ -347,14 +393,6 @@ export function useProviderDashboard() {
   async function fetchEarnings() {
     if (!profile.value?.id) return
 
-    if (isDemoMode.value) {
-      earnings.value = {
-        today: 1250, thisWeek: 8500, thisMonth: 32000,
-        todayTrips: 8, weekTrips: 45, monthTrips: 180
-      }
-      return
-    }
-
     try {
       const { data } = await (supabase.rpc as any)('get_provider_earnings_summary', {
         p_provider_id: profile.value.id
@@ -371,7 +409,7 @@ export function useProviderDashboard() {
         }
       }
     } catch (e) {
-      console.warn('Error fetching earnings:', e)
+      providerLogger.warn('Error fetching earnings:', e)
     }
   }
 
@@ -396,29 +434,16 @@ export function useProviderDashboard() {
       const isVerified = profile.value.is_verified || false
       const canGoOnline = ['approved', 'active', 'pending'].includes(providerStatus) || isVerified
       
-      console.log('[Provider] Status check:', { status: providerStatus, isVerified, canGoOnline })
+      providerLogger.debug('Status check:', { status: providerStatus, isVerified, canGoOnline })
       
       if (online && !canGoOnline) {
         throw new Error('บัญชียังไม่ได้รับการอนุมัติ กรุณารอ Admin ตรวจสอบ')
       }
       
-      console.log('[Provider] Toggling online:', online, 'Provider ID:', profile.value.id)
-
-      if (isDemoMode.value) {
-        if (online) {
-          subscribeToAllRequests()
-          startLocationUpdates()
-        } else {
-          unsubscribeAll()
-          stopLocationUpdates()
-          pendingRequests.value = []
-          triggerRef(pendingRequests)
-        }
-        return true
-      }
+      providerLogger.debug('Toggling online:', online, 'Provider ID:', profile.value.id)
 
       // PRIMARY METHOD: Direct table update (most reliable)
-      console.log('[Provider] Using direct update method')
+      providerLogger.debug('Using direct update method')
       const { error: directError } = await (supabase
         .from('service_providers') as any)
         .update({
@@ -430,11 +455,11 @@ export function useProviderDashboard() {
         .eq('id', profile.value.id)
       
       if (directError) {
-        console.error('[Provider] Direct update failed:', directError)
+        providerLogger.error('Direct update failed:', directError)
         
-        // FALLBACK: Try RPC function
+        // FALLBACK: Try RPC function (using v2 which updates providers_v2 table)
         try {
-          const { data: toggleData, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online', {
+          const { data: toggleData, error: toggleError } = await (supabase.rpc as any)('toggle_provider_online_v2', {
             p_user_id: authStore.user?.id,
             p_is_online: online,
             p_lat: location?.lat || null,
@@ -444,13 +469,13 @@ export function useProviderDashboard() {
           if (toggleError || !toggleData?.success) {
             throw new Error(toggleData?.error || toggleError?.message || 'ไม่สามารถเปลี่ยนสถานะได้')
           }
-          console.log('[Provider] Toggle success via RPC fallback')
+          providerLogger.debug('Toggle success via RPC fallback')
         } catch (rpcErr: any) {
-          console.error('[Provider] RPC fallback also failed:', rpcErr)
+          providerLogger.error('RPC fallback also failed:', rpcErr)
           throw new Error(directError.message || 'ไม่สามารถเปลี่ยนสถานะได้')
         }
       } else {
-        console.log('[Provider] Toggle success via direct update')
+        providerLogger.debug('Toggle success via direct update')
       }
 
       // Update local profile
@@ -515,7 +540,7 @@ export function useProviderDashboard() {
           })))
         }
       } catch (rpcErr) {
-        console.warn('RPC failed, falling back to direct query:', rpcErr)
+        providerLogger.warn('RPC failed, falling back to direct query:', rpcErr)
       }
 
       // Method 2: Fallback to direct query if RPC fails or returns empty
@@ -653,9 +678,9 @@ export function useProviderDashboard() {
       pendingRequests.value = results
       triggerRef(pendingRequests)
       
-      console.log(`[Provider] Fetched ${results.length} pending requests (${results.filter(r => r.type === 'ride').length} rides, ${results.filter(r => r.type === 'delivery').length} deliveries, ${results.filter(r => r.type === 'shopping').length} shopping)`)
+      providerLogger.debug(`Fetched ${results.length} pending requests (${results.filter(r => r.type === 'ride').length} rides, ${results.filter(r => r.type === 'delivery').length} deliveries, ${results.filter(r => r.type === 'shopping').length} shopping)`)
     } catch (e) {
-      console.warn('Error fetching requests:', e)
+      providerLogger.warn('Error fetching requests:', e)
     }
   }
 
@@ -717,30 +742,8 @@ export function useProviderDashboard() {
           break
       }
 
-      if (isDemoMode.value) {
-        // Demo mode - simulate acceptance
-        activeJob.value = {
-          id: request.id,
-          tracking_id: request.tracking_id || 'TR' + request.id.slice(0, 8).toUpperCase(),
-          type: request.type,
-          status: 'matched',
-          customer: {
-            id: 'demo-customer',
-            name: request.customer_name || 'ลูกค้า',
-            phone: '0812345678',
-            rating: request.customer_rating
-          },
-          pickup: { lat: 13.7563, lng: 100.5018, address: request.pickup_address },
-          destination: { lat: 13.7466, lng: 100.5347, address: request.destination_address },
-          fare: request.estimated_fare,
-          created_at: request.created_at
-        }
-        
-        // Remove from pending
-        pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
-        triggerRef(pendingRequests)
-        
-        return { success: true }
+      if (rpcName === '') {
+        throw new Error('ประเภทงานไม่ถูกต้อง')
       }
 
       let jobData: any
@@ -748,7 +751,7 @@ export function useProviderDashboard() {
 
       // For rides, use retry mechanism with direct update
       if (type === 'ride') {
-        console.log('[Provider] Accepting ride via direct update with retry:', requestId)
+        providerLogger.debug('Accepting ride via direct update with retry:', requestId)
         
         // Wrap the acceptance logic in retry mechanism
         const acceptRideWithRetry = async () => {
@@ -784,7 +787,7 @@ export function useProviderDashboard() {
             .is('provider_id', null)
           
           if (updateError) {
-            console.error('[Provider] Direct update failed:', updateError)
+            providerLogger.error('Direct update failed:', updateError)
             throw new Error('ไม่สามารถรับงานได้: ' + updateError.message)
           }
           
@@ -829,7 +832,7 @@ export function useProviderDashboard() {
         // Execute with retry (3 attempts, 500ms base delay)
         try {
           jobData = await retryWithBackoff(acceptRideWithRetry, 3, 500)
-          console.log('[Provider] Ride accepted successfully')
+          providerLogger.debug('Ride accepted successfully')
         } catch (retryError: any) {
           // If marked as noRetry, throw immediately without retry message
           if (retryError.noRetry) {
@@ -900,9 +903,14 @@ export function useProviderDashboard() {
         created_at: jobData.created_at
       }
       
+      // Save to localStorage cache for persistence across refresh
+      if (profile.value?.id) {
+        saveActiveJobToCache(activeJob.value, profile.value.id)
+      }
+      
       // Debug log
-      console.log('[useProviderDashboard] activeJob set:', activeJob.value)
-      console.log('[useProviderDashboard] hasActiveJob computed:', activeJob.value !== null)
+      providerLogger.debug('activeJob set:', activeJob.value)
+      providerLogger.debug('hasActiveJob computed:', activeJob.value !== null)
 
       // Remove from pending
       pendingRequests.value = pendingRequests.value.filter(r => r.id !== requestId)
@@ -945,19 +953,6 @@ export function useProviderDashboard() {
     activeJob.value = { ...activeJob.value, status }
 
     try {
-      if (isDemoMode.value) {
-        if (status === 'completed') {
-          earnings.value.today += activeJob.value.fare
-          earnings.value.todayTrips += 1
-          
-          // Clear after delay
-          cleanup.addTimeout(window.setTimeout(() => {
-            activeJob.value = null
-          }, 2000))
-        }
-        return { success: true }
-      }
-
       let rpcName = ''
       let params: Record<string, any> = { p_provider_id: profile.value?.id }
 
@@ -1014,10 +1009,18 @@ export function useProviderDashboard() {
         earnings.value.today += activeJob.value.fare
         earnings.value.todayTrips += 1
         
+        // Clear cache when job is completed
+        clearActiveJobCache()
+        
         cleanup.addTimeout(window.setTimeout(() => {
           activeJob.value = null
           unsubscribeFromActiveJob()
         }, 2000))
+      } else {
+        // Update cache with new status
+        if (profile.value?.id && activeJob.value) {
+          saveActiveJobToCache(activeJob.value, profile.value.id)
+        }
       }
 
       return { success: true }
@@ -1037,19 +1040,18 @@ export function useProviderDashboard() {
     if (!activeJob.value) return { success: false }
 
     try {
-      if (!isDemoMode.value) {
-        const table = activeJob.value.type === 'ride' ? 'ride_requests' :
-                      activeJob.value.type === 'delivery' ? 'delivery_requests' :
-                      activeJob.value.type === 'shopping' ? 'shopping_requests' :
-                      activeJob.value.type === 'queue' ? 'queue_bookings' :
-                      activeJob.value.type === 'moving' ? 'moving_requests' : 'laundry_requests'
+      const table = activeJob.value.type === 'ride' ? 'ride_requests' :
+                    activeJob.value.type === 'delivery' ? 'delivery_requests' :
+                    activeJob.value.type === 'shopping' ? 'shopping_requests' :
+                    activeJob.value.type === 'queue' ? 'queue_bookings' :
+                    activeJob.value.type === 'moving' ? 'moving_requests' : 'laundry_requests'
 
-        await (supabase.from(table) as any)
-          .update({ status: 'cancelled', cancel_reason: reason })
-          .eq('id', activeJob.value.id)
-      }
+      await (supabase.from(table) as any)
+        .update({ status: 'cancelled', cancel_reason: reason })
+        .eq('id', activeJob.value.id)
 
       activeJob.value = null
+      clearActiveJobCache() // Clear cache when job is cancelled
       unsubscribeFromActiveJob()
       return { success: true }
     } catch (e: any) {
@@ -1272,7 +1274,7 @@ export function useProviderDashboard() {
           profile.value.current_lng = lng
         }
       } catch (e) {
-        console.warn('Location update failed:', e)
+        providerLogger.warn('Location update failed:', e)
       }
     }
 
@@ -1319,82 +1321,6 @@ export function useProviderDashboard() {
     } catch {}
   }
 
-  // =====================================================
-  // DEMO MODE SIMULATION
-  // =====================================================
-  let demoInterval: number | null = null
-
-  function startDemoSimulation() {
-    if (!isDemoMode.value) return
-
-    const demoLocations = [
-      { name: 'สยามพารากอน', lat: 13.7466, lng: 100.5347 },
-      { name: 'เซ็นทรัลเวิลด์', lat: 13.7468, lng: 100.5392 },
-      { name: 'MBK Center', lat: 13.7444, lng: 100.5300 },
-      { name: 'Terminal 21', lat: 13.7377, lng: 100.5603 },
-      { name: 'เอ็มควอเทียร์', lat: 13.7314, lng: 100.5697 }
-    ]
-
-    const demoNames = ['คุณสมชาย', 'คุณสมหญิง', 'คุณวิชัย', 'คุณนภา', 'คุณธนา']
-    const types: PendingRequest['type'][] = ['ride', 'delivery', 'shopping']
-
-    const generateRequest = (): PendingRequest => {
-      const pickup = demoLocations[Math.floor(Math.random() * demoLocations.length)]!
-      let dest = demoLocations[Math.floor(Math.random() * demoLocations.length)]!
-      while (dest.name === pickup.name) {
-        dest = demoLocations[Math.floor(Math.random() * demoLocations.length)]!
-      }
-
-      return {
-        id: `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        tracking_id: `TR${Date.now().toString(36).toUpperCase()}`,
-        type: types[Math.floor(Math.random() * types.length)]!,
-        pickup_address: pickup.name,
-        destination_address: dest.name,
-        estimated_fare: Math.round(35 + Math.random() * 200),
-        distance: Math.round((Math.random() * 8 + 2) * 10) / 10,
-        customer_name: demoNames[Math.floor(Math.random() * demoNames.length)],
-        customer_rating: Math.round((4 + Math.random()) * 10) / 10,
-        created_at: new Date().toISOString()
-      }
-    }
-
-    // Add initial request
-    cleanup.addTimeout(window.setTimeout(() => {
-      if (isOnline.value && pendingRequests.value.length < 3) {
-        pendingRequests.value = [generateRequest(), ...pendingRequests.value]
-        triggerRef(pendingRequests)
-        notifyNewRequest()
-      }
-    }, 2000))
-
-    // Periodic requests
-    demoInterval = window.setInterval(() => {
-      if (isOnline.value && !activeJob.value && pendingRequests.value.length < 3) {
-        pendingRequests.value = [generateRequest(), ...pendingRequests.value]
-        triggerRef(pendingRequests)
-        notifyNewRequest()
-      }
-    }, 15000 + Math.random() * 15000)
-
-    cleanup.addInterval(demoInterval)
-  }
-
-  function stopDemoSimulation() {
-    if (demoInterval) {
-      clearInterval(demoInterval)
-      demoInterval = null
-    }
-  }
-
-  // Watch online status for demo
-  watch(isOnline, (online) => {
-    if (isDemoMode.value) {
-      if (online) startDemoSimulation()
-      else stopDemoSimulation()
-    }
-  })
-
 
   // =====================================================
   // INITIALIZATION
@@ -1405,27 +1331,39 @@ export function useProviderDashboard() {
     try {
       const providerProfile = await fetchProfile()
       
-      if (!providerProfile && !isDemoMode.value) {
+      if (!providerProfile) {
         router.replace('/provider/onboarding')
         return false
       }
 
       // Check provider status
-      if (providerProfile && !isDemoMode.value) {
+      if (providerProfile) {
         const status = providerProfile.status
         if (status === 'pending' || status === 'rejected') {
           router.replace('/provider/onboarding')
           return false
         }
+        
+        // Load cached active job and verify with database
+        const cachedJob = loadActiveJobFromCache(providerProfile.id)
+        if (cachedJob) {
+          // Verify the job is still active in database
+          const isStillActive = await verifyActiveJobFromDatabase(cachedJob.id, cachedJob.type)
+          if (isStillActive) {
+            activeJob.value = cachedJob
+            providerLogger.debug('Restored active job from cache:', cachedJob.tracking_id)
+            // Re-subscribe to job updates
+            subscribeToActiveJob(cachedJob.id, cachedJob.type)
+          } else {
+            // Job is no longer active, clear cache
+            clearActiveJobCache()
+            providerLogger.debug('Cached job no longer active, cleared cache')
+          }
+        }
       }
 
       // Fetch earnings in background
       fetchEarnings()
-
-      // Start demo if already online
-      if (isDemoMode.value && isOnline.value) {
-        startDemoSimulation()
-      }
 
       isInitialized.value = true
       return true
@@ -1434,6 +1372,32 @@ export function useProviderDashboard() {
       return false
     } finally {
       loading.value = false
+    }
+  }
+  
+  // Verify if cached job is still active in database
+  async function verifyActiveJobFromDatabase(jobId: string, type: string): Promise<boolean> {
+    try {
+      const table = type === 'ride' ? 'ride_requests' :
+                    type === 'delivery' ? 'delivery_requests' :
+                    type === 'shopping' ? 'shopping_requests' :
+                    type === 'queue' ? 'queue_bookings' :
+                    type === 'moving' ? 'moving_requests' : 'laundry_requests'
+      
+      const { data, error: fetchError } = await (supabase
+        .from(table) as any)
+        .select('status, provider_id')
+        .eq('id', jobId)
+        .single()
+      
+      if (fetchError || !data) return false
+      
+      // Job is active if status is not completed/cancelled and belongs to this provider
+      const activeStatuses = ['matched', 'arriving', 'arrived', 'picked_up', 'in_progress', 'pickup', 'in_transit', 'shopping', 'delivering']
+      return activeStatuses.includes(data.status) && data.provider_id === profile.value?.id
+    } catch (e) {
+      providerLogger.warn('verifyActiveJob Error:', e)
+      return false
     }
   }
 
@@ -1449,11 +1413,9 @@ export function useProviderDashboard() {
   // =====================================================
   onUnmounted(() => {
     cleanup.cleanupAll()
-    stopDemoSimulation()
     stopLocationUpdates()
   })
 
-  // =====================================================
   // RETURN
   // =====================================================
   return {
@@ -1477,7 +1439,6 @@ export function useProviderDashboard() {
     filteredRequests,
     requestCounts,
     hasActiveJob,
-    isDemoMode,
     
     // Actions
     initialize,
@@ -1490,6 +1451,7 @@ export function useProviderDashboard() {
     updateJobStatus,
     cancelActiveJob,
     resetFilters,
+    cleanup,
     
     // URL helpers
     updateUrlParams

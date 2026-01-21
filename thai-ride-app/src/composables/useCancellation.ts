@@ -132,7 +132,7 @@ export function useCancellation() {
       // Get ride details
       const { data: ride, error: fetchError } = await supabase
         .from('ride_requests')
-        .select('status, created_at, total_fare, payment_status')
+        .select('status, created_at, final_fare, payment_status')
         .eq('id', rideId)
         .single()
 
@@ -150,7 +150,7 @@ export function useCancellation() {
       const fee = calculateCancellationFee(
         rideData.status,
         new Date(rideData.created_at),
-        rideData.total_fare || 0
+        rideData.final_fare || 0
       )
 
       // Update ride status
@@ -170,8 +170,8 @@ export function useCancellation() {
 
       // Calculate refund if prepaid
       let refundAmount = 0
-      if (rideData.payment_status === 'paid' && rideData.total_fare) {
-        refundAmount = rideData.total_fare - fee
+      if (rideData.payment_status === 'paid' && rideData.final_fare) {
+        refundAmount = rideData.final_fare - fee
       }
 
       return {

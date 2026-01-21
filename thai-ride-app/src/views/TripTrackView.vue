@@ -1,92 +1,112 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
-import MapView from '../components/MapView.vue'
-import { supabase } from '../lib/supabase'
+import { ref, onMounted, onUnmounted } from "vue";
+import { useRoute } from "vue-router";
+import MapView from "../components/MapView.vue";
+import { supabase } from "../lib/supabase";
 
-const route = useRoute()
+const route = useRoute();
 
-const loading = ref(true)
-const error = ref('')
-const tripData = ref<any>(null)
-const rideData = ref<any>(null)
+const loading = ref(true);
+const error = ref("");
+const tripData = ref<any>(null);
+const rideData = ref<any>(null);
 
-let subscription: any = null
+let subscription: any = null;
 
 const fetchTripShare = async () => {
-  const shareCode = route.params.shareCode as string
-  
+  const shareCode = route.params.shareCode as string;
+
   try {
     // Get trip share data
     const { data: share, error: shareError } = await supabase
-      .from('trip_shares')
-      .select('*')
-      .eq('share_code', shareCode)
-      .single()
+      .from("trip_shares")
+      .select("*")
+      .eq("share_code", shareCode)
+      .single();
 
     if (shareError || !share) {
-      error.value = 'ไม่พบข้อมูลการเดินทาง'
-      return
+      error.value = "ไม่พบข้อมูลการเดินทาง";
+      return;
     }
 
     // Check if expired
     if (new Date((share as any).expires_at) < new Date()) {
-      error.value = 'ลิงก์หมดอายุแล้ว'
-      return
+      error.value = "ลิงก์หมดอายุแล้ว";
+      return;
     }
 
-    tripData.value = share
+    tripData.value = share;
 
-    // Get ride data
-    const { data: ride } = await (supabase
-      .from('ride_requests') as any)
-      .select('*, service_providers(*)')
-      .eq('id', (share as any).ride_id)
-      .single()
+    // Get ride data - updated for providers_v2 schema
+    const { data: ride, error: rideError } = await supabase
+      .from("ride_requests")
+      .select(
+        `
+        *,
+        provider:provider_id (
+          id,
+          user_id,
+          first_name,
+          last_name,
+          phone_number,
+          rating
+        )
+      `
+      )
+      .eq("id", (share as any).ride_id)
+      .single();
+
+    if (rideError) {
+      console.error("[TripTrackView] Error fetching ride:", rideError.message);
+    }
 
     if (ride) {
-      rideData.value = ride
-      
+      rideData.value = ride;
+
       // Subscribe to ride updates
       subscription = supabase
         .channel(`ride-track-${(ride as any).id}`)
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'ride_requests',
-          filter: `id=eq.${(ride as any).id}`
-        }, (payload) => {
-          rideData.value = { ...rideData.value, ...payload.new }
-        })
-        .subscribe()
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "ride_requests",
+            filter: `id=eq.${(ride as any).id}`,
+          },
+          (payload) => {
+            rideData.value = { ...rideData.value, ...payload.new };
+          }
+        )
+        .subscribe();
     }
   } catch (err) {
-    error.value = 'เกิดข้อผิดพลาด'
+    error.value = "เกิดข้อผิดพลาด";
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 onMounted(() => {
-  fetchTripShare()
-})
+  fetchTripShare();
+});
 
 onUnmounted(() => {
   if (subscription) {
-    subscription.unsubscribe()
+    subscription.unsubscribe();
   }
-})
+});
 
 const getStatusText = (status: string) => {
   const statusMap: Record<string, string> = {
-    'pending': 'กำลังหาคนขับ',
-    'matched': 'คนขับกำลังมารับ',
-    'in_progress': 'กำลังเดินทาง',
-    'completed': 'ถึงจุดหมายแล้ว',
-    'cancelled': 'ยกเลิกแล้ว'
-  }
-  return statusMap[status] || status
-}
+    pending: "กำลังหาคนขับ",
+    matched: "คนขับกำลังมารับ",
+    in_progress: "กำลังเดินทาง",
+    completed: "ถึงจุดหมายแล้ว",
+    cancelled: "ยกเลิกแล้ว",
+  };
+  return statusMap[status] || status;
+};
 </script>
 
 <template>
@@ -100,7 +120,12 @@ const getStatusText = (status: string) => {
     <!-- Error -->
     <div v-else-if="error" class="error-state">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
       </svg>
       <h2>{{ error }}</h2>
       <p>กรุณาตรวจสอบลิงก์อีกครั้ง</p>
@@ -142,18 +167,33 @@ const getStatusText = (status: string) => {
         <div v-if="rideData.service_providers" class="driver-info">
           <div class="driver-avatar">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
             </svg>
           </div>
           <div class="driver-text">
-            <span class="driver-name">{{ rideData.service_providers.name }}</span>
-            <span class="vehicle">{{ rideData.service_providers.vehicle_model }} - {{ rideData.service_providers.license_plate }}</span>
+            <span class="driver-name">{{
+              rideData.service_providers.name
+            }}</span>
+            <span class="vehicle"
+              >{{ rideData.service_providers.vehicle_model }} -
+              {{ rideData.service_providers.license_plate }}</span
+            >
           </div>
         </div>
 
         <div class="shared-by">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+            />
           </svg>
           <span>แชร์โดย GOBEAR</span>
         </div>
@@ -184,7 +224,7 @@ const getStatusText = (status: string) => {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #E5E5E5;
+  border: 3px solid #e5e5e5;
   border-top-color: #000;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -192,13 +232,15 @@ const getStatusText = (status: string) => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error-state svg {
   width: 64px;
   height: 64px;
-  color: #E11900;
+  color: #e11900;
   margin-bottom: 16px;
 }
 
@@ -208,7 +250,7 @@ const getStatusText = (status: string) => {
 }
 
 .error-state p {
-  color: #6B6B6B;
+  color: #6b6b6b;
 }
 
 .map-area {
@@ -228,7 +270,7 @@ const getStatusText = (status: string) => {
 .status-badge {
   display: inline-block;
   padding: 8px 16px;
-  background: #F6F6F6;
+  background: #f6f6f6;
   border-radius: 20px;
   font-size: 14px;
   font-weight: 500;
@@ -236,18 +278,18 @@ const getStatusText = (status: string) => {
 }
 
 .status-badge.in_progress {
-  background: #E8F5E9;
-  color: #2E7D32;
+  background: #e8f5e9;
+  color: #2e7d32;
 }
 
 .status-badge.completed {
-  background: #E3F2FD;
-  color: #1565C0;
+  background: #e3f2fd;
+  color: #1565c0;
 }
 
 .status-badge.cancelled {
-  background: #FFEBEE;
-  color: #C62828;
+  background: #ffebee;
+  color: #c62828;
 }
 
 .trip-info {
@@ -262,7 +304,7 @@ const getStatusText = (status: string) => {
 }
 
 .location-row:first-child {
-  border-bottom: 1px solid #E5E5E5;
+  border-bottom: 1px solid #e5e5e5;
 }
 
 .dot {
@@ -287,7 +329,7 @@ const getStatusText = (status: string) => {
 .location-text .label {
   display: block;
   font-size: 12px;
-  color: #6B6B6B;
+  color: #6b6b6b;
   margin-bottom: 2px;
 }
 
@@ -300,7 +342,7 @@ const getStatusText = (status: string) => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: #F6F6F6;
+  background: #f6f6f6;
   border-radius: 12px;
   margin-bottom: 16px;
 }
@@ -318,7 +360,7 @@ const getStatusText = (status: string) => {
 .driver-avatar svg {
   width: 24px;
   height: 24px;
-  color: #6B6B6B;
+  color: #6b6b6b;
 }
 
 .driver-text {
@@ -333,7 +375,7 @@ const getStatusText = (status: string) => {
 
 .vehicle {
   font-size: 13px;
-  color: #6B6B6B;
+  color: #6b6b6b;
 }
 
 .shared-by {
@@ -342,7 +384,7 @@ const getStatusText = (status: string) => {
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  color: #6B6B6B;
+  color: #6b6b6b;
   font-size: 13px;
 }
 

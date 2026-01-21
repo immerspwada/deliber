@@ -1,32 +1,12 @@
 import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
 import { supabase } from '../lib/supabase'
-import { getAdminAuthInstance } from '../composables/useAdminAuth'
-
-// ========================================
-// Admin Auth Instance (singleton)
-// ========================================
-const adminAuth = getAdminAuthInstance()
-
-/**
- * Check if admin session is valid (uses useAdminAuth)
- */
-const isAdminSessionValid = (): boolean => {
-  return adminAuth.isSessionValid()
-}
-
-/**
- * Clear admin session cache (call when logging out)
- */
-export const clearAdminSessionCache = () => {
-  adminAuth.clearSessionCache()
-}
+import { canAccessAdminRoutes } from '../types/role'
+import type { UserRole } from '../types/role'
+import { adminRoutes } from '../admin/router'
 
 export const routes: RouteRecordRaw[] = [
-  // ========================================
-  // Public routes (ไม่ต้อง login)
-  // ========================================
+  // Public routes
   {
     path: '/login',
     name: 'Login',
@@ -39,836 +19,189 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/RegisterView.vue'),
     meta: { hideNavigation: true, public: true }
   },
+  
+  // Public tracking page (no auth required)
   {
-    path: '/verify-email',
-    name: 'VerifyEmail',
-    component: () => import('../views/EmailVerificationView.vue'),
+    path: '/track/:token',
+    name: 'SharedRideTracking',
+    component: () => import('../views/public/SharedRideTrackingView.vue'),
     meta: { hideNavigation: true, public: true }
   },
-  {
-    path: '/auth/callback',
-    name: 'AuthCallback',
-    component: () => import('../views/AuthCallbackView.vue'),
-    meta: { hideNavigation: true, public: true }
-  },
-  {
-    path: '/onboarding',
-    name: 'Onboarding',
-    component: () => import('../views/OnboardingView.vue'),
-    meta: { hideNavigation: true, public: true }
-  },
-  {
-    path: '/track/:shareCode',
-    name: 'TripTrack',
-    component: () => import('../views/TripTrackView.vue'),
-    meta: { hideNavigation: true, public: true }
-  },
-  {
-    path: '/tracking',
-    name: 'TrackingLanding',
-    component: () => import('../views/TrackingLandingView.vue'),
-    meta: { hideNavigation: true, public: true }
-  },
-  {
-    path: '/tracking/:trackingId',
-    name: 'OrderTracking',
-    component: () => import('../views/OrderTrackingView.vue'),
-    meta: { hideNavigation: true, public: true }
-  },
-
-  // ========================================
-  // Root redirect based on role
-  // ========================================
+  
+  // Root redirect
   {
     path: '/',
     redirect: '/customer'
   },
-  // Legacy/shortcut redirects
-  {
-    path: '/saved-places',
-    redirect: (to) => ({
-      path: '/customer/saved-places',
-      query: to.query
-    })
-  },
-
-  // ========================================
-  // Customer Routes (ลูกค้า)
-  // ========================================
+  
+  // Customer Routes (accessible by all roles)
   {
     path: '/customer',
     name: 'CustomerHome',
     component: () => import('../views/CustomerHomeView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/home-legacy',
-    name: 'CustomerHomeLegacy',
-    component: () => import('../views/HomeView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/services',
     name: 'CustomerServices',
     component: () => import('../views/CustomerServicesView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
-  {
-    path: '/customer/services-legacy',
-    name: 'CustomerServicesLegacy',
-    component: () => import('../views/ServicesView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-
   {
     path: '/customer/ride',
     name: 'CustomerRide',
-    component: () => import('../views/customer/RideBookingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
-  },
-  {
-    path: '/customer/ride-v2',
-    name: 'CustomerRideV2',
-    component: () => import('../views/RideViewV2.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/ride-legacy',
-    name: 'CustomerRideLegacy',
-    component: () => import('../views/RideView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    component: () => import('../views/customer/RideViewRefactored.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/delivery',
     name: 'CustomerDelivery',
-    component: () => import('../views/DeliveryViewV2.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
-  },
-  {
-    path: '/customer/delivery-legacy',
-    name: 'CustomerDeliveryLegacy',
     component: () => import('../views/DeliveryView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true, hideNavigation: true }
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/shopping',
     name: 'CustomerShopping',
     component: () => import('../views/ShoppingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/profile',
     name: 'CustomerProfile',
     component: () => import('../views/ProfileView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/history',
     name: 'CustomerHistory',
     component: () => import('../views/HistoryView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
-    path: '/customer/payment-methods',
-    name: 'CustomerPaymentMethods',
-    component: () => import('../views/PaymentMethodsView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/notifications',
-    name: 'CustomerNotifications',
-    component: () => import('../views/NotificationsView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/receipt/:id',
-    name: 'CustomerReceipt',
-    component: () => import('../views/ReceiptView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    path: '/customer/wallet',
+    name: 'CustomerWallet',
+    component: () => import('../views/WalletView.vue'),
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/saved-places',
     name: 'CustomerSavedPlaces',
     component: () => import('../views/SavedPlacesView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/settings',
-    name: 'CustomerSettings',
-    component: () => import('../views/SettingsView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/help',
-    name: 'CustomerHelp',
-    component: () => import('../views/HelpView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/wallet',
-    name: 'CustomerWallet',
-    component: () => import('../views/WalletViewV3.vue'),
-    meta: { requiresAuth: true }  // Shared route - accessible by all authenticated users
-  },
-  {
-    path: '/customer/wallet-legacy',
-    name: 'CustomerWalletLegacy',
-    component: () => import('../views/WalletView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/customer/promotions',
-    name: 'CustomerPromotions',
-    component: () => import('../views/PromotionsView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/referral',
-    name: 'CustomerReferral',
-    component: () => import('../views/ReferralView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/subscription',
-    name: 'CustomerSubscription',
-    component: () => import('../views/SubscriptionView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/scheduled-rides',
-    name: 'CustomerScheduledRides',
-    component: () => import('../views/ScheduledRidesView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/insurance',
-    name: 'CustomerInsurance',
-    component: () => import('../views/InsuranceView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/favorite-drivers',
-    name: 'CustomerFavoriteDrivers',
-    component: () => import('../views/FavoriteDriversView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/safety',
-    name: 'CustomerSafety',
-    component: () => import('../views/SafetyView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/loyalty',
-    name: 'CustomerLoyalty',
-    component: () => import('../views/LoyaltyView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/queue-booking',
-    name: 'CustomerQueueBooking',
-    component: () => import('../views/QueueBookingViewV2.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/queue-history',
-    name: 'CustomerQueueHistory',
-    component: () => import('../views/CustomerServicesView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/moving',
-    name: 'CustomerMoving',
-    component: () => import('../views/MovingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/laundry',
-    name: 'CustomerLaundry',
-    component: () => import('../views/LaundryView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/become-provider',
     redirect: '/provider/onboarding'
   },
-  // Tracking Views for New Services
-  {
-    path: '/customer/queue-booking/:id',
-    name: 'queue-tracking',
-    component: () => import('../views/QueueTrackingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/moving/:id',
-    name: 'moving-tracking',
-    component: () => import('../views/MovingTrackingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/laundry/:id',
-    name: 'laundry-tracking',
-    component: () => import('../views/LaundryTrackingView.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-
-  // ========================================
-  // Provider Routes (ไรเดอร์/คนขับ)
-  // ========================================
-  {
-    path: '/provider',
-    name: 'ProviderDashboard',
-    component: () => import('../views/provider/ProviderDashboardV4.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider-legacy',
-    name: 'ProviderDashboardLegacy',
-    component: () => import('../views/provider/ProviderDashboardView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/wallet',
-    redirect: '/customer/wallet'  // Shared wallet - redirect to main wallet page
-  },
-  {
-    path: '/provider/earnings',
-    name: 'ProviderEarnings',
-    component: () => import('../views/provider/ProviderEarningsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/history',
-    name: 'ProviderHistory',
-    component: () => import('../views/provider/ProviderHistoryView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/profile',
-    name: 'ProviderProfile',
-    component: () => import('../views/provider/ProviderProfileView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
+  
+  // Demo Routes
+  // Demo routes removed - FloatingActionBarDemo deleted
+  
+  // Provider Routes - Onboarding (accessible by all roles)
   {
     path: '/provider/onboarding',
     name: 'ProviderOnboarding',
     component: () => import('../views/ProviderOnboardingView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
+    meta: { requiresAuth: true, hideNavigation: true, allowWithoutProvider: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker'] }
   },
   {
     path: '/provider/register',
     name: 'ProviderRegister',
     component: () => import('../views/ProviderRegisterView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/vehicle',
-    name: 'ProviderVehicle',
-    component: () => import('../views/provider/ProviderVehicleView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/documents',
-    name: 'ProviderDocuments',
-    component: () => import('../views/provider/ProviderDocumentsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/bank',
-    name: 'ProviderBank',
-    component: () => import('../views/provider/ProviderBankView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/performance',
-    name: 'ProviderPerformance',
-    component: () => import('../views/provider/ProviderPerformanceView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/jobs',
-    name: 'ProviderJobs',
-    component: () => import('../views/provider/ProviderJobsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/my-jobs',
-    name: 'ProviderMyJobs',
-    component: () => import('../views/provider/ProviderMyJobsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/scheduled-rides',
-    name: 'ProviderScheduledRides',
-    component: () => import('../views/provider/ProviderScheduledRidesView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/notifications',
-    name: 'ProviderNotifications',
-    component: () => import('../views/NotificationsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/settings',
-    name: 'ProviderSettings',
-    component: () => import('../views/SettingsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/help',
-    name: 'ProviderHelp',
-    component: () => import('../views/HelpView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/incentives',
-    name: 'ProviderIncentives',
-    component: () => import('../views/provider/ProviderIncentivesView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/notification-settings',
-    name: 'ProviderNotificationSettings',
-    component: () => import('../views/provider/ProviderNotificationSettingsView.vue'),
-    meta: { requiresAuth: true, hideNavigation: true, isProviderRoute: true }
-  },
-
-  // ========================================
-  // Admin Routes
-  // ========================================
-  {
-    path: '/admin/login',
-    name: 'AdminLogin',
-    component: () => import('../views/AdminLoginView.vue'),
-    meta: { hideNavigation: true, public: true }
-  },
-  {
-    path: '/admin',
-    redirect: '/admin/dashboard'
-  },
-  {
-    path: '/admin/dashboard',
-    name: 'AdminDashboard',
-    component: () => import('../views/AdminDashboardView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/users',
-    name: 'AdminUsers',
-    component: () => import('../views/AdminUsersView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/customers',
-    name: 'AdminCustomers',
-    component: () => import('../views/AdminCustomersView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/providers',
-    name: 'AdminProviders',
-    component: () => import('../views/AdminProvidersView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/verification-queue',
-    name: 'AdminVerificationQueue',
-    component: () => import('../views/AdminVerificationQueueView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/orders',
-    name: 'AdminOrders',
-    component: () => import('../views/AdminOrdersView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/cancellations',
-    name: 'AdminCancellations',
-    component: () => import('../views/AdminCancellationsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/ratings',
-    name: 'AdminRatings',
-    component: () => import('../views/AdminRatingsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/notifications',
-    name: 'AdminNotifications',
-    component: () => import('../views/AdminNotificationsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/push-notifications',
-    name: 'AdminPushNotifications',
-    component: () => import('../views/AdminPushNotificationsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/notification-templates',
-    name: 'AdminNotificationTemplates',
-    component: () => import('../views/AdminNotificationTemplatesView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/payments',
-    name: 'AdminPayments',
-    component: () => import('../views/AdminPaymentsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/withdrawals',
-    name: 'AdminWithdrawals',
-    component: () => import('../views/AdminWithdrawalsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/support',
-    name: 'AdminSupport',
-    component: () => import('../views/AdminSupportView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/promos',
-    name: 'AdminPromos',
-    component: () => import('../views/AdminPromosView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/subscriptions',
-    name: 'AdminSubscriptions',
-    component: () => import('../views/AdminSubscriptionsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/insurance',
-    name: 'AdminInsurance',
-    component: () => import('../views/AdminInsuranceView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/corporate',
-    name: 'AdminCorporate',
-    component: () => import('../views/AdminCorporateView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/audit-log',
-    name: 'AdminAuditLog',
-    component: () => import('../views/AdminAuditLogView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/cross-role-monitor',
-    name: 'AdminCrossRoleMonitor',
-    component: () => import('../views/AdminCrossRoleMonitorView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/analytics',
-    name: 'AdminAnalytics',
-    component: () => import('../views/AdminAnalyticsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/surge',
-    name: 'AdminSurge',
-    component: () => import('../views/AdminSurgeView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/settings',
-    name: 'AdminSettings',
-    component: () => import('../views/AdminSettingsViewV2.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/settings-legacy',
-    name: 'AdminSettingsLegacy',
-    component: () => import('../views/AdminSettingsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/feedback',
-    name: 'AdminFeedback',
-    component: () => import('../views/AdminFeedbackView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/service-areas',
-    name: 'AdminServiceAreas',
-    component: () => import('../views/AdminServiceAreaView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/live-map',
-    name: 'AdminLiveMap',
-    component: () => import('../views/AdminLiveMapView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/cancellations',
-    name: 'AdminCancellations',
-    component: () => import('../views/AdminCancellationsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/tips',
-    name: 'AdminTips',
-    component: () => import('../views/AdminTipsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/reports',
-    name: 'AdminReports',
-    component: () => import('../views/AdminReportsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/components',
-    name: 'AdminComponents',
-    component: () => import('../views/AdminComponentsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/loyalty',
-    name: 'AdminLoyalty',
-    component: () => import('../views/AdminLoyaltyView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/wallets',
-    name: 'AdminWallets',
-    component: () => import('../views/AdminWalletsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/topup-requests',
-    name: 'AdminTopupRequests',
-    component: () => import('../views/AdminTopupRequestsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/refunds',
-    name: 'AdminRefunds',
-    component: () => import('../views/AdminRefundsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/scheduled-rides',
-    name: 'AdminScheduledRides',
-    component: () => import('../views/AdminScheduledRidesView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/referrals',
-    name: 'AdminReferrals',
-    component: () => import('../views/AdminReferralsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/wallet-transactions',
-    name: 'AdminWalletTransactions',
-    component: () => import('../views/AdminWalletTransactionsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/revenue',
-    name: 'AdminRevenue',
-    component: () => import('../views/AdminRevenueDashboardView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/fraud-alerts',
-    name: 'AdminFraudAlerts',
-    component: () => import('../views/AdminFraudAlertsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/incentives',
-    name: 'AdminIncentives',
-    component: () => import('../views/AdminIncentivesView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  // New Services Admin (F158, F159, F160)
-  {
-    path: '/admin/queue-bookings',
-    name: 'AdminQueueBookings',
-    component: () => import('../views/AdminQueueView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/moving',
-    name: 'AdminMoving',
-    component: () => import('../views/AdminMovingView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/laundry',
-    name: 'AdminLaundry',
-    component: () => import('../views/AdminLaundryView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/performance',
-    name: 'AdminPerformance',
-    component: () => import('../views/AdminPerformanceView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  // New Advanced Features (F33, F194, F236)
-  {
-    path: '/admin/driver-tracking',
-    name: 'AdminDriverTracking',
-    component: () => import('../views/AdminDriverTrackingView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/error-recovery',
-    name: 'AdminErrorRecovery',
-    component: () => import('../views/AdminErrorRecoveryView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  // Advanced System Features (F202-F251)
-  {
-    path: '/admin/feature-flags',
-    name: 'AdminFeatureFlags',
-    component: () => import('../views/AdminFeatureFlagsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/ab-tests',
-    name: 'AdminABTests',
-    component: () => import('../views/AdminABTestsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/system-health',
-    name: 'AdminSystemHealth',
-    component: () => import('../views/AdminSystemHealthView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/security',
-    name: 'AdminSecurity',
-    component: () => import('../views/AdminSecurityView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/production-dashboard',
-    name: 'AdminProductionDashboard',
-    component: () => import('../views/AdminProductionDashboardView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-
-  {
-    path: '/admin/analytics-events',
-    name: 'AdminAnalyticsEvents',
-    component: () => import('../views/AdminAnalyticsEventsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/data-management',
-    name: 'AdminDataManagement',
-    component: () => import('../views/AdminDataManagementView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/alerting',
-    name: 'AdminAlerting',
-    component: () => import('../views/AdminAlertingView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/deployment',
-    name: 'AdminDeployment',
-    component: () => import('../views/AdminDeploymentView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/compliance',
-    name: 'AdminCompliance',
-    component: () => import('../views/AdminComplianceView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/incidents',
-    name: 'AdminIncidents',
-    component: () => import('../views/AdminIncidentsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/readiness',
-    name: 'AdminReadiness',
-    component: () => import('../views/AdminReadinessChecklistView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/user-journey',
-    name: 'AdminUserJourney',
-    component: () => import('../views/AdminUserJourneyView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-  {
-    path: '/admin/ux-analytics',
-    name: 'AdminUXAnalytics',
-    component: () => import('../views/AdminUXAnalyticsView.vue'),
-    meta: { requiresAdmin: true, hideNavigation: true }
-  },
-
-  // ========================================
-  // Multi-Role Ride Booking System V3
-  // ========================================
-  {
-    path: '/admin/rides-v3',
-    name: 'AdminRideMonitoringV3',
-    component: () => import('../views/AdminRideMonitoringViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-  {
-    path: '/admin/rides/:id',
-    name: 'AdminRideDetailV3',
-    component: () => import('../views/AdminRideDetailViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-  {
-    path: '/admin/provider-cancellations-v3',
-    name: 'AdminProviderCancellationsV3',
-    component: () => import('../views/AdminProviderCancellationsViewV3.vue'),
-    meta: { requiresAuth: true, isAdminRoute: true }
-  },
-
-  // Customer V3 Routes
-  {
-    path: '/customer/ride-booking-v3',
-    name: 'RideBookingV3',
-    component: () => import('../views/RideBookingViewV3.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-  {
-    path: '/customer/ride-tracking-v3/:rideId',
-    name: 'RideTrackingV3',
-    component: () => import('../views/RideTrackingViewV3.vue'),
-    meta: { requiresAuth: true, isCustomerRoute: true }
-  },
-
-  // Provider V3 Routes
-  {
-    path: '/provider/available-rides-v3',
-    name: 'ProviderAvailableRidesV3',
-    component: () => import('../views/provider/ProviderAvailableRidesV3.vue'),
-    meta: { requiresAuth: true, isProviderRoute: true }
-  },
-  {
-    path: '/provider/active-ride-v3',
-    name: 'ProviderActiveRideV3',
-    component: () => import('../views/provider/ProviderActiveRideV3.vue'),
-    meta: { requiresAuth: true, isProviderRoute: true }
-  }
+    meta: { requiresAuth: true, hideNavigation: true, allowWithoutProvider: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker'] }
+  },
+  
+  // Provider Routes - New Design (Green Theme)
+  {
+    path: '/provider',
+    component: () => import('../components/ProviderLayoutNew.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, requiresProviderAccess: true },
+    children: [
+      {
+        path: '',
+        name: 'ProviderHome',
+        component: () => import('../views/provider/ProviderHomeNew.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
+        path: 'orders',
+        name: 'ProviderOrders',
+        component: () => import('../views/provider/ProviderOrdersNew.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
+        path: 'wallet',
+        name: 'ProviderWallet',
+        component: () => import('../views/provider/ProviderWalletView.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
+        path: 'chat',
+        name: 'ProviderChat',
+        component: () => import('../views/provider/ProviderChatNew.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
+        path: 'profile',
+        name: 'ProviderProfile',
+        component: () => import('../views/provider/ProviderProfileNew.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      {
+        path: 'notifications',
+        name: 'ProviderNotificationPreferences',
+        component: () => import('../views/provider/NotificationPreferencesView.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true }
+      },
+      // Job Detail - Step-based routing
+      {
+        path: 'job/:id',
+        name: 'ProviderJobDetail',
+        component: () => import('../views/provider/job/ProviderJobLayout.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      {
+        path: 'job/:id/:step',
+        name: 'ProviderJobStep',
+        component: () => import('../views/provider/job/ProviderJobLayout.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      // Legacy route (old design)
+      {
+        path: 'job-legacy/:id',
+        name: 'ProviderJobDetailLegacy',
+        component: () => import('../views/provider/ProviderJobDetailPro.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      {
+        path: 'job-minimal/:id',
+        name: 'ProviderJobDetailMinimal',
+        component: () => import('../views/provider/ProviderJobDetailMinimal.vue'),
+        meta: { requiresAuth: true, requiresProviderAccess: true, hideNavigation: true }
+      },
+      // Legacy routes (redirect to new)
+      {
+        path: 'job',
+        redirect: '/provider/orders'
+      },
+      {
+        path: 'my-jobs',
+        redirect: '/provider/orders'
+      },
+      {
+        path: 'earnings',
+        redirect: '/provider/wallet'
+      },
+      {
+        path: 'dashboard',
+        redirect: '/provider'
+      }
+    ]
+  },
+  
+  // Admin Routes - Use Admin V2 System
+  ...adminRoutes
 ]
-
 
 // Create router instance
 const router = createRouter({
@@ -876,138 +209,151 @@ const router = createRouter({
   routes
 })
 
-// Navigation guard to check provider status
-router.beforeEach(async (to, from, next) => {
-  const authStore = useAuthStore()
+// Navigation guard with comprehensive role checking
+// PRODUCTION ONLY - No demo mode, uses real Supabase authentication
+router.beforeEach(async (to, _from, next) => {
+  console.log('[Router] Navigating to:', to.path, 'Meta:', to.meta)
   
-  // Check if route requires provider access
-  if (to.meta.isProviderRoute) {
-    // Wait for auth to initialize if needed
-    if (!authStore.user && authStore.loading) {
-      await new Promise(resolve => {
-        const unwatch = authStore.$subscribe(() => {
-          if (!authStore.loading) {
-            unwatch()
-            resolve(true)
-          }
-        })
-      })
-    }
-
-    // Check if user is authenticated
-    if (!authStore.isAuthenticated) {
-      console.warn('[Router] Provider route requires authentication')
-      return next('/login')
-    }
-
-    // Allow access to onboarding/registration pages without provider check
-    const allowedWithoutProvider = [
-      '/provider/onboarding',
-      '/provider/register',
-      '/provider/documents'
-    ]
-    
-    // For onboarding page, let the view handle the redirect logic
-    // This prevents infinite redirect loops
-    if (allowedWithoutProvider.includes(to.path)) {
+  // ========================================
+  // ADMIN ROUTES - Use Admin V2 Auth System
+  // ========================================
+  if (to.path.startsWith('/admin')) {
+    // Admin routes use their own auth system (adminAuth.store.ts)
+    // Check if this is the login page
+    if (to.meta.public) {
       return next()
     }
 
-    // Check if user has provider account and can access
+    // For protected admin routes, check admin auth
+    const { useAdminAuthStore } = await import('../admin/stores/adminAuth.store')
+    const adminAuthStore = useAdminAuthStore()
+    
+    // Initialize admin auth if not already done
+    const isAuthenticated = await adminAuthStore.initialize()
+    
+    if (!isAuthenticated) {
+      console.log('[Router] Admin not authenticated, redirecting to login')
+      return next('/admin/login')
+    }
+    
+    console.log('[Router] Admin authenticated, allowing access')
+    return next()
+  }
+
+  // ========================================
+  // CUSTOMER/PROVIDER ROUTES - Use Supabase Auth
+  // ========================================
+  
+  // Public routes - allow access
+  if (to.meta.public) {
+    return next()
+  }
+
+  // Check real Supabase authentication
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session && to.meta.requiresAuth) {
+    console.log('[Router] No session, redirecting to login')
+    return next('/login')
+  }
+
+  if (!session?.user) {
+    console.log('[Router] No user in session, redirecting to login')
+    return next('/login')
+  }
+
+  // Get user role from users table
+  let userRole: UserRole = 'customer'
+  try {
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+
+    if (userError) {
+      console.error('[Router] Error fetching user role:', userError)
+    } else if (userData) {
+      userRole = (userData.role as UserRole) || 'customer'
+    }
+  } catch (err) {
+    console.error('[Router] Exception fetching user role:', err)
+  }
+
+  console.log('[Router] User role:', userRole)
+
+  // PHASE 1: Special handling for provider onboarding routes - ต้องมาก่อน provider access check
+  if (to.path.includes('/provider/onboarding') || to.path.includes('/provider/register')) {
+    console.log('[Router] Allowing access to provider onboarding for role:', userRole)
+    return next()
+  }
+
+  // PHASE 2: Special handling for /customer/become-provider redirect
+  if (to.path === '/customer/become-provider') {
+    console.log('[Router] Redirecting become-provider to onboarding')
+    return next('/provider/onboarding')
+  }
+
+  // PHASE 3: Provider routes - check provider access directly from providers_v2 table
+  if (to.meta.requiresProviderAccess && !to.meta.allowWithoutProvider) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('can_access_provider_routes', {
-        p_user_id: authStore.user?.id
-      })
+      console.log('[Router] Checking provider access directly from providers_v2...')
+      
+      // Query providers_v2 table directly - only select columns that exist
+      const { data: providerData, error: providerError } = await supabase
+        .from('providers_v2')
+        .select('id, status')
+        .eq('user_id', session.user.id)
+        .maybeSingle()
 
-      if (error) {
-        console.error('[Router] Provider check error:', error)
-        return next('/provider/onboarding')
+      if (providerError) {
+        console.error('[Router] Provider query error:', providerError)
+        // Allow access anyway - let the component handle the error
+        console.log('[Router] Allowing access despite query error')
+      } else if (!providerData) {
+        console.log('[Router] No provider record found - allowing access to see empty state')
+        // Allow access - the dashboard will show appropriate message
+      } else {
+        // Check provider status
+        const status = (providerData as any).status
+        if (status === 'approved' || status === 'active') {
+          console.log('[Router] Provider access granted - status:', status)
+        } else if (status === 'pending') {
+          console.log('[Router] Provider pending approval - allowing access to see status')
+        } else if (status === 'rejected') {
+          console.log('[Router] Provider rejected - redirecting to onboarding')
+          return next('/provider/onboarding')
+        } else if (status === 'suspended') {
+          console.log('[Router] Provider suspended - redirecting to onboarding')
+          return next('/provider/onboarding')
+        } else {
+          console.log('[Router] Unknown provider status:', status)
+        }
       }
-
-      if (!data) {
-        console.warn('[Router] No data returned from provider check')
-        return next('/provider/onboarding')
-      }
-
-      // Handle both array and object responses
-      // Function returns JSON: { can_access: boolean, message: string, status: string }
-      const result = Array.isArray(data) ? data[0] : data as { can_access: boolean; message?: string; status?: string }
-
-      console.log('[Router] Provider check result:', result)
-
-      // Check can_access field from JSON response
-      const canAccess = result?.can_access === true
-      const providerStatus = result?.status || 'unknown'
-
-      if (!canAccess) {
-        console.warn('[Router] Provider access denied:', result?.message, 'status:', providerStatus)
-        return next('/provider/onboarding')
-      }
-
-      // For pending providers, redirect to onboarding (not dashboard)
-      if (providerStatus === 'pending' && to.path === '/provider') {
-        console.log('[Router] Pending provider - redirecting to onboarding')
-        return next('/provider/onboarding')
-      }
-
-      // Access granted for approved/active providers
-      console.log('[Router] Provider access granted, status:', providerStatus)
     } catch (err) {
-      console.error('[Router] Provider check exception:', err)
-      return next('/provider/onboarding')
+      console.error('[Router] Provider access check exception:', err)
+      // Allow access anyway - let the component handle the error
+      console.log('[Router] Allowing access despite exception')
     }
   }
 
-  // Check if route requires customer access
-  if (to.meta.isCustomerRoute) {
-    if (!authStore.isAuthenticated) {
-      return next('/login')
-    }
-
-    // Allow all authenticated users to access customer routes
-    // Even providers (approved or pending) can use customer features
-    // No redirect needed - customer routes are accessible to everyone
-  }
-
-  // Check if route requires admin access (with session caching)
-  if (to.meta.requiresAdmin) {
-    // Use cached session validation for admin routes
-    if (!isAdminSessionValid()) {
-      // Fallback to auth store check
-      if (!authStore.isAuthenticated) {
-        return next('/admin/login')
+  // Check role-based access (after provider access check)
+  if (to.meta.allowedRoles && Array.isArray(to.meta.allowedRoles)) {
+    if (!to.meta.allowedRoles.includes(userRole)) {
+      console.log('[Router] Role not allowed:', userRole, 'Required:', to.meta.allowedRoles)
+      
+      // Special case: if user is trying to access provider routes and they're a customer, 
+      // redirect to onboarding instead of customer page
+      if (to.path.startsWith('/provider') && userRole === 'customer') {
+        return next('/provider/onboarding')
       }
       
-      if (authStore.user?.role !== 'admin') {
-        return next('/customer')
-      }
+      return next('/customer')
     }
   }
 
+  console.log('[Router] Navigation allowed')
   next()
-})
-
-// ========================================
-// Global afterEach guard for cleanup (Task 2.2)
-// ========================================
-router.afterEach((to, from) => {
-  if (from.path !== to.path) {
-    // Dispatch cleanup event for previous route
-    window.dispatchEvent(new CustomEvent('route-cleanup', {
-      detail: { from: from.path, to: to.path }
-    }))
-    
-    // Clear session cache if leaving admin routes
-    if (from.path.startsWith('/admin') && !to.path.startsWith('/admin')) {
-      clearAdminSessionCache()
-    }
-    
-    // Dev mode logging
-    if (import.meta.env.DEV) {
-      console.log(`[Router] Navigation: ${from.path} → ${to.path}`)
-    }
-  }
 })
 
 export default router

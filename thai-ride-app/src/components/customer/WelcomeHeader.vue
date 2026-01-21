@@ -3,43 +3,55 @@
  * WelcomeHeader - Header ต้อนรับลูกค้าแบบน่ารัก
  * MUNEEF Style: สีเขียว #00A86B, ภาพประกอบน่ารัก
  */
-import { computed } from 'vue'
+import { ref, computed } from "vue";
+import NotificationDropdown from "./NotificationDropdown.vue";
 
 interface Props {
-  userName?: string
-  walletBalance?: number
-  loyaltyPoints?: number
-  unreadNotifications?: number
+  userName?: string;
+  walletBalance?: number;
+  loyaltyPoints?: number;
+  unreadNotifications?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  userName: 'คุณ',
+  userName: "คุณ",
   walletBalance: 0,
   loyaltyPoints: 0,
-  unreadNotifications: 0
-})
+  unreadNotifications: 0,
+});
 
 const emit = defineEmits<{
-  'wallet-click': []
-  'notification-click': []
-  'profile-click': []
-}>()
+  "wallet-click": [];
+  "notification-click": [];
+  "profile-click": [];
+}>();
+
+// Notification dropdown state
+const showNotificationDropdown = ref(false);
+
+const toggleNotificationDropdown = () => {
+  showNotificationDropdown.value = !showNotificationDropdown.value;
+};
+
+const closeNotificationDropdown = () => {
+  showNotificationDropdown.value = false;
+};
 
 const greeting = computed(() => {
-  const hour = new Date().getHours()
-  if (hour < 6) return { text: 'สวัสดียามดึก', emoji: '🌙' }
-  if (hour < 12) return { text: 'สวัสดีตอนเช้า', emoji: '☀️' }
-  if (hour < 17) return { text: 'สวัสดีตอนบ่าย', emoji: '🌤️' }
-  if (hour < 21) return { text: 'สวัสดีตอนเย็น', emoji: '🌅' }
-  return { text: 'สวัสดียามค่ำ', emoji: '🌙' }
-})
+  const hour = new Date().getHours();
+  if (hour < 6) return { text: "สวัสดียามดึก", emoji: "🌙" };
+  if (hour < 12) return { text: "สวัสดีตอนเช้า", emoji: "☀️" };
+  if (hour < 17) return { text: "สวัสดีตอนบ่าย", emoji: "🌤️" };
+  if (hour < 21) return { text: "สวัสดีตอนเย็น", emoji: "🌅" };
+  return { text: "สวัสดียามค่ำ", emoji: "🌙" };
+});
 
 const firstName = computed(() => {
-  if (props.userName && props.userName !== 'คุณ') {
-    return props.userName.split(' ')[0]
+  if (props.userName && props.userName !== "คุณ") {
+    return props.userName.split(" ")[0];
   }
-  return 'คุณ'
-})
+  return "คุณ";
+});
 </script>
 
 <template>
@@ -49,53 +61,80 @@ const firstName = computed(() => {
       <svg class="pattern" viewBox="0 0 400 200" preserveAspectRatio="none">
         <defs>
           <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#00A86B;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#008F5B;stop-opacity:1" />
+            <stop offset="0%" style="stop-color: #00a86b; stop-opacity: 1" />
+            <stop offset="100%" style="stop-color: #008f5b; stop-opacity: 1" />
           </linearGradient>
         </defs>
-        <rect fill="url(#headerGrad)" width="400" height="200"/>
-        <circle cx="350" cy="30" r="80" fill="rgba(255,255,255,0.08)"/>
-        <circle cx="50" cy="150" r="60" fill="rgba(255,255,255,0.05)"/>
-        <circle cx="300" cy="180" r="40" fill="rgba(255,255,255,0.06)"/>
+        <rect fill="url(#headerGrad)" width="400" height="200" />
+        <circle cx="350" cy="30" r="80" fill="rgba(255,255,255,0.08)" />
+        <circle cx="50" cy="150" r="60" fill="rgba(255,255,255,0.05)" />
+        <circle cx="300" cy="180" r="40" fill="rgba(255,255,255,0.06)" />
       </svg>
     </div>
-    
+
     <!-- Top Row -->
     <div class="header-top">
       <div class="logo-section">
         <div class="logo">
           <svg viewBox="0 0 40 40" fill="none">
-            <circle cx="20" cy="20" r="18" fill="rgba(255,255,255,0.2)"/>
-            <circle cx="20" cy="20" r="14" fill="#FFFFFF"/>
-            <path d="M20 10L26 22H14L20 10Z" fill="#00A86B"/>
-            <circle cx="20" cy="20" r="4" fill="#00A86B"/>
+            <circle cx="20" cy="20" r="18" fill="rgba(255,255,255,0.2)" />
+            <circle cx="20" cy="20" r="14" fill="#FFFFFF" />
+            <path d="M20 10L26 22H14L20 10Z" fill="#00A86B" />
+            <circle cx="20" cy="20" r="4" fill="#00A86B" />
           </svg>
         </div>
         <span class="brand">GOBEAR</span>
       </div>
-      
+
       <div class="header-actions">
-        <!-- Notifications -->
-        <button class="action-btn" @click="emit('notification-click')" aria-label="การแจ้งเตือน">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 01-3.46 0"/>
-          </svg>
-          <span v-if="unreadNotifications > 0" class="badge">
-            {{ unreadNotifications > 9 ? '9+' : unreadNotifications }}
-          </span>
-        </button>
-        
+        <!-- Notifications with Dropdown -->
+        <div class="notification-wrapper">
+          <button
+            class="action-btn"
+            @click.stop="toggleNotificationDropdown"
+            aria-label="การแจ้งเตือน"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 01-3.46 0" />
+            </svg>
+            <span v-if="unreadNotifications > 0" class="badge">
+              {{ unreadNotifications > 9 ? "9+" : unreadNotifications }}
+            </span>
+          </button>
+
+          <!-- Notification Dropdown -->
+          <NotificationDropdown
+            :show="showNotificationDropdown"
+            @close="closeNotificationDropdown"
+            @view-all="emit('notification-click')"
+          />
+        </div>
+
         <!-- Profile -->
-        <button class="action-btn profile" @click="emit('profile-click')" aria-label="โปรไฟล์">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="8" r="4"/>
-            <path d="M20 21a8 8 0 10-16 0"/>
+        <button
+          class="action-btn profile"
+          @click="emit('profile-click')"
+          aria-label="โปรไฟล์"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="8" r="4" />
+            <path d="M20 21a8 8 0 10-16 0" />
           </svg>
         </button>
       </div>
     </div>
-    
+
     <!-- Greeting Section -->
     <div class="greeting-section">
       <div class="greeting-content">
@@ -103,43 +142,69 @@ const firstName = computed(() => {
         <h1 class="user-name">{{ firstName }}</h1>
         <p class="greeting-subtitle">วันนี้ต้องการไปไหน?</p>
       </div>
-      
+
       <!-- Cute Illustration -->
       <div class="illustration">
         <svg viewBox="0 0 120 100" fill="none">
           <!-- Car Body -->
-          <rect x="20" y="45" width="80" height="35" rx="8" fill="#FFFFFF"/>
-          <rect x="30" y="35" width="60" height="25" rx="6" fill="#FFFFFF"/>
+          <rect x="20" y="45" width="80" height="35" rx="8" fill="#FFFFFF" />
+          <rect x="30" y="35" width="60" height="25" rx="6" fill="#FFFFFF" />
           <!-- Windows -->
-          <rect x="35" y="38" width="20" height="16" rx="3" fill="#E8F5EF"/>
-          <rect x="60" y="38" width="20" height="16" rx="3" fill="#E8F5EF"/>
+          <rect x="35" y="38" width="20" height="16" rx="3" fill="#E8F5EF" />
+          <rect x="60" y="38" width="20" height="16" rx="3" fill="#E8F5EF" />
           <!-- Wheels -->
-          <circle cx="40" cy="80" r="10" fill="#333"/>
-          <circle cx="40" cy="80" r="5" fill="#666"/>
-          <circle cx="80" cy="80" r="10" fill="#333"/>
-          <circle cx="80" cy="80" r="5" fill="#666"/>
+          <circle cx="40" cy="80" r="10" fill="#333" />
+          <circle cx="40" cy="80" r="5" fill="#666" />
+          <circle cx="80" cy="80" r="10" fill="#333" />
+          <circle cx="80" cy="80" r="5" fill="#666" />
           <!-- Headlights -->
-          <rect x="95" y="55" width="8" height="6" rx="2" fill="#FFD700"/>
-          <rect x="17" y="55" width="8" height="6" rx="2" fill="#FFD700"/>
+          <rect x="95" y="55" width="8" height="6" rx="2" fill="#FFD700" />
+          <rect x="17" y="55" width="8" height="6" rx="2" fill="#FFD700" />
           <!-- Cute Face -->
-          <circle cx="50" cy="60" r="3" fill="#333"/>
-          <circle cx="70" cy="60" r="3" fill="#333"/>
-          <path d="M55 68 Q60 73 65 68" stroke="#333" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="50" cy="60" r="3" fill="#333" />
+          <circle cx="70" cy="60" r="3" fill="#333" />
+          <path
+            d="M55 68 Q60 73 65 68"
+            stroke="#333"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="round"
+          />
           <!-- Motion Lines -->
-          <path d="M5 50 L15 50" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round"/>
-          <path d="M8 60 L18 60" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/>
-          <path d="M3 70 L13 70" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round"/>
+          <path
+            d="M5 50 L15 50"
+            stroke="rgba(255,255,255,0.5)"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M8 60 L18 60"
+            stroke="rgba(255,255,255,0.4)"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M3 70 L13 70"
+            stroke="rgba(255,255,255,0.3)"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
         </svg>
       </div>
     </div>
-    
+
     <!-- Quick Stats -->
     <div class="quick-stats">
       <button class="stat-card wallet" @click="emit('wallet-click')">
         <div class="stat-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="5" width="20" height="14" rx="2"/>
-            <path d="M2 10h20"/>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <path d="M2 10h20" />
           </svg>
         </div>
         <div class="stat-info">
@@ -147,11 +212,14 @@ const firstName = computed(() => {
           <span class="stat-value">฿{{ walletBalance.toLocaleString() }}</span>
         </div>
       </button>
-      
+
       <div class="stat-card points">
         <div class="stat-icon">
           <svg viewBox="0 0 24 24" fill="none">
-            <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="#FFD700"/>
+            <polygon
+              points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+              fill="#FFD700"
+            />
           </svg>
         </div>
         <div class="stat-info">
@@ -214,7 +282,7 @@ const firstName = computed(() => {
 .brand {
   font-size: 18px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: #ffffff;
   letter-spacing: 1px;
 }
 
@@ -222,6 +290,10 @@ const firstName = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.notification-wrapper {
+  position: relative;
 }
 
 .action-btn {
@@ -246,7 +318,7 @@ const firstName = computed(() => {
 .action-btn svg {
   width: 22px;
   height: 22px;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .action-btn .badge {
@@ -256,11 +328,11 @@ const firstName = computed(() => {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: #E53935;
+  background: #e53935;
   border-radius: 9px;
   font-size: 10px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -289,7 +361,7 @@ const firstName = computed(() => {
 .user-name {
   font-size: 28px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: #ffffff;
   margin-bottom: 4px;
 }
 
@@ -325,7 +397,7 @@ const firstName = computed(() => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #FFFFFF;
+  background: #ffffff;
   border: none;
   border-radius: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -352,23 +424,23 @@ const firstName = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #E8F5EF;
+  background: #e8f5ef;
   border-radius: 12px;
   flex-shrink: 0;
 }
 
 .stat-card.wallet .stat-icon {
-  background: #E8F5EF;
+  background: #e8f5ef;
 }
 
 .stat-card.points .stat-icon {
-  background: #FFF8E1;
+  background: #fff8e1;
 }
 
 .stat-icon svg {
   width: 22px;
   height: 22px;
-  color: #00A86B;
+  color: #00a86b;
 }
 
 .stat-info {
@@ -386,7 +458,7 @@ const firstName = computed(() => {
 .stat-value {
   font-size: 16px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

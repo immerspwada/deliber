@@ -7,7 +7,7 @@
  */
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+// Note: Leaflet CSS loaded via CDN in index.html
 import { useServices, type SavedPlace } from '../composables/useServices'
 
 // Fix default marker icons
@@ -647,6 +647,14 @@ watch(() => props.initialLocation, (newLoc) => {
       <div class="map-wrapper">
         <div ref="mapContainer" class="map-container"></div>
         
+        <!-- Drag hint tooltip -->
+        <div class="drag-hint" v-if="!isGettingAddress">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/>
+          </svg>
+          <span>ลากหมุดหรือเลื่อนแผนที่</span>
+        </div>
+        
         <!-- Center crosshair indicator -->
         <div class="center-indicator">
           <div class="crosshair"></div>
@@ -983,6 +991,36 @@ watch(() => props.initialLocation, (newLoc) => {
 .map-container {
   width: 100%;
   height: 100%;
+}
+
+.drag-hint {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 1000;
+  pointer-events: none;
+  animation: fadeInOut 4s ease-in-out forwards;
+}
+
+.drag-hint svg {
+  flex-shrink: 0;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .center-indicator {

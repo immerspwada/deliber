@@ -24,7 +24,7 @@ const emit = defineEmits<{
   'click': []
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const progress = computed(() => {
   if (props.nextTierPoints <= 0) return 100
@@ -36,7 +36,7 @@ const pointsToNext = computed(() => {
 })
 
 const handleClick = () => {
-  haptic.light()
+  vibrate('light')
   emit('click')
 }
 </script>

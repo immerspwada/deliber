@@ -1,17 +1,27 @@
-// Supabase Edge Function: send-push
-// Feature: F07 - Push Notifications
-// Description: Send Web Push notifications using VAPID
+/**
+ * Supabase Edge Function: send-push
+ * Feature: F07 - Push Notifications
+ * Description: Send Web Push notifications to providers using VAPID
+ * 
+ * Role Impact:
+ * - Provider: Receives push notifications for new jobs, updates
+ * - Customer: No access
+ * - Admin: Can send system announcements
+ */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.49.1'
 
-// Web Push library for Deno
 const encoder = new TextEncoder()
 
 interface PushSubscription {
+  id: string
+  provider_id: string
   endpoint: string
-  p256dh: string
-  auth: string
+  keys: {
+    p256dh: string
+    auth: string
+  }
+  is_active: boolean
 }
 
 interface PushPayload {
@@ -22,21 +32,23 @@ interface PushPayload {
   tag?: string
   data?: Record<string, unknown>
   url?: string
+  silent?: boolean
 }
 
-interface QueueItem {
-  id: string
-  user_id: string
-  title: string
-  body: string
-  icon: string
-  badge: string
-  tag: string | null
-  data: Record<string, unknown>
-  url: string | null
+interface SendRequest {
+  action: 'send_to_provider' | 'send_to_providers' | 'send_new_job' | 'get_vapid_public_key'
+  provider_id?: string
+  provider_ids?: string[]
+  payload?: PushPayload
+  job?: {
+    id: string
+    service_type: string
+    pickup_address: string
+    estimated_fare: number
+  }
 }
 
-// VAPID keys should be set in Supabase secrets
+// VAPID keys from Supabase secrets
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') || ''
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY') || ''
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@gobear.app'
@@ -95,7 +107,7 @@ async function generateVapidJwt(audience: string): Promise<string> {
 async function sendPushNotification(
   subscription: PushSubscription,
   payload: PushPayload
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; statusCode?: number }> {
   try {
     const url = new URL(subscription.endpoint)
     const audience = `${url.protocol}//${url.host}`
@@ -108,12 +120,13 @@ async function sendPushNotification(
       icon: payload.icon || '/pwa-192x192.png',
       badge: payload.badge || '/pwa-192x192.png',
       tag: payload.tag,
+      silent: payload.silent || false,
       data: {
         ...payload.data,
         url: payload.url
       },
-      vibrate: [100, 50, 100],
-      requireInteraction: true
+      vibrate: payload.silent ? undefined : [200, 100, 200],
+      requireInteraction: !payload.silent
     })
 
     const response = await fetch(subscription.endpoint, {
@@ -123,7 +136,7 @@ async function sendPushNotification(
         'Content-Encoding': 'aes128gcm',
         'TTL': '86400',
         'Authorization': `vapid t=${jwt}, k=${VAPID_PUBLIC_KEY}`,
-        'Urgency': 'high'
+        'Urgency': payload.silent ? 'low' : 'high'
       },
       body: encoder.encode(notificationPayload)
     })
@@ -131,27 +144,31 @@ async function sendPushNotification(
     if (!response.ok) {
       const errorText = await response.text()
       
-      // Handle expired subscriptions
+      // Handle expired/invalid subscriptions (410 Gone, 404 Not Found)
       if (response.status === 404 || response.status === 410) {
-        return { success: false, error: 'subscription_expired' }
+        return { success: false, error: 'subscription_expired', statusCode: response.status }
       }
       
-      return { success: false, error: `HTTP ${response.status}: ${errorText}` }
+      return { success: false, error: `HTTP ${response.status}: ${errorText}`, statusCode: response.status }
     }
 
-    return { success: true }
+    return { success: true, statusCode: response.status }
   } catch (error) {
-    return { success: false, error: error.message }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return { success: false, error: errorMessage }
   }
 }
 
-serve(async (req) => {
-  // CORS headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  }
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
+console.info('[send-push] Edge function started')
+
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -162,20 +179,38 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { action, userId, payload, queueId } = await req.json()
+    const body: SendRequest = await req.json()
+    const { action } = body
 
     switch (action) {
-      case 'send_to_user': {
-        // Send push to all user's subscriptions
+      case 'send_to_provider': {
+        // Send push to a single provider's subscriptions
+        const { provider_id, payload } = body
+        
+        if (!provider_id || !payload) {
+          return new Response(
+            JSON.stringify({ error: 'Missing provider_id or payload' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
         const { data: subscriptions, error: subError } = await supabase
-          .rpc('get_user_push_subscriptions', { p_user_id: userId })
+          .from('push_subscriptions')
+          .select('*')
+          .eq('provider_id', provider_id)
+          .eq('is_active', true)
 
         if (subError) throw subError
 
-        const results = await Promise.all(
-          subscriptions.map((sub: PushSubscription) => 
-            sendPushNotification(sub, payload)
+        if (!subscriptions || subscriptions.length === 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'No active subscriptions', sent: 0, total: 0 }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
+        }
+
+        const results = await Promise.all(
+          subscriptions.map((sub: PushSubscription) => sendPushNotification(sub, payload))
         )
 
         // Deactivate expired subscriptions
@@ -184,89 +219,177 @@ serve(async (req) => {
         )
         
         for (const sub of expiredSubs) {
-          await supabase.rpc('remove_push_subscription', {
-            p_user_id: userId,
-            p_endpoint: sub.endpoint
-          })
+          await supabase
+            .from('push_subscriptions')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('id', sub.id)
+          
+          console.log(`[send-push] Deactivated expired subscription: ${sub.id}`)
+        }
+
+        const successCount = results.filter(r => r.success).length
+        
+        // Update last_used_at for successful sends
+        if (successCount > 0) {
+          const successfulSubs = subscriptions.filter(
+            (_: PushSubscription, i: number) => results[i].success
+          )
+          for (const sub of successfulSubs) {
+            await supabase
+              .from('push_subscriptions')
+              .update({ last_used_at: new Date().toISOString() })
+              .eq('id', sub.id)
+          }
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: successCount > 0, 
+            sent: successCount, 
+            total: subscriptions.length,
+            expired: expiredSubs.length
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'send_to_providers': {
+        // Send push to multiple providers
+        const { provider_ids, payload } = body
+        
+        if (!provider_ids || !payload || provider_ids.length === 0) {
+          return new Response(
+            JSON.stringify({ error: 'Missing provider_ids or payload' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const { data: subscriptions, error: subError } = await supabase
+          .from('push_subscriptions')
+          .select('*')
+          .in('provider_id', provider_ids)
+          .eq('is_active', true)
+
+        if (subError) throw subError
+
+        if (!subscriptions || subscriptions.length === 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'No active subscriptions', sent: 0, total: 0 }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const results = await Promise.all(
+          subscriptions.map((sub: PushSubscription) => sendPushNotification(sub, payload))
+        )
+
+        // Deactivate expired subscriptions
+        const expiredSubs = subscriptions.filter(
+          (_: PushSubscription, i: number) => results[i].error === 'subscription_expired'
+        )
+        
+        for (const sub of expiredSubs) {
+          await supabase
+            .from('push_subscriptions')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('id', sub.id)
         }
 
         const successCount = results.filter(r => r.success).length
         
         return new Response(
           JSON.stringify({ 
-            success: true, 
+            success: successCount > 0, 
             sent: successCount, 
-            total: subscriptions.length 
+            total: subscriptions.length,
+            expired: expiredSubs.length
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      case 'process_queue': {
-        // Process pending notifications from queue
-        const { data: queueItems, error: queueError } = await supabase
-          .from('push_notification_queue')
-          .select('*')
-          .eq('status', 'pending')
-          .lte('scheduled_for', new Date().toISOString())
-          .lt('attempts', 3)
-          .limit(100)
-
-        if (queueError) throw queueError
-
-        let processed = 0
-        let failed = 0
-
-        for (const item of queueItems as QueueItem[]) {
-          const { data: subscriptions } = await supabase
-            .rpc('get_user_push_subscriptions', { p_user_id: item.user_id })
-
-          if (!subscriptions || subscriptions.length === 0) {
-            // No subscriptions, mark as failed
-            await supabase
-              .from('push_notification_queue')
-              .update({ 
-                status: 'failed', 
-                error_message: 'No active subscriptions',
-                processed_at: new Date().toISOString()
-              })
-              .eq('id', item.id)
-            failed++
-            continue
-          }
-
-          const results = await Promise.all(
-            subscriptions.map((sub: PushSubscription) => 
-              sendPushNotification(sub, {
-                title: item.title,
-                body: item.body,
-                icon: item.icon,
-                badge: item.badge,
-                tag: item.tag || undefined,
-                data: item.data,
-                url: item.url || undefined
-              })
-            )
+      case 'send_new_job': {
+        // Send new job notification to all online providers
+        const { job } = body
+        
+        if (!job) {
+          return new Response(
+            JSON.stringify({ error: 'Missing job data' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
-
-          const anySuccess = results.some(r => r.success)
-          
-          await supabase
-            .from('push_notification_queue')
-            .update({ 
-              status: anySuccess ? 'sent' : 'failed',
-              attempts: item.attempts + 1,
-              error_message: anySuccess ? null : results[0]?.error,
-              processed_at: new Date().toISOString()
-            })
-            .eq('id', item.id)
-
-          if (anySuccess) processed++
-          else failed++
         }
 
+        const serviceIcons: Record<string, string> = {
+          ride: '🚗',
+          delivery: '📦',
+          shopping: '🛒',
+          moving: '🚚',
+          laundry: '👕'
+        }
+        
+        const icon = serviceIcons[job.service_type] || '🚗'
+        const fare = job.estimated_fare?.toLocaleString() || '0'
+
+        const payload: PushPayload = {
+          title: `${icon} งานใหม่!`,
+          body: `฿${fare} - ${job.pickup_address || 'ไม่ระบุ'}`,
+          tag: `new-job-${job.id}`,
+          data: {
+            type: 'new_job',
+            jobId: job.id,
+            serviceType: job.service_type
+          },
+          url: `/provider/jobs/${job.id}`
+        }
+
+        // Get all online providers with active subscriptions
+        const { data: subscriptions, error: subError } = await supabase
+          .from('push_subscriptions')
+          .select(`
+            *,
+            provider:providers_v2!inner(id, is_online, status)
+          `)
+          .eq('is_active', true)
+          .eq('providers_v2.is_online', true)
+          .eq('providers_v2.status', 'approved')
+
+        if (subError) throw subError
+
+        if (!subscriptions || subscriptions.length === 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'No online providers with subscriptions', sent: 0, total: 0 }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const results = await Promise.all(
+          subscriptions.map((sub: PushSubscription) => sendPushNotification(sub, payload))
+        )
+
+        // Deactivate expired subscriptions
+        const expiredSubs = subscriptions.filter(
+          (_: PushSubscription, i: number) => results[i].error === 'subscription_expired'
+        )
+        
+        for (const sub of expiredSubs) {
+          await supabase
+            .from('push_subscriptions')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('id', sub.id)
+        }
+
+        const successCount = results.filter(r => r.success).length
+        
+        console.log(`[send-push] New job notification sent: ${successCount}/${subscriptions.length} (${expiredSubs.length} expired)`)
+        
         return new Response(
-          JSON.stringify({ success: true, processed, failed }),
+          JSON.stringify({ 
+            success: successCount > 0, 
+            sent: successCount, 
+            total: subscriptions.length,
+            expired: expiredSubs.length,
+            jobId: job.id
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -280,14 +403,17 @@ serve(async (req) => {
 
       default:
         return new Response(
-          JSON.stringify({ error: 'Invalid action' }),
+          JSON.stringify({ error: 'Invalid action. Valid actions: send_to_provider, send_to_providers, send_new_job, get_vapid_public_key' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[send-push] Error:', errorMessage)
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

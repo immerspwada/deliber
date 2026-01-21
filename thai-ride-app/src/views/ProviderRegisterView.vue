@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const { validateThaiID, performOCR } = useImageUtils()
 
 // State
@@ -108,7 +108,7 @@ watch(nationalId, (value) => {
     if (validateThaiID(cleaned)) {
       nationalIdError.value = ''
       nationalIdValid.value = true
-      haptic.success()
+      vibrate('success')
     } else {
       nationalIdError.value = 'เลขบัตรประชาชนไม่ถูกต้อง'
       nationalIdValid.value = false
@@ -126,6 +126,17 @@ const formattedNationalId = computed(() => {
   if (id.length <= 12) return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10)}`
   return `${id.slice(0, 1)}-${id.slice(1, 5)}-${id.slice(5, 10)}-${id.slice(10, 12)}-${id.slice(12)}`
 })
+
+// Helper functions for template
+const selectVehicleType = (value: string) => {
+  vehicleType.value = value
+  vibrate('light')
+}
+
+const selectVehicleColor = (value: string) => {
+  vehicleColor.value = value
+  vibrate('light')
+}
 
 // Validations - 3 ขั้นตอน
 const canProceedStep1 = computed(() => 
@@ -195,7 +206,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
   }
   
   error.value = ''
-  haptic.light()
+  vibrate('light')
   
   try {
     isProcessingOCR.value = true
@@ -233,7 +244,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
             }
             ocrStatus.value = 'อ่านข้อมูลใบขับขี่สำเร็จ!'
           }
-          haptic.success()
+          vibrate('success')
         }
       } catch { ocrStatus.value = 'กรุณากรอกข้อมูลเอง' }
     }
@@ -246,7 +257,7 @@ const handleFileSelect = async (type: 'idCard' | 'license' | 'vehicle', event: E
 }
 
 const removeFile = (type: 'idCard' | 'license' | 'vehicle') => {
-  haptic.light()
+  vibrate('light')
   if (type === 'idCard') { idCardFile.value = null; idCardPreview.value = '' }
   else if (type === 'license') { licenseFile.value = null; licensePreview.value = '' }
   else { vehicleFile.value = null; vehiclePreview.value = '' }
@@ -289,7 +300,7 @@ const uploadToStorage = async (file: File, path: string): Promise<string> => {
 // Navigation - 3 ขั้นตอน
 const nextStep = () => {
   error.value = ''
-  haptic.light()
+  vibrate('light')
   if (step.value === 1 && canProceedStep1.value) step.value = 2
   else if (step.value === 2 && canProceedStep2.value) step.value = 3
   // step 3 คือขั้นตอนสุดท้าย ไม่มี nextStep
@@ -297,7 +308,7 @@ const nextStep = () => {
 
 const prevStep = () => {
   error.value = ''
-  haptic.light()
+  vibrate('light')
   if (step.value > 1) step.value--
 }
 
@@ -313,7 +324,7 @@ const submitApplication = async () => {
   isLoading.value = true
   error.value = ''
   uploadProgress.value = 0
-  haptic.medium()
+  vibrate('medium')
   
   try {
     const userId = authStore.user.id
@@ -321,7 +332,7 @@ const submitApplication = async () => {
     // Check for existing provider record first (prevent duplicate)
     console.log('[ProviderRegister] Checking for existing provider before insert...')
     const { data: existingCheck, error: checkError } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .select('id, status')
       .eq('user_id', userId)
       .maybeSingle()
@@ -359,15 +370,36 @@ const submitApplication = async () => {
         vehicleUrl = await uploadToStorage(vehicleFile.value, `${userId}/vehicle`)
       }
       uploadProgress.value = 75
-    } catch (uploadErr: any) {
-      console.warn('Storage upload failed, using pending status:', uploadErr.message)
+    } catch (uploadErr: unknown) {
+      const errMsg = uploadErr instanceof Error ? uploadErr.message : 'Unknown error'
+      console.warn('Storage upload failed, using pending status:', errMsg)
       // Continue with 'pending' status - admin can request re-upload
     }
     
-    const { error: insertError } = await (supabase.from('service_providers') as any).insert({
+    // Get user info from auth store
+    const userEmail = authStore.user.email || ''
+    const userName = authStore.user.name || authStore.user.email?.split('@')[0] || ''
+    const userPhone = authStore.user.phone || ''
+    const nameParts = userName.split(' ')
+    const firstName = nameParts[0] || 'Unknown'
+    const lastName = nameParts.slice(1).join(' ') || 'Provider'
+    
+    // Insert provider record
+    // Note: service_types จะถูกกำหนดโดย Admin หลังอนุมัติ
+    // ข้อมูล vehicle และ documents จะถูกเก็บใน JSONB columns
+    const insertData: Record<string, unknown> = {
       user_id: userId,
-      provider_type: 'pending', // Admin จะเปิดสิทธิ์งานให้ทีหลัง
-      allowed_services: [], // Admin จะกำหนดว่าเห็นงานอะไรได้บ้าง
+      first_name: firstName,
+      last_name: lastName,
+      email: userEmail,
+      phone_number: userPhone || '0000000000',
+      service_types: [], // Admin จะกำหนดทีหลัง
+      status: 'pending',
+      is_online: false,
+      rating: 5.0,
+      total_trips: 0,
+      total_earnings: 0,
+      // Vehicle info - เก็บใน columns ที่จะถูกสร้างจาก migration 249
       vehicle_type: vehicleType.value,
       vehicle_plate: vehiclePlate.value,
       vehicle_color: vehicleColor.value,
@@ -378,33 +410,44 @@ const submitApplication = async () => {
         license_plate: vehiclePlate.value,
         color: vehicleColor.value
       },
+      // License info
       license_number: licenseNumber.value,
-      license_expiry: licenseExpiry.value,
+      license_expiry: licenseExpiry.value || null,
       national_id: nationalId.value,
-      documents: { 
-        id_card: idCardUrl, 
-        license: licenseUrl, 
-        vehicle: vehicleUrl 
+      // Documents URLs
+      documents: {
+        id_card: idCardUrl,
+        license: licenseUrl,
+        vehicle: vehicleUrl
       },
-      status: 'pending', // This triggers auto_add_to_verification_queue
-      is_available: false,
-      rating: 5.0,
-      total_trips: 0
-    })
+      provider_type: 'pending',
+      is_available: false
+    }
+    
+    const { error: insertError } = await supabase
+      .from('providers_v2')
+      .insert(insertData)
     
     uploadProgress.value = 100
     
     if (insertError) {
-      if (insertError.code === '23505') error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว'
-      else error.value = insertError.message
+      console.error('[ProviderRegister] Insert error:', insertError)
+      if (insertError.code === '23505') {
+        error.value = 'คุณได้สมัครเป็นผู้ให้บริการแล้ว'
+      } else if (insertError.message.includes('violates check constraint')) {
+        error.value = 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
+      } else {
+        error.value = insertError.message
+      }
       return
     }
     
-    haptic.success()
+    vibrate('success')
     showSuccess.value = true
-  } catch (err: any) {
-    error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-    haptic.error()
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+    error.value = errMsg
+    vibrate('error')
   } finally {
     isLoading.value = false
   }
@@ -431,8 +474,9 @@ const checkExistingProvider = async () => {
     // Try direct query first
     let providerRecord: any = null
     
+    // CRITICAL FIX: Use providers_v2 table consistently
     const { data, error: queryError } = await supabase
-      .from('service_providers')
+      .from('providers_v2')
       .select('*')
       .eq('user_id', userId)
     
@@ -620,7 +664,7 @@ onMounted(async () => {
             <label class="label">ประเภทยานพาหนะ</label>
             <div class="vehicle-btns">
               <button v-for="opt in vehicleOptions" :key="opt.value"
-                @click="vehicleType = opt.value; haptic.light()"
+                @click="selectVehicleType(opt.value)"
                 :class="['vehicle-btn', { active: vehicleType === opt.value }]">
                 {{ opt.label }}
               </button>
@@ -653,7 +697,7 @@ onMounted(async () => {
             <label class="label">สีรถ</label>
             <div class="color-options">
               <button v-for="c in colorOptions" :key="c.value"
-                @click="vehicleColor = c.value; haptic.light()"
+                @click="selectVehicleColor(c.value)"
                 :class="['color-btn', { active: vehicleColor === c.value }]"
                 :style="{ '--color': c.color }">
                 <span class="color-dot"></span>

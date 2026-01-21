@@ -227,7 +227,7 @@ export function useDelivery() {
     error.value = null
   }
 
-  // Create delivery request
+  // Create delivery request with atomic wallet check
   const createDeliveryRequest = async (data: {
     senderName: string
     senderPhone: string
@@ -266,50 +266,57 @@ export function useDelivery() {
     try {
       const estimatedFee = calculateFee(data.distanceKm, data.packageType)
 
-      const { data: delivery, error: dbError } = await (supabase
-        .from('delivery_requests') as any)
-        .insert({
-          user_id: authStore.user.id,
-          sender_name: data.senderName,
-          sender_phone: data.senderPhone,
-          sender_address: data.senderAddress,
-          sender_lat: data.senderLocation.lat,
-          sender_lng: data.senderLocation.lng,
-          recipient_name: data.recipientName,
-          recipient_phone: data.recipientPhone,
-          recipient_address: data.recipientAddress,
-          recipient_lat: data.recipientLocation.lat,
-          recipient_lng: data.recipientLocation.lng,
-          package_type: data.packageType,
-          package_weight: data.packageWeight,
-          package_description: data.packageDescription || null,
-          package_photo: data.packagePhoto || null,
-          special_instructions: data.specialInstructions || null,
-          estimated_fee: estimatedFee,
-          distance_km: data.distanceKm,
-          status: 'pending'
-        })
-        .select()
-        .single()
+      // Use atomic function to check wallet balance and create delivery
+      const { data: result, error: rpcError } = await supabase.rpc('create_delivery_atomic', {
+        p_user_id: authStore.user.id,
+        p_sender_name: data.senderName,
+        p_sender_phone: data.senderPhone,
+        p_sender_address: data.senderAddress,
+        p_sender_lat: data.senderLocation.lat,
+        p_sender_lng: data.senderLocation.lng,
+        p_recipient_name: data.recipientName,
+        p_recipient_phone: data.recipientPhone,
+        p_recipient_address: data.recipientAddress,
+        p_recipient_lat: data.recipientLocation.lat,
+        p_recipient_lng: data.recipientLocation.lng,
+        p_package_type: data.packageType,
+        p_package_weight: data.packageWeight,
+        p_package_description: data.packageDescription || null,
+        p_package_photo: data.packagePhoto || null,
+        p_special_instructions: data.specialInstructions || null,
+        p_estimated_fee: estimatedFee,
+        p_distance_km: data.distanceKm
+      })
 
-      if (dbError) {
-        console.error('Database error:', dbError)
+      if (rpcError) {
+        console.error('RPC error:', rpcError)
         // Handle specific error codes
-        if (dbError.code === '42501') {
+        if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
+          error.value = 'ยอดเงินในกระเป๋าไม่เพียงพอ กรุณาเติมเงินก่อนใช้บริการ'
+        } else if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
+          error.value = 'ไม่พบกระเป๋าเงิน กรุณาติดต่อฝ่ายสนับสนุน'
+        } else if (rpcError.code === '42501') {
           error.value = 'ไม่มีสิทธิ์ในการสร้างคำขอ กรุณาเข้าสู่ระบบใหม่'
-        } else if (dbError.code === '23503') {
-          error.value = 'ข้อมูลผู้ใช้ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่'
-        } else if (dbError.message?.includes('network') || dbError.message?.includes('fetch')) {
+        } else if (rpcError.message?.includes('network') || rpcError.message?.includes('fetch')) {
           error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต'
         } else {
-          error.value = dbError.message || 'เกิดข้อผิดพลาดในการสร้างคำขอ กรุณาลองใหม่'
+          error.value = rpcError.message || 'เกิดข้อผิดพลาดในการสร้างคำขอ กรุณาลองใหม่'
         }
         return null
       }
 
-      if (delivery) {
-        currentDelivery.value = delivery as DeliveryRequest
-        return delivery
+      if (result?.delivery_id) {
+        // Fetch the created delivery
+        const { data: delivery } = await (supabase
+          .from('delivery_requests') as any)
+          .select('*')
+          .eq('id', result.delivery_id)
+          .single()
+        
+        if (delivery) {
+          currentDelivery.value = delivery as DeliveryRequest
+          return delivery
+        }
       }
       
       error.value = 'ไม่สามารถสร้างคำขอได้ กรุณาลองใหม่'
@@ -318,6 +325,8 @@ export function useDelivery() {
       console.error('Error creating delivery request:', err)
       if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
         error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต'
+      } else if (err.message?.includes('INSUFFICIENT_BALANCE')) {
+        error.value = 'ยอดเงินในกระเป๋าไม่เพียงพอ กรุณาเติมเงินก่อนใช้บริการ'
       } else {
         error.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'
       }
@@ -338,10 +347,10 @@ export function useDelivery() {
           *,
           provider:provider_id (
             id,
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            user:user_id (name, phone)
+            first_name,
+            last_name,
+            phone_number,
+            rating
           )
         `)
         .eq('user_id', authStore.user.id)
@@ -374,10 +383,10 @@ export function useDelivery() {
           *,
           provider:provider_id (
             id,
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            user:user_id (name, phone)
+            first_name,
+            last_name,
+            phone_number,
+            rating
           )
         `)
         .eq('user_id', authStore.user.id)
@@ -405,12 +414,10 @@ export function useDelivery() {
           *,
           provider:provider_id (
             id,
-            vehicle_type,
-            vehicle_plate,
-            rating,
-            current_lat,
-            current_lng,
-            user:user_id (name, phone)
+            first_name,
+            last_name,
+            phone_number,
+            rating
           ),
           user:user_id (name, phone)
         `)
@@ -426,25 +433,57 @@ export function useDelivery() {
     }
   }
 
-  // Cancel delivery
-  const cancelDelivery = async (deliveryId: string) => {
-    try {
-      const { error } = await (supabase
-        .from('delivery_requests') as any)
-        .update({ status: 'cancelled' })
-        .eq('id', deliveryId)
-        .eq('user_id', authStore.user?.id || '')
-        .in('status', ['pending', 'matched'])
+  // Cancel delivery with pending refund (requires Admin approval)
+  const cancelDelivery = async (deliveryId: string, reason?: string) => {
+    if (!authStore.user?.id) {
+      error.value = 'กรุณาเข้าสู่ระบบ'
+      return null
+    }
 
-      if (!error) {
+    loading.value = true
+    error.value = null
+
+    try {
+      // Use atomic cancel function with pending refund
+      const { data: result, error: rpcError } = await supabase.rpc('cancel_request_with_pending_refund', {
+        p_request_id: deliveryId,
+        p_request_type: 'delivery',
+        p_cancelled_by: authStore.user.id,
+        p_cancelled_by_role: 'customer',
+        p_cancel_reason: reason || 'ลูกค้ายกเลิก'
+      })
+
+      if (rpcError) {
+        console.error('Cancel error:', rpcError)
+        if (rpcError.message?.includes('REQUEST_NOT_FOUND')) {
+          error.value = 'ไม่พบคำขอนี้'
+        } else if (rpcError.message?.includes('REQUEST_ALREADY_FINALIZED')) {
+          error.value = 'ไม่สามารถยกเลิกได้ คำขอนี้ดำเนินการเสร็จสิ้นแล้ว'
+        } else {
+          error.value = rpcError.message || 'เกิดข้อผิดพลาดในการยกเลิก'
+        }
+        return null
+      }
+
+      if (result?.success) {
         if (currentDelivery.value?.id === deliveryId) {
           currentDelivery.value = null
         }
-        return true
+        return {
+          success: true,
+          refundAmount: result.refund_amount,
+          refundStatus: result.refund_status,
+          message: result.message || 'ยกเลิกสำเร็จ คำขอคืนเงินรอการอนุมัติจาก Admin'
+        }
       }
-      return false
-    } catch {
-      return false
+      
+      return null
+    } catch (err: any) {
+      console.error('Error cancelling delivery:', err)
+      error.value = err.message || 'เกิดข้อผิดพลาดในการยกเลิก'
+      return null
+    } finally {
+      loading.value = false
     }
   }
 

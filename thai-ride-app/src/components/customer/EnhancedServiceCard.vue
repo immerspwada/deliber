@@ -34,7 +34,7 @@ const emit = defineEmits<{
   'click': [id: string]
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 const isPressed = ref(false)
 const rippleStyle = ref({ left: '0px', top: '0px' })
 const showRipple = ref(false)
@@ -43,7 +43,7 @@ const handleTouchStart = (e: TouchEvent | MouseEvent) => {
   if (props.disabled || props.loading) return
   
   isPressed.value = true
-  haptic.light()
+  vibrate('light')
   
   // Calculate ripple position
   const target = e.currentTarget as HTMLElement
@@ -75,7 +75,7 @@ const handleTouchEnd = () => {
 const handleClick = () => {
   if (props.disabled || props.loading) return
   
-  haptic.medium()
+  vibrate('medium')
   
   // Track service card click
   quickTrack('service_card_clicked', 'interaction', {

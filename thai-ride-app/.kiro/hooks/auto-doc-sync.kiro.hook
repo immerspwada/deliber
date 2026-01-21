@@ -1,0 +1,26 @@
+{
+  "enabled": true,
+  "name": "Auto Documentation Sync",
+  "description": "Automatically updates README.md and /docs folder when source files (.ts, .vue, .sql, .js) are modified to keep documentation in sync with code changes",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.ts",
+      "*.vue",
+      "*.sql",
+      "*.js",
+      "src/**/*.ts",
+      "src/**/*.vue",
+      "supabase/**/*.sql",
+      "scripts/*.js",
+      "scripts/*.sh"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source file was just modified. Please review the changes and update the relevant documentation:\n\n1. Check if README.md needs updates (new features, API changes, setup instructions)\n2. Check if docs/ folder has relevant documentation that needs updating\n3. Update any affected documentation files with:\n   - New features or components added\n   - Changed APIs or interfaces\n   - Updated configuration or setup steps\n   - Modified database schema or migrations\n   - New composables or utilities\n\nKeep documentation concise, accurate, and focused on what developers need to know. Include code examples where helpful."
+  },
+  "workspaceFolderName": "thai-ride-app",
+  "shortName": "auto-doc-sync"
+}

@@ -1,194 +1,183 @@
 /**
- * useHapticFeedback - Haptic Feedback Composable
+ * useHapticFeedback - Haptic feedback และ Sound notification
+ * Feature: F14 - Provider Dashboard Enhancement
  * 
- * ให้ feedback การสั่นเบาๆ เมื่อผู้ใช้ interact กับ UI
- * ทำให้ app รู้สึก "มีชีวิต" และตอบสนองมากขึ้น
- * 
- * @syncs-with
- * - UX Tracking: useUXTracking.ts (haptic_feedback_triggered events)
- * - Admin: AdminUXAnalyticsView.vue
+ * ฟีเจอร์:
+ * - Haptic feedback สำหรับ mobile
+ * - Sound notification เมื่อมีงานใหม่
+ * - Configurable settings
  */
 
-import { ref } from 'vue'
-import { quickTrack } from './useUXTracking'
+import { ref, onUnmounted } from 'vue'
 
-export type HapticType = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection'
-
-interface HapticPattern {
-  pattern: number | number[]
-  description: string
+// Sound URLs (base64 encoded short sounds)
+const SOUNDS = {
+  newJob: '/sounds/new-job.mp3',
+  success: '/sounds/success.mp3',
+  error: '/sounds/error.mp3',
+  notification: '/sounds/notification.mp3'
 }
 
-const hapticPatterns: Record<HapticType, HapticPattern> = {
-  light: { pattern: 10, description: 'แตะเบาๆ' },
-  medium: { pattern: 25, description: 'แตะปานกลาง' },
-  heavy: { pattern: 50, description: 'แตะหนัก' },
-  success: { pattern: [10, 50, 10], description: 'สำเร็จ' },
-  warning: { pattern: [30, 30, 30], description: 'เตือน' },
-  error: { pattern: [50, 100, 50], description: 'ผิดพลาด' },
-  selection: { pattern: 5, description: 'เลือก' }
+// Fallback: Generate simple beep using Web Audio API
+const createBeep = (frequency: number = 440, duration: number = 200): void => {
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+    
+    oscillator.frequency.value = frequency
+    oscillator.type = 'sine'
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000)
+    
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + duration / 1000)
+  } catch (e) {
+    console.warn('[Haptic] Web Audio API not supported:', e)
+  }
 }
 
 export function useHapticFeedback() {
-  const isSupported = ref(typeof navigator !== 'undefined' && 'vibrate' in navigator)
   const isEnabled = ref(true)
+  const isSoundEnabled = ref(true)
   
-  /**
-   * ตรวจสอบว่า device รองรับ haptic feedback หรือไม่
-   */
-  const checkSupport = (): boolean => {
-    return isSupported.value
-  }
+  // Audio elements cache
+  const audioCache = new Map<string, HTMLAudioElement>()
   
-  /**
-   * เปิด/ปิด haptic feedback
-   */
-  const setEnabled = (enabled: boolean) => {
-    isEnabled.value = enabled
-  }
-  
-  /**
-   * Trigger haptic feedback
-   */
-  const trigger = (type: HapticType = 'light'): boolean => {
-    if (!isSupported.value || !isEnabled.value) return false
-    
+  // Load settings from localStorage
+  const loadSettings = () => {
     try {
-      const pattern = hapticPatterns[type]?.pattern || 10
-      const result = navigator.vibrate(pattern)
-      
-      // Track haptic feedback (debounced to avoid spam)
-      if (result && shouldTrackHaptic(type)) {
-        quickTrack('haptic_feedback_triggered', 'interaction', { 
-          hapticType: type,
-          pattern: Array.isArray(pattern) ? pattern.join(',') : pattern.toString()
-        })
+      const hapticSetting = localStorage.getItem('haptic_enabled')
+      const soundSetting = localStorage.getItem('sound_enabled')
+      isEnabled.value = hapticSetting !== 'false'
+      isSoundEnabled.value = soundSetting !== 'false'
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }
+  
+  loadSettings()
+
+  // Save settings
+  const saveSettings = () => {
+    try {
+      localStorage.setItem('haptic_enabled', String(isEnabled.value))
+      localStorage.setItem('sound_enabled', String(isSoundEnabled.value))
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }
+
+  // Toggle haptic
+  const toggleHaptic = (enabled?: boolean) => {
+    isEnabled.value = enabled ?? !isEnabled.value
+    saveSettings()
+  }
+
+  // Toggle sound
+  const toggleSound = (enabled?: boolean) => {
+    isSoundEnabled.value = enabled ?? !isSoundEnabled.value
+    saveSettings()
+  }
+
+  // Haptic feedback
+  const vibrate = (pattern: 'light' | 'medium' | 'heavy' | 'success' | 'error' | 'warning' = 'light') => {
+    if (!isEnabled.value) return
+    
+    if ('vibrate' in navigator) {
+      const patterns: Record<string, number | number[]> = {
+        light: 10,
+        medium: 25,
+        heavy: 50,
+        success: [10, 50, 10],
+        error: [50, 30, 50, 30, 50],
+        warning: [30, 20, 30]
       }
       
-      return result
-    } catch {
-      return false
+      try {
+        navigator.vibrate(patterns[pattern] || 10)
+      } catch (e) {
+        // Vibration not supported
+      }
     }
   }
-  
-  // Debounce tracking to avoid spam (track max once per second per type)
-  const lastTrackedTime: Record<string, number> = {}
-  const shouldTrackHaptic = (type: HapticType): boolean => {
-    const now = Date.now()
-    const lastTime = lastTrackedTime[type] || 0
-    if (now - lastTime > 1000) {
-      lastTrackedTime[type] = now
-      return true
-    }
-    return false
-  }
-  
-  /**
-   * Custom vibration pattern
-   */
-  const triggerCustom = (pattern: number | number[]): boolean => {
-    if (!isSupported.value || !isEnabled.value) return false
+
+  // Play sound
+  const playSound = async (type: keyof typeof SOUNDS = 'notification') => {
+    if (!isSoundEnabled.value) return
     
     try {
-      return navigator.vibrate(pattern)
-    } catch {
-      return false
+      // Try to use cached audio
+      let audio = audioCache.get(type)
+      
+      if (!audio) {
+        audio = new Audio(SOUNDS[type])
+        audio.volume = 0.5
+        audioCache.set(type, audio)
+      }
+      
+      // Reset and play
+      audio.currentTime = 0
+      await audio.play()
+    } catch (e) {
+      // Fallback to beep
+      const frequencies: Record<string, number> = {
+        newJob: 880,
+        success: 660,
+        error: 220,
+        notification: 440
+      }
+      createBeep(frequencies[type] || 440, 200)
     }
   }
-  
-  /**
-   * หยุด vibration
-   */
-  const stop = (): boolean => {
-    if (!isSupported.value) return false
+
+  // Combined feedback (haptic + sound)
+  const feedback = (type: 'newJob' | 'success' | 'error' | 'tap' = 'tap') => {
+    const config: Record<string, { haptic: Parameters<typeof vibrate>[0]; sound?: keyof typeof SOUNDS }> = {
+      newJob: { haptic: 'heavy', sound: 'newJob' },
+      success: { haptic: 'success', sound: 'success' },
+      error: { haptic: 'error', sound: 'error' },
+      tap: { haptic: 'light' }
+    }
     
-    try {
-      return navigator.vibrate(0)
-    } catch {
-      return false
-    }
+    const { haptic, sound } = config[type] || config.tap
+    vibrate(haptic)
+    if (sound) playSound(sound)
   }
-  
-  // Shortcut functions
-  const light = () => trigger('light')
-  const medium = () => trigger('medium')
-  const heavy = () => trigger('heavy')
-  const success = () => trigger('success')
-  const warning = () => trigger('warning')
-  const error = () => trigger('error')
-  const selection = () => trigger('selection')
-  
-  /**
-   * Haptic feedback สำหรับ button press
-   */
-  const onButtonPress = () => trigger('light')
-  
-  /**
-   * Haptic feedback สำหรับ toggle switch
-   */
-  const onToggle = () => trigger('selection')
-  
-  /**
-   * Haptic feedback สำหรับ form submit
-   */
-  const onSubmit = () => trigger('medium')
-  
-  /**
-   * Haptic feedback สำหรับ action success
-   */
-  const onSuccess = () => trigger('success')
-  
-  /**
-   * Haptic feedback สำหรับ action error
-   */
-  const onError = () => trigger('error')
-  
-  /**
-   * Haptic feedback สำหรับ pull-to-refresh threshold
-   */
-  const onPullThreshold = () => trigger('medium')
-  
-  /**
-   * Haptic feedback สำหรับ swipe action
-   */
-  const onSwipe = () => trigger('light')
-  
-  /**
-   * Haptic feedback สำหรับ long press
-   */
-  const onLongPress = () => trigger('heavy')
-  
+
+  // New job notification (special case with repeat)
+  const notifyNewJob = () => {
+    feedback('newJob')
+    
+    // Repeat vibration after 500ms for emphasis
+    setTimeout(() => {
+      vibrate('medium')
+    }, 500)
+  }
+
+  // Cleanup
+  onUnmounted(() => {
+    audioCache.forEach(audio => {
+      audio.pause()
+      audio.src = ''
+    })
+    audioCache.clear()
+  })
+
   return {
-    // State
-    isSupported,
     isEnabled,
-    
-    // Core functions
-    checkSupport,
-    setEnabled,
-    trigger,
-    triggerCustom,
-    stop,
-    
-    // Shortcuts
-    light,
-    medium,
-    heavy,
-    success,
-    warning,
-    error,
-    selection,
-    
-    // Context-specific
-    onButtonPress,
-    onToggle,
-    onSubmit,
-    onSuccess,
-    onError,
-    onPullThreshold,
-    onSwipe,
-    onLongPress
+    isSoundEnabled,
+    toggleHaptic,
+    toggleSound,
+    vibrate,
+    playSound,
+    feedback,
+    notifyNewJob
   }
 }
 
-export default useHapticFeedback
+export type HapticFeedback = ReturnType<typeof useHapticFeedback>

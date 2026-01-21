@@ -2,12 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '../lib/supabase'
-import { useAdminAuth } from '../composables/useAdminAuth'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
-const adminAuth = useAdminAuth()
+
+// PRODUCTION ONLY - No demo mode
 
 // Pending provider count for badge
 const pendingProviderCount = ref(0)
@@ -48,16 +48,21 @@ const setupProviderSubscription = () => {
 onMounted(() => {
   fetchPendingProviderCount()
   setupProviderSubscription()
-  // Start session check for auto-logout
-  adminAuth.startSessionCheck()
 })
 
 onUnmounted(() => {
   if (providerSubscription) {
     supabase.removeChannel(providerSubscription)
   }
-  adminAuth.stopSessionCheck()
 })
+
+const logout = async () => {
+  // Sign out from Supabase
+  await supabase.auth.signOut()
+  
+  // Navigate to login
+  router.push('/login')
+}
 
 // ✅ FIX 1: Session check moved to global router guard (see router/index.ts)
 // No longer checking on every mount - reduces localStorage access from 3,600 to 1
@@ -77,6 +82,7 @@ const menuSections = computed(() => [
     items: [
       { path: '/admin/customers', label: 'ลูกค้า', icon: 'customer' },
       { path: '/admin/providers', label: 'ผู้ให้บริการ', icon: 'car', badgeKey: 'pendingProviders' },
+      { path: '/admin/documents', label: 'เอกสาร', icon: 'audit' },
       { path: '/admin/verification-queue', label: 'คิวตรวจสอบ', icon: 'users' }
     ]
   },
@@ -140,8 +146,8 @@ const menuSections = computed(() => [
       { path: '/admin/notifications', label: 'แจ้งเตือน', icon: 'notification' },
       { path: '/admin/push-notifications', label: 'Push Notifications', icon: 'push' },
       { path: '/admin/notification-templates', label: 'Notification Templates', icon: 'template' },
-      { path: '/admin/service-areas', label: 'พื้นที่บริการ', icon: 'map' },
-      { path: '/admin/surge', label: 'Surge Pricing', icon: 'surge' },
+      { path: '/admin/service-zones', label: 'พื้นที่บริการ', icon: 'map' },
+      { path: '/admin/surge-pricing', label: 'Surge Pricing', icon: 'surge' },
       { path: '/admin/system-health', label: 'สุขภาพระบบ', icon: 'health' },
       { path: '/admin/security', label: 'ความปลอดภัย', icon: 'security' },
       { path: '/admin/production-dashboard', label: 'Production KPIs', icon: 'dashboard' },
@@ -167,17 +173,13 @@ const badgeCounts = computed(() => ({
 
 // ✅ FIX 4: Memoize isActive function
 const isActive = (path: string) => {
-  if (path === '/admin/dashboard') return route.path === '/admin/dashboard'
+  if (path === '/admin/dashboard') return route.path === '/admin/dashboard' || route.path === '/admin'
   return route.path.startsWith(path)
 }
 
 const navigate = (path: string) => {
   router.push(path)
   sidebarOpen.value = false
-}
-
-const logout = async () => {
-  await adminAuth.logout()
 }
 
 // ✅ FIX 5: Cleanup on unmount
@@ -517,7 +519,7 @@ onUnmounted(() => {
 
     <!-- Main Content -->
     <main class="admin-main">
-      <slot />
+      <router-view />
     </main>
   </div>
 </template>

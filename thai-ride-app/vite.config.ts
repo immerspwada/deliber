@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import VueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -8,6 +8,23 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')
+    }
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/tests/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'src/tests/',
+        '**/*.d.ts',
+        '**/*.config.*',
+        '**/mockData',
+        'dist/'
+      ]
     }
   },
   plugins: [
@@ -44,25 +61,25 @@ export default defineConfig({
         prefer_related_applications: false,
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: '/pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: 'pwa-maskable-192x192.png',
+            src: '/pwa-maskable-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: 'pwa-512x512.png',
+            src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: 'pwa-maskable-512x512.png',
+            src: '/pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
@@ -364,16 +381,33 @@ export default defineConfig({
     target: 'esnext',
     minify: 'terser',
     sourcemap: false,
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        admin: resolve(__dirname, 'admin.html')
-      },
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'map-vendor': ['leaflet']
+        manualChunks: (id) => {
+          // Vue core
+          if (id.includes('node_modules/vue') || 
+              id.includes('node_modules/@vue') ||
+              id.includes('node_modules/vue-router') ||
+              id.includes('node_modules/pinia')) {
+            return 'vue-vendor'
+          }
+          // Map library - separate chunk
+          if (id.includes('node_modules/leaflet')) {
+            return 'map-vendor'
+          }
+          // Supabase - separate chunk
+          if (id.includes('node_modules/@supabase')) {
+            return 'supabase-vendor'
+          }
         }
+      }
+    },
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
       }
     }
   }

@@ -1,0 +1,87 @@
+/**
+ * NO ANIMATIONS - Global Override
+ * กดปุ๊บ มาปั๊บ
+ * 
+ * IMPORTANT: This file uses specific selectors instead of * to avoid breaking Leaflet
+ */
+
+/* ============================================
+   APP ELEMENTS - NO ANIMATIONS
+   ============================================ */
+html, body, #app,
+div, span, section, article, aside, header, footer, nav, main,
+h1, h2, h3, h4, h5, h6, p, a, button,
+ul, ol, li, form, label,
+table, thead, tbody, tr, th, td {
+  animation-duration: 0ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0ms !important;
+  transition-delay: 0ms !important;
+}
+
+/* ============================================
+   KEEP SPINNERS WORKING
+   ============================================ */
+.spinner,
+.mini-spinner,
+.calculating-spinner,
+.booking-spinner,
+.app-loading-spinner,
+[class*="spinner"] {
+  animation: spin 0.8s linear infinite !important;
+}
+
+.skeleton {
+  animation: shimmer 1.5s infinite !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ============================================
+   VUE TRANSITIONS - INSTANT
+   ============================================ */
+.v-enter-active,
+.v-leave-active,
+.fade-enter-active,
+.fade-leave-active,
+.slide-enter-active,
+.slide-leave-active {
+  transition: none !important;
+}
+
+.v-enter-from,
+.v-leave-to,
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 1 !important;
+}
+
+/* ============================================
+   BUTTONS - INSTANT FEEDBACK
+   ============================================ */
+button:active,
+a:active,
+[role="button"]:active {
+  transform: scale(0.97) !important;
+}
+
+/* ============================================
+   TAILWIND ANIMATIONS - DISABLED
+   ============================================ */
+.animate-pulse,
+.animate-ping,
+.animate-bounce {
+  animation: none !important;
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite !important;
+}

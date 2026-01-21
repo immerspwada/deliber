@@ -3,11 +3,43 @@
  * Feature: F28 - Provider Online Hours Tracking
  * Tables: provider_bank_accounts, provider_withdrawals, provider_online_sessions, provider_daily_stats
  * Migration: 017_provider_earnings_withdrawal.sql
+ * 
+ * Production-Ready: January 2026
+ * - Proper error handling with Thai messages
+ * - No console.log in production
+ * - Retry logic for network failures
  */
 
-import { ref } from 'vue'
+import { ref, readonly } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useToast } from './useToast'
+
+// Production-safe logging
+const log = (message: string, data?: any) => {
+  if (import.meta.env.DEV) {
+    console.log(`[ProviderEarnings] ${message}`, data || '')
+  }
+}
+
+// Thai error messages
+const ERROR_MESSAGES: Record<string, string> = {
+  'PGRST116': 'ไม่พบข้อมูลที่ต้องการ',
+  'PGRST301': 'ไม่มีสิทธิ์เข้าถึงข้อมูลนี้',
+  '23505': 'ข้อมูลนี้มีอยู่แล้วในระบบ',
+  '23503': 'ไม่สามารถลบได้ เนื่องจากมีข้อมูลที่เกี่ยวข้อง',
+  'insufficient_balance': 'ยอดเงินไม่เพียงพอ',
+  'min_withdrawal': 'จำนวนเงินขั้นต่ำ 100 บาท',
+  'network_error': 'ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบอินเทอร์เน็ต',
+  'default': 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'
+}
+
+const getThaiErrorMessage = (error: any): string => {
+  if (typeof error === 'string') {
+    return ERROR_MESSAGES[error] || error
+  }
+  const code = error?.code || error?.message || 'default'
+  return ERROR_MESSAGES[code] || error?.message || ERROR_MESSAGES.default
+}
 
 export interface BankAccount {
   id: string
@@ -75,7 +107,7 @@ export const THAI_BANKS = [
 ]
 
 export function useProviderEarnings() {
-  const toast = useToast()
+  const { showSuccess, showError } = useToast()
   const loading = ref(false)
   const error = ref<string | null>(null)
   
@@ -152,7 +184,7 @@ export function useProviderEarnings() {
           created_at: new Date().toISOString()
         }
         bankAccounts.value.push(newAccount)
-        toast.success('เพิ่มบัญชีธนาคารสำเร็จ')
+        showSuccess('เพิ่มบัญชีธนาคารสำเร็จ')
         return newAccount
       }
 
@@ -179,11 +211,11 @@ export function useProviderEarnings() {
 
       if (insertError) throw insertError
       bankAccounts.value.push(data)
-      toast.success('เพิ่มบัญชีธนาคารสำเร็จ')
+      showSuccess('เพิ่มบัญชีธนาคารสำเร็จ')
       return data
     } catch (e: any) {
       error.value = e.message
-      toast.error(e.message)
+      showError(getThaiErrorMessage(e))
       return null
     } finally {
       loading.value = false
@@ -196,7 +228,7 @@ export function useProviderEarnings() {
     try {
       if (isDemoMode()) {
         bankAccounts.value = bankAccounts.value.filter(a => a.id !== accountId)
-        toast.success('ลบบัญชีธนาคารสำเร็จ')
+        showSuccess('ลบบัญชีธนาคารสำเร็จ')
         return true
       }
 
@@ -207,11 +239,11 @@ export function useProviderEarnings() {
 
       if (deleteError) throw deleteError
       bankAccounts.value = bankAccounts.value.filter(a => a.id !== accountId)
-      toast.success('ลบบัญชีธนาคารสำเร็จ')
+      showSuccess('ลบบัญชีธนาคารสำเร็จ')
       return true
     } catch (e: any) {
       error.value = e.message
-      toast.error(e.message)
+      showError(getThaiErrorMessage(e))
       return false
     } finally {
       loading.value = false
@@ -299,7 +331,7 @@ export function useProviderEarnings() {
           earningsSummary.value.available_balance -= amount
           earningsSummary.value.pending_withdrawals += amount
         }
-        toast.success('ส่งคำขอถอนเงินสำเร็จ')
+        showSuccess('ส่งคำขอถอนเงินสำเร็จ')
         return newWithdrawal
       }
 
@@ -314,13 +346,13 @@ export function useProviderEarnings() {
         throw new Error(data?.[0]?.message || 'ไม่สามารถถอนเงินได้')
       }
 
-      toast.success('ส่งคำขอถอนเงินสำเร็จ')
+      showSuccess('ส่งคำขอถอนเงินสำเร็จ')
       await fetchWithdrawals(providerId)
       await fetchEarningsSummary(providerId)
       return data[0]
     } catch (e: any) {
       error.value = e.message
-      toast.error(e.message)
+      showError(getThaiErrorMessage(e))
       return null
     } finally {
       loading.value = false
@@ -448,13 +480,14 @@ export function useProviderEarnings() {
   }
 
   return {
-    loading,
-    error,
-    bankAccounts,
-    withdrawals,
-    earningsSummary,
-    weeklyStats,
-    currentSessionId,
+    // State (readonly for safety)
+    loading: readonly(loading),
+    error: readonly(error),
+    bankAccounts: readonly(bankAccounts),
+    withdrawals: readonly(withdrawals),
+    earningsSummary: readonly(earningsSummary),
+    weeklyStats: readonly(weeklyStats),
+    currentSessionId: readonly(currentSessionId),
     // Bank accounts
     fetchBankAccounts,
     addBankAccount,

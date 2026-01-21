@@ -30,7 +30,7 @@ const emit = defineEmits<{
   'navigate': [route: string]
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const navItems: NavItem[] = [
   { id: 'home', name: 'หน้าแรก', route: '/customer' },
@@ -40,7 +40,7 @@ const navItems: NavItem[] = [
 ]
 
 const handleClick = (item: NavItem) => {
-  haptic.light()
+  vibrate('light')
   emit('navigate', item.route)
 }
 

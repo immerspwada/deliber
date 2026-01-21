@@ -81,7 +81,7 @@ export function useQueueBooking() {
     return scheduledDateTime > new Date()
   }
 
-  // Create Queue Booking
+  // Create Queue Booking using atomic function
   async function createQueueBooking(input: CreateQueueBookingInput): Promise<QueueBooking | null> {
     loading.value = true
     error.value = null
@@ -126,27 +126,54 @@ export function useQueueBooking() {
         return mockBooking
       }
 
-      // Generate tracking_id via trigger (auto-generated)
-      const { data, error: insertError } = await (supabase
-        .from('queue_bookings') as any)
-        .insert({
-          user_id: userId,
-          category: input.category,
-          place_name: input.place_name || null,
-          place_address: input.place_address || null,
-          details: input.details || null,
-          scheduled_date: input.scheduled_date,
-          scheduled_time: input.scheduled_time,
-          status: 'pending'
-        })
-        .select()
-        .single()
+      // Calculate service fee
+      const serviceFee = 50 // Base fee for queue booking
 
-      if (insertError) throw insertError
+      // Combine date and time for appointment
+      const appointmentTime = new Date(`${input.scheduled_date}T${input.scheduled_time}`)
 
-      currentBooking.value = data
-      bookings.value.unshift(data)
-      return data
+      // Use atomic function for wallet check and order creation
+      const { data: result, error: rpcError } = await supabase.rpc('create_queue_atomic', {
+        p_user_id: userId,
+        p_pickup_lat: 0, // Queue booking doesn't need location
+        p_pickup_lng: 0,
+        p_pickup_address: input.place_address || input.place_name || 'สถานที่จองคิว',
+        p_service_name: input.category,
+        p_appointment_time: appointmentTime.toISOString(),
+        p_notes: input.details || null,
+        p_estimated_fare: serviceFee,
+        p_promo_code: null
+      })
+
+      if (rpcError) {
+        console.error('Atomic create error:', rpcError)
+        // Handle specific error types
+        if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
+          error.value = 'ยอดเงินใน Wallet ไม่เพียงพอ กรุณาเติมเงินก่อนจองคิว'
+          return null
+        }
+        if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
+          error.value = 'ไม่พบ Wallet กรุณาติดต่อฝ่ายสนับสนุน'
+          return null
+        }
+        throw rpcError
+      }
+
+      if (result?.success) {
+        // Fetch the created queue booking
+        const { data, error: fetchError } = await supabase
+          .from('queue_bookings')
+          .select('*')
+          .eq('id', result.queue_id)
+          .single()
+
+        if (!fetchError && data) {
+          currentBooking.value = data
+          bookings.value.unshift(data)
+          return data
+        }
+      }
+      return null
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการจองคิว'
       return null
@@ -218,41 +245,65 @@ export function useQueueBooking() {
     }
   }
 
-  // Cancel Booking (Requirements 1.6)
-  async function cancelBooking(bookingId: string, reason?: string): Promise<boolean> {
+  // Cancel Booking with pending refund (requires Admin approval)
+  async function cancelBooking(bookingId: string, reason?: string): Promise<{ success: boolean; refundAmount?: number; message?: string } | null> {
     loading.value = true
     error.value = null
 
     try {
-      const { error: updateError } = await (supabase
-        .from('queue_bookings') as any)
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancel_reason: reason || null
-        })
-        .eq('id', bookingId)
-
-      if (updateError) throw updateError
-
-      // Update local state
-      const index = bookings.value.findIndex(b => b.id === bookingId)
-      if (index !== -1) {
-        bookings.value[index]!.status = 'cancelled'
-        bookings.value[index]!.cancelled_at = new Date().toISOString()
-        bookings.value[index]!.cancel_reason = reason || null
+      const userId = authStore.user?.id
+      if (!userId) {
+        error.value = 'กรุณาเข้าสู่ระบบ'
+        return null
       }
 
-      if (currentBooking.value && currentBooking.value.id === bookingId) {
-        currentBooking.value.status = 'cancelled'
-        currentBooking.value.cancelled_at = new Date().toISOString()
-        currentBooking.value.cancel_reason = reason || null
+      // Use atomic cancel function with pending refund
+      const { data: result, error: rpcError } = await supabase.rpc('cancel_request_with_pending_refund', {
+        p_request_id: bookingId,
+        p_request_type: 'queue',
+        p_cancelled_by: userId,
+        p_cancelled_by_role: 'customer',
+        p_cancel_reason: reason || 'ลูกค้ายกเลิก'
+      })
+
+      if (rpcError) {
+        console.error('Cancel error:', rpcError)
+        if (rpcError.message?.includes('REQUEST_NOT_FOUND')) {
+          error.value = 'ไม่พบการจองนี้'
+        } else if (rpcError.message?.includes('REQUEST_ALREADY_FINALIZED')) {
+          error.value = 'ไม่สามารถยกเลิกได้ การจองนี้ดำเนินการเสร็จสิ้นแล้ว'
+        } else {
+          error.value = rpcError.message || 'เกิดข้อผิดพลาดในการยกเลิก'
+        }
+        return null
       }
 
-      return true
+      if (result?.success) {
+        // Update local state
+        const index = bookings.value.findIndex(b => b.id === bookingId)
+        if (index !== -1) {
+          bookings.value[index]!.status = 'cancelled'
+          bookings.value[index]!.cancelled_at = new Date().toISOString()
+          bookings.value[index]!.cancel_reason = reason || null
+        }
+
+        if (currentBooking.value && currentBooking.value.id === bookingId) {
+          currentBooking.value.status = 'cancelled'
+          currentBooking.value.cancelled_at = new Date().toISOString()
+          currentBooking.value.cancel_reason = reason || null
+        }
+
+        return {
+          success: true,
+          refundAmount: result.refund_amount,
+          message: result.message || 'ยกเลิกสำเร็จ คำขอคืนเงินรอการอนุมัติจาก Admin'
+        }
+      }
+
+      return null
     } catch (err: any) {
       error.value = err.message || 'เกิดข้อผิดพลาดในการยกเลิก'
-      return false
+      return null
     } finally {
       loading.value = false
     }

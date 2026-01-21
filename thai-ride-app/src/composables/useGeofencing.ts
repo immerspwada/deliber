@@ -1,215 +1,257 @@
 /**
- * Feature: F34 - Geofencing Alert for Providers
+ * Composable: useGeofencing
+ * ตรวจจับและแจ้งเตือนเมื่อ provider เข้าใกล้จุดหมาย
  * 
- * ระบบแจ้งเตือนเมื่อ Provider ออกนอกพื้นที่ให้บริการ
- * - พื้นที่ให้บริการ: อำเภอสุไหงโกลก จังหวัดนราธิวาส
- * - แจ้งเตือนเมื่อออกนอกพื้นที่
- * - แจ้งเตือนเมื่อกลับเข้าพื้นที่
+ * Role Impact:
+ * - Customer: รับ notification เมื่อคนขับใกล้ถึง
+ * - Provider: ไม่มีผลกระทบ
+ * - Admin: ดู geofence events ใน logs
  */
+import { ref, computed, watch } from 'vue'
+import type { Ref } from 'vue'
 
-import { ref, computed } from 'vue'
-import { useToast } from './useToast'
-
-// Su-ngai Kolok service area bounds
-export const SERVICE_AREA = {
-  name: 'อำเภอสุไหงโกลก',
-  center: { lat: 6.0282, lng: 101.9654 },
-  // Approximate bounds for Su-ngai Kolok district
-  bounds: {
-    north: 6.08,
-    south: 5.97,
-    east: 102.05,
-    west: 101.88
-  },
-  // Radius in km from center (for circular check)
-  radiusKm: 8
+interface Location {
+  lat: number
+  lng: number
 }
 
-export interface GeofenceStatus {
-  isInsideServiceArea: boolean
-  distanceFromCenter: number
-  lastCheck: Date
-  warningShown: boolean
+interface GeofenceZone {
+  center: Location
+  radius: number // meters
+  name: string
 }
 
-export function useGeofencing() {
-  const status = ref<GeofenceStatus>({
-    isInsideServiceArea: true,
-    distanceFromCenter: 0,
-    lastCheck: new Date(),
-    warningShown: false
-  })
+interface GeofenceEvent {
+  zone: string
+  type: 'enter' | 'exit'
+  timestamp: number
+  distance: number
+}
 
-  const toast = useToast()
+interface GeofenceOptions {
+  checkInterval?: number // ms
+  enableNotifications?: boolean
+  enableHaptic?: boolean
+}
 
-  // Calculate distance using Haversine formula
-  const calculateDistance = (
-    lat1: number, lng1: number,
-    lat2: number, lng2: number
-  ): number => {
-    const R = 6371 // Earth's radius in km
-    const dLat = toRad(lat2 - lat1)
-    const dLng = toRad(lng2 - lng1)
+const DEFAULT_OPTIONS: Required<GeofenceOptions> = {
+  checkInterval: 3000, // Check every 3 seconds
+  enableNotifications: true,
+  enableHaptic: true
+}
+
+// Predefined zones
+const ZONE_PRESETS = {
+  VERY_CLOSE: 100, // 100m
+  NEARBY: 300, // 300m
+  APPROACHING: 500, // 500m
+  AREA: 1000 // 1km
+}
+
+export function useGeofencing(
+  currentLocation: Ref<Location | null>,
+  zones: Ref<GeofenceZone[]>,
+  options: GeofenceOptions = {}
+) {
+  const config = { ...DEFAULT_OPTIONS, ...options }
+  
+  const events = ref<GeofenceEvent[]>([])
+  const activeZones = ref<Set<string>>(new Set())
+  const lastCheck = ref<number>(0)
+  let checkIntervalId: ReturnType<typeof setInterval> | null = null
+
+  // Calculate distance between two points (Haversine)
+  function calculateDistance(from: Location, to: Location): number {
+    const R = 6371000 // Earth radius in meters
+    const dLat = toRad(to.lat - from.lat)
+    const dLng = toRad(to.lng - from.lng)
+    
     const a = 
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) *
       Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c
   }
 
-  const toRad = (deg: number): number => deg * (Math.PI / 180)
-
-  // Check if point is inside rectangular bounds
-  const isInsideBounds = (lat: number, lng: number): boolean => {
-    const { bounds } = SERVICE_AREA
-    return (
-      lat >= bounds.south &&
-      lat <= bounds.north &&
-      lng >= bounds.west &&
-      lng <= bounds.east
-    )
+  function toRad(degrees: number): number {
+    return degrees * (Math.PI / 180)
   }
 
-  // Check if point is inside circular service area
-  const isInsideRadius = (lat: number, lng: number): boolean => {
-    const distance = calculateDistance(
-      lat, lng,
-      SERVICE_AREA.center.lat,
-      SERVICE_AREA.center.lng
-    )
-    return distance <= SERVICE_AREA.radiusKm
+  // Check if location is inside zone
+  function isInsideZone(location: Location, zone: GeofenceZone): boolean {
+    const distance = calculateDistance(location, zone.center)
+    return distance <= zone.radius
   }
 
-  // Check if location is inside service area (uses both bounds and radius)
-  const checkLocation = (lat: number, lng: number): boolean => {
-    const distance = calculateDistance(
-      lat, lng,
-      SERVICE_AREA.center.lat,
-      SERVICE_AREA.center.lng
-    )
+  // Trigger notification
+  function triggerNotification(event: GeofenceEvent): void {
+    if (!config.enableNotifications) return
 
-    const wasInside = status.value.isInsideServiceArea
-    const isInside = isInsideBounds(lat, lng) || isInsideRadius(lat, lng)
-
-    status.value = {
-      isInsideServiceArea: isInside,
-      distanceFromCenter: distance,
-      lastCheck: new Date(),
-      warningShown: status.value.warningShown
+    const messages: Record<string, string> = {
+      'very-close': '🚗 คนขับมาถึงแล้ว! (ใกล้มากๆ)',
+      'nearby': '🚗 คนขับใกล้ถึงแล้ว (300 ม.)',
+      'approaching': '🚗 คนขับกำลังมา (500 ม.)',
+      'area': '📍 คนขับเข้าพื้นที่แล้ว (1 กม.)'
     }
 
-    // Show warning when leaving service area
-    if (wasInside && !isInside && !status.value.warningShown) {
-      showOutsideAreaWarning(distance)
-      status.value.warningShown = true
+    const message = messages[event.zone] || `คนขับ${event.type === 'enter' ? 'เข้า' : 'ออก'}จาก ${event.zone}`
+
+    // Browser notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Thai Ride', {
+        body: message,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: `geofence-${event.zone}`,
+        requireInteraction: event.zone === 'very-close'
+      })
     }
 
-    // Reset warning when returning to service area
-    if (!wasInside && isInside && status.value.warningShown) {
-      showReturnedToAreaNotice()
-      status.value.warningShown = false
-    }
-
-    return isInside
-  }
-
-  // Play alert sound
-  const playAlertSound = (type: 'warning' | 'success') => {
-    try {
-      // Create audio context for generating tones
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext
-      if (!AudioContext) return
-
-      const audioCtx = new AudioContext()
-      const oscillator = audioCtx.createOscillator()
-      const gainNode = audioCtx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(audioCtx.destination)
-
-      if (type === 'warning') {
-        // Warning: Two-tone alert (high-low-high)
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime) // A5
-        oscillator.frequency.setValueAtTime(440, audioCtx.currentTime + 0.15) // A4
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.3) // A5
-        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5)
-        oscillator.start(audioCtx.currentTime)
-        oscillator.stop(audioCtx.currentTime + 0.5)
+    // Haptic feedback
+    if (config.enableHaptic && 'vibrate' in navigator) {
+      if (event.zone === 'very-close') {
+        navigator.vibrate([100, 50, 100, 50, 100]) // Strong pattern
+      } else if (event.zone === 'nearby') {
+        navigator.vibrate([100, 50, 100]) // Medium pattern
       } else {
-        // Success: Pleasant ascending tone
-        oscillator.frequency.setValueAtTime(523, audioCtx.currentTime) // C5
-        oscillator.frequency.setValueAtTime(659, audioCtx.currentTime + 0.1) // E5
-        oscillator.frequency.setValueAtTime(784, audioCtx.currentTime + 0.2) // G5
-        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4)
-        oscillator.start(audioCtx.currentTime)
-        oscillator.stop(audioCtx.currentTime + 0.4)
+        navigator.vibrate(100) // Single vibration
       }
-    } catch {
-      // Audio not supported, ignore
     }
+
+    console.log('[Geofencing] Notification:', message)
   }
 
-  // Show warning toast when outside service area
-  const showOutsideAreaWarning = (distance: number) => {
-    toast.warning(
-      `คุณออกนอกพื้นที่ให้บริการ (${SERVICE_AREA.name}) ห่างจากศูนย์กลาง ${distance.toFixed(1)} กม.`,
-      5000
-    )
-
-    // Play warning sound
-    playAlertSound('warning')
-
-    // Vibrate if supported
-    if ('vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200, 100, 200])
+  // Add event
+  function addEvent(zone: string, type: 'enter' | 'exit', distance: number): void {
+    const event: GeofenceEvent = {
+      zone,
+      type,
+      timestamp: Date.now(),
+      distance
     }
-  }
 
-  // Show notice when returned to service area
-  const showReturnedToAreaNotice = () => {
-    toast.success('คุณกลับเข้าสู่พื้นที่ให้บริการแล้ว', 3000)
+    events.value.push(event)
     
-    // Play success sound
-    playAlertSound('success')
+    // Keep only last 20 events
+    if (events.value.length > 20) {
+      events.value = events.value.slice(-20)
+    }
+
+    // Trigger notification for enter events
+    if (type === 'enter') {
+      triggerNotification(event)
+    }
+
+    console.log('[Geofencing] Event:', event)
   }
 
-  // Get distance to service area center
-  const getDistanceToCenter = (lat: number, lng: number): number => {
-    return calculateDistance(
-      lat, lng,
-      SERVICE_AREA.center.lat,
-      SERVICE_AREA.center.lng
-    )
-  }
+  // Check zones
+  function checkZones(): void {
+    if (!currentLocation.value || zones.value.length === 0) return
 
-  // Get direction to service area center
-  const getDirectionToCenter = (lat: number, lng: number): string => {
-    const dLat = SERVICE_AREA.center.lat - lat
-    const dLng = SERVICE_AREA.center.lng - lng
+    const now = Date.now()
+    if (now - lastCheck.value < config.checkInterval) return
 
-    if (Math.abs(dLat) > Math.abs(dLng)) {
-      return dLat > 0 ? 'เหนือ' : 'ใต้'
-    } else {
-      return dLng > 0 ? 'ตะวันออก' : 'ตะวันตก'
+    lastCheck.value = now
+
+    for (const zone of zones.value) {
+      const isInside = isInsideZone(currentLocation.value, zone)
+      const wasInside = activeZones.value.has(zone.name)
+      const distance = calculateDistance(currentLocation.value, zone.center)
+
+      if (isInside && !wasInside) {
+        // Entered zone
+        activeZones.value.add(zone.name)
+        addEvent(zone.name, 'enter', distance)
+      } else if (!isInside && wasInside) {
+        // Exited zone
+        activeZones.value.delete(zone.name)
+        addEvent(zone.name, 'exit', distance)
+      }
     }
   }
 
-  // Computed: is currently inside service area
-  const isInsideServiceArea = computed(() => status.value.isInsideServiceArea)
+  // Start monitoring
+  function startMonitoring(): void {
+    if (checkIntervalId) return
 
-  // Computed: distance from center
-  const distanceFromCenter = computed(() => status.value.distanceFromCenter)
+    checkIntervalId = setInterval(() => {
+      checkZones()
+    }, config.checkInterval)
+
+    console.log('[Geofencing] Monitoring started')
+  }
+
+  // Stop monitoring
+  function stopMonitoring(): void {
+    if (checkIntervalId) {
+      clearInterval(checkIntervalId)
+      checkIntervalId = null
+      console.log('[Geofencing] Monitoring stopped')
+    }
+  }
+
+  // Request notification permission
+  async function requestNotificationPermission(): Promise<boolean> {
+    if (!('Notification' in window)) return false
+
+    if (Notification.permission === 'granted') return true
+
+    if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission()
+      return permission === 'granted'
+    }
+
+    return false
+  }
+
+  // Watch for location changes
+  watch(currentLocation, () => {
+    checkZones()
+  }, { deep: true })
+
+  // Auto-start monitoring when zones are available
+  watch(zones, (newZones) => {
+    if (newZones.length > 0) {
+      startMonitoring()
+    } else {
+      stopMonitoring()
+    }
+  }, { immediate: true })
+
+  // Computed values
+  const isInAnyZone = computed(() => activeZones.value.size > 0)
+  
+  const closestZone = computed(() => {
+    if (!currentLocation.value || zones.value.length === 0) return null
+
+    let closest: { zone: GeofenceZone; distance: number } | null = null
+
+    for (const zone of zones.value) {
+      const distance = calculateDistance(currentLocation.value, zone.center)
+      if (!closest || distance < closest.distance) {
+        closest = { zone, distance }
+      }
+    }
+
+    return closest
+  })
+
+  const recentEvents = computed(() => 
+    events.value.slice(-5).reverse()
+  )
 
   return {
-    status,
-    isInsideServiceArea,
-    distanceFromCenter,
-    checkLocation,
-    getDistanceToCenter,
-    getDirectionToCenter,
-    SERVICE_AREA
+    events,
+    recentEvents,
+    activeZones: computed(() => Array.from(activeZones.value)),
+    isInAnyZone,
+    closestZone,
+    startMonitoring,
+    stopMonitoring,
+    requestNotificationPermission,
+    ZONE_PRESETS
   }
 }

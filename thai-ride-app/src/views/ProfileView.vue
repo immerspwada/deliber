@@ -13,30 +13,59 @@ const { history, fetchHistory } = useRideHistory()
 const { balance, fetchBalance } = useWallet()
 
 const loading = ref(true)
+const loadError = ref(false)
 
 onMounted(async () => {
-  // Fetch user stats
-  await Promise.all([
-    fetchLoyaltySummary(),
-    fetchHistory('all'),
-    fetchBalance()
-  ])
-  loading.value = false
+  try {
+    // Fetch data in parallel with error handling for each
+    const results = await Promise.allSettled([
+      fetchLoyaltySummary(),
+      fetchHistory('all'),
+      fetchBalance()
+    ])
+    
+    // Check if any critical fetch failed
+    const failedCount = results.filter(r => r.status === 'rejected').length
+    if (failedCount === results.length) {
+      loadError.value = true
+    }
+  } catch {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 })
 
 const user = computed(() => {
   if (authStore.user) {
-    const name = authStore.user.name || ''
-    const nameParts = name.split(' ')
+    const userData = authStore.user as any
+    // Support both 'name' field and 'first_name'/'last_name' fields
+    let fullName = userData.name || ''
+    let firstName = ''
+    let lastName = ''
+    
+    if (fullName) {
+      const nameParts = fullName.split(' ')
+      firstName = nameParts[0] || ''
+      lastName = nameParts.slice(1).join(' ') || ''
+    } else if (userData.first_name || userData.last_name) {
+      firstName = userData.first_name || ''
+      lastName = userData.last_name || ''
+      fullName = `${firstName} ${lastName}`.trim()
+    }
+    
+    // Support both 'phone' and 'phone_number' fields
+    const phone = userData.phone || userData.phone_number || ''
+    
     return {
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
-      fullName: name || 'User',
-      phone: authStore.user.phone || '',
-      email: authStore.user.email || '',
-      memberUid: (authStore.user as any).member_uid || null,
-      profileImage: authStore.user.avatar_url || null,
-      verificationStatus: authStore.user.is_active ? 'verified' : 'pending'
+      firstName,
+      lastName,
+      fullName: fullName || 'User',
+      phone,
+      email: userData.email || '',
+      memberUid: userData.member_uid || null,
+      profileImage: userData.avatar_url || null,
+      verificationStatus: userData.is_active ? 'verified' : 'pending'
     }
   }
   return {
@@ -47,7 +76,6 @@ const user = computed(() => {
 })
 
 const isLoggedIn = computed(() => authStore.isAuthenticated)
-const isDemoMode = computed(() => authStore.isDemoMode)
 
 const showEditModal = ref(false)
 const editForm = ref({ firstName: '', lastName: '', phone: '' })
@@ -56,35 +84,70 @@ const saveError = ref('')
 const saveSuccess = ref(false)
 
 const openEditModal = () => {
-  editForm.value = { firstName: user.value.firstName, lastName: user.value.lastName, phone: user.value.phone }
+  editForm.value = { 
+    firstName: user.value.firstName, 
+    lastName: user.value.lastName, 
+    phone: user.value.phone 
+  }
   saveError.value = ''
   saveSuccess.value = false
   showEditModal.value = true
 }
 
 const saveProfile = async () => {
-  if (!editForm.value.firstName.trim()) { saveError.value = 'กรุณากรอกชื่อ'; return }
-  if (!editForm.value.lastName.trim()) { saveError.value = 'กรุณากรอกนามสกุล'; return }
+  // Validate first name
+  if (!editForm.value.firstName.trim()) { 
+    saveError.value = 'กรุณากรอกชื่อ'
+    return 
+  }
+  if (editForm.value.firstName.trim().length < 2) {
+    saveError.value = 'ชื่อต้องมีอย่างน้อย 2 ตัวอักษร'
+    return
+  }
+  
+  // Validate last name
+  if (!editForm.value.lastName.trim()) { 
+    saveError.value = 'กรุณากรอกนามสกุล'
+    return 
+  }
+  if (editForm.value.lastName.trim().length < 2) {
+    saveError.value = 'นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร'
+    return
+  }
+  
+  // Validate phone (Thai format)
+  const phone = editForm.value.phone.replace(/[-\s]/g, '')
+  if (phone && !/^0[0-9]{8,9}$/.test(phone)) {
+    saveError.value = 'เบอร์โทรศัพท์ไม่ถูกต้อง (เช่น 0812345678)'
+    return
+  }
+  
   saving.value = true
   saveError.value = ''
+  
   try {
-    const fullName = `${editForm.value.firstName} ${editForm.value.lastName}`.trim()
-    if (isDemoMode.value) {
-      const demoUser = { ...authStore.user, name: fullName, phone: editForm.value.phone }
-      localStorage.setItem('demo_user', JSON.stringify(demoUser))
-      if (authStore.user) {
-        (authStore.user as any).name = fullName;
-        (authStore.user as any).phone = editForm.value.phone
-      }
+    const fullName = `${editForm.value.firstName.trim()} ${editForm.value.lastName.trim()}`.trim()
+    const cleanPhone = phone || ''
+    
+    // Clear any previous auth errors
+    authStore.error = null
+    
+    const success = await authStore.updateProfile({ 
+      name: fullName, 
+      phone: cleanPhone 
+    })
+    
+    if (success) { 
       saveSuccess.value = true
-      setTimeout(() => showEditModal.value = false, 1000)
-      return
+      setTimeout(() => showEditModal.value = false, 1000) 
+    } else { 
+      saveError.value = authStore.error || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
     }
-    const success = await authStore.updateProfile({ name: fullName, phone: editForm.value.phone })
-    if (success) { saveSuccess.value = true; setTimeout(() => showEditModal.value = false, 1000) }
-    else { saveError.value = authStore.error || 'เกิดข้อผิดพลาด' }
-  } catch (err: any) { saveError.value = err.message || 'เกิดข้อผิดพลาด' }
-  finally { saving.value = false }
+  } catch (err: any) { 
+    saveError.value = err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' 
+  } finally { 
+    saving.value = false 
+  }
 }
 
 const menuItems = [
@@ -111,13 +174,11 @@ const loggingOut = ref(false)
 const logout = async () => {
   if (loggingOut.value) return
   loggingOut.value = true
-  localStorage.removeItem('demo_mode')
-  localStorage.removeItem('demo_user')
   router.push('/login')
   try {
     await authStore.logout()
   } catch (e) {
-    console.error('Logout error:', e)
+    // Ignore logout errors
   } finally {
     loggingOut.value = false
   }
@@ -126,7 +187,6 @@ const logout = async () => {
 
 <template>
   <div class="profile-page">
-    <!-- Header -->
     <header class="page-header">
       <button class="back-btn" @click="goBack">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -138,7 +198,35 @@ const logout = async () => {
     </header>
 
     <main class="page-content">
-      <!-- Profile Card -->
+      <!-- Loading Skeleton -->
+      <div v-if="loading" class="loading-skeleton">
+        <div class="skeleton-profile-card">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-info">
+            <div class="skeleton-line skeleton-name"></div>
+            <div class="skeleton-line skeleton-phone"></div>
+          </div>
+        </div>
+        <div class="skeleton-stats"></div>
+        <div class="skeleton-menu">
+          <div v-for="i in 5" :key="i" class="skeleton-menu-item"></div>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="loadError" class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4M12 16h.01"/>
+        </svg>
+        <p>ไม่สามารถโหลดข้อมูลได้</p>
+        <button @click="() => { loading = true; loadError = false; $router.go(0) }" class="retry-btn">
+          ลองใหม่
+        </button>
+      </div>
+
+      <!-- Main Content -->
+      <template v-else>
       <div class="profile-card">
         <div class="avatar">
           <img v-if="user.profileImage" :src="user.profileImage" alt="Profile" />
@@ -167,7 +255,6 @@ const logout = async () => {
         </button>
       </div>
 
-      <!-- Quick Stats -->
       <div class="stats-row">
         <div class="stat-item" @click="navigateToMenu('/customer/history')">
           <span class="stat-value">{{ history.length || 0 }}</span>
@@ -185,7 +272,6 @@ const logout = async () => {
         </div>
       </div>
 
-      <!-- Loyalty Tier Card -->
       <div v-if="loyaltySummary?.tier" class="loyalty-tier-card" @click="navigateToMenu('/customer/loyalty')">
         <div class="tier-icon">
           <svg viewBox="0 0 24 24" fill="none">
@@ -207,79 +293,47 @@ const logout = async () => {
         </svg>
       </div>
 
-      <!-- Menu List -->
       <div class="menu-section">
-        <button 
-          v-for="item in menuItems" 
-          :key="item.label" 
-          class="menu-item"
-          @click="navigateToMenu(item.path)"
-        >
+        <button v-for="item in menuItems" :key="item.label" class="menu-item" @click="navigateToMenu(item.path)">
           <div class="menu-icon">
-            <!-- History -->
             <svg v-if="item.icon === 'history'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12,6 12,12 16,14"/>
+              <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
             </svg>
-            <!-- Calendar -->
             <svg v-else-if="item.icon === 'calendar'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2"/>
-              <path d="M16 2v4M8 2v4M3 10h18"/>
+              <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
             </svg>
-            <!-- Location -->
             <svg v-else-if="item.icon === 'location'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-              <circle cx="12" cy="10" r="3"/>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
             </svg>
-            <!-- Heart -->
             <svg v-else-if="item.icon === 'heart'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
             </svg>
-            <!-- Wallet -->
             <svg v-else-if="item.icon === 'wallet'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="5" width="20" height="14" rx="2"/>
-              <path d="M2 10h20"/>
+              <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
             </svg>
-            <!-- Card -->
             <svg v-else-if="item.icon === 'card'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="4" width="22" height="16" rx="2"/>
-              <path d="M1 10h22"/>
+              <rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/>
             </svg>
-            <!-- Star -->
             <svg v-else-if="item.icon === 'star'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
             </svg>
-            <!-- Tag -->
             <svg v-else-if="item.icon === 'tag'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
-              <circle cx="7" cy="7" r="1"/>
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1"/>
             </svg>
-            <!-- Users -->
             <svg v-else-if="item.icon === 'users'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
             </svg>
-            <!-- Bell -->
             <svg v-else-if="item.icon === 'bell'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
             </svg>
-            <!-- Shield -->
             <svg v-else-if="item.icon === 'shield'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              <path d="M9 12l2 2 4-4"/>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
             </svg>
-            <!-- Settings -->
             <svg v-else-if="item.icon === 'settings'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
             </svg>
-            <!-- Help -->
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
-              <circle cx="12" cy="17" r="1"/>
+              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r="1"/>
             </svg>
           </div>
           <span class="menu-label">{{ item.label }}</span>
@@ -289,7 +343,6 @@ const logout = async () => {
         </button>
       </div>
 
-      <!-- Logout -->
       <button v-if="isLoggedIn" @click="logout" class="logout-btn" :disabled="loggingOut">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
@@ -303,14 +356,14 @@ const logout = async () => {
       </button>
 
       <p class="version">GOBEAR v1.0.0</p>
+      </template>
     </main>
 
-    <!-- Edit Modal -->
-    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+    <div v-if="showEditModal" class="modal-overlay" @click.self="!saving && (showEditModal = false)">
       <div class="edit-modal">
         <div class="modal-header">
           <h3>แก้ไขโปรไฟล์</h3>
-          <button @click="showEditModal = false" class="close-btn">
+          <button @click="showEditModal = false" class="close-btn" :disabled="saving">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -318,15 +371,15 @@ const logout = async () => {
         </div>
         <div class="form-group">
           <label>ชื่อ</label>
-          <input v-model="editForm.firstName" type="text" placeholder="ชื่อ" />
+          <input v-model="editForm.firstName" type="text" placeholder="ชื่อ" :disabled="saving" />
         </div>
         <div class="form-group">
           <label>นามสกุล</label>
-          <input v-model="editForm.lastName" type="text" placeholder="นามสกุล" />
+          <input v-model="editForm.lastName" type="text" placeholder="นามสกุล" :disabled="saving" />
         </div>
         <div class="form-group">
           <label>เบอร์โทรศัพท์</label>
-          <input v-model="editForm.phone" type="tel" placeholder="081-234-5678" />
+          <input v-model="editForm.phone" type="tel" placeholder="081-234-5678" :disabled="saving" />
         </div>
         <p v-if="saveError" class="error-text">{{ saveError }}</p>
         <p v-if="saveSuccess" class="success-text">บันทึกสำเร็จ!</p>
@@ -339,6 +392,7 @@ const logout = async () => {
   </div>
 </template>
 
+
 <style scoped>
 .profile-page {
   min-height: 100vh;
@@ -346,7 +400,6 @@ const logout = async () => {
   background: #FFFFFF;
 }
 
-/* Header */
 .page-header {
   display: flex;
   align-items: center;
@@ -384,13 +437,11 @@ const logout = async () => {
   width: 44px;
 }
 
-/* Content */
 .page-content {
   padding: 20px;
   padding-bottom: calc(100px + env(safe-area-inset-bottom));
 }
 
-/* Profile Card */
 .profile-card {
   display: flex;
   align-items: center;
@@ -498,7 +549,6 @@ const logout = async () => {
   transform: scale(0.95);
 }
 
-/* Stats Row */
 .stats-row {
   display: flex;
   align-items: center;
@@ -542,7 +592,6 @@ const logout = async () => {
   background: #F0F0F0;
 }
 
-/* Loyalty Tier Card */
 .loyalty-tier-card {
   display: flex;
   align-items: center;
@@ -620,7 +669,6 @@ const logout = async () => {
   color: #996600;
 }
 
-/* Menu Section */
 .menu-section {
   background: #FFFFFF;
   border: 1px solid #F0F0F0;
@@ -680,7 +728,6 @@ const logout = async () => {
   color: #CCCCCC;
 }
 
-/* Logout Button */
 .logout-btn {
   display: flex;
   align-items: center;
@@ -735,7 +782,6 @@ const logout = async () => {
   margin-top: 24px;
 }
 
-/* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -818,6 +864,17 @@ const logout = async () => {
   border-color: #00A86B;
 }
 
+.form-group input:disabled {
+  background: #F5F5F5;
+  color: #999999;
+  cursor: not-allowed;
+}
+
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .error-text {
   color: #E53935;
   font-size: 14px;
@@ -861,5 +918,123 @@ const logout = async () => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Loading Skeleton */
+.loading-skeleton {
+  padding: 20px 0;
+}
+
+.skeleton-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: #F5F5F5;
+  border-radius: 20px;
+  margin-bottom: 20px;
+}
+
+.skeleton-avatar {
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-info {
+  flex: 1;
+}
+
+.skeleton-line {
+  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-name {
+  width: 120px;
+  height: 20px;
+  margin-bottom: 8px;
+}
+
+.skeleton-phone {
+  width: 100px;
+  height: 14px;
+}
+
+.skeleton-stats {
+  height: 80px;
+  background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.skeleton-menu {
+  background: #FFFFFF;
+  border: 1px solid #F0F0F0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.skeleton-menu-item {
+  height: 56px;
+  background: linear-gradient(90deg, #F5F5F5 25%, #FAFAFA 50%, #F5F5F5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.skeleton-menu-item:last-child {
+  border-bottom: none;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.error-state svg {
+  width: 64px;
+  height: 64px;
+  color: #E53935;
+  margin-bottom: 16px;
+}
+
+.error-state p {
+  font-size: 16px;
+  color: #666666;
+  margin-bottom: 20px;
+}
+
+.retry-btn {
+  padding: 12px 32px;
+  background: #00A86B;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.retry-btn:active {
+  opacity: 0.9;
 }
 </style>

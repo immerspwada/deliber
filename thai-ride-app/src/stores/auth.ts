@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase, signIn, signUp, signOut, signInWithPhone, verifyOtp, signInWithEmailOtp, verifyEmailOtp as verifyEmailOtpApi, signInWithGoogle, signInWithFacebook } from '../lib/supabase'
 import { env, isDev } from '../lib/env'
 import { authLogger as logger } from '../utils/logger'
+import { resetWalletState } from '../composables/useWallet'
 import type { User, UserUpdate } from '../types/database'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -12,100 +13,79 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
   const isLoggingIn = ref(false) // Flag to prevent duplicate fetchUserProfile calls
 
-  // Demo mode for testing without Supabase (only in development or when Supabase not configured)
-  const isDemoMode = computed(() => {
-    const demoEnabled = localStorage.getItem('demo_mode') === 'true'
-    // In production, only allow demo mode if explicitly enabled AND Supabase is not configured
-    if (!isDev && env.isSupabaseConfigured) {
-      return false
-    }
-    return demoEnabled
-  })
-  const isAuthenticated = computed(() => !!session.value || isDemoMode.value)
+  // PRODUCTION ONLY - No demo mode
+  const isDemoMode = computed(() => false)
+  const isAuthenticated = computed(() => !!session.value)
   const isVerified = computed(() => user.value?.is_active === true)
 
-  // Demo users data
-  const demoUsers: Record<string, User> = {
-    'customer@demo.com': {
-      id: '22222222-2222-2222-2222-222222222222',
-      email: 'customer@demo.com',
-      name: 'Customer Demo',
-      phone: '0812345678',
-      role: 'customer',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User,
-    'driver1@demo.com': {
-      id: 'd1111111-1111-1111-1111-111111111111',
-      email: 'driver1@demo.com',
-      name: 'สมชาย ใจดี',
-      phone: '0898765432',
-      role: 'driver',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User,
-    'rider@demo.com': {
-      id: '44444444-4444-4444-4444-444444444444',
-      email: 'rider@demo.com',
-      name: 'Rider User',
-      phone: '0876543210',
-      role: 'rider',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User,
-    'admin@demo.com': {
-      id: '11111111-1111-1111-1111-111111111111',
-      email: 'admin@demo.com',
-      name: 'Admin Demo',
-      phone: '0800000000',
-      role: 'admin',
-      is_active: true,
-      created_at: new Date().toISOString()
-    } as User
-  }
-
-  // Initialize auth state
-  const initialize = async () => {
+  // Initialize auth state - PRODUCTION VERSION
+  const initialize = async (): Promise<void> => {
+    if (loading.value) {
+      console.log('[Auth] Already initializing, skipping...')
+      return // ป้องกันการ initialize ซ้ำ
+    }
+    
+    console.log('[Auth] Starting initialization...')
     loading.value = true
     try {
-      // Check for demo mode first
-      const demoMode = localStorage.getItem('demo_mode')
-      const demoUserEmail = localStorage.getItem('demo_user')
-      
-      if (demoMode === 'true' && demoUserEmail && demoUsers[demoUserEmail]) {
-        user.value = demoUsers[demoUserEmail]
-        session.value = { user: { id: user.value.id } }
-        loading.value = false
-        return
-      }
-      
-      // Check for real Supabase session
-      const projectRef = env.projectRef
-      const hasStoredSession = projectRef ? localStorage.getItem('sb-' + projectRef + '-auth-token') : null
-      
-      if (!hasStoredSession) {
-        loading.value = false
-        return
-      }
-      
-      // Has stored session - verify with Supabase (with timeout)
+      // SECURITY FIX: Use Supabase's built-in session management
+      // Get current session with shorter timeout for better UX
+      console.log('[Auth] Getting session from Supabase...')
       const sessionPromise = supabase.auth.getSession()
-      const timeoutPromise = new Promise<null>((resolve) => 
-        setTimeout(() => resolve(null), 2000)
+      const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) => 
+        setTimeout(() => {
+          console.log('[Auth] Session fetch timeout after 5 seconds')
+          resolve({ data: { session: null } })
+        }, 5000) // เพิ่มเป็น 5 วินาที
       )
       
       const result = await Promise.race([sessionPromise, timeoutPromise])
+      console.log('[Auth] Session result:', { hasSession: !!(result?.data?.session), result })
       
-      if (result && 'data' in result) {
+      if (result && 'data' in result && result.data.session) {
+        console.log('[Auth] Valid session found, setting up user...')
         session.value = result.data.session
-        if (result.data.session?.user) {
-          await fetchUserProfile(result.data.session.user.id)
+        if (result.data.session.user) {
+          // Set basic user info immediately for faster UI response
+          const sessionUser = result.data.session.user
+          user.value = {
+            id: sessionUser.id,
+            email: sessionUser.email || '',
+            name: sessionUser.user_metadata?.name || 
+                  sessionUser.email?.split('@')[0] || '',
+            phone: sessionUser.user_metadata?.phone || '',
+            role: sessionUser.user_metadata?.role || 'customer',
+            is_active: true,
+            created_at: sessionUser.created_at || new Date().toISOString()
+          } as User
+          
+          console.log('[Auth] User set from session:', user.value.email)
+          
+          // Fetch full profile in background (non-blocking)
+          fetchUserProfile(sessionUser.id).catch(err => {
+            console.warn('Background profile fetch failed:', err)
+          })
         }
+      } else {
+        // No valid session found
+        console.log('[Auth] No valid session found')
+        session.value = null
+        user.value = null
       }
     } catch (err: any) {
+      console.error('[Auth] Initialization error:', err)
       error.value = err.message
+      // Set default state on error
+      session.value = null
+      user.value = null
     } finally {
       loading.value = false
+      console.log('[Auth] Initialization complete. Final state:', {
+        hasUser: !!user.value,
+        hasSession: !!session.value,
+        isAuthenticated: !!session.value,
+        userEmail: user.value?.email
+      })
     }
   }
 
@@ -195,12 +175,11 @@ export const useAuthStore = defineStore('auth', () => {
     return loginWithEmail(email, password)
   }
 
-  // Register with email and password
+  // Register with email and password (simplified - no nationalId required)
   const register = async (email: string, password: string, userData: {
     name: string
     phone: string
     role?: string
-    nationalId?: string
   }) => {
     loading.value = true
     error.value = null
@@ -233,15 +212,14 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Complete registration with additional data
       if (data.user) {
-        // Use RPC function to complete registration
+        // Use RPC function to complete registration (simplified - no nationalId)
         const { data: rpcResult, error: rpcError } = await supabase.rpc('complete_user_registration', {
           p_user_id: data.user.id,
           p_first_name: firstName,
           p_last_name: lastName,
-          p_national_id: userData.nationalId || null,
           p_phone_number: userData.phone,
           p_role: role
-        } as any)
+        } as Record<string, unknown>)
         
         if (rpcError) {
           logger.error('Registration completion error:', rpcError)
@@ -255,16 +233,17 @@ export const useAuthStore = defineStore('auth', () => {
               phone: userData.phone,
               role: role,
               is_active: true
-            } as any, { onConflict: 'id' })
-        } else if (rpcResult && !(rpcResult as any).success) {
-          error.value = (rpcResult as any).error || 'ไม่สามารถสมัครสมาชิกได้'
+            } as Record<string, unknown>, { onConflict: 'id' })
+        } else if (rpcResult && !(rpcResult as Record<string, unknown>).success) {
+          error.value = (rpcResult as Record<string, unknown>).error as string || 'ไม่สามารถสมัครสมาชิกได้'
           return false
         }
         
         // If role is driver/rider, create service_provider entry
         if (role === 'driver' || role === 'rider') {
           const providerType = role === 'driver' ? 'driver' : 'delivery'
-          const { error: providerError } = await (supabase.from('service_providers') as any).insert({
+          // CRITICAL FIX: Use providers_v2 table consistently
+          const { error: providerError } = await (supabase.from('providers_v2') as ReturnType<typeof supabase.from>).insert({
             user_id: data.user.id,
             provider_type: providerType,
             is_available: false,
@@ -280,40 +259,20 @@ export const useAuthStore = defineStore('auth', () => {
       }
       
       return true
-    } catch (err: any) {
-      error.value = err.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก'
       return false
     } finally {
       loading.value = false
     }
   }
 
-  // Login with email and password
+  // Login with email and password - PRODUCTION ONLY
   const loginWithEmail = async (emailInput: string, passwordInput: string) => {
     loading.value = true
     error.value = null
     isLoggingIn.value = true
     logger.log('loginWithEmail started:', emailInput)
-    
-    // Check for demo accounts first (only in dev or when Supabase not configured)
-    const demoPasswords: Record<string, string> = {
-      'customer@demo.com': 'demo1234',
-      'driver1@demo.com': 'demo1234',
-      'rider@demo.com': 'demo1234',
-      'admin@demo.com': 'admin1234'
-    }
-    
-    const allowDemoLogin = isDev || !env.isSupabaseConfigured
-    if (allowDemoLogin && demoUsers[emailInput] && demoPasswords[emailInput] === passwordInput) {
-      logger.log('Demo login for:', emailInput)
-      localStorage.setItem('demo_mode', 'true')
-      localStorage.setItem('demo_user', emailInput)
-      user.value = demoUsers[emailInput]
-      session.value = { user: { id: user.value.id } }
-      loading.value = false
-      isLoggingIn.value = false
-      return true
-    }
     
     // Try real Supabase login with timeout
     try {
@@ -323,7 +282,7 @@ export const useAuthStore = defineStore('auth', () => {
       const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
         setTimeout(() => {
           logger.warn('Supabase signIn TIMEOUT')
-          resolve({ data: null, error: { message: 'Login timeout - using demo mode' } })
+          resolve({ data: null, error: { message: 'Login timeout - please try again' } })
         }, 5000)
       })
       
@@ -471,19 +430,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Logout
+  // Logout - PRODUCTION ONLY
   const logout = async () => {
     loading.value = true
     error.value = null
     
     try {
-      // Clear local state immediately for instant feedback
-      localStorage.removeItem('demo_mode')
-      localStorage.removeItem('demo_user')
-      
       // Clear user state immediately
       user.value = null
       session.value = null
+      
+      // Reset wallet singleton state to prevent data leakage between users
+      resetWalletState()
       
       // Sign out from Supabase (don't wait too long)
       // Use Promise.race with timeout to prevent hanging
@@ -534,7 +492,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Listen to auth state changes
+  // Listen to auth state changes - IMPROVED VERSION
   supabase.auth.onAuthStateChange(async (event, newSession) => {
     logger.log('onAuthStateChange:', event, 'isLoggingIn:', isLoggingIn.value)
     session.value = newSession
@@ -546,9 +504,31 @@ export const useAuthStore = defineStore('auth', () => {
     }
     
     if (event === 'SIGNED_IN' && newSession?.user) {
-      await fetchUserProfile(newSession.user.id)
+      // Set basic user info immediately
+      user.value = {
+        id: newSession.user.id,
+        email: newSession.user.email || '',
+        name: newSession.user.user_metadata?.name || 
+              newSession.user.email?.split('@')[0] || '',
+        phone: newSession.user.user_metadata?.phone || '',
+        role: newSession.user.user_metadata?.role || 'customer',
+        is_active: true,
+        created_at: newSession.user.created_at || new Date().toISOString()
+      } as User
+      
+      // Fetch full profile in background
+      fetchUserProfile(newSession.user.id).catch(err => {
+        console.warn('Background profile fetch failed:', err)
+      })
     } else if (event === 'SIGNED_OUT') {
       user.value = null
+      // Clear any cached data
+      resetWalletState()
+    } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+      // Session refreshed, ensure user data is still valid
+      if (!user.value || user.value.id !== newSession.user.id) {
+        await fetchUserProfile(newSession.user.id)
+      }
     }
   })
 
@@ -618,3 +598,18 @@ export const useAuthStore = defineStore('auth', () => {
     updateProfile
   }
 })
+
+// Auto-initialize auth store when imported (for better session restore)
+// This ensures session is restored as soon as the store is created
+let autoInitialized = false
+export const initializeAuthStore = async (): Promise<void> => {
+  if (autoInitialized) return
+  autoInitialized = true
+  
+  try {
+    const store = useAuthStore()
+    await store.initialize()
+  } catch (error) {
+    console.warn('[Auth] Auto-initialization failed:', error)
+  }
+}

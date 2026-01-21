@@ -8,6 +8,7 @@ const props = defineProps<{
   pickup?: GeoLocation | null
   destination?: GeoLocation | null
   driverLocation?: { lat: number; lng: number; heading?: number } | null
+  locationHistory?: Array<{ lat: number; lng: number }> | null
   showRoute?: boolean
   height?: string
   draggable?: boolean
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   (e: 'routeCalculated', data: { distance: number; duration: number }): void
   (e: 'locationDetected', data: { lat: number; lng: number }): void
   (e: 'markerDragged', data: { type: 'pickup' | 'destination'; lat: number; lng: number }): void
+  (e: 'mapClick', data: { lat: number; lng: number }): void
 }>()
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -27,6 +29,7 @@ const {
   fitBounds,
   getDirections,
   clearDirections,
+  drawDriverPath,
   isMapReady,
   markers,
   mapInstance
@@ -35,6 +38,38 @@ const {
 const routeInfo = ref<{ distance: number; duration: number } | null>(null)
 const currentLocation = ref<{ lat: number; lng: number } | null>(null)
 const driverMarker = ref<L.Marker | null>(null)
+const historyPath = ref<L.Polyline | L.Polyline[] | null>(null)
+
+// ✅ CRITICAL: Watch isMapReady and enable pointer events
+watch(isMapReady, (ready) => {
+  console.log('[MapView] isMapReady changed:', ready)
+  if (ready && mapContainer.value) {
+    mapContainer.value.style.pointerEvents = 'auto'
+    console.log('[MapView] ✅ Pointer events enabled!')
+    
+    // Debug: Log all computed styles
+    const computedStyle = window.getComputedStyle(mapContainer.value)
+    console.log('[MapView] 🔍 Map container computed styles:', {
+      pointerEvents: computedStyle.pointerEvents,
+      zIndex: computedStyle.zIndex,
+      position: computedStyle.position,
+      opacity: computedStyle.opacity,
+      visibility: computedStyle.visibility
+    })
+    
+    // Debug: Check if any parent has pointer-events: none
+    let parent = mapContainer.value.parentElement
+    let level = 0
+    while (parent && level < 5) {
+      const parentStyle = window.getComputedStyle(parent)
+      if (parentStyle.pointerEvents === 'none') {
+        console.warn(`[MapView] ⚠️ Parent at level ${level} has pointer-events: none!`, parent.className)
+      }
+      parent = parent.parentElement
+      level++
+    }
+  }
+})
 
 // Haptic feedback for mobile devices
 const triggerHapticFeedback = () => {
@@ -55,7 +90,7 @@ const triggerBounceAnimation = (marker: L.Marker) => {
   }
 }
 
-// Get current GPS location
+// Get current GPS location with reduced timeout (non-blocking)
 const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -74,9 +109,9 @@ const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
         reject(error)
       },
       {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
+        enableHighAccuracy: false, // Faster, less accurate (good enough for initial load)
+        timeout: 3000, // Reduced from 10s to 3s
+        maximumAge: 120000 // Accept cached position up to 2 minutes old
       }
     )
   })
@@ -157,7 +192,31 @@ watch([() => props.pickup, () => props.destination], () => {
   updateMarkers()
 }, { deep: true })
 
-// Watch driver location for realtime updates
+// Watch location history for drawing trail
+watch(() => props.locationHistory, (newHistory) => {
+  if (!isMapReady.value || !mapInstance.value) return
+  
+  // Clear old history path
+  if (historyPath.value) {
+    if (Array.isArray(historyPath.value)) {
+      historyPath.value.forEach(p => mapInstance.value?.removeLayer(p as unknown as L.Layer))
+    } else {
+      mapInstance.value.removeLayer(historyPath.value as unknown as L.Layer)
+    }
+    historyPath.value = null
+  }
+  
+  // Draw new history path
+  if (newHistory && newHistory.length > 1) {
+    historyPath.value = drawDriverPath(newHistory, {
+      color: '#22C55E',
+      fadeOut: true
+    })
+    console.log('[MapView] Location history trail drawn:', newHistory.length, 'points')
+  }
+}, { deep: true })
+
+// Watch driver location for real-time tracking
 watch(() => props.driverLocation, (newLocation) => {
   if (!isMapReady.value || !mapInstance.value) return
   
@@ -222,29 +281,108 @@ const updateDriverMarker = (location: { lat: number; lng: number; heading?: numb
 }
 
 onMounted(async () => {
-  if (!mapContainer.value) return
+  if (!mapContainer.value) {
+    console.error('[MapView] Map container not found')
+    return
+  }
 
-  // Default center (Su-ngai Kolok, Narathiwat)
-  let center = { lat: 6.0296, lng: 101.9653 }
-  const defaultZoom = 18
+  // Default center (Bangkok for better initial view)
+  let center = { lat: 13.7563, lng: 100.5018 }
+  const defaultZoom = 14
 
   // Use pickup location if provided (priority)
   if (props.pickup) {
     center = { lat: props.pickup.lat, lng: props.pickup.lng }
+    console.log('[MapView] Using pickup location:', center)
+  } else {
+    console.log('[MapView] Using default center (Bangkok)')
   }
 
-  // Initialize map immediately with default/pickup location
-  initMap(mapContainer.value, {
-    center,
-    zoom: defaultZoom
+  try {
+    // Initialize map immediately with default/pickup location
+    initMap(mapContainer.value, {
+      center,
+      zoom: defaultZoom
+    })
+    
+    console.log('[MapView] ✅ Map initialized, isMapReady:', isMapReady.value)
+    console.log('[MapView] ✅ Map container pointer-events:', mapContainer.value.style.pointerEvents)
+    
+    // Force map to render properly
+    setTimeout(() => {
+      if (mapInstance.value) {
+        mapInstance.value.invalidateSize()
+        console.log('[MapView] 🔄 Map size invalidated after init')
+        
+        // Check if tiles are visible
+        const tilePane = mapContainer.value?.querySelector('.leaflet-tile-pane')
+        if (tilePane) {
+          const style = window.getComputedStyle(tilePane)
+          console.log('[MapView] 🔍 Tile pane styles:', {
+            opacity: style.opacity,
+            visibility: style.visibility,
+            display: style.display,
+            zIndex: style.zIndex
+          })
+          
+          // Count tiles
+          const tiles = tilePane.querySelectorAll('.leaflet-tile')
+          console.log('[MapView] 📊 Number of tiles:', tiles.length)
+          
+          if (tiles.length > 0) {
+            const firstTile = tiles[0] as HTMLImageElement
+            console.log('[MapView] 🖼️ First tile:', {
+              src: firstTile.src,
+              complete: firstTile.complete,
+              naturalWidth: firstTile.naturalWidth,
+              opacity: window.getComputedStyle(firstTile).opacity
+            })
+          }
+        }
+      }
+    }, 500)
+  } catch (error) {
+    console.error('[MapView] Failed to initialize map:', error)
+    return
+  }
+
+  if (!mapInstance.value) {
+    console.error('[MapView] Map instance not available')
+    return
+  }
+
+  // Add click event listener for tap-to-select
+  mapInstance.value.on('click', (e: L.LeafletMouseEvent) => {
+    console.log('[MapView] 🖱️ Map clicked!', e.latlng)
+    triggerHapticFeedback()
+    emit('mapClick', { lat: e.latlng.lat, lng: e.latlng.lng })
   })
+  
+  // Debug: Add mousedown/touchstart listeners to container
+  mapContainer.value.addEventListener('mousedown', (e) => {
+    console.log('[MapView] 🖱️ Container mousedown detected!', {
+      target: (e.target as HTMLElement).className,
+      clientX: e.clientX,
+      clientY: e.clientY
+    })
+  })
+  
+  mapContainer.value.addEventListener('touchstart', (e) => {
+    console.log('[MapView] 👆 Container touchstart detected!', {
+      target: (e.target as HTMLElement).className,
+      touches: e.touches.length
+    })
+  }, { passive: true })
 
   // Always update markers if pickup or destination is provided
   if (props.pickup || props.destination) {
     // Use nextTick to ensure map is fully ready
     setTimeout(() => {
+      console.log('[MapView] Updating markers...')
       updateMarkers()
     }, 100)
+  } else {
+    console.log('[MapView] No pickup/destination to display')
   }
 
   // Get GPS location in background (non-blocking)
@@ -279,19 +417,26 @@ onMounted(async () => {
 
 <template>
   <div class="map-wrapper" :style="{ height: height || '200px' }">
-    <!-- Loading skeleton -->
-    <div v-if="!isMapReady" class="map-skeleton">
-      <div class="skeleton-pulse"></div>
-      <div class="skeleton-grid">
-        <div class="skeleton-tile" v-for="i in 9" :key="i"></div>
+    <!-- Loading skeleton - MUST disappear when map is ready -->
+    <Transition name="fade">
+      <div v-if="!isMapReady" class="map-skeleton">
+        <div class="skeleton-pulse"></div>
+        <div class="skeleton-grid">
+          <div class="skeleton-tile" v-for="i in 9" :key="i"></div>
+        </div>
+        <div class="skeleton-center">
+          <div class="skeleton-spinner"></div>
+          <span class="skeleton-text">กำลังโหลดแผนที่...</span>
+        </div>
       </div>
-      <div class="skeleton-center">
-        <div class="skeleton-spinner"></div>
-        <span class="skeleton-text">กำลังโหลดแผนที่...</span>
-      </div>
-    </div>
+    </Transition>
     
-    <div ref="mapContainer" class="map-container"></div>
+    <!-- Map container - MUST be clickable when ready -->
+    <div 
+      ref="mapContainer" 
+      class="map-container" 
+      :class="{ 'map-ready': isMapReady }"
+    ></div>
 
     <!-- Route info overlay -->
     <div v-if="routeInfo" class="route-info">
@@ -315,14 +460,172 @@ onMounted(async () => {
 .map-wrapper {
   position: relative;
   width: 100%;
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   overflow: hidden;
-  background-color: var(--color-secondary);
+  background-color: #f5f5f5;
+  /* CRITICAL: Ensure wrapper allows clicks */
+  pointer-events: auto !important;
 }
 
 .map-container {
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  /* CRITICAL: Will be set to auto when ready */
+  pointer-events: none;
+  /* Ensure proper rendering */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.map-container.map-ready {
+  opacity: 1;
+  /* CRITICAL: Enable clicks when ready */
+  pointer-events: auto !important;
+}
+
+/* ✅ CRITICAL: Ensure map wrapper is visible */
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  /* ✅ CRITICAL FIX: Set reasonable height instead of 100% */
+  height: 320px;
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+  pointer-events: auto !important;
+  /* Ensure proper stacking */
+  z-index: 1;
+  /* Force layout */
+  display: block;
+}
+
+.map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  /* Force GPU acceleration */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: opacity;
+}
+
+.map-container.map-ready {
+  opacity: 1;
+  pointer-events: auto !important;
+}
+
+/* ✅ CRITICAL: Ensure ALL Leaflet layers are visible */
+.map-container :deep(.leaflet-container) {
+  background: #f5f5f5 !important;
+  z-index: 0 !important;
+}
+
+.map-container :deep(.leaflet-pane) {
+  z-index: auto !important;
+}
+
+.map-container :deep(.leaflet-tile-pane) {
+  z-index: 200 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.map-container :deep(.leaflet-overlay-pane) {
+  z-index: 400 !important;
+}
+
+.map-container :deep(.leaflet-shadow-pane) {
+  z-index: 500 !important;
+}
+
+.map-container :deep(.leaflet-marker-pane) {
+  z-index: 600 !important;
+}
+
+.map-container :deep(.leaflet-tooltip-pane) {
+  z-index: 650 !important;
+}
+
+.map-container :deep(.leaflet-popup-pane) {
+  z-index: 700 !important;
+}
+
+/* ✅ CRITICAL: Ensure tiles are fully visible */
+.map-container :deep(.leaflet-tile),
+.map-container :deep(.osm-tiles) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  max-width: none !important;
+  max-height: none !important;
+  width: 256px !important;
+  height: 256px !important;
+}
+
+/* ✅ CRITICAL: Fix tile container scaling issues */
+.map-container :deep(.leaflet-tile-container) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  position: absolute !important;
+  /* Prevent extreme scaling that makes tiles invisible */
+  will-change: transform;
+}
+
+/* ✅ Ensure tile layer is visible */
+.map-container :deep(.leaflet-layer) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* ✅ CRITICAL: Ensure tile containers are visible */
+.map-container :deep(.leaflet-tile-container) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  position: absolute !important;
+  z-index: auto !important;
+}
+
+/* ✅ CRITICAL: Ensure tile layer is visible */
+.map-container :deep(.leaflet-layer) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+/* ✅ Ensure map pane is visible */
+.map-container :deep(.leaflet-map-pane) {
+  z-index: auto !important;
+}
+
+/* ✅ Ensure controls are visible and clickable */
+.map-container :deep(.leaflet-control-container) {
+  position: absolute !important;
+  z-index: 800 !important;
+  pointer-events: none !important;
+}
+
+.map-container :deep(.leaflet-control) {
+  pointer-events: auto !important;
+}
+
+.map-container :deep(.leaflet-control-zoom),
+.map-container :deep(.leaflet-control-attribution) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 .route-info {
@@ -378,6 +681,17 @@ onMounted(async () => {
   50% { transform: scale(1.05); }
 }
 
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 /* Loading skeleton - Uber style */
 .map-skeleton {
   position: absolute;
@@ -388,6 +702,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  pointer-events: none !important; /* CRITICAL: Don't block map */
 }
 
 .skeleton-grid {

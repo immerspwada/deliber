@@ -1,220 +1,390 @@
 /**
- * Thai National ID Validation
- * Validates Thai 13-digit national ID number using check digit algorithm
+ * Input Validation Utilities
+ * Comprehensive validation for all user inputs
  */
-export const validateThaiNationalId = (nationalId: string): boolean => {
-  // Remove any dashes or spaces
-  const cleanId = nationalId.replace(/[-\s]/g, '')
-  
-  // Check length
-  if (cleanId.length !== 13) {
-    return false
-  }
-  
-  // Check if all characters are digits
-  if (!/^\d+$/.test(cleanId)) {
-    return false
-  }
-  
-  // Calculate checksum using Thai ID algorithm
-  let sum = 0
-  for (let i = 0; i < 12; i++) {
-    sum += parseInt(cleanId.charAt(i)) * (13 - i)
-  }
-  
-  const checkDigit = (11 - (sum % 11)) % 10
-  
-  return checkDigit === parseInt(cleanId.charAt(12))
+
+export interface ValidationResult {
+  isValid: boolean
+  errors: string[]
+}
+
+export interface ValidationRule<T = any> {
+  validate: (value: T) => boolean
+  message: string
 }
 
 /**
- * Format Thai National ID with dashes
- * Input: 1234567890123
- * Output: 1-2345-67890-12-3
+ * Common validation rules
  */
-export const formatThaiNationalId = (nationalId: string): string => {
-  const cleanId = nationalId.replace(/[-\s]/g, '')
-  
-  if (cleanId.length !== 13) {
-    return nationalId
-  }
-  
-  return `${cleanId[0]}-${cleanId.slice(1, 5)}-${cleanId.slice(5, 10)}-${cleanId.slice(10, 12)}-${cleanId[12]}`
+export const ValidationRules = {
+  // Required field
+  required: <T>(message = 'This field is required'): ValidationRule<T> => ({
+    validate: (value: T) => {
+      if (value === null || value === undefined) return false
+      if (typeof value === 'string') return value.trim().length > 0
+      if (Array.isArray(value)) return value.length > 0
+      return true
+    },
+    message
+  }),
+
+  // Email validation
+  email: (message = 'Please enter a valid email address'): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      return emailRegex.test(value)
+    },
+    message
+  }),
+
+  // Phone number validation (Thai format)
+  phone: (message = 'Please enter a valid phone number'): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      const phoneRegex = /^(\+66|0)[0-9]{8,9}$/
+      return phoneRegex.test(value.replace(/[-\s]/g, ''))
+    },
+    message
+  }),
+
+  // Minimum length
+  minLength: (min: number, message?: string): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      return value.length >= min
+    },
+    message: message || `Must be at least ${min} characters`
+  }),
+
+  // Maximum length
+  maxLength: (max: number, message?: string): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      return value.length <= max
+    },
+    message: message || `Must be no more than ${max} characters`
+  }),
+
+  // Numeric validation
+  numeric: (message = 'Must be a valid number'): ValidationRule<string | number> => ({
+    validate: (value: string | number) => {
+      if (!value && value !== 0) return true // Allow empty if not required
+      return !isNaN(Number(value))
+    },
+    message
+  }),
+
+  // Minimum value
+  min: (min: number, message?: string): ValidationRule<number> => ({
+    validate: (value: number) => {
+      if (value === null || value === undefined) return true
+      return value >= min
+    },
+    message: message || `Must be at least ${min}`
+  }),
+
+  // Maximum value
+  max: (max: number, message?: string): ValidationRule<number> => ({
+    validate: (value: number) => {
+      if (value === null || value === undefined) return true
+      return value <= max
+    },
+    message: message || `Must be no more than ${max}`
+  }),
+
+  // UUID validation
+  uuid: (message = 'Must be a valid UUID'): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      return uuidRegex.test(value)
+    },
+    message
+  }),
+
+  // OTP validation (6 digits)
+  otp: (message = 'Must be a 6-digit code'): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      return /^\d{6}$/.test(value)
+    },
+    message
+  }),
+
+  // Amount validation (positive number with max 2 decimal places)
+  amount: (message = 'Must be a valid amount'): ValidationRule<number | string> => ({
+    validate: (value: number | string) => {
+      if (!value && value !== 0) return true // Allow empty if not required
+      const num = Number(value)
+      if (isNaN(num) || num < 0) return false
+      // Check decimal places
+      const str = num.toString()
+      const decimalIndex = str.indexOf('.')
+      if (decimalIndex !== -1 && str.length - decimalIndex - 1 > 2) return false
+      return true
+    },
+    message
+  }),
+
+  // Bank account number validation
+  bankAccount: (message = 'Must be a valid bank account number'): ValidationRule<string> => ({
+    validate: (value: string) => {
+      if (!value) return true // Allow empty if not required
+      // Thai bank account numbers are typically 10-12 digits
+      return /^\d{10,12}$/.test(value.replace(/[-\s]/g, ''))
+    },
+    message
+  }),
+
+  // Custom validation
+  custom: <T>(validator: (value: T) => boolean, message: string): ValidationRule<T> => ({
+    validate: validator,
+    message
+  })
 }
 
 /**
- * Thai Phone Number Validation
- * Validates Thai phone numbers (mobile and landline)
+ * Validate a single field
  */
-export const validateThaiPhoneNumber = (phone: string): boolean => {
-  // Remove any dashes, spaces, or country code
-  let cleanPhone = phone.replace(/[-\s]/g, '')
-  
-  // Remove +66 or 66 prefix
-  if (cleanPhone.startsWith('+66')) {
-    cleanPhone = '0' + cleanPhone.slice(3)
-  } else if (cleanPhone.startsWith('66')) {
-    cleanPhone = '0' + cleanPhone.slice(2)
+export function validateField<T>(value: T, rules: ValidationRule<T>[]): ValidationResult {
+  const errors: string[] = []
+
+  for (const rule of rules) {
+    if (!rule.validate(value)) {
+      errors.push(rule.message)
+    }
   }
-  
-  // Thai mobile numbers: 08x, 09x (10 digits)
-  // Thai landline: 02x, 03x, 04x, 05x, 07x (9 digits)
-  const mobilePattern = /^0[689]\d{8}$/
-  const landlinePattern = /^0[2-57]\d{7}$/
-  
-  return mobilePattern.test(cleanPhone) || landlinePattern.test(cleanPhone)
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  }
 }
 
 /**
- * Format Thai Phone Number
- * Input: 0812345678
- * Output: 081-234-5678
+ * Validate multiple fields
  */
-export const formatThaiPhoneNumber = (phone: string): string => {
-  let cleanPhone = phone.replace(/[-\s]/g, '')
+export function validateForm<T extends Record<string, any>>(
+  data: T,
+  rules: Partial<Record<keyof T, ValidationRule<any>[]>>
+): Record<keyof T, ValidationResult> & { isValid: boolean } {
+  const results = {} as Record<keyof T, ValidationResult>
+  let isValid = true
+
+  for (const [field, fieldRules] of Object.entries(rules) as [keyof T, ValidationRule<any>[]][]) {
+    if (fieldRules) {
+      const result = validateField(data[field], fieldRules)
+      results[field] = result
+      if (!result.isValid) {
+        isValid = false
+      }
+    }
+  }
+
+  return { ...results, isValid }
+}
+
+/**
+ * Sanitize input to prevent XSS
+ */
+export function sanitizeInput(input: string): string {
+  if (!input) return ''
   
-  // Remove +66 or 66 prefix
-  if (cleanPhone.startsWith('+66')) {
-    cleanPhone = '0' + cleanPhone.slice(3)
-  } else if (cleanPhone.startsWith('66')) {
-    cleanPhone = '0' + cleanPhone.slice(2)
+  return input
+    .replace(/[<>]/g, '') // Remove < and >
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .trim()
+}
+
+/**
+ * Validate Thai phone number
+ */
+export function validateThaiPhoneNumber(phone: string): boolean {
+  if (!phone) return false
+  const phoneRegex = /^(\+66|0)[0-9]{8,9}$/
+  return phoneRegex.test(phone.replace(/[-\s]/g, ''))
+}
+
+/**
+ * Validate email address
+ */
+export function validateEmail(email: string): boolean {
+  if (!email) return false
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+/**
+ * Validate password strength
+ */
+export function validatePassword(password: string): boolean {
+  if (!password) return false
+  // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/
+  return passwordRegex.test(password)
+}
+
+/**
+ * Format Thai phone number for display
+ * Converts 0812345678 to 081-234-5678
+ */
+export function formatThaiPhoneNumber(phone: string): string {
+  if (!phone) return ''
+  
+  // Remove all non-digits
+  const digits = phone.replace(/\D/g, '')
+  
+  // Handle +66 prefix
+  let normalized = digits
+  if (digits.startsWith('66')) {
+    normalized = '0' + digits.slice(2)
   }
   
-  if (cleanPhone.length === 10) {
-    // Mobile format: 081-234-5678
-    return `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`
-  } else if (cleanPhone.length === 9) {
-    // Landline format: 02-123-4567
-    return `${cleanPhone.slice(0, 2)}-${cleanPhone.slice(2, 5)}-${cleanPhone.slice(5)}`
+  // Format as XXX-XXX-XXXX
+  if (normalized.length === 10) {
+    return `${normalized.slice(0, 3)}-${normalized.slice(3, 6)}-${normalized.slice(6)}`
+  }
+  
+  // Format as XX-XXX-XXXX for 9-digit numbers
+  if (normalized.length === 9) {
+    return `${normalized.slice(0, 2)}-${normalized.slice(2, 5)}-${normalized.slice(5)}`
   }
   
   return phone
 }
 
 /**
- * Email Validation
+ * Validate and sanitize ride request data
  */
-export const validateEmail = (email: string): boolean => {
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailPattern.test(email)
-}
-
-/**
- * Thai Name Validation
- * Allows Thai and English characters
- */
-export const validateThaiName = (name: string): boolean => {
-  // Allow Thai characters, English characters, spaces, and common name characters
-  const namePattern = /^[\u0E00-\u0E7Fa-zA-Z\s\-'.]+$/
-  return namePattern.test(name) && name.trim().length >= 2
-}
-
-/**
- * Password Validation
- * Minimum 8 characters, at least one letter and one number
- */
-export const validatePassword = (password: string): { valid: boolean; message: string } => {
-  if (password.length < 8) {
-    return { valid: false, message: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' }
+export function validateRideRequest(data: unknown): {
+  isValid: boolean
+  errors: string[]
+  data?: { pickup: string; dropoff: string; serviceType?: string }
+} {
+  if (!data || typeof data !== 'object') {
+    return { isValid: false, errors: ['Invalid request data'] }
   }
-  
-  if (!/[a-zA-Z]/.test(password)) {
-    return { valid: false, message: 'รหัสผ่านต้องมีตัวอักษรอย่างน้อย 1 ตัว' }
+
+  const { pickup, dropoff, serviceType } = data as Record<string, unknown>
+
+  const errors: string[] = []
+
+  // Validate pickup
+  if (typeof pickup !== 'string' || pickup.length < 3) {
+    errors.push('Pickup location must be at least 3 characters')
   }
-  
-  if (!/\d/.test(password)) {
-    return { valid: false, message: 'รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว' }
+
+  // Validate dropoff
+  if (typeof dropoff !== 'string' || dropoff.length < 3) {
+    errors.push('Dropoff location must be at least 3 characters')
   }
-  
-  return { valid: true, message: '' }
-}
 
-/**
- * Thai Currency Formatting
- * Formats number to Thai Baht currency string
- */
-export const formatThaiBaht = (amount: number): string => {
-  return new Intl.NumberFormat('th-TH', {
-    style: 'currency',
-    currency: 'THB',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(amount)
-}
-
-/**
- * Thai Date Formatting
- * Formats date to Thai locale string
- */
-export const formatThaiDate = (date: Date | string): string => {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
-
-/**
- * Thai Time Formatting
- * Formats time to Thai locale string
- */
-export const formatThaiTime = (date: Date | string): string => {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleTimeString('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-/**
- * Thai DateTime Formatting
- * Formats datetime to Thai locale string
- */
-export const formatThaiDateTime = (date: Date | string): string => {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-/**
- * Generate Member UID
- * Format: TRD-XXXXXXXX (8 random alphanumeric characters)
- * Used for tracking user activities across the system
- */
-export const generateMemberUid = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let uid = 'TRD-'
-  
-  for (let i = 0; i < 8; i++) {
-    uid += chars.charAt(Math.floor(Math.random() * chars.length))
+  // Validate service type if provided
+  if (serviceType && !['ride', 'delivery', 'shopping'].includes(serviceType as string)) {
+    errors.push('Invalid service type')
   }
-  
-  return uid
+
+  if (errors.length > 0) {
+    return { isValid: false, errors }
+  }
+
+  return {
+    isValid: true,
+    errors: [],
+    data: {
+      pickup: sanitizeInput(pickup as string),
+      dropoff: sanitizeInput(dropoff as string),
+      serviceType: serviceType as string | undefined
+    }
+  }
 }
 
 /**
- * Validate Member UID format
- * Format: TRD-XXXXXXXX
+ * Validate withdrawal request
  */
-export const validateMemberUid = (uid: string): boolean => {
-  const pattern = /^TRD-[A-Z0-9]{8}$/
-  return pattern.test(uid)
+export function validateWithdrawalRequest(data: unknown): {
+  isValid: boolean
+  errors: string[]
+  data?: { amount: number; bankAccountId: string }
+} {
+  if (!data || typeof data !== 'object') {
+    return { isValid: false, errors: ['Invalid request data'] }
+  }
+
+  const { amount, bankAccountId } = data as Record<string, unknown>
+
+  const errors: string[] = []
+
+  // Validate amount
+  if (typeof amount !== 'number' || amount <= 0) {
+    errors.push('Amount must be a positive number')
+  } else if (amount < 100) {
+    errors.push('Minimum withdrawal amount is 100 THB')
+  } else if (amount > 50000) {
+    errors.push('Maximum withdrawal amount is 50,000 THB')
+  }
+
+  // Validate bank account ID
+  if (typeof bankAccountId !== 'string' || !ValidationRules.uuid().validate(bankAccountId)) {
+    errors.push('Invalid bank account ID')
+  }
+
+  if (errors.length > 0) {
+    return { isValid: false, errors }
+  }
+
+  return {
+    isValid: true,
+    errors: [],
+    data: {
+      amount: amount as number,
+      bankAccountId: bankAccountId as string
+    }
+  }
 }
 
 /**
- * Format Member UID for display
- * Input: TRD-ABCD1234
- * Output: TRD-ABCD-1234
+ * Validate topup request
  */
-export const formatMemberUid = (uid: string): string => {
-  if (!validateMemberUid(uid)) return uid
-  
-  const code = uid.slice(4) // Remove 'TRD-'
-  return `TRD-${code.slice(0, 4)}-${code.slice(4)}`
+export function validateTopupRequest(data: unknown): {
+  isValid: boolean
+  errors: string[]
+  data?: { amount: number; paymentMethod: string }
+} {
+  if (!data || typeof data !== 'object') {
+    return { isValid: false, errors: ['Invalid request data'] }
+  }
+
+  const { amount, paymentMethod } = data as Record<string, unknown>
+
+  const errors: string[] = []
+
+  // Validate amount
+  if (typeof amount !== 'number' || amount <= 0) {
+    errors.push('Amount must be a positive number')
+  } else if (amount < 50) {
+    errors.push('Minimum topup amount is 50 THB')
+  } else if (amount > 100000) {
+    errors.push('Maximum topup amount is 100,000 THB')
+  }
+
+  // Validate payment method
+  if (!['promptpay', 'bank_transfer', 'credit_card'].includes(paymentMethod as string)) {
+    errors.push('Invalid payment method')
+  }
+
+  if (errors.length > 0) {
+    return { isValid: false, errors }
+  }
+
+  return {
+    isValid: true,
+    errors: [],
+    data: {
+      amount: amount as number,
+      paymentMethod: paymentMethod as string
+    }
+  }
 }

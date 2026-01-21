@@ -161,7 +161,7 @@ export function useAdvancedErrorRecovery(context: ErrorContext = {}) {
    * Generate unique error ID
    */
   const generateErrorId = (): string => {
-    return `ERR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return `ERR-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
   }
 
   /**

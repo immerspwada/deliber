@@ -3,126 +3,197 @@
  * ActiveOrderCard - Card แสดงออเดอร์ที่กำลังดำเนินการ
  * MUNEEF Style: สีเขียว #00A86B, animations, pulse effect
  */
-import { computed } from 'vue'
-import { useHapticFeedback } from '../../composables/useHapticFeedback'
+import { computed } from "vue";
+import { useHapticFeedback } from "../../composables/useHapticFeedback";
 
 interface Props {
-  id: string
-  type: 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry'
-  typeName: string
-  status: string
-  statusText: string
-  from: string
-  to: string
+  id: string;
+  trackingId?: string;
+  type: "ride" | "delivery" | "shopping" | "queue" | "moving" | "laundry";
+  typeName: string;
+  status: string;
+  statusText: string;
+  from: string;
+  to: string;
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  'click': [id: string]
-}>()
+  click: [id: string];
+}>();
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback();
 
 const typeColor = computed(() => {
   const colors: Record<string, string> = {
-    ride: '#00A86B',
-    delivery: '#F5A623',
-    shopping: '#E53935',
-    queue: '#9C27B0',
-    moving: '#2196F3',
-    laundry: '#00BCD4'
-  }
-  return colors[props.type] || '#00A86B'
-})
+    ride: "#00A86B",
+    delivery: "#F5A623",
+    shopping: "#E53935",
+    queue: "#9C27B0",
+    moving: "#2196F3",
+    laundry: "#00BCD4",
+  };
+  return colors[props.type] || "#00A86B";
+});
 
 const handleClick = () => {
-  haptic.light()
-  emit('click', props.id)
-}
+  vibrate("light");
+  emit("click", props.id);
+};
 </script>
 
 <template>
-  <button 
+  <button
     class="order-card"
     :style="{ '--type-color': typeColor }"
     @click="handleClick"
   >
     <!-- Pulse Animation -->
     <div class="pulse-ring"></div>
-    
+
     <!-- Type Badge -->
     <div class="type-badge">
       <!-- Ride -->
-      <svg v-if="type === 'ride'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z"/>
-        <path d="M5 17H3v-4l2-5h9l4 5h3v4h-2"/>
+      <svg
+        v-if="type === 'ride'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0z"
+        />
+        <path d="M5 17H3v-4l2-5h9l4 5h3v4h-2" />
       </svg>
-      
+
       <!-- Delivery -->
-      <svg v-else-if="type === 'delivery'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="7" width="12" height="12" rx="1"/>
-        <path d="M15 11h4l2 4v4h-6v-8z"/>
-        <circle cx="7" cy="19" r="2"/>
-        <circle cx="17" cy="19" r="2"/>
+      <svg
+        v-else-if="type === 'delivery'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <rect x="3" y="7" width="12" height="12" rx="1" />
+        <path d="M15 11h4l2 4v4h-6v-8z" />
+        <circle cx="7" cy="19" r="2" />
+        <circle cx="17" cy="19" r="2" />
       </svg>
-      
+
       <!-- Shopping -->
-      <svg v-else-if="type === 'shopping'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M6 6h15l-1.5 9h-12L6 6z"/>
-        <circle cx="9" cy="20" r="1.5"/>
-        <circle cx="18" cy="20" r="1.5"/>
-        <path d="M6 6L5 3H2"/>
+      <svg
+        v-else-if="type === 'shopping'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M6 6h15l-1.5 9h-12L6 6z" />
+        <circle cx="9" cy="20" r="1.5" />
+        <circle cx="18" cy="20" r="1.5" />
+        <path d="M6 6L5 3H2" />
       </svg>
-      
+
       <!-- Queue -->
-      <svg v-else-if="type === 'queue'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="4" width="18" height="16" rx="2"/>
-        <path d="M8 9h8M8 13h5"/>
+      <svg
+        v-else-if="type === 'queue'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M8 9h8M8 13h5" />
       </svg>
-      
+
       <!-- Moving -->
-      <svg v-else-if="type === 'moving'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="4" y="8" width="10" height="10" rx="1"/>
-        <path d="M14 12h4l2 3v3h-6v-6z"/>
-        <circle cx="8" cy="18" r="2"/>
-        <circle cx="16" cy="18" r="2"/>
+      <svg
+        v-else-if="type === 'moving'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <rect x="4" y="8" width="10" height="10" rx="1" />
+        <path d="M14 12h4l2 3v3h-6v-6z" />
+        <circle cx="8" cy="18" r="2" />
+        <circle cx="16" cy="18" r="2" />
       </svg>
-      
+
       <!-- Laundry -->
-      <svg v-else-if="type === 'laundry'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="2" width="18" height="20" rx="2"/>
-        <circle cx="12" cy="13" r="5"/>
-        <circle cx="7" cy="6" r="1"/>
-        <circle cx="10" cy="6" r="1"/>
+      <svg
+        v-else-if="type === 'laundry'"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <rect x="3" y="2" width="18" height="20" rx="2" />
+        <circle cx="12" cy="13" r="5" />
+        <circle cx="7" cy="6" r="1" />
+        <circle cx="10" cy="6" r="1" />
       </svg>
-      
+
       <!-- Default -->
-      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M12 6v6l4 2"/>
+      <svg
+        v-else
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" />
       </svg>
     </div>
-    
+
     <!-- Order Info -->
     <div class="order-info">
       <div class="order-header">
         <span class="order-type">{{ typeName }}</span>
         <span class="order-status">{{ statusText }}</span>
       </div>
+      <!-- Tracking ID -->
+      <div v-if="trackingId" class="tracking-id-row">
+        <svg
+          class="tracking-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+          />
+        </svg>
+        <span class="tracking-id-text">{{ trackingId }}</span>
+      </div>
       <div class="order-route">
         <span class="route-from">{{ from }}</span>
-        <svg class="route-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
+        <svg
+          class="route-arrow"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M5 12h14M12 5l7 7-7 7" />
         </svg>
         <span class="route-to">{{ to }}</span>
       </div>
     </div>
-    
+
     <!-- Arrow -->
     <div class="card-arrow">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 18l6-6-6-6"/>
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M9 18l6-6-6-6" />
       </svg>
     </div>
   </button>
@@ -137,8 +208,8 @@ const handleClick = () => {
   width: 100%;
   padding: 16px;
   min-height: 80px; /* Touch target optimization */
-  background: #FFFFFF;
-  border: 2px solid #F0F0F0;
+  background: #ffffff;
+  border: 2px solid #f0f0f0;
   border-radius: 18px;
   cursor: pointer;
   text-align: left;
@@ -167,7 +238,7 @@ const handleClick = () => {
   .order-card:hover {
     box-shadow: none;
   }
-  
+
   .order-card:active {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
@@ -187,7 +258,8 @@ const handleClick = () => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.2;
   }
@@ -214,7 +286,7 @@ const handleClick = () => {
 .type-badge svg {
   width: 24px;
   height: 24px;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 /* Order Info */
@@ -233,7 +305,7 @@ const handleClick = () => {
 .order-type {
   font-size: 15px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 }
 
 .order-status {
@@ -243,6 +315,32 @@ const handleClick = () => {
   font-size: 11px;
   font-weight: 600;
   color: var(--type-color);
+}
+
+/* Tracking ID Row */
+.tracking-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: #e8f5ef;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.tracking-icon {
+  width: 12px;
+  height: 12px;
+  color: #00a86b;
+  flex-shrink: 0;
+}
+
+.tracking-id-text {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "SF Mono", "Monaco", "Inconsolata", monospace;
+  color: #00a86b;
 }
 
 .order-route {
@@ -265,7 +363,7 @@ const handleClick = () => {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-  color: #CCCCCC;
+  color: #cccccc;
 }
 
 /* Card Arrow */
@@ -275,7 +373,7 @@ const handleClick = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #CCCCCC;
+  color: #cccccc;
   flex-shrink: 0;
   transition: all 0.2s ease;
 }

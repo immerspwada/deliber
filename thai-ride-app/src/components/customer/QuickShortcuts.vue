@@ -31,10 +31,10 @@ const emit = defineEmits<{
   'shortcut-click': [shortcut: Shortcut]
 }>()
 
-const haptic = useHapticFeedback()
+const { vibrate } = useHapticFeedback()
 
 const handleClick = (shortcut: Shortcut) => {
-  haptic.light()
+  vibrate('light')
   emit('shortcut-click', shortcut)
 }
 </script>

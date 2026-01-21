@@ -1,397 +1,532 @@
 <script setup lang="ts">
 /**
- * Admin Referrals View - F06
- * จัดการระบบแนะนำเพื่อนทั้งหมด
- * Tables: referral_codes, referrals
+ * Admin Referrals View - Production Ready
+ * =======================================
+ * Referral program management with real database integration
  */
-import { ref, onMounted, computed } from 'vue'
-import { supabase } from '../lib/supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
-import { useAdminCleanup } from '../composables/useAdminCleanup'
+import { ref, computed, onMounted, watch } from "vue";
+import { supabase } from "../lib/supabase";
 
-const { addCleanup, addSubscription } = useAdminCleanup()
+const isLoading = ref(true);
+const referrals = ref<any[]>([]);
+const totalReferrals = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(20);
+const statusFilter = ref("");
 
-interface ReferralCode {
-  id: string
-  user_id: string
-  code: string
-  reward_amount: number
-  referee_reward: number
-  usage_count: number
-  max_usage: number | null
-  is_active: boolean
-  created_at: string
-  user?: { name: string; email: string }
-}
+const stats = ref({
+  total_referrals: 0,
+  completed_referrals: 0,
+  pending_referrals: 0,
+  total_rewards_paid: 0,
+  total_rewards_pending: 0,
+  today_referrals: 0,
+  this_month_referrals: 0,
+  avg_conversion_days: 0,
+});
 
-interface Referral {
-  id: string
-  referrer_id: string
-  referee_id: string
-  referral_code: string
-  referrer_reward: number
-  referee_reward: number
-  status: string
-  completed_at: string | null
-  created_at: string
-  referrer?: { name: string; email: string }
-  referee?: { name: string; email: string }
-}
+const totalPages = computed(() =>
+  Math.ceil(totalReferrals.value / pageSize.value)
+);
 
-const loading = ref(true)
-const activeTab = ref<'codes' | 'referrals'>('codes')
-const referralCodes = ref<ReferralCode[]>([])
-const referrals = ref<Referral[]>([])
-const searchQuery = ref('')
-const statusFilter = ref('all')
-
-// Stats
-const stats = computed(() => ({
-  totalCodes: referralCodes.value.length,
-  activeCodes: referralCodes.value.filter(c => c.is_active).length,
-  totalReferrals: referrals.value.length,
-  completedReferrals: referrals.value.filter(r => r.status === 'completed').length,
-  totalRewardsGiven: referrals.value
-    .filter(r => r.status === 'completed')
-    .reduce((sum, r) => sum + (r.referrer_reward || 0) + (r.referee_reward || 0), 0)
-}))
-
-// Filtered codes
-const filteredCodes = computed(() => {
-  if (!searchQuery.value) return referralCodes.value
-  const q = searchQuery.value.toLowerCase()
-  return referralCodes.value.filter(c => 
-    c.code.toLowerCase().includes(q) ||
-    c.user?.name?.toLowerCase().includes(q) ||
-    c.user?.email?.toLowerCase().includes(q)
-  )
-})
-
-// Filtered referrals
-const filteredReferrals = computed(() => {
-  let result = referrals.value
-  
-  if (statusFilter.value !== 'all') {
-    result = result.filter(r => r.status === statusFilter.value)
-  }
-  
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(r => 
-      r.referral_code.toLowerCase().includes(q) ||
-      r.referrer?.name?.toLowerCase().includes(q) ||
-      r.referee?.name?.toLowerCase().includes(q)
-    )
-  }
-  
-  return result
-})
-
-const fetchReferralCodes = async () => {
+async function loadReferrals() {
+  isLoading.value = true;
   try {
-    const { data } = await (supabase.from('referral_codes') as any)
-      .select('*, user:users!referral_codes_user_id_fkey(name, email)')
-      .order('usage_count', { ascending: false })
-    referralCodes.value = data || []
-  } catch (err) {
-    console.error('Error fetching referral codes:', err)
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const { data, error } = await (supabase.rpc as any)("admin_get_referrals", {
+      p_status: statusFilter.value || null,
+      p_limit: pageSize.value,
+      p_offset: offset,
+    });
+    if (error) throw error;
+    referrals.value = data || [];
+
+    const { data: countData } = await (supabase.rpc as any)(
+      "admin_count_referrals",
+      {
+        p_status: statusFilter.value || null,
+      }
+    );
+    totalReferrals.value = countData || 0;
+  } catch (e) {
+    console.error("Failed to load referrals:", e);
+  } finally {
+    isLoading.value = false;
   }
 }
 
-const fetchReferrals = async () => {
+async function loadStats() {
   try {
-    const { data } = await (supabase.from('referrals') as any)
-      .select('*, referrer:users!referrals_referrer_id_fkey(name, email), referee:users!referrals_referee_id_fkey(name, email)')
-      .order('created_at', { ascending: false })
-    referrals.value = data || []
-  } catch (err) {
-    console.error('Error fetching referrals:', err)
+    const { data, error } = await (supabase.rpc as any)(
+      "admin_get_referral_stats"
+    );
+    if (error) throw error;
+    if (data && data.length > 0) stats.value = data[0];
+  } catch (e) {
+    console.error("Failed to load stats:", e);
   }
 }
 
-// Realtime subscriptions
-let codesChannel: RealtimeChannel | null = null
-let referralsChannel: RealtimeChannel | null = null
-
-const setupRealtime = () => {
-  // Subscribe to referral codes changes
-  codesChannel = supabase
-    .channel('admin-referral-codes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'referral_codes' }, () => {
-      fetchReferralCodes()
-    })
-    .subscribe()
-  addSubscription(codesChannel)
-
-  // Subscribe to referrals changes
-  referralsChannel = supabase
-    .channel('admin-referrals')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, () => {
-      fetchReferrals()
-    })
-    .subscribe()
-  addSubscription(referralsChannel)
+function formatCurrency(n: number) {
+  return new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 0,
+  }).format(n || 0);
 }
 
-onMounted(async () => {
-  await Promise.all([fetchReferralCodes(), fetchReferrals()])
-  loading.value = false
-  setupRealtime()
-})
-
-// Cleanup on unmount
-addCleanup(() => {
-  referralCodes.value = []
-  referrals.value = []
-  searchQuery.value = ''
-  statusFilter.value = 'all'
-  activeTab.value = 'codes'
-  console.log('[AdminReferralsView] Cleanup complete')
-})
-
-const toggleCodeStatus = async (code: ReferralCode) => {
-  try {
-    await (supabase.from('referral_codes') as any)
-      .update({ is_active: !code.is_active })
-      .eq('id', code.id)
-    await fetchReferralCodes()
-  } catch (err) {
-    console.error('Error toggling code status:', err)
-  }
+function formatDate(d: string) {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-const completeReferral = async (referralId: string) => {
-  try {
-    await (supabase.from('referrals') as any)
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', referralId)
-    await fetchReferrals()
-  } catch (err) {
-    console.error('Error completing referral:', err)
-  }
+function getStatusColor(s: string) {
+  return (
+    ({ completed: "#10B981", pending: "#F59E0B", expired: "#6B7280" } as any)[
+      s
+    ] || "#6B7280"
+  );
 }
 
-const formatDate = (date: string) => new Date(date).toLocaleDateString('th-TH', { 
-  day: 'numeric', month: 'short', year: 'numeric' 
-})
-
-const getStatusLabel = (status: string) => {
-  const labels: Record<string, string> = { pending: 'รอดำเนินการ', completed: 'สำเร็จ', expired: 'หมดอายุ' }
-  return labels[status] || status
+function getStatusLabel(s: string) {
+  return (
+    (
+      { completed: "สำเร็จ", pending: "รอดำเนินการ", expired: "หมดอายุ" } as any
+    )[s] || s
+  );
 }
 
-const getStatusColor = (status: string) => {
-  const colors: Record<string, string> = { pending: 'pending', completed: 'completed', expired: 'expired' }
-  return colors[status] || 'pending'
-}
+watch([statusFilter], () => {
+  currentPage.value = 1;
+  loadReferrals();
+});
+watch(currentPage, loadReferrals);
+onMounted(() => {
+  loadReferrals();
+  loadStats();
+});
 </script>
 
 <template>
-  <div class="admin-page">
-    <header class="page-header">
-      <h1>จัดการระบบแนะนำเพื่อน</h1>
-    </header>
+  <div class="referrals-view">
+    <div class="page-header">
+      <div class="header-left">
+        <h1>Referrals</h1>
+        <span class="count">{{ totalReferrals }}</span>
+      </div>
+      <button
+        class="refresh-btn"
+        @click="
+          loadReferrals();
+          loadStats();
+        "
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M23 4v6h-6M1 20v-6h6" />
+          <path
+            d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+          />
+        </svg>
+      </button>
+    </div>
 
-    <!-- Stats -->
+    <!-- Stats Cards -->
     <div class="stats-grid">
       <div class="stat-card">
-        <span class="stat-value">{{ stats.totalCodes }}</span>
-        <span class="stat-label">โค้ดทั้งหมด</span>
+        <div class="stat-icon green">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{ stats.total_referrals }}</span
+          ><span class="stat-label">ทั้งหมด</span>
+        </div>
       </div>
       <div class="stat-card">
-        <span class="stat-value">{{ stats.activeCodes }}</span>
-        <span class="stat-label">โค้ดที่ใช้งานได้</span>
+        <div class="stat-icon blue">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{ stats.completed_referrals }}</span
+          ><span class="stat-label">สำเร็จ</span>
+        </div>
       </div>
       <div class="stat-card">
-        <span class="stat-value">{{ stats.totalReferrals }}</span>
-        <span class="stat-label">การแนะนำทั้งหมด</span>
+        <div class="stat-icon orange">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{ stats.pending_referrals }}</span
+          ><span class="stat-label">รอดำเนินการ</span>
+        </div>
       </div>
-      <div class="stat-card highlight">
-        <span class="stat-value">฿{{ stats.totalRewardsGiven.toLocaleString() }}</span>
-        <span class="stat-label">รางวัลที่แจกไป</span>
+      <div class="stat-card">
+        <div class="stat-icon purple">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+          </svg>
+        </div>
+        <div class="stat-content">
+          <span class="stat-value">{{
+            formatCurrency(stats.total_rewards_paid)
+          }}</span
+          ><span class="stat-label">จ่ายแล้ว</span>
+        </div>
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button :class="['tab', { active: activeTab === 'codes' }]" @click="activeTab = 'codes'">
-        โค้ดแนะนำ ({{ referralCodes.length }})
-      </button>
-      <button :class="['tab', { active: activeTab === 'referrals' }]" @click="activeTab = 'referrals'">
-        ประวัติการแนะนำ ({{ referrals.length }})
-      </button>
-    </div>
-
-    <!-- Search & Filter -->
+    <!-- Filters -->
     <div class="filters">
-      <div class="search-bar">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input v-model="searchQuery" type="text" placeholder="ค้นหาโค้ด, ชื่อผู้ใช้..." />
-      </div>
-      <div v-if="activeTab === 'referrals'" class="status-filter">
-        <button :class="['filter-btn', { active: statusFilter === 'all' }]" @click="statusFilter = 'all'">ทั้งหมด</button>
-        <button :class="['filter-btn', { active: statusFilter === 'pending' }]" @click="statusFilter = 'pending'">รอดำเนินการ</button>
-        <button :class="['filter-btn', { active: statusFilter === 'completed' }]" @click="statusFilter = 'completed'">สำเร็จ</button>
-      </div>
+      <select v-model="statusFilter" class="filter-select">
+        <option value="">ทุกสถานะ</option>
+        <option value="completed">สำเร็จ</option>
+        <option value="pending">รอดำเนินการ</option>
+      </select>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="loading"><div class="spinner"></div></div>
-
-    <!-- Codes Tab -->
-    <div v-else-if="activeTab === 'codes'" class="content">
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>โค้ด</th>
-              <th>เจ้าของ</th>
-              <th>รางวัลผู้แนะนำ</th>
-              <th>รางวัลผู้ถูกแนะนำ</th>
-              <th>ใช้แล้ว</th>
-              <th>สถานะ</th>
-              <th>สร้างเมื่อ</th>
-              <th>จัดการ</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="code in filteredCodes" :key="code.id">
-              <td><span class="code-badge">{{ code.code }}</span></td>
-              <td>
-                <div class="user-info">
-                  <span class="user-name">{{ code.user?.name || '-' }}</span>
-                  <span class="user-email">{{ code.user?.email }}</span>
-                </div>
-              </td>
-              <td class="amount">฿{{ code.reward_amount }}</td>
-              <td class="amount">฿{{ code.referee_reward }}</td>
-              <td>{{ code.usage_count }}{{ code.max_usage ? `/${code.max_usage}` : '' }}</td>
-              <td>
-                <span :class="['status-badge', code.is_active ? 'active' : 'inactive']">
-                  {{ code.is_active ? 'ใช้งานได้' : 'ปิดใช้งาน' }}
-                </span>
-              </td>
-              <td>{{ formatDate(code.created_at) }}</td>
-              <td>
-                <button @click="toggleCodeStatus(code)" :class="['btn-toggle', { active: code.is_active }]">
-                  {{ code.is_active ? 'ปิด' : 'เปิด' }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Table -->
+    <div class="table-container">
+      <div v-if="isLoading" class="loading">
+        <div class="skeleton" v-for="i in 8" :key="i" />
       </div>
+      <table v-else-if="referrals.length" class="data-table">
+        <thead>
+          <tr>
+            <th>ผู้แนะนำ</th>
+            <th>ผู้ถูกแนะนำ</th>
+            <th>โค้ด</th>
+            <th>รางวัล</th>
+            <th>สถานะ</th>
+            <th>วันที่</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in referrals" :key="r.id">
+            <td>
+              <div class="user-info">
+                <span class="name">{{ r.referrer_name }}</span>
+                <span class="uid">{{ r.referrer_member_uid }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="user-info">
+                <span class="name">{{ r.referred_name }}</span>
+                <span class="uid">{{ r.referred_member_uid }}</span>
+              </div>
+            </td>
+            <td>
+              <code class="code">{{ r.referral_code }}</code>
+            </td>
+            <td class="reward">{{ formatCurrency(r.reward_amount) }}</td>
+            <td>
+              <span
+                class="badge"
+                :style="{
+                  color: getStatusColor(r.status),
+                  background: getStatusColor(r.status) + '20',
+                }"
+                >{{ getStatusLabel(r.status) }}</span
+              >
+            </td>
+            <td class="date">{{ formatDate(r.created_at) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="empty"><p>ไม่พบข้อมูล Referrals</p></div>
     </div>
 
-    <!-- Referrals Tab -->
-    <div v-else class="content">
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>โค้ดที่ใช้</th>
-              <th>ผู้แนะนำ</th>
-              <th>ผู้ถูกแนะนำ</th>
-              <th>รางวัลผู้แนะนำ</th>
-              <th>รางวัลผู้ถูกแนะนำ</th>
-              <th>สถานะ</th>
-              <th>วันที่</th>
-              <th>จัดการ</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="ref in filteredReferrals" :key="ref.id">
-              <td><span class="code-badge">{{ ref.referral_code }}</span></td>
-              <td>
-                <div class="user-info">
-                  <span class="user-name">{{ ref.referrer?.name || '-' }}</span>
-                  <span class="user-email">{{ ref.referrer?.email }}</span>
-                </div>
-              </td>
-              <td>
-                <div class="user-info">
-                  <span class="user-name">{{ ref.referee?.name || '-' }}</span>
-                  <span class="user-email">{{ ref.referee?.email }}</span>
-                </div>
-              </td>
-              <td class="amount">฿{{ ref.referrer_reward }}</td>
-              <td class="amount">฿{{ ref.referee_reward }}</td>
-              <td>
-                <span :class="['status-badge', getStatusColor(ref.status)]">{{ getStatusLabel(ref.status) }}</span>
-              </td>
-              <td>{{ formatDate(ref.created_at) }}</td>
-              <td>
-                <button v-if="ref.status === 'pending'" @click="completeReferral(ref.id)" class="btn-complete">
-                  ยืนยันสำเร็จ
-                </button>
-                <span v-else class="completed-text">{{ ref.completed_at ? formatDate(ref.completed_at) : '-' }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="pagination">
+      <button :disabled="currentPage === 1" @click="currentPage--">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+      <span>{{ currentPage }}/{{ totalPages }}</span>
+      <button :disabled="currentPage === totalPages" @click="currentPage++">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.admin-page { padding: 20px; max-width: 1400px; margin: 0 auto; }
-.page-header { margin-bottom: 24px; }
-.page-header h1 { font-size: 24px; font-weight: 600; }
-
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-.stat-card { background: #fff; padding: 20px; border-radius: 12px; text-align: center; }
-.stat-card.highlight { background: #000; color: #fff; }
-.stat-value { display: block; font-size: 24px; font-weight: 700; }
-.stat-label { font-size: 12px; color: #6b6b6b; }
-.stat-card.highlight .stat-label { color: rgba(255,255,255,0.7); }
-
-.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-.tab { padding: 10px 20px; border: none; background: #f6f6f6; border-radius: 8px; font-size: 14px; cursor: pointer; }
-.tab.active { background: #000; color: #fff; }
-
-.filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.search-bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fff; border-radius: 8px; flex: 1; min-width: 250px; }
-.search-bar svg { width: 20px; height: 20px; color: #6b6b6b; }
-.search-bar input { flex: 1; border: none; background: none; font-size: 14px; outline: none; }
-
-.status-filter { display: flex; gap: 8px; }
-.filter-btn { padding: 8px 16px; border: 1px solid #e5e5e5; border-radius: 20px; background: #fff; font-size: 13px; cursor: pointer; }
-.filter-btn.active { border-color: #000; background: #000; color: #fff; }
-
-.loading { display: flex; justify-content: center; padding: 60px; }
-.spinner { width: 32px; height: 32px; border: 3px solid #e5e5e5; border-top-color: #000; border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.table-container { background: #fff; border-radius: 12px; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 800px; }
-th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e5e5; }
-th { background: #f6f6f6; font-size: 12px; font-weight: 600; color: #6b6b6b; text-transform: uppercase; }
-td { font-size: 14px; }
-
-.code-badge { display: inline-block; padding: 4px 10px; background: #f6f6f6; border-radius: 4px; font-family: monospace; font-weight: 600; letter-spacing: 1px; }
-
-.user-info { display: flex; flex-direction: column; }
-.user-name { font-weight: 500; }
-.user-email { font-size: 12px; color: #6b6b6b; }
-
-.amount { font-family: monospace; font-weight: 500; }
-
-.status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-.status-badge.active { background: #dcfce7; color: #166534; }
-.status-badge.inactive { background: #f3f4f6; color: #6b7280; }
-.status-badge.pending { background: #fef3c7; color: #92400e; }
-.status-badge.completed { background: #dcfce7; color: #166534; }
-.status-badge.expired { background: #fee2e2; color: #991b1b; }
-
-.btn-toggle { padding: 6px 12px; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; }
-.btn-toggle.active { border-color: #ef4444; color: #ef4444; }
-.btn-toggle:not(.active) { border-color: #22c55e; color: #22c55e; }
-
-.btn-complete { padding: 6px 12px; border: none; border-radius: 6px; background: #22c55e; color: #fff; font-size: 12px; cursor: pointer; }
-.completed-text { font-size: 12px; color: #6b6b6b; }
-
-@media (max-width: 768px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+.referrals-view {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+.count {
+  padding: 4px 12px;
+  background: #e8f5ef;
+  color: #00a86b;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 16px;
+}
+.refresh-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #6b7280;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f3f4f6;
+}
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+.stat-icon.green {
+  background: #d1fae5;
+  color: #059669;
+}
+.stat-icon.blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.stat-icon.orange {
+  background: #fef3c7;
+  color: #d97706;
+}
+.stat-icon.purple {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+}
+.stat-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+.filters {
+  margin-bottom: 20px;
+}
+.filter-select {
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.table-container {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.loading {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.skeleton {
+  height: 56px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table th {
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+.data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-info .name {
+  font-weight: 500;
+  color: #1f2937;
+}
+.user-info .uid {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: monospace;
+}
+.code {
+  font-family: monospace;
+  font-size: 13px;
+  padding: 4px 8px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+}
+.reward {
+  font-weight: 600;
+  color: #059669;
+}
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.date {
+  font-size: 13px;
+  color: #6b7280;
+}
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #9ca3af;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+.pagination button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pagination button:disabled {
+  opacity: 0.5;
 }
 </style>
