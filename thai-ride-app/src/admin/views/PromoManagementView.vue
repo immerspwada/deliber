@@ -1331,6 +1331,7 @@ onUnmounted(() => {
 .data-table td {
   padding: 14px 16px;
   border-bottom: 1px solid #f3f4f6;
+  position: relative;
 }
 .data-table tr {
   cursor: pointer;
@@ -1349,9 +1350,8 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .discount-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: block;
+  position: relative;
 }
 .discount-badge {
   display: inline-block;
@@ -1359,6 +1359,8 @@ onUnmounted(() => {
   border-radius: 16px;
   font-size: 13px;
   font-weight: 600;
+  margin-bottom: 4px;
+  position: static;
 }
 .discount-badge.fixed {
   background: #d1fae5;

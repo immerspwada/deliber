@@ -5,7 +5,7 @@
  * ป้องกัน memory leaks และปรับปรุงประสิทธิภาพ
  */
 
-import { onUnmounted, onBeforeUnmount, ref, readonly, type Ref } from 'vue'
+import { onUnmounted, onBeforeUnmount, ref, readonly, type Ref, getCurrentInstance } from 'vue'
 
 interface CleanupFunction {
   id: string
@@ -336,19 +336,25 @@ export function useAutoCleanup() {
     }
   }
 
-  // Auto cleanup เมื่อ component ถูก unmount
-  onBeforeUnmount(() => {
-    if (import.meta.env.DEV) {
-      console.log('[AutoCleanup] Component unmounting, starting cleanup...')
-    }
-    cleanup()
-  })
-
-  onUnmounted(() => {
-    if (!isDestroyed.value) {
+  // Auto cleanup เมื่อ component ถูก unmount (only if called within component context)
+  const instance = getCurrentInstance()
+  
+  if (instance) {
+    onBeforeUnmount(() => {
+      if (import.meta.env.DEV) {
+        console.log('[AutoCleanup] Component unmounting, starting cleanup...')
+      }
       cleanup()
-    }
-  })
+    })
+
+    onUnmounted(() => {
+      if (!isDestroyed.value) {
+        cleanup()
+      }
+    })
+  } else if (import.meta.env.DEV) {
+    console.warn('[AutoCleanup] Called outside component context - auto cleanup disabled. Call cleanup() manually.')
+  }
 
   return {
     // Core functions

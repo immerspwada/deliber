@@ -25,8 +25,8 @@ const SECRET_PATTERNS = [
   // AWS credentials
   { pattern: /AKIA[0-9A-Z]{16}/g, name: 'AWS Access Key' },
   
-  // Generic passwords in code
-  { pattern: /password\s*[:=]\s*['"][^'"]{8,}['"]/gi, name: 'Hardcoded Password' },
+  // Generic passwords in code (but not Thai translations)
+  { pattern: /password\s*[:=]\s*['"][^'"ก-๙]{8,}['"]/gi, name: 'Hardcoded Password' },
   
   // Supabase anon key assignment (not in .env)
   { pattern: /supabaseAnonKey\s*=\s*['"]eyJ/g, name: 'Hardcoded Supabase Key' },

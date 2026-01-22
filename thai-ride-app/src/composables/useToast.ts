@@ -11,7 +11,7 @@
  * - Accessibility support
  */
 
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, getCurrentInstance } from 'vue'
 import { useAutoCleanup } from './useAutoCleanup'
 
 export interface Toast {
@@ -65,7 +65,9 @@ const generateToastId = (): string => {
  * Toast Composable
  */
 export function useToast(options: ToastOptions = {}) {
-  const { addTimerCleanup } = useAutoCleanup()
+  // Only use auto cleanup if we're inside a component context
+  const instance = getCurrentInstance()
+  const cleanup = instance ? useAutoCleanup() : null
   
   const opts = { ...DEFAULT_OPTIONS, ...globalOptions.value, ...options }
   
@@ -100,7 +102,10 @@ export function useToast(options: ToastOptions = {}) {
         removeToast(toast.id)
       }, toast.duration)
       
-      addTimerCleanup(timerId, 'timeout', `Toast auto-dismiss: ${toast.id}`)
+      // Only add cleanup if we have a cleanup instance
+      if (cleanup) {
+        cleanup.addTimerCleanup(timerId, 'timeout', `Toast auto-dismiss: ${toast.id}`)
+      }
     }
     
     return toast.id
@@ -229,7 +234,10 @@ export function useToast(options: ToastOptions = {}) {
       removeToast(id)
     }, delay)
     
-    addTimerCleanup(timerId, 'timeout', `Toast delayed dismiss: ${id}`)
+    // Only add cleanup if we have a cleanup instance
+    if (cleanup) {
+      cleanup.addTimerCleanup(timerId, 'timeout', `Toast delayed dismiss: ${id}`)
+    }
   }
   
   // Get toast by ID
