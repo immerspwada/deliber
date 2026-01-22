@@ -188,6 +188,9 @@ export const useWalletStore = defineStore('wallet', () => {
         console.error('[WalletStore] fetchBalance: Auth error:', authError)
         const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
         balance.value = emptyBalance
+        // Clear all data on auth error
+        transactions.value = []
+        topupRequests.value = []
         return emptyBalance
       }
       
@@ -195,6 +198,9 @@ export const useWalletStore = defineStore('wallet', () => {
         console.warn('[WalletStore] fetchBalance: No user authenticated')
         const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
         balance.value = emptyBalance
+        // Clear all data when no user
+        transactions.value = []
+        topupRequests.value = []
         return emptyBalance
       }
 
@@ -224,15 +230,32 @@ export const useWalletStore = defineStore('wallet', () => {
         return emptyBalance
       }
 
+      // CRITICAL FIX: RPC returns array, get first element
+      const walletData = Array.isArray(data) ? data[0] : data
+      
+      if (!walletData) {
+        console.warn('[WalletStore] fetchBalance: No wallet data returned')
+        const emptyBalance = { balance: 0, total_earned: 0, total_spent: 0 }
+        balance.value = emptyBalance
+        return emptyBalance
+      }
+
+      console.log('[WalletStore] fetchBalance: Wallet data:', walletData)
+
       // PERFORMANCE FIX: Validate and normalize data
       const walletBalance: WalletBalance = {
-        balance: Number(data?.balance || 0),
-        total_earned: Number(data?.total_earned || 0),
-        total_spent: Number(data?.total_spent || 0)
+        balance: Number(walletData.balance || 0),
+        total_earned: Number(walletData.total_earned || 0),
+        total_spent: Number(walletData.total_spent || 0)
       }
+
+      console.log('[WalletStore] fetchBalance: Parsed wallet balance:', walletBalance)
 
       balance.value = walletBalance
       isInitialized.value = true
+      
+      console.log('[WalletStore] fetchBalance: Updated balance.value:', balance.value)
+      
       return walletBalance
 
     } catch (error) {
@@ -290,7 +313,8 @@ export const useWalletStore = defineStore('wallet', () => {
         dataLength: data?.length, 
         count,
         error,
-        sampleData: data?.[0]
+        sampleData: data?.[0],
+        userId: user.id // Log user ID to verify
       })
 
       if (error) {
@@ -301,6 +325,17 @@ export const useWalletStore = defineStore('wallet', () => {
 
       if (!data) {
         console.warn('[WalletStore] fetchTransactions: No data returned')
+        transactions.value = []
+        return []
+      }
+
+      // CRITICAL: Verify all transactions belong to current user
+      const invalidTransactions = data.filter(txn => txn.user_id !== user.id)
+      if (invalidTransactions.length > 0) {
+        console.error('[WalletStore] fetchTransactions: SECURITY ISSUE - Found transactions for different user!', {
+          currentUserId: user.id,
+          invalidTransactions
+        })
         transactions.value = []
         return []
       }

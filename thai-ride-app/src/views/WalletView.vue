@@ -697,6 +697,10 @@ const handleAddBank = async (): Promise<void> => {
 onMounted(async () => {
   console.log('[WalletView] Mounting...')
   
+  // CRITICAL: Reset store to ensure fresh data
+  console.log('[WalletView] Resetting wallet store...')
+  walletStore.$reset()
+  
   // Deep debug - check each step
   try {
     console.log('[WalletView] Step 1: Fetching balance...')

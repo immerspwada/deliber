@@ -1,104 +1,121 @@
 /**
- * Wallet Debug Utilities
- * ใช้สำหรับ debug wallet system ใน development mode เท่านั้น
+ * Wallet Debug Utility
+ * Helps diagnose wallet balance display issues
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase'
 
-export interface WalletDebugResults {
-  walletExists: boolean;
-  walletBalance: number | null;
-  transactionCount: number;
-  pendingWithdrawals: number;
-  lastTransaction: string | null;
-  errors: string[];
+export interface WalletDebugResult {
+  step: string
+  success: boolean
+  data?: any
+  error?: any
 }
 
-/**
- * Debug wallet system - ตรวจสอบสถานะ wallet ของ user ปัจจุบัน
- */
-export async function debugWalletSystem(): Promise<WalletDebugResults> {
-  const results: WalletDebugResults = {
-    walletExists: false,
-    walletBalance: null,
-    transactionCount: 0,
-    pendingWithdrawals: 0,
-    lastTransaction: null,
-    errors: [],
-  };
+export async function debugWalletSystem(): Promise<WalletDebugResult[]> {
+  const results: WalletDebugResult[] = []
 
+  // Step 1: Check auth
   try {
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      results.errors.push('ไม่พบ user ที่ login');
-      return results;
+    const { data: { user }, error } = await supabase.auth.getUser()
+    results.push({
+      step: '1. Auth Check',
+      success: !error && !!user,
+      data: user ? { id: user.id, email: user.email } : null,
+      error: error?.message
+    })
+
+    if (!user) {
+      return results
     }
 
-    // Check wallet
-    const { data: wallet, error: walletError } = await supabase
-      .from('wallets')
+    // Step 2: Check wallet record
+    const { data: walletData, error: walletError } = await supabase
+      .from('user_wallets')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .single()
 
-    if (walletError) {
-      results.errors.push(`Wallet error: ${walletError.message}`);
-    } else if (wallet) {
-      results.walletExists = true;
-      results.walletBalance = wallet.balance;
-    }
+    results.push({
+      step: '2. Wallet Record',
+      success: !walletError && !!walletData,
+      data: walletData,
+      error: walletError?.message
+    })
 
-    // Check transactions
-    const { data: transactions, error: txError } = await supabase
+    // Step 3: Test RPC function
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_customer_wallet', {
+      p_user_id: user.id
+    })
+
+    results.push({
+      step: '3. RPC Function (get_customer_wallet)',
+      success: !rpcError && !!rpcData,
+      data: rpcData,
+      error: rpcError?.message
+    })
+
+    // Step 4: Check transactions
+    const { data: txnData, error: txnError, count } = await supabase
       .from('wallet_transactions')
       .select('*', { count: 'exact' })
-      .eq('wallet_id', wallet?.id)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (txError) {
-      results.errors.push(`Transaction error: ${txError.message}`);
-    } else {
-      results.transactionCount = transactions?.length ?? 0;
-      results.lastTransaction = transactions?.[0]?.created_at ?? null;
-    }
-
-    // Check pending withdrawals
-    const { count: pendingCount, error: withdrawalError } = await supabase
-      .from('withdrawals')
-      .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('status', 'pending');
+      .limit(5)
 
-    if (withdrawalError) {
-      results.errors.push(`Withdrawal error: ${withdrawalError.message}`);
-    } else {
-      results.pendingWithdrawals = pendingCount ?? 0;
-    }
+    results.push({
+      step: '4. Wallet Transactions',
+      success: !txnError,
+      data: { count, transactions: txnData },
+      error: txnError?.message
+    })
 
-  } catch (error) {
-    results.errors.push(`Unexpected error: ${(error as Error).message}`);
+    // Step 5: Check topup requests
+    const { data: topupData, error: topupError } = await supabase.rpc('get_topup_requests_by_user', {
+      p_user_id: user.id,
+      p_limit: 5
+    })
+
+    results.push({
+      step: '5. Topup Requests',
+      success: !topupError,
+      data: topupData,
+      error: topupError?.message
+    })
+
+  } catch (err) {
+    results.push({
+      step: 'Exception',
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error'
+    })
   }
 
-  return results;
+  return results
 }
 
-/**
- * Print debug results to console
- */
-export function printDebugResults(results: WalletDebugResults): void {
-  console.group('🔍 Wallet Debug Results');
-  console.log('Wallet exists:', results.walletExists);
-  console.log('Balance:', results.walletBalance);
-  console.log('Transaction count:', results.transactionCount);
-  console.log('Pending withdrawals:', results.pendingWithdrawals);
-  console.log('Last transaction:', results.lastTransaction);
+export function printDebugResults(results: WalletDebugResult[]): void {
+  console.log('='.repeat(60))
+  console.log('WALLET DEBUG RESULTS')
+  console.log('='.repeat(60))
   
-  if (results.errors.length > 0) {
-    console.warn('Errors:', results.errors);
-  }
+  results.forEach((result, index) => {
+    console.log(`\n${index + 1}. ${result.step}`)
+    console.log(`   Status: ${result.success ? '✅ SUCCESS' : '❌ FAILED'}`)
+    
+    if (result.data) {
+      console.log('   Data:', result.data)
+    }
+    
+    if (result.error) {
+      console.log('   Error:', result.error)
+    }
+  })
   
-  console.groupEnd();
+  console.log('\n' + '='.repeat(60))
+}
+
+// Make it available in browser console
+if (typeof window !== 'undefined') {
+  (window as any).debugWallet = debugWalletSystem;
+  (window as any).printDebugResults = printDebugResults;
 }
