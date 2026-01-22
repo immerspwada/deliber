@@ -211,6 +211,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { module: 'finance', tab: 'settings' }
       },
       {
+        path: 'topup-requests/payment-info',
+        name: 'AdminPaymentInfoV2',
+        component: () => import('./views/PaymentInfoView.vue'),
+        meta: { module: 'finance' }
+      },
+      {
         path: 'withdrawals',
         name: 'AdminWithdrawalsV2',
         component: WithdrawalsView,

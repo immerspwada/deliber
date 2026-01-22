@@ -5,7 +5,7 @@
  * ป้องกัน memory leaks และปรับปรุงประสิทธิภาพ
  */
 
-import { onUnmounted, onBeforeUnmount, ref, Ref } from 'vue'
+import { onUnmounted, onBeforeUnmount, ref, readonly, type Ref } from 'vue'
 
 interface CleanupFunction {
   id: string
@@ -29,7 +29,7 @@ export function useAutoCleanup() {
     type: CleanupFunction['type'] = 'custom',
     description?: string
   ): string => {
-    const id = `cleanup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const id = `cleanup_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     
     cleanupFunctions.value.push({
       id,
@@ -78,7 +78,7 @@ export function useAutoCleanup() {
    * เพิ่ม Timer cleanup (setTimeout, setInterval)
    */
   const addTimerCleanup = (
-    timerId: NodeJS.Timeout,
+    timerId: ReturnType<typeof setTimeout>,
     type: 'timeout' | 'interval' = 'timeout',
     description?: string
   ): string => {
@@ -383,21 +383,21 @@ export function useAutoCleanup() {
 export function useCleanupTimer() {
   const { addTimerCleanup } = useAutoCleanup()
 
-  const setTimeout = (callback: () => void, delay: number, description?: string): NodeJS.Timeout => {
+  const setTimeoutWithCleanup = (callback: () => void, delay: number, description?: string): ReturnType<typeof setTimeout> => {
     const timerId = globalThis.setTimeout(callback, delay)
     addTimerCleanup(timerId, 'timeout', description)
     return timerId
   }
 
-  const setInterval = (callback: () => void, delay: number, description?: string): NodeJS.Timeout => {
+  const setIntervalWithCleanup = (callback: () => void, delay: number, description?: string): ReturnType<typeof setInterval> => {
     const timerId = globalThis.setInterval(callback, delay)
     addTimerCleanup(timerId, 'interval', description)
     return timerId
   }
 
   return {
-    setTimeout,
-    setInterval
+    setTimeout: setTimeoutWithCleanup,
+    setInterval: setIntervalWithCleanup
   }
 }
 
@@ -440,9 +440,4 @@ export function useCleanupSubscription() {
   return {
     subscribe
   }
-}
-
-// Export readonly function for external use
-function readonly<T>(ref: Ref<T>): Readonly<Ref<T>> {
-  return ref as Readonly<Ref<T>>
 }

@@ -286,7 +286,7 @@
 
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useWalletStore } from '@/stores/wallet'
@@ -434,9 +434,25 @@ const goToPaymentStep = async (): Promise<void> => {
     showToast('จำนวนเงินขั้นต่ำ 20 บาท', 'error')
     return
   }
+  
+  // Load payment accounts from admin settings
   if (paymentAccounts.value.length === 0) {
-    await walletStore.fetchPaymentAccounts()
+    try {
+      await loadPromptPayAccounts()
+      await walletStore.fetchPaymentAccounts()
+    } catch (err) {
+      console.error('[WalletView] Error loading payment accounts:', err)
+      showToast('ไม่สามารถโหลดข้อมูลบัญชีรับเงินได้', 'error')
+      return
+    }
   }
+  
+  // Check if we have payment accounts for the selected method
+  if (!currentPaymentAccount.value) {
+    showToast('ไม่พบบัญชีรับเงินสำหรับวิธีชำระเงินนี้', 'error')
+    return
+  }
+  
   topupStep.value = 'payment'
 }
 
@@ -484,6 +500,19 @@ const closeTopupModal = (): void => {
   slipFile.value = null
   slipPreview.value = null
 }
+
+// Watch for topup modal opening to reload payment accounts
+watch(showTopupModal, async (newValue) => {
+  if (newValue) {
+    // Reload payment accounts when modal opens
+    try {
+      await loadPromptPayAccounts()
+      await loadPaymentMethodsSettings()
+    } catch (err) {
+      console.error('[WalletView] Error reloading payment settings:', err)
+    }
+  }
+})
 
 
 const handleSlipUpload = async (event: Event): Promise<void> => {

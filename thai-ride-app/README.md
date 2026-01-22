@@ -115,6 +115,18 @@ thai-ride-app/
 
 ## การพัฒนา
 
+### Composables
+
+โปรเจคใช้ Vue 3 Composition API และมี composables หลายตัวสำหรับจัดการ state และ logic:
+
+- **useAutoCleanup** - จัดการการทำความสะอาด resources อัตโนมัติ (subscriptions, timers, listeners)
+- **useRideTracking** - ติดตามสถานะการเดินทางแบบ realtime
+- **useErrorHandler** - จัดการ errors แบบรวมศูนย์
+- **useAdminAuth** - Authentication สำหรับ admin panel
+- **useFinancialSettings** - จัดการการตั้งค่าทางการเงิน
+
+ดูเอกสารเพิ่มเติมที่ `docs/composables.md`
+
 ### Database Migrations
 
 โปรเจคใช้ Supabase สำหรับ backend และ database:

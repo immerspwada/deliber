@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useToast } from "@/composables/useToast";
 import { useErrorHandler } from "@/composables/useErrorHandler";
 import { usePaymentAccountsSync } from "@/composables/usePaymentAccountsSync";
+import { usePaymentAccounts, type PaymentAccount } from "@/composables/usePaymentAccounts";
 
 const router = useRouter();
 const route = useRoute();
@@ -29,9 +30,18 @@ interface TopupRequest {
 }
 
 const authStore = useAuthStore();
-const { showSuccess, showError } = useToast();
+const toast = useToast();
 const errorHandler = useErrorHandler();
 const { syncToWalletStore } = usePaymentAccountsSync();
+const { 
+  accounts: paymentAccountsData, 
+  loading: paymentAccountsLoading,
+  loadAccounts: loadPaymentAccounts,
+  createAccount: createPaymentAccount,
+  updateAccount: updatePaymentAccount,
+  deleteAccount: deletePaymentAccount,
+  uploadQRCode
+} = usePaymentAccounts();
 
 const topups = ref<TopupRequest[]>([]);
 const loading = ref(false);
@@ -54,39 +64,21 @@ const minTopupAmount = ref(100);
 const maxTopupAmount = ref(50000);
 const settingsSaved = ref(false);
 
-// PromptPay settings
+// PromptPay settings - now using payment_receiving_accounts
 const showPromptPayModal = ref(false);
-const promptPayAccounts = ref<Array<{ 
-  id: string; 
-  phone: string; 
-  name: string;
-  qr_code_url?: string;
-}>>([]);
-const promptPayForm = ref({ phone: "", name: "", qr_code_url: "" });
+const promptPayForm = ref<Partial<PaymentAccount>>({});
 const editingPromptPayId = ref<string | null>(null);
 const qrCodePreview = ref<string | null>(null);
 const qrCodeInput = ref<HTMLInputElement | null>(null);
+const qrCodeFile = ref<File | null>(null);
 
-// Bank settings
+// Bank settings - now using payment_receiving_accounts
 const showBankModal = ref(false);
-const bankAccounts = ref<Array<{
-  id: string;
-  bank_code: string;
-  bank_name: string;
-  account_number: string;
-  account_name: string;
-  qr_code_url?: string;
-}>>([]);
-const bankForm = ref({ 
-  bank_code: "", 
-  bank_name: "", 
-  account_number: "", 
-  account_name: "",
-  qr_code_url: ""
-});
+const bankForm = ref<Partial<PaymentAccount>>({});
 const editingBankId = ref<string | null>(null);
 const bankQrCodePreview = ref<string | null>(null);
 const bankQrCodeInput = ref<HTMLInputElement | null>(null);
+const bankQrCodeFile = ref<File | null>(null);
 
 const THAI_BANKS = [
   { code: 'BBL', name: 'ธนาคารกรุงเทพ' },
@@ -193,12 +185,12 @@ async function approveRequest() {
     if (rpcError) throw rpcError;
 
     if (data && data[0]?.success) {
-      showSuccess("อนุมัติคำขอเติมเงินเรียบร้อยแล้ว");
+      toast.success("อนุมัติคำขอเติมเงินเรียบร้อยแล้ว");
       showApproveModal.value = false;
       showDetailModal.value = false;
       await loadData();
     } else {
-      showError(data?.[0]?.message || "เกิดข้อผิดพลาด");
+      toast.error(data?.[0]?.message || "เกิดข้อผิดพลาด");
     }
   } catch (e) {
     errorHandler.handle(e, "approveTopupRequest");
@@ -209,7 +201,7 @@ async function approveRequest() {
 
 async function rejectRequest() {
   if (!selectedTopup.value || !rejectionReason.value.trim()) {
-    showError("กรุณาระบุเหตุผลในการปฏิเสธ");
+    toast.error("กรุณาระบุเหตุผลในการปฏิเสธ");
     return;
   }
 
@@ -228,12 +220,12 @@ async function rejectRequest() {
     if (rpcError) throw rpcError;
 
     if (data && data[0]?.success) {
-      showSuccess("ปฏิเสธคำขอเติมเงินเรียบร้อยแล้ว");
+      toast.success("ปฏิเสธคำขอเติมเงินเรียบร้อยแล้ว");
       showRejectModal.value = false;
       showDetailModal.value = false;
       await loadData();
     } else {
-      showError(data?.[0]?.message || "เกิดข้อผิดพลาด");
+      toast.error(data?.[0]?.message || "เกิดข้อผิดพลาด");
     }
   } catch (e) {
     errorHandler.handle(e, "rejectTopupRequest");
@@ -291,6 +283,10 @@ function getPaymentMethodLabel(method: string): string {
 
 async function loadSettings() {
   try {
+    // Load payment accounts from database
+    await loadPaymentAccounts()
+    
+    // Load other settings from system_settings
     // @ts-ignore - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
       "get_system_settings",
@@ -316,12 +312,6 @@ async function loadSettings() {
       if (settings?.max_topup_amount) {
         maxTopupAmount.value = settings.max_topup_amount;
       }
-      if (settings?.promptpay_accounts) {
-        promptPayAccounts.value = settings.promptpay_accounts;
-      }
-      if (settings?.bank_accounts) {
-        bankAccounts.value = settings.bank_accounts;
-      }
     }
   } catch (e) {
     console.warn("Error loading settings:", e);
@@ -335,8 +325,6 @@ async function saveSettings() {
       payment_methods: paymentMethods.value,
       min_topup_amount: minTopupAmount.value,
       max_topup_amount: maxTopupAmount.value,
-      promptpay_accounts: promptPayAccounts.value,
-      bank_accounts: bankAccounts.value,
     };
 
     // @ts-ignore - Supabase RPC types not fully typed
@@ -353,7 +341,7 @@ async function saveSettings() {
     await syncToWalletStore();
 
     settingsSaved.value = true;
-    showSuccess("บันทึกการตั้งค่าเรียบร้อยแล้ว");
+    toast.success("บันทึกการตั้งค่าเรียบร้อยแล้ว");
 
     setTimeout(() => {
       settingsSaved.value = false;
@@ -367,19 +355,25 @@ async function saveSettings() {
 
 function openPromptPayModal() {
   showPromptPayModal.value = true;
-  promptPayForm.value = { phone: "", name: "", qr_code_url: "" };
+  promptPayForm.value = {
+    account_type: 'promptpay',
+    account_name: '',
+    account_number: '',
+    qr_code_url: '',
+    is_active: true,
+    is_default: false,
+    sort_order: paymentAccountsData.value.length
+  };
   qrCodePreview.value = null;
+  qrCodeFile.value = null;
   editingPromptPayId.value = null;
 }
 
-function editPromptPayAccount(account: { id: string; phone: string; name: string; qr_code_url?: string }) {
+function editPromptPayAccount(account: PaymentAccount) {
   editingPromptPayId.value = account.id;
-  promptPayForm.value = { 
-    phone: account.phone, 
-    name: account.name,
-    qr_code_url: account.qr_code_url || ""
-  };
+  promptPayForm.value = { ...account };
   qrCodePreview.value = account.qr_code_url || null;
+  qrCodeFile.value = null;
   showPromptPayModal.value = true;
 }
 
@@ -387,85 +381,117 @@ function handleQRCodeUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
+  qrCodeFile.value = file;
   const reader = new FileReader();
   reader.onload = (e) => {
     qrCodePreview.value = e.target?.result as string;
-    promptPayForm.value.qr_code_url = e.target?.result as string;
   };
   reader.readAsDataURL(file);
 }
 
 function removeQRCode() {
   qrCodePreview.value = null;
-  promptPayForm.value.qr_code_url = "";
+  qrCodeFile.value = null;
+  if (promptPayForm.value) {
+    promptPayForm.value.qr_code_url = '';
+  }
   if (qrCodeInput.value) {
     qrCodeInput.value.value = "";
   }
 }
 
-function savePromptPayAccount() {
-  if (!promptPayForm.value.phone.trim() || !promptPayForm.value.name.trim()) {
-    showError("กรุณากรอกเบอร์พร้อมเพย์และชื่อ");
+async function savePromptPayAccount() {
+  if (!promptPayForm.value.account_number?.trim() || !promptPayForm.value.account_name?.trim()) {
+    toast.error("กรุณากรอกเบอร์พร้อมเพย์และชื่อ");
     return;
   }
 
-  if (editingPromptPayId.value) {
-    const index = promptPayAccounts.value.findIndex(
-      (a) => a.id === editingPromptPayId.value,
-    );
-    if (index !== -1) {
-      promptPayAccounts.value[index] = {
-        id: editingPromptPayId.value,
-        phone: promptPayForm.value.phone,
-        name: promptPayForm.value.name,
-        qr_code_url: promptPayForm.value.qr_code_url,
-      };
+  isProcessing.value = true;
+  try {
+    // Upload QR code if new file selected
+    let qrCodeUrl = promptPayForm.value.qr_code_url;
+    if (qrCodeFile.value) {
+      const accountId = editingPromptPayId.value || `promptpay_${Date.now()}`;
+      const uploadedUrl = await uploadQRCode(qrCodeFile.value, accountId);
+      if (uploadedUrl) {
+        qrCodeUrl = uploadedUrl;
+      }
     }
-  } else {
-    promptPayAccounts.value.push({
-      id: `promptpay_${Date.now()}`,
-      phone: promptPayForm.value.phone,
-      name: promptPayForm.value.name,
-      qr_code_url: promptPayForm.value.qr_code_url,
-    });
-  }
 
-  showPromptPayModal.value = false;
-  promptPayForm.value = { phone: "", name: "", qr_code_url: "" };
-  qrCodePreview.value = null;
-  editingPromptPayId.value = null;
-  showSuccess("บันทึกบัญชีพร้อมเพย์เรียบร้อยแล้ว");
+    const accountData: Partial<PaymentAccount> = {
+      account_type: 'promptpay',
+      account_name: promptPayForm.value.account_name!,
+      account_number: promptPayForm.value.account_number!,
+      qr_code_url: qrCodeUrl,
+      display_name: promptPayForm.value.display_name || `พร้อมเพย์ ${promptPayForm.value.account_name}`,
+      description: promptPayForm.value.description || 'โอนเงินผ่านพร้อมเพย์',
+      is_active: promptPayForm.value.is_active ?? true,
+      is_default: promptPayForm.value.is_default ?? false,
+      sort_order: promptPayForm.value.sort_order ?? paymentAccountsData.value.length
+    };
+
+    let result;
+    if (editingPromptPayId.value) {
+      result = await updatePaymentAccount(editingPromptPayId.value, accountData);
+    } else {
+      result = await createPaymentAccount(accountData as Omit<PaymentAccount, 'id'>);
+    }
+
+    if (result.success) {
+      await syncToWalletStore();
+      toast.success('บันทึกบัญชีพร้อมเพย์เรียบร้อยแล้ว');
+      showPromptPayModal.value = false;
+      promptPayForm.value = {};
+      qrCodePreview.value = null;
+      qrCodeFile.value = null;
+      editingPromptPayId.value = null;
+    } else {
+      toast.error('ไม่สามารถบันทึกบัญชีได้');
+    }
+  } catch (err) {
+    console.error('[AdminTopupRequestsView] Save PromptPay error:', err);
+    toast.error('เกิดข้อผิดพลาดในการบันทึก');
+  } finally {
+    isProcessing.value = false;
+  }
 }
 
-function deletePromptPayAccount(id: string) {
-  promptPayAccounts.value = promptPayAccounts.value.filter((a) => a.id !== id);
-  showSuccess("ลบบัญชีพร้อมเพย์เรียบร้อยแล้ว");
+async function deletePromptPayAccount(id: string) {
+  if (!confirm('คุณต้องการลบบัญชีพร้อมเพย์นี้หรือไม่?')) return;
+  
+  const result = await deletePaymentAccount(id);
+  if (result.success) {
+    await syncToWalletStore();
+    toast.success('ลบบัญชีพร้อมเพย์เรียบร้อยแล้ว');
+  } else {
+    toast.error('ไม่สามารถลบบัญชีได้');
+  }
 }
 
 // Bank account functions
 function openBankModal() {
   showBankModal.value = true;
-  bankForm.value = { 
-    bank_code: "", 
-    bank_name: "", 
-    account_number: "", 
-    account_name: "",
-    qr_code_url: ""
+  bankForm.value = {
+    account_type: 'bank_transfer',
+    bank_code: '',
+    bank_name: '',
+    account_number: '',
+    account_name: '',
+    qr_code_url: '',
+    is_active: true,
+    is_default: false,
+    sort_order: paymentAccountsData.value.length
   };
   bankQrCodePreview.value = null;
+  bankQrCodeFile.value = null;
   editingBankId.value = null;
 }
 
-function editBankAccount(account: typeof bankAccounts.value[0]) {
+function editBankAccount(account: PaymentAccount) {
   editingBankId.value = account.id;
-  bankForm.value = { 
-    bank_code: account.bank_code,
-    bank_name: account.bank_name,
-    account_number: account.account_number,
-    account_name: account.account_name,
-    qr_code_url: account.qr_code_url || ""
-  };
+  bankForm.value = { ...account };
   bankQrCodePreview.value = account.qr_code_url || null;
+  bankQrCodeFile.value = null;
   showBankModal.value = true;
 }
 
@@ -473,75 +499,99 @@ function handleBankQRCodeUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
+  bankQrCodeFile.value = file;
   const reader = new FileReader();
   reader.onload = (e) => {
     bankQrCodePreview.value = e.target?.result as string;
-    bankForm.value.qr_code_url = e.target?.result as string;
   };
   reader.readAsDataURL(file);
 }
 
 function removeBankQRCode() {
   bankQrCodePreview.value = null;
-  bankForm.value.qr_code_url = "";
+  bankQrCodeFile.value = null;
+  if (bankForm.value) {
+    bankForm.value.qr_code_url = '';
+  }
   if (bankQrCodeInput.value) {
     bankQrCodeInput.value.value = "";
   }
 }
 
-function saveBankAccount() {
+async function saveBankAccount() {
   if (!bankForm.value.bank_code || !bankForm.value.account_number || !bankForm.value.account_name) {
-    showError("กรุณากรอกข้อมูลธนาคารให้ครบถ้วน");
+    toast.error("กรุณากรอกข้อมูลธนาคารให้ครบถ้วน");
     return;
   }
 
   const selectedBank = THAI_BANKS.find(b => b.code === bankForm.value.bank_code);
   if (!selectedBank) {
-    showError("กรุณาเลือกธนาคาร");
+    toast.error("กรุณาเลือกธนาคาร");
     return;
   }
 
-  if (editingBankId.value) {
-    const index = bankAccounts.value.findIndex(
-      (a) => a.id === editingBankId.value,
-    );
-    if (index !== -1) {
-      bankAccounts.value[index] = {
-        id: editingBankId.value,
-        bank_code: bankForm.value.bank_code,
-        bank_name: selectedBank.name,
-        account_number: bankForm.value.account_number,
-        account_name: bankForm.value.account_name,
-        qr_code_url: bankForm.value.qr_code_url,
-      };
+  isProcessing.value = true;
+  try {
+    // Upload QR code if new file selected
+    let qrCodeUrl = bankForm.value.qr_code_url;
+    if (bankQrCodeFile.value) {
+      const accountId = editingBankId.value || `bank_${Date.now()}`;
+      const uploadedUrl = await uploadQRCode(bankQrCodeFile.value, accountId);
+      if (uploadedUrl) {
+        qrCodeUrl = uploadedUrl;
+      }
     }
-  } else {
-    bankAccounts.value.push({
-      id: `bank_${Date.now()}`,
+
+    const accountData: Partial<PaymentAccount> = {
+      account_type: 'bank_transfer',
       bank_code: bankForm.value.bank_code,
       bank_name: selectedBank.name,
-      account_number: bankForm.value.account_number,
-      account_name: bankForm.value.account_name,
-      qr_code_url: bankForm.value.qr_code_url,
-    });
-  }
+      account_number: bankForm.value.account_number!,
+      account_name: bankForm.value.account_name!,
+      qr_code_url: qrCodeUrl,
+      display_name: bankForm.value.display_name || selectedBank.name,
+      description: bankForm.value.description || 'โอนเงินผ่านธนาคาร',
+      is_active: bankForm.value.is_active ?? true,
+      is_default: bankForm.value.is_default ?? false,
+      sort_order: bankForm.value.sort_order ?? paymentAccountsData.value.length
+    };
 
-  showBankModal.value = false;
-  bankForm.value = { 
-    bank_code: "", 
-    bank_name: "", 
-    account_number: "", 
-    account_name: "",
-    qr_code_url: ""
-  };
-  bankQrCodePreview.value = null;
-  editingBankId.value = null;
-  showSuccess("บันทึกบัญชีธนาคารเรียบร้อยแล้ว");
+    let result;
+    if (editingBankId.value) {
+      result = await updatePaymentAccount(editingBankId.value, accountData);
+    } else {
+      result = await createPaymentAccount(accountData as Omit<PaymentAccount, 'id'>);
+    }
+
+    if (result.success) {
+      await syncToWalletStore();
+      toast.success('บันทึกบัญชีธนาคารเรียบร้อยแล้ว');
+      showBankModal.value = false;
+      bankForm.value = {};
+      bankQrCodePreview.value = null;
+      bankQrCodeFile.value = null;
+      editingBankId.value = null;
+    } else {
+      toast.error('ไม่สามารถบันทึกบัญชีได้');
+    }
+  } catch (err) {
+    console.error('[AdminTopupRequestsView] Save Bank error:', err);
+    toast.error('เกิดข้อผิดพลาดในการบันทึก');
+  } finally {
+    isProcessing.value = false;
+  }
 }
 
-function deleteBankAccount(id: string) {
-  bankAccounts.value = bankAccounts.value.filter((a) => a.id !== id);
-  showSuccess("ลบบัญชีธนาคารเรียบร้อยแล้ว");
+async function deleteBankAccount(id: string) {
+  if (!confirm('คุณต้องการลบบัญชีธนาคารนี้หรือไม่?')) return;
+  
+  const result = await deletePaymentAccount(id);
+  if (result.success) {
+    await syncToWalletStore();
+    toast.success('ลบบัญชีธนาคารเรียบร้อยแล้ว');
+  } else {
+    toast.error('ไม่สามารถลบบัญชีได้');
+  }
 }
 
 onMounted(() => {
@@ -624,20 +674,20 @@ onMounted(() => {
               + เพิ่มบัญชี
             </button>
           </div>
-          <div v-if="promptPayAccounts.length === 0" class="empty-message">
+          <div v-if="paymentAccountsData.filter(a => a.account_type === 'promptpay').length === 0" class="empty-message">
             ยังไม่มีบัญชีพร้อมเพย์
           </div>
           <div v-else class="promptpay-list">
             <div
-              v-for="account in promptPayAccounts"
+              v-for="account in paymentAccountsData.filter(a => a.account_type === 'promptpay')"
               :key="account.id"
               class="promptpay-item"
             >
               <div class="promptpay-info">
-                <div class="promptpay-name">{{ account.name }}</div>
-                <div class="promptpay-phone">{{ account.phone }}</div>
+                <div class="promptpay-name">{{ account.account_name }}</div>
+                <div class="promptpay-phone">{{ account.account_number }}</div>
                 <div v-if="account.qr_code_url" class="promptpay-qr-preview">
-                  <img :src="account.qr_code_url" :alt="'QR Code ' + account.name" class="qr-thumbnail" />
+                  <img :src="account.qr_code_url" :alt="'QR Code ' + account.account_name" class="qr-thumbnail" />
                 </div>
               </div>
               <div class="promptpay-actions">
@@ -670,12 +720,12 @@ onMounted(() => {
               + เพิ่มบัญชี
             </button>
           </div>
-          <div v-if="bankAccounts.length === 0" class="empty-message">
+          <div v-if="paymentAccountsData.filter(a => a.account_type === 'bank_transfer').length === 0" class="empty-message">
             ยังไม่มีบัญชีธนาคาร
           </div>
           <div v-else class="bank-list">
             <div
-              v-for="account in bankAccounts"
+              v-for="account in paymentAccountsData.filter(a => a.account_type === 'bank_transfer')"
               :key="account.id"
               class="bank-item"
             >
@@ -1010,7 +1060,7 @@ onMounted(() => {
             <label for="promptpay-phone">เบอร์พร้อมเพย์ *</label>
             <input
               id="promptpay-phone"
-              v-model="promptPayForm.phone"
+              v-model="promptPayForm.account_number"
               type="tel"
               placeholder="เช่น 0812345678"
               class="form-input"
@@ -1020,7 +1070,7 @@ onMounted(() => {
             <label for="promptpay-name">ชื่อบัญชี *</label>
             <input
               id="promptpay-name"
-              v-model="promptPayForm.name"
+              v-model="promptPayForm.account_name"
               type="text"
               placeholder="เช่น บริษัท ABC"
               class="form-input"
@@ -1029,7 +1079,7 @@ onMounted(() => {
           <div class="form-group">
             <label>QR Code พร้อมเพย์</label>
             <div v-if="qrCodePreview" class="qr-preview-container">
-              <img :src="qrCodePreview" :alt="'QR Code ' + promptPayForm.name" class="qr-preview-image" />
+              <img :src="qrCodePreview" :alt="'QR Code ' + promptPayForm.account_name" class="qr-preview-image" />
               <button
                 @click="removeQRCode"
                 class="btn btn-small btn-delete"
@@ -1058,7 +1108,7 @@ onMounted(() => {
             </button>
             <button
               @click="savePromptPayAccount"
-              :disabled="isProcessing || !promptPayForm.phone.trim() || !promptPayForm.name.trim()"
+              :disabled="isProcessing || !promptPayForm.account_number?.trim() || !promptPayForm.account_name?.trim()"
               class="btn btn-approve"
             >
               {{ isProcessing ? "กำลังบันทึก..." : "บันทึก" }}
