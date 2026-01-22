@@ -174,7 +174,7 @@ async function approveRequest() {
   try {
     // @ts-ignore - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
-      "approve_topup_request",
+      "admin_approve_topup_request",
       {
         p_request_id: selectedTopup.value.id,
         p_admin_id: authStore.user?.id,
@@ -209,7 +209,7 @@ async function rejectRequest() {
   try {
     // @ts-ignore - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
-      "reject_topup_request",
+      "admin_reject_topup_request",
       {
         p_request_id: selectedTopup.value.id,
         p_admin_id: authStore.user?.id,
