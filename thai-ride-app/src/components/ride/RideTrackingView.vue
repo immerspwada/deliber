@@ -55,6 +55,16 @@ const emit = defineEmits<{
 const showChat = ref(false)
 const unreadMessages = ref(0)
 
+// Realtime connection status text
+const connectionStatusText = computed(() => {
+  switch (props.realtimeStatus) {
+    case 'connected': return 'เชื่อมต่อแล้ว'
+    case 'connecting': return 'กำลังเชื่อมต่อ...'
+    case 'disconnected': return 'ไม่ได้เชื่อมต่อ'
+    default: return ''
+  }
+})
+
 // Provider tracking (realtime location)
 const rideIdForTracking = computed(() => props.rideId || '')
 const {
@@ -238,6 +248,12 @@ onMounted(async () => {
         height="100%"
       />
       
+      <!-- Realtime Connection Status -->
+      <div v-if="realtimeStatus" class="realtime-status" :class="realtimeStatus">
+        <span class="status-dot" :class="realtimeStatus"></span>
+        <span class="status-text">{{ connectionStatusText }}</span>
+      </div>
+
       <!-- ETA Badge -->
       <div v-if="etaMinutes || distanceText" class="eta-badge" :class="{ 'nearby': isDriverNearby, 'approaching': isDriverApproaching }">
         <span v-if="etaMinutes" class="eta-time">{{ etaMinutes }} นาที</span>
@@ -823,6 +839,87 @@ onMounted(async () => {
   /* CRITICAL: Badge should not block map clicks */
   pointer-events: none !important;
   transition: all 0.3s ease;
+}
+
+/* Realtime Connection Status */
+.realtime-status {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 1000;
+  pointer-events: none !important;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.realtime-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.realtime-status .status-dot.connected {
+  background: #22c55e;
+  animation: pulse-connected 2s ease-in-out infinite;
+}
+
+.realtime-status .status-dot.connecting {
+  background: #f59e0b;
+  animation: pulse-connecting 1s ease-in-out infinite;
+}
+
+.realtime-status .status-dot.disconnected {
+  background: #ef4444;
+}
+
+.realtime-status .status-text {
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.realtime-status.connected {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #bbf7d0;
+}
+
+.realtime-status.connected .status-text {
+  color: #16a34a;
+}
+
+.realtime-status.connecting {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #fde68a;
+}
+
+.realtime-status.connecting .status-text {
+  color: #d97706;
+}
+
+.realtime-status.disconnected {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
+}
+
+.realtime-status.disconnected .status-text {
+  color: #dc2626;
+}
+
+@keyframes pulse-connected {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+@keyframes pulse-connecting {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .eta-badge.nearby {

@@ -72,7 +72,7 @@ import { useRouter } from "vue-router";
 import { z } from "zod";
 
 // 3. Internal modules (@/)
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/auth";
 import type { User } from "@/types";
 
 // 4. Relative imports

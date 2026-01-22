@@ -41,7 +41,7 @@ const isLoadingAnalytics = ref(false);
 
 // Performance optimizations
 const isVirtualScrollEnabled = ref(false);
-const viewMode = ref<'table' | 'cards'>('table');
+const viewMode = ref<"table" | "cards">("table");
 const autoRefresh = ref(false);
 const refreshInterval = ref<NodeJS.Timeout | null>(null);
 
@@ -56,47 +56,51 @@ const filters = computed<OrderFilters>(() => ({
   sortOrder: sortOrder.value,
 }));
 
-const hasActiveFilters = computed(() => 
-  searchQuery.value || statusFilter.value || serviceTypeFilter.value || 
-  dateFromFilter.value || dateToFilter.value
+const hasActiveFilters = computed(
+  () =>
+    searchQuery.value ||
+    statusFilter.value ||
+    serviceTypeFilter.value ||
+    dateFromFilter.value ||
+    dateToFilter.value,
 );
 
 const selectedOrdersCount = computed(() => selectedOrders.value.size);
 
 const canBulkUpdate = computed(() => selectedOrdersCount.value > 0);
 
-const priorityOrders = computed(() => 
-  orders.value.filter(order => 
-    order.priority === 'urgent' || order.priority === 'high_value'
-  )
+const priorityOrders = computed(() =>
+  orders.value.filter(
+    (order) => order.priority === "urgent" || order.priority === "high_value",
+  ),
 );
 
 const statusOptions = [
-  { value: '', label: 'ทุกสถานะ' },
-  { value: 'pending', label: 'รอรับ' },
-  { value: 'matched', label: 'จับคู่แล้ว' },
-  { value: 'in_progress', label: 'กำลังดำเนินการ' },
-  { value: 'completed', label: 'เสร็จสิ้น' },
-  { value: 'cancelled', label: 'ยกเลิก' },
+  { value: "", label: "ทุกสถานะ" },
+  { value: "pending", label: "รอรับ" },
+  { value: "matched", label: "จับคู่แล้ว" },
+  { value: "in_progress", label: "กำลังดำเนินการ" },
+  { value: "completed", label: "เสร็จสิ้น" },
+  { value: "cancelled", label: "ยกเลิก" },
 ];
 
 const serviceTypeOptions = [
-  { value: '', label: 'ทุกบริการ' },
-  { value: 'ride', label: 'เรียกรถ' },
-  { value: 'delivery', label: 'จัดส่ง' },
-  { value: 'shopping', label: 'ช้อปปิ้ง' },
-  { value: 'queue', label: 'จองคิว' },
-  { value: 'moving', label: 'ขนย้าย' },
-  { value: 'laundry', label: 'ซักรีด' },
+  { value: "", label: "ทุกบริการ" },
+  { value: "ride", label: "เรียกรถ" },
+  { value: "delivery", label: "จัดส่ง" },
+  { value: "shopping", label: "ช้อปปิ้ง" },
+  { value: "queue", label: "จองคิว" },
+  { value: "moving", label: "ขนย้าย" },
+  { value: "laundry", label: "ซักรีด" },
 ];
 
 const sortOptions = [
-  { value: 'created_at', label: 'วันที่สร้าง' },
-  { value: 'amount', label: 'ยอดเงิน' },
-  { value: 'user_name', label: 'ชื่อลูกค้า' },
-  { value: 'provider_name', label: 'ผู้ให้บริการ' },
-  { value: 'distance', label: 'ระยะทาง' },
-  { value: 'rating', label: 'คะแนน' },
+  { value: "created_at", label: "วันที่สร้าง" },
+  { value: "amount", label: "ยอดเงิน" },
+  { value: "user_name", label: "ชื่อลูกค้า" },
+  { value: "provider_name", label: "ผู้ให้บริการ" },
+  { value: "distance", label: "ระยะทาง" },
+  { value: "rating", label: "คะแนน" },
 ];
 
 // Enhanced API functions
@@ -124,13 +128,19 @@ async function loadOrders() {
     });
 
     // Debug evidence fields
-    const ordersWithEvidence = result.data.filter((o: any) => o.pickup_photo || o.dropoff_photo);
-    console.log("[OrdersView] Orders with evidence:", ordersWithEvidence.length, ordersWithEvidence.map((o: any) => ({
-      tracking_id: o.tracking_id,
-      pickup_photo: o.pickup_photo,
-      dropoff_photo: o.dropoff_photo,
-      arrived_at: o.arrived_at
-    })));
+    const ordersWithEvidence = result.data.filter(
+      (o: any) => o.pickup_photo || o.dropoff_photo,
+    );
+    console.log(
+      "[OrdersView] Orders with evidence:",
+      ordersWithEvidence.length,
+      ordersWithEvidence.map((o: any) => ({
+        tracking_id: o.tracking_id,
+        pickup_photo: o.pickup_photo,
+        dropoff_photo: o.dropoff_photo,
+        arrived_at: o.arrived_at,
+      })),
+    );
 
     if (api.error.value) {
       loadError.value = api.error.value;
@@ -200,13 +210,13 @@ function handleReassignmentSuccess() {
 
 async function updateStatus() {
   if (!selectedOrder.value) return;
-  
+
   const success = await api.updateOrderStatus(
     selectedOrder.value.id,
     newStatus.value,
-    { serviceType: selectedOrder.value.service_type as any }
+    { serviceType: selectedOrder.value.service_type as any },
   );
-  
+
   if (success) {
     uiStore.showSuccess("อัพเดทสถานะเรียบร้อย");
     showStatusModal.value = false;
@@ -218,18 +228,22 @@ async function updateStatus() {
 
 // Inline status update (for dropdown)
 async function updateStatusInline(order: Order, newStatus: OrderStatus) {
-  console.log('[OrdersView] updateStatusInline:', { orderId: order.id, oldStatus: order.status, newStatus });
-  
-  const success = await api.updateOrderStatus(
-    order.id,
+  console.log("[OrdersView] updateStatusInline:", {
+    orderId: order.id,
+    oldStatus: order.status,
     newStatus,
-    { serviceType: order.service_type as any }
-  );
-  
+  });
+
+  const success = await api.updateOrderStatus(order.id, newStatus, {
+    serviceType: order.service_type as any,
+  });
+
   if (success) {
-    uiStore.showSuccess(`เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}" เรียบร้อย`);
+    uiStore.showSuccess(
+      `เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}" เรียบร้อย`,
+    );
     // Update local state immediately for better UX
-    const orderIndex = orders.value.findIndex(o => o.id === order.id);
+    const orderIndex = orders.value.findIndex((o) => o.id === order.id);
     if (orderIndex !== -1) {
       orders.value[orderIndex].status = newStatus;
     }
@@ -242,24 +256,28 @@ async function updateStatusInline(order: Order, newStatus: OrderStatus) {
 
 async function bulkUpdateStatus() {
   if (selectedOrdersCount.value === 0) return;
-  
+
   const orderIds = Array.from(selectedOrders.value);
-  const serviceType = orders.value.find(o => selectedOrders.value.has(o.id))?.service_type;
-  
+  const serviceType = orders.value.find((o) =>
+    selectedOrders.value.has(o.id),
+  )?.service_type;
+
   if (!serviceType) {
     uiStore.showError("ไม่สามารถระบุประเภทบริการได้");
     return;
   }
-  
+
   const success = await api.bulkUpdateOrdersStatus(
     serviceType,
     orderIds,
     bulkStatus.value,
-    bulkReason.value
+    bulkReason.value,
   );
-  
+
   if (success) {
-    uiStore.showSuccess(`อัพเดทสถานะ ${selectedOrdersCount.value} รายการเรียบร้อย`);
+    uiStore.showSuccess(
+      `อัพเดทสถานะ ${selectedOrdersCount.value} รายการเรียบร้อย`,
+    );
     selectedOrders.value.clear();
     showBulkModal.value = false;
     loadOrders();
@@ -280,7 +298,7 @@ function selectAllOrders() {
   if (selectedOrdersCount.value === orders.value.length) {
     selectedOrders.value.clear();
   } else {
-    orders.value.forEach(order => selectedOrders.value.add(order.id));
+    orders.value.forEach((order) => selectedOrders.value.add(order.id));
   }
 }
 
@@ -302,7 +320,7 @@ function exportOrders() {
 
 function toggleAutoRefresh() {
   autoRefresh.value = !autoRefresh.value;
-  
+
   if (autoRefresh.value) {
     refreshInterval.value = setInterval(loadOrders, 30000); // Refresh every 30 seconds
     uiStore.showSuccess("เปิดการรีเฟรชอัตโนมัติแล้ว (30 วินาที)");
@@ -433,10 +451,20 @@ watch([searchQuery], () => {
   debouncedLoadOrders();
 });
 
-watch([statusFilter, serviceTypeFilter, dateFromFilter, dateToFilter, sortBy, sortOrder], () => {
-  currentPage.value = 1;
-  loadOrders();
-});
+watch(
+  [
+    statusFilter,
+    serviceTypeFilter,
+    dateFromFilter,
+    dateToFilter,
+    sortBy,
+    sortOrder,
+  ],
+  () => {
+    currentPage.value = 1;
+    loadOrders();
+  },
+);
 
 watch(currentPage, loadOrders);
 
@@ -449,7 +477,7 @@ onMounted(() => {
     console.log(`[OrdersView] Realtime update: ${table} ${eventType}`);
     loadOrders();
     uiStore.showInfo(
-      `${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)}`
+      `${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)}`,
     );
   });
 });
@@ -466,104 +494,203 @@ function getVisiblePages() {
   const pages = [];
   const maxVisible = 5;
   const half = Math.floor(maxVisible / 2);
-  
+
   let start = Math.max(1, currentPage.value - half);
   let end = Math.min(totalPages.value, start + maxVisible - 1);
-  
+
   if (end - start + 1 < maxVisible) {
     start = Math.max(1, end - maxVisible + 1);
   }
-  
+
   for (let i = start; i <= end; i++) {
     pages.push(i);
   }
-  
+
   return pages;
 }
 </script>
 
 <template>
-  <div class="orders-view">
+  <div
+    class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8"
+  >
     <!-- Enhanced Header -->
-    <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">ออเดอร์</h1>
-        <span class="total-count">{{ totalOrders.toLocaleString() }} รายการ</span>
-        <span v-if="priorityOrders.length > 0" class="priority-count">
-          {{ priorityOrders.length }} ด่วน
-        </span>
-        <span
-          class="realtime-indicator"
-          :class="{ connected: realtime.isConnected.value }"
-          :title="
-            realtime.isConnected.value
-              ? 'Realtime เชื่อมต่อแล้ว'
-              : 'กำลังเชื่อมต่อ...'
-          "
-        >
-          <span class="pulse-dot"></span>
-          {{ realtime.isConnected.value ? "Live" : "Connecting..." }}
-        </span>
-      </div>
-      <div class="header-right">
-        <span v-if="realtime.lastUpdate.value" class="last-update">
-          อัพเดทล่าสุด: {{ formatTime(realtime.lastUpdate.value) }}
-        </span>
-        
+    <div class="mb-8">
+      <div
+        class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
+      >
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <div
+              class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg"
+            >
+              <svg
+                class="w-6 h-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                />
+              </svg>
+            </div>
+            ออเดอร์ทั้งหมด
+          </h1>
+          <p class="text-gray-600 mt-2 flex items-center gap-3 flex-wrap">
+            <span class="flex items-center gap-2">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              ทั้งหมด {{ totalOrders.toLocaleString() }} รายการ
+            </span>
+            <span
+              v-if="priorityOrders.length > 0"
+              class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700"
+            >
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fill-rule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              {{ priorityOrders.length }} ด่วน
+            </span>
+            <span
+              class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all"
+              :class="
+                realtime.isConnected.value
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-600'
+              "
+              :title="
+                realtime.isConnected.value
+                  ? 'Realtime เชื่อมต่อแล้ว'
+                  : 'กำลังเชื่อมต่อ...'
+              "
+            >
+              <span
+                class="w-2 h-2 rounded-full"
+                :class="
+                  realtime.isConnected.value
+                    ? 'bg-green-500 animate-pulse'
+                    : 'bg-gray-400'
+                "
+              ></span>
+              {{ realtime.isConnected.value ? "Live" : "..." }}
+            </span>
+            <span
+              v-if="realtime.lastUpdate.value"
+              class="text-xs text-gray-500"
+            >
+              อัพเดท: {{ formatTime(realtime.lastUpdate.value) }}
+            </span>
+          </p>
+        </div>
+
         <!-- Action Buttons -->
-        <div class="action-buttons">
+        <div class="flex items-center gap-2">
           <button
-            class="action-btn"
+            class="min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
             @click="openAnalyticsModal"
             title="ดูสถิติ"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 3v18h18" />
-              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
             </svg>
+            <span class="hidden sm:inline">สถิติ</span>
           </button>
-          
+
           <button
-            class="action-btn"
+            class="min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
             @click="exportOrders"
             title="Export CSV"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7,10 12,15 17,10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
+            <span class="hidden sm:inline">Export</span>
           </button>
-          
+
           <button
-            class="action-btn"
-            :class="{ active: autoRefresh }"
+            class="min-h-[44px] px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+            :class="
+              autoRefresh
+                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                : 'bg-white border border-gray-300 hover:bg-gray-50'
+            "
             @click="toggleAutoRefresh"
             :title="autoRefresh ? 'ปิดรีเฟรชอัตโนมัติ' : 'เปิดรีเฟรชอัตโนมัติ'"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 4v6h-6M1 20v-6h6" />
-              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
           </button>
-          
+
           <button
-            class="refresh-btn"
+            class="min-h-[44px] px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
             @click="loadOrders"
             :disabled="api.isLoading.value"
           >
             <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
+              class="w-5 h-5"
+              :class="{ 'animate-spin': api.isLoading.value }"
               fill="none"
               stroke="currentColor"
-              stroke-width="2"
-              :class="{ spinning: api.isLoading.value }"
+              viewBox="0 0 24 24"
             >
-              <path d="M23 4v6h-6M1 20v-6h6" />
-              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
+            <span class="hidden sm:inline">รีเฟรช</span>
           </button>
         </div>
       </div>
@@ -573,7 +700,14 @@ function getVisiblePages() {
     <div class="filters-section">
       <div class="filters-bar">
         <div class="search-box">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="11" cy="11" r="8" />
             <path d="M21 21l-4.35-4.35" />
           </svg>
@@ -584,64 +718,92 @@ function getVisiblePages() {
             class="search-input"
           />
         </div>
-        
+
         <select v-model="serviceTypeFilter" class="filter-select">
-          <option v-for="option in serviceTypeOptions" :key="option.value" :value="option.value">
+          <option
+            v-for="option in serviceTypeOptions"
+            :key="option.value"
+            :value="option.value"
+          >
             {{ option.label }}
           </option>
         </select>
-        
+
         <select v-model="statusFilter" class="filter-select">
-          <option v-for="option in statusOptions" :key="option.value" :value="option.value">
+          <option
+            v-for="option in statusOptions"
+            :key="option.value"
+            :value="option.value"
+          >
             {{ option.label }}
           </option>
         </select>
-        
+
         <input
           v-model="dateFromFilter"
           type="date"
           class="filter-input"
           placeholder="จากวันที่"
         />
-        
+
         <input
           v-model="dateToFilter"
           type="date"
           class="filter-input"
           placeholder="ถึงวันที่"
         />
-        
+
         <div class="sort-controls">
           <select v-model="sortBy" class="filter-select">
-            <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+            <option
+              v-for="option in sortOptions"
+              :key="option.value"
+              :value="option.value"
+            >
               {{ option.label }}
             </option>
           </select>
           <button
             class="sort-order-btn"
             @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
-            :title="sortOrder === 'asc' ? 'เรียงจากน้อยไปมาก' : 'เรียงจากมากไปน้อย'"
+            :title="
+              sortOrder === 'asc' ? 'เรียงจากน้อยไปมาก' : 'เรียงจากมากไปน้อย'
+            "
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path v-if="sortOrder === 'asc'" d="M7 14l5-5 5 5" />
               <path v-else d="M7 10l5 5 5-5" />
             </svg>
           </button>
         </div>
       </div>
-      
+
       <div class="filters-actions">
         <button
           v-if="hasActiveFilters"
           class="clear-filters-btn"
           @click="clearFilters"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
           ล้างตัวกรอง
         </button>
-        
+
         <div class="view-controls">
           <button
             class="view-btn"
@@ -649,7 +811,14 @@ function getVisiblePages() {
             @click="viewMode = 'table'"
             title="มุมมองตาราง"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
           </button>
@@ -659,7 +828,14 @@ function getVisiblePages() {
             @click="viewMode = 'cards'"
             title="มุมมองการ์ด"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <rect x="3" y="3" width="7" height="7" />
               <rect x="14" y="3" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" />
@@ -677,8 +853,17 @@ function getVisiblePages() {
       </div>
       <div class="bulk-actions">
         <button class="bulk-btn" @click="openBulkModal">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+            />
           </svg>
           เปลี่ยนสถานะ
         </button>
@@ -693,7 +878,14 @@ function getVisiblePages() {
       <!-- Error State -->
       <div v-if="loadError" class="error-state">
         <div class="error-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -713,15 +905,23 @@ function getVisiblePages() {
       </div>
 
       <!-- Table View -->
-      <div v-else-if="viewMode === 'table' && orders.length > 0" class="table-wrapper">
+      <div
+        v-else-if="viewMode === 'table' && orders.length > 0"
+        class="table-wrapper"
+      >
         <table class="data-table">
           <thead>
             <tr>
               <th class="checkbox-col">
                 <input
                   type="checkbox"
-                  :checked="selectedOrdersCount === orders.length && orders.length > 0"
-                  :indeterminate="selectedOrdersCount > 0 && selectedOrdersCount < orders.length"
+                  :checked="
+                    selectedOrdersCount === orders.length && orders.length > 0
+                  "
+                  :indeterminate="
+                    selectedOrdersCount > 0 &&
+                    selectedOrdersCount < orders.length
+                  "
                   @change="selectAllOrders"
                   class="checkbox"
                 />
@@ -740,13 +940,15 @@ function getVisiblePages() {
             </tr>
           </thead>
           <tbody>
-            <tr 
-              v-for="order in orders" 
-              :key="order.id" 
+            <tr
+              v-for="order in orders"
+              :key="order.id"
               @click="viewOrder(order)"
-              :class="{ 
+              :class="{
                 selected: selectedOrders.has(order.id),
-                priority: order.priority === 'urgent' || order.priority === 'high_value'
+                priority:
+                  order.priority === 'urgent' ||
+                  order.priority === 'high_value',
               }"
             >
               <td class="checkbox-col" @click.stop>
@@ -759,15 +961,19 @@ function getVisiblePages() {
               </td>
               <td>
                 <div class="service-type">
-                  <span class="service-icon">{{ getServiceTypeIcon(order.service_type) }}</span>
-                  <span class="service-label">{{ getServiceTypeLabel(order.service_type) }}</span>
+                  <span class="service-icon">{{
+                    getServiceTypeIcon(order.service_type)
+                  }}</span>
+                  <span class="service-label">{{
+                    getServiceTypeLabel(order.service_type)
+                  }}</span>
                 </div>
               </td>
               <td>
                 <div class="tracking-info">
                   <code class="tracking-id">{{ order.tracking_id }}</code>
-                  <span 
-                    v-if="order.priority !== 'normal'" 
+                  <span
+                    v-if="order.priority !== 'normal'"
                     class="priority-badge"
                     :style="{ color: getPriorityColor(order.priority) }"
                   >
@@ -778,12 +984,16 @@ function getVisiblePages() {
               <td>
                 <div class="user-info">
                   <div class="name">{{ order.customer_name || "-" }}</div>
-                  <div v-if="order.customer_phone" class="phone">{{ order.customer_phone }}</div>
+                  <div v-if="order.customer_phone" class="phone">
+                    {{ order.customer_phone }}
+                  </div>
                 </div>
               </td>
               <td>
                 <div class="provider-info">
-                  <div class="name">{{ order.provider_name || "ยังไม่มี" }}</div>
+                  <div class="name">
+                    {{ order.provider_name || "ยังไม่มี" }}
+                  </div>
                   <div v-if="order.provider_rating" class="rating">
                     ⭐ {{ order.provider_rating.toFixed(1) }}
                   </div>
@@ -802,7 +1012,13 @@ function getVisiblePages() {
               </td>
               <td class="amount">
                 <div class="amount-info">
-                  <div class="final-amount">{{ formatCurrency(order.final_amount || order.estimated_amount || 0) }}</div>
+                  <div class="final-amount">
+                    {{
+                      formatCurrency(
+                        order.final_amount || order.estimated_amount || 0,
+                      )
+                    }}
+                  </div>
                   <div v-if="order.promo_discount" class="discount">
                     -{{ formatCurrency(order.promo_discount) }}
                   </div>
@@ -810,58 +1026,100 @@ function getVisiblePages() {
               </td>
               <td class="distance">{{ formatDistance(order.distance_km) }}</td>
               <td>
-                <span class="payment-badge">{{ getPaymentLabel(order.payment_method || 'cash') }}</span>
+                <span class="payment-badge">{{
+                  getPaymentLabel(order.payment_method || "cash")
+                }}</span>
               </td>
               <td class="date">{{ formatDate(order.created_at) }}</td>
               <td>
                 <div class="evidence-badges">
-                  <a 
-                    v-if="order.pickup_photo" 
-                    :href="order.pickup_photo" 
-                    target="_blank" 
+                  <a
+                    v-if="order.pickup_photo"
+                    :href="order.pickup_photo"
+                    target="_blank"
                     class="evidence-badge pickup"
                     title="รูปจุดรับ"
                     @click.stop
                   >
                     📍 รับ
                   </a>
-                  <a 
-                    v-if="order.dropoff_photo" 
-                    :href="order.dropoff_photo" 
-                    target="_blank" 
+                  <a
+                    v-if="order.dropoff_photo"
+                    :href="order.dropoff_photo"
+                    target="_blank"
                     class="evidence-badge dropoff"
                     title="รูปจุดส่ง"
                     @click.stop
                   >
                     🏁 ส่ง
                   </a>
-                  <span v-if="!order.pickup_photo && !order.dropoff_photo" class="no-evidence">-</span>
+                  <span
+                    v-if="!order.pickup_photo && !order.dropoff_photo"
+                    class="no-evidence"
+                    >-</span
+                  >
                 </div>
               </td>
               <td>
                 <div class="action-buttons">
-                  <button class="action-btn" @click.stop="viewOrder(order)" title="ดูรายละเอียด">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <button
+                    class="action-btn"
+                    @click.stop="viewOrder(order)"
+                    title="ดูรายละเอียด"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
                   </button>
-                  <button 
-                    v-if="order.provider_id && !['completed', 'cancelled', 'delivered'].includes(order.status)"
-                    class="action-btn reassign-btn" 
-                    @click.stop="openReassignmentModal(order)" 
+                  <button
+                    v-if="
+                      order.provider_id &&
+                      !['completed', 'cancelled', 'delivered'].includes(
+                        order.status,
+                      )
+                    "
+                    class="action-btn reassign-btn"
+                    @click.stop="openReassignmentModal(order)"
                     title="ย้ายงานไปให้ไรเดอร์คนอื่น"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <path d="M17 1l4 4-4 4" />
                       <path d="M3 11V9a4 4 0 0 1 4-4h14" />
                       <path d="M7 23l-4-4 4-4" />
                       <path d="M21 13v2a4 4 0 0 1-4 4H3" />
                     </svg>
                   </button>
-                  <button class="action-btn" @click.stop="openStatusModal(order)" title="เปลี่ยนสถานะ">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  <button
+                    class="action-btn"
+                    @click.stop="openStatusModal(order)"
+                    title="เปลี่ยนสถานะ"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -872,14 +1130,18 @@ function getVisiblePages() {
       </div>
 
       <!-- Cards View -->
-      <div v-else-if="viewMode === 'cards' && orders.length > 0" class="cards-grid">
-        <div 
-          v-for="order in orders" 
-          :key="order.id" 
+      <div
+        v-else-if="viewMode === 'cards' && orders.length > 0"
+        class="cards-grid"
+      >
+        <div
+          v-for="order in orders"
+          :key="order.id"
           class="order-card"
-          :class="{ 
+          :class="{
             selected: selectedOrders.has(order.id),
-            priority: order.priority === 'urgent' || order.priority === 'high_value'
+            priority:
+              order.priority === 'urgent' || order.priority === 'high_value',
           }"
           @click="viewOrder(order)"
         >
@@ -893,8 +1155,12 @@ function getVisiblePages() {
               />
             </div>
             <div class="service-info">
-              <span class="service-icon">{{ getServiceTypeIcon(order.service_type) }}</span>
-              <span class="service-label">{{ getServiceTypeLabel(order.service_type) }}</span>
+              <span class="service-icon">{{
+                getServiceTypeIcon(order.service_type)
+              }}</span>
+              <span class="service-label">{{
+                getServiceTypeLabel(order.service_type)
+              }}</span>
             </div>
             <StatusDropdown
               :current-status="order.status"
@@ -903,28 +1169,29 @@ function getVisiblePages() {
               @update="(newStatus) => updateStatusInline(order, newStatus)"
             />
           </div>
-          
+
           <div class="card-body">
             <div class="tracking-info">
               <code class="tracking-id">{{ order.tracking_id }}</code>
-              <span 
-                v-if="order.priority !== 'normal'" 
+              <span
+                v-if="order.priority !== 'normal'"
                 class="priority-badge"
                 :style="{ color: getPriorityColor(order.priority) }"
               >
                 {{ getPriorityLabel(order.priority) }}
               </span>
             </div>
-            
+
             <div class="participants">
               <div class="customer">
                 <strong>ลูกค้า:</strong> {{ order.customer_name || "-" }}
               </div>
               <div class="provider">
-                <strong>ผู้ให้บริการ:</strong> {{ order.provider_name || "ยังไม่มี" }}
+                <strong>ผู้ให้บริการ:</strong>
+                {{ order.provider_name || "ยังไม่มี" }}
               </div>
             </div>
-            
+
             <div class="locations">
               <div class="pickup">
                 <strong>จุดรับ:</strong> {{ order.pickup_address || "-" }}
@@ -934,9 +1201,15 @@ function getVisiblePages() {
               </div>
             </div>
           </div>
-          
+
           <div class="card-footer">
-            <div class="amount">{{ formatCurrency(order.final_amount || order.estimated_amount || 0) }}</div>
+            <div class="amount">
+              {{
+                formatCurrency(
+                  order.final_amount || order.estimated_amount || 0,
+                )
+              }}
+            </div>
             <div class="date">{{ formatDate(order.created_at) }}</div>
           </div>
         </div>
@@ -945,13 +1218,32 @@ function getVisiblePages() {
       <!-- Empty State -->
       <div v-else-if="orders.length === 0" class="empty-state">
         <div class="empty-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m6-6h4a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-4m-6 0V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z" />
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1"
+          >
+            <path
+              d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m6-6h4a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-4m-6 0V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z"
+            />
           </svg>
         </div>
         <h3>ไม่พบออเดอร์</h3>
-        <p>{{ hasActiveFilters ? 'ลองเปลี่ยนเงื่อนไขการค้นหา' : 'ยังไม่มีออเดอร์ในระบบ' }}</p>
-        <button v-if="hasActiveFilters" class="btn btn-secondary" @click="clearFilters">
+        <p>
+          {{
+            hasActiveFilters
+              ? "ลองเปลี่ยนเงื่อนไขการค้นหา"
+              : "ยังไม่มีออเดอร์ในระบบ"
+          }}
+        </p>
+        <button
+          v-if="hasActiveFilters"
+          class="btn btn-secondary"
+          @click="clearFilters"
+        >
           ล้างตัวกรอง
         </button>
       </div>
@@ -968,9 +1260,12 @@ function getVisiblePages() {
           <div class="modal-title-section">
             <h2>รายละเอียดออเดอร์</h2>
             <div class="order-meta">
-              <span class="service-type">{{ getServiceTypeIcon(selectedOrder.service_type) }} {{ getServiceTypeLabel(selectedOrder.service_type) }}</span>
-              <span 
-                v-if="selectedOrder.priority !== 'normal'" 
+              <span class="service-type"
+                >{{ getServiceTypeIcon(selectedOrder.service_type) }}
+                {{ getServiceTypeLabel(selectedOrder.service_type) }}</span
+              >
+              <span
+                v-if="selectedOrder.priority !== 'normal'"
                 class="priority-badge"
                 :style="{ color: getPriorityColor(selectedOrder.priority) }"
               >
@@ -979,7 +1274,14 @@ function getVisiblePages() {
             </div>
           </div>
           <button class="close-btn" @click="showDetailModal = false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -997,7 +1299,7 @@ function getVisiblePages() {
               {{ getStatusLabel(selectedOrder.status) }}
             </span>
           </div>
-          
+
           <div class="detail-sections">
             <!-- Participants Section -->
             <div class="detail-section">
@@ -1006,16 +1308,26 @@ function getVisiblePages() {
                 <div class="detail-item">
                   <label>ลูกค้า</label>
                   <div class="participant-info">
-                    <span class="name">{{ selectedOrder.customer_name || "-" }}</span>
-                    <span v-if="selectedOrder.customer_phone" class="contact">{{ selectedOrder.customer_phone }}</span>
-                    <span v-if="selectedOrder.customer_email" class="contact">{{ selectedOrder.customer_email }}</span>
+                    <span class="name">{{
+                      selectedOrder.customer_name || "-"
+                    }}</span>
+                    <span v-if="selectedOrder.customer_phone" class="contact">{{
+                      selectedOrder.customer_phone
+                    }}</span>
+                    <span v-if="selectedOrder.customer_email" class="contact">{{
+                      selectedOrder.customer_email
+                    }}</span>
                   </div>
                 </div>
                 <div class="detail-item">
                   <label>ผู้ให้บริการ</label>
                   <div class="participant-info">
-                    <span class="name">{{ selectedOrder.provider_name || "ยังไม่มี" }}</span>
-                    <span v-if="selectedOrder.provider_phone" class="contact">{{ selectedOrder.provider_phone }}</span>
+                    <span class="name">{{
+                      selectedOrder.provider_name || "ยังไม่มี"
+                    }}</span>
+                    <span v-if="selectedOrder.provider_phone" class="contact">{{
+                      selectedOrder.provider_phone
+                    }}</span>
                     <div v-if="selectedOrder.provider_rating" class="rating">
                       ⭐ {{ selectedOrder.provider_rating.toFixed(1) }}
                     </div>
@@ -1050,26 +1362,52 @@ function getVisiblePages() {
                 <div class="detail-item">
                   <label>ยอดเงิน</label>
                   <div class="amount-breakdown">
-                    <div class="final-amount">{{ formatCurrency(selectedOrder.final_amount || selectedOrder.estimated_amount || 0) }}</div>
-                    <div v-if="selectedOrder.estimated_amount && selectedOrder.final_amount !== selectedOrder.estimated_amount" class="estimated">
-                      (ประเมิน: {{ formatCurrency(selectedOrder.estimated_amount) }})
+                    <div class="final-amount">
+                      {{
+                        formatCurrency(
+                          selectedOrder.final_amount ||
+                            selectedOrder.estimated_amount ||
+                            0,
+                        )
+                      }}
+                    </div>
+                    <div
+                      v-if="
+                        selectedOrder.estimated_amount &&
+                        selectedOrder.final_amount !==
+                          selectedOrder.estimated_amount
+                      "
+                      class="estimated"
+                    >
+                      (ประเมิน:
+                      {{ formatCurrency(selectedOrder.estimated_amount) }})
                     </div>
                   </div>
                 </div>
                 <div class="detail-item">
                   <label>วิธีชำระ</label>
-                  <span>{{ getPaymentLabel(selectedOrder.payment_method || 'cash') }}</span>
+                  <span>{{
+                    getPaymentLabel(selectedOrder.payment_method || "cash")
+                  }}</span>
                 </div>
                 <div v-if="selectedOrder.promo_code" class="detail-item">
                   <label>โปรโมชั่น</label>
                   <div class="promo-info">
-                    <span class="promo-code">{{ selectedOrder.promo_code }}</span>
-                    <span class="discount">-{{ formatCurrency(selectedOrder.promo_discount || 0) }}</span>
+                    <span class="promo-code">{{
+                      selectedOrder.promo_code
+                    }}</span>
+                    <span class="discount"
+                      >-{{
+                        formatCurrency(selectedOrder.promo_discount || 0)
+                      }}</span
+                    >
                   </div>
                 </div>
                 <div class="detail-item">
                   <label>สถานะการชำระ</label>
-                  <span class="payment-status">{{ selectedOrder.payment_status || 'รอชำระ' }}</span>
+                  <span class="payment-status">{{
+                    selectedOrder.payment_status || "รอชำระ"
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -1082,36 +1420,63 @@ function getVisiblePages() {
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
                     <div class="timeline-title">สร้างออเดอร์</div>
-                    <div class="timeline-time">{{ formatDate(selectedOrder.created_at) }}</div>
+                    <div class="timeline-time">
+                      {{ formatDate(selectedOrder.created_at) }}
+                    </div>
                   </div>
                 </div>
-                <div v-if="selectedOrder.matched_at" class="timeline-item completed">
+                <div
+                  v-if="selectedOrder.matched_at"
+                  class="timeline-item completed"
+                >
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
                     <div class="timeline-title">จับคู่ผู้ให้บริการ</div>
-                    <div class="timeline-time">{{ formatDate(selectedOrder.matched_at) }}</div>
+                    <div class="timeline-time">
+                      {{ formatDate(selectedOrder.matched_at) }}
+                    </div>
                   </div>
                 </div>
-                <div v-if="selectedOrder.started_at" class="timeline-item completed">
+                <div
+                  v-if="selectedOrder.started_at"
+                  class="timeline-item completed"
+                >
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
                     <div class="timeline-title">เริ่มให้บริการ</div>
-                    <div class="timeline-time">{{ formatDate(selectedOrder.started_at) }}</div>
+                    <div class="timeline-time">
+                      {{ formatDate(selectedOrder.started_at) }}
+                    </div>
                   </div>
                 </div>
-                <div v-if="selectedOrder.completed_at" class="timeline-item completed">
+                <div
+                  v-if="selectedOrder.completed_at"
+                  class="timeline-item completed"
+                >
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
                     <div class="timeline-title">เสร็จสิ้น</div>
-                    <div class="timeline-time">{{ formatDate(selectedOrder.completed_at) }}</div>
+                    <div class="timeline-time">
+                      {{ formatDate(selectedOrder.completed_at) }}
+                    </div>
                   </div>
                 </div>
-                <div v-if="selectedOrder.cancelled_at" class="timeline-item cancelled">
+                <div
+                  v-if="selectedOrder.cancelled_at"
+                  class="timeline-item cancelled"
+                >
                   <div class="timeline-dot"></div>
                   <div class="timeline-content">
                     <div class="timeline-title">ยกเลิก</div>
-                    <div class="timeline-time">{{ formatDate(selectedOrder.cancelled_at) }}</div>
-                    <div v-if="selectedOrder.cancel_reason" class="timeline-reason">{{ selectedOrder.cancel_reason }}</div>
+                    <div class="timeline-time">
+                      {{ formatDate(selectedOrder.cancelled_at) }}
+                    </div>
+                    <div
+                      v-if="selectedOrder.cancel_reason"
+                      class="timeline-reason"
+                    >
+                      {{ selectedOrder.cancel_reason }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1123,10 +1488,17 @@ function getVisiblePages() {
               <div class="notes-content">{{ selectedOrder.special_notes }}</div>
             </div>
           </div>
-          
+
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showDetailModal = false">ปิด</button>
-            <button class="btn btn-primary" @click="openStatusModal(selectedOrder)">เปลี่ยนสถานะ</button>
+            <button class="btn btn-secondary" @click="showDetailModal = false">
+              ปิด
+            </button>
+            <button
+              class="btn btn-primary"
+              @click="openStatusModal(selectedOrder)"
+            >
+              เปลี่ยนสถานะ
+            </button>
           </div>
         </div>
       </div>
@@ -1142,7 +1514,14 @@ function getVisiblePages() {
         <div class="modal-header">
           <h2>เปลี่ยนสถานะ</h2>
           <button class="close-btn" @click="showStatusModal = false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -1157,23 +1536,33 @@ function getVisiblePages() {
                 background: getStatusColor(selectedOrder?.status || '') + '20',
               }"
             >
-              {{ getStatusLabel(selectedOrder?.status || '') }}
+              {{ getStatusLabel(selectedOrder?.status || "") }}
             </span>
           </div>
-          
+
           <div class="form-group">
             <label>สถานะใหม่</label>
             <select v-model="newStatus" class="form-select">
-              <option v-for="option in statusOptions.slice(1)" :key="option.value" :value="option.value">
+              <option
+                v-for="option in statusOptions.slice(1)"
+                :key="option.value"
+                :value="option.value"
+              >
                 {{ option.label }}
               </option>
             </select>
           </div>
-          
+
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showStatusModal = false">ยกเลิก</button>
-            <button class="btn btn-primary" @click="updateStatus" :disabled="api.isLoading.value">
-              {{ api.isLoading.value ? 'กำลังบันทึก...' : 'บันทึก' }}
+            <button class="btn btn-secondary" @click="showStatusModal = false">
+              ยกเลิก
+            </button>
+            <button
+              class="btn btn-primary"
+              @click="updateStatus"
+              :disabled="api.isLoading.value"
+            >
+              {{ api.isLoading.value ? "กำลังบันทึก..." : "บันทึก" }}
             </button>
           </div>
         </div>
@@ -1190,25 +1579,39 @@ function getVisiblePages() {
         <div class="modal-header">
           <h2>เปลี่ยนสถานะหลายรายการ</h2>
           <button class="close-btn" @click="showBulkModal = false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
         <div class="modal-body">
           <div class="bulk-info">
-            <p>จะเปลี่ยนสถานะของ <strong>{{ selectedOrdersCount }}</strong> รายการ</p>
+            <p>
+              จะเปลี่ยนสถานะของ
+              <strong>{{ selectedOrdersCount }}</strong> รายการ
+            </p>
           </div>
-          
+
           <div class="form-group">
             <label>สถานะใหม่</label>
             <select v-model="bulkStatus" class="form-select">
-              <option v-for="option in statusOptions.slice(1)" :key="option.value" :value="option.value">
+              <option
+                v-for="option in statusOptions.slice(1)"
+                :key="option.value"
+                :value="option.value"
+              >
                 {{ option.label }}
               </option>
             </select>
           </div>
-          
+
           <div v-if="bulkStatus === 'cancelled'" class="form-group">
             <label>เหตุผลในการยกเลิก</label>
             <textarea
@@ -1218,11 +1621,17 @@ function getVisiblePages() {
               rows="3"
             ></textarea>
           </div>
-          
+
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showBulkModal = false">ยกเลิก</button>
-            <button class="btn btn-primary" @click="bulkUpdateStatus" :disabled="api.isLoading.value">
-              {{ api.isLoading.value ? 'กำลังอัพเดท...' : 'อัพเดท' }}
+            <button class="btn btn-secondary" @click="showBulkModal = false">
+              ยกเลิก
+            </button>
+            <button
+              class="btn btn-primary"
+              @click="bulkUpdateStatus"
+              :disabled="api.isLoading.value"
+            >
+              {{ api.isLoading.value ? "กำลังอัพเดท..." : "อัพเดท" }}
             </button>
           </div>
         </div>
@@ -1239,7 +1648,14 @@ function getVisiblePages() {
         <div class="modal-header">
           <h2>สถิติออเดอร์</h2>
           <button class="close-btn" @click="showAnalyticsModal = false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -1252,43 +1668,65 @@ function getVisiblePages() {
             <!-- Summary Stats -->
             <div class="stats-grid">
               <div class="stat-card">
-                <div class="stat-value">{{ analytics.summary.total_orders.toLocaleString() }}</div>
+                <div class="stat-value">
+                  {{ analytics.summary.total_orders.toLocaleString() }}
+                </div>
                 <div class="stat-label">ออเดอร์ทั้งหมด</div>
               </div>
               <div class="stat-card">
-                <div class="stat-value">{{ analytics.summary.total_completed.toLocaleString() }}</div>
+                <div class="stat-value">
+                  {{ analytics.summary.total_completed.toLocaleString() }}
+                </div>
                 <div class="stat-label">เสร็จสิ้น</div>
               </div>
               <div class="stat-card">
-                <div class="stat-value">{{ analytics.summary.completion_rate }}%</div>
+                <div class="stat-value">
+                  {{ analytics.summary.completion_rate }}%
+                </div>
                 <div class="stat-label">อัตราสำเร็จ</div>
               </div>
               <div class="stat-card">
-                <div class="stat-value">{{ formatCurrency(analytics.summary.total_revenue) }}</div>
+                <div class="stat-value">
+                  {{ formatCurrency(analytics.summary.total_revenue) }}
+                </div>
                 <div class="stat-label">รายได้รวม</div>
               </div>
             </div>
-            
+
             <!-- Service Breakdown -->
             <div class="analytics-section">
               <h3>แยกตามประเภทบริการ</h3>
               <div class="service-stats">
-                <div v-for="service in analytics.by_service" :key="service.service_type" class="service-stat">
+                <div
+                  v-for="service in analytics.by_service"
+                  :key="service.service_type"
+                  class="service-stat"
+                >
                   <div class="service-header">
-                    <span class="service-icon">{{ getServiceTypeIcon(service.service_type) }}</span>
-                    <span class="service-name">{{ getServiceTypeLabel(service.service_type) }}</span>
+                    <span class="service-icon">{{
+                      getServiceTypeIcon(service.service_type)
+                    }}</span>
+                    <span class="service-name">{{
+                      getServiceTypeLabel(service.service_type)
+                    }}</span>
                   </div>
                   <div class="service-metrics">
                     <div class="metric">
-                      <span class="metric-value">{{ service.total_orders }}</span>
+                      <span class="metric-value">{{
+                        service.total_orders
+                      }}</span>
                       <span class="metric-label">ออเดอร์</span>
                     </div>
                     <div class="metric">
-                      <span class="metric-value">{{ formatCurrency(service.total_revenue) }}</span>
+                      <span class="metric-value">{{
+                        formatCurrency(service.total_revenue)
+                      }}</span>
                       <span class="metric-label">รายได้</span>
                     </div>
                     <div class="metric">
-                      <span class="metric-value">{{ formatCurrency(service.avg_order_value) }}</span>
+                      <span class="metric-value">{{
+                        formatCurrency(service.avg_order_value)
+                      }}</span>
                       <span class="metric-label">ค่าเฉลี่ย</span>
                     </div>
                   </div>
@@ -1296,9 +1734,14 @@ function getVisiblePages() {
               </div>
             </div>
           </div>
-          
+
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showAnalyticsModal = false">ปิด</button>
+            <button
+              class="btn btn-secondary"
+              @click="showAnalyticsModal = false"
+            >
+              ปิด
+            </button>
           </div>
         </div>
       </div>
@@ -1307,7 +1750,9 @@ function getVisiblePages() {
     <!-- Enhanced Pagination -->
     <div v-if="totalPages > 1" class="pagination-container">
       <div class="pagination-info">
-        แสดง {{ ((currentPage - 1) * pageSize) + 1 }}-{{ Math.min(currentPage * pageSize, totalOrders) }} 
+        แสดง {{ (currentPage - 1) * pageSize + 1 }}-{{
+          Math.min(currentPage * pageSize, totalOrders)
+        }}
         จาก {{ totalOrders.toLocaleString() }} รายการ
       </div>
       <div class="pagination">
@@ -1317,7 +1762,14 @@ function getVisiblePages() {
           @click="currentPage = 1"
           title="หน้าแรก"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
           </svg>
         </button>
@@ -1327,11 +1779,18 @@ function getVisiblePages() {
           @click="currentPage--"
           title="หน้าก่อนหน้า"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        
+
         <!-- Page Numbers -->
         <div class="page-numbers">
           <button
@@ -1344,14 +1803,21 @@ function getVisiblePages() {
             {{ page }}
           </button>
         </div>
-        
+
         <button
           class="page-btn"
           :disabled="currentPage === totalPages"
           @click="currentPage++"
           title="หน้าถัดไป"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
@@ -1361,14 +1827,27 @@ function getVisiblePages() {
           @click="currentPage = totalPages"
           title="หน้าสุดท้าย"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
           </svg>
         </button>
       </div>
       <div class="page-size-selector">
         <label>แสดง</label>
-        <select v-model="pageSize" @change="currentPage = 1; loadOrders()">
+        <select
+          v-model="pageSize"
+          @change="
+            currentPage = 1;
+            loadOrders();
+          "
+        >
           <option :value="10">10</option>
           <option :value="20">20</option>
           <option :value="50">50</option>
@@ -1448,8 +1927,13 @@ function getVisiblePages() {
 }
 
 @keyframes pulse-priority {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .realtime-indicator {
@@ -1484,7 +1968,8 @@ function getVisiblePages() {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -1495,7 +1980,8 @@ function getVisiblePages() {
 }
 
 @keyframes pulse-green {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
   }
@@ -1515,7 +2001,8 @@ function getVisiblePages() {
   gap: 8px;
 }
 
-.action-btn, .refresh-btn {
+.action-btn,
+.refresh-btn {
   width: 44px;
   height: 44px;
   display: flex;
@@ -1529,7 +2016,8 @@ function getVisiblePages() {
   transition: all 0.2s;
 }
 
-.action-btn:hover, .refresh-btn:hover {
+.action-btn:hover,
+.refresh-btn:hover {
   background: #f9fafb;
   border-color: #00a86b;
   color: #00a86b;
@@ -1542,7 +2030,8 @@ function getVisiblePages() {
   color: #fff;
 }
 
-.action-btn:disabled, .refresh-btn:disabled {
+.action-btn:disabled,
+.refresh-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
@@ -1553,8 +2042,12 @@ function getVisiblePages() {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Enhanced Filters */
@@ -1605,7 +2098,8 @@ function getVisiblePages() {
   background: transparent;
 }
 
-.filter-select, .filter-input {
+.filter-select,
+.filter-input {
   padding: 14px 16px;
   background: #fff;
   border: 2px solid #e5e7eb;
@@ -1615,7 +2109,8 @@ function getVisiblePages() {
   transition: all 0.2s;
 }
 
-.filter-select:focus, .filter-input:focus {
+.filter-select:focus,
+.filter-input:focus {
   border-color: #00a86b;
   outline: none;
 }
@@ -1837,7 +2332,7 @@ function getVisiblePages() {
 }
 
 .tracking-id {
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
   font-size: 13px;
   padding: 4px 8px;
   background: #f3f4f6;
@@ -1858,7 +2353,8 @@ function getVisiblePages() {
   letter-spacing: 0.5px;
 }
 
-.user-info, .provider-info {
+.user-info,
+.provider-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1999,13 +2495,17 @@ function getVisiblePages() {
   margin-bottom: 16px;
 }
 
-.participants, .locations {
+.participants,
+.locations {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.customer, .provider, .pickup, .dropoff {
+.customer,
+.provider,
+.pickup,
+.dropoff {
   font-size: 14px;
   color: #374151;
 }
@@ -2041,8 +2541,12 @@ function getVisiblePages() {
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .empty-state {
@@ -2224,7 +2728,9 @@ function getVisiblePages() {
   max-width: 600px;
   max-height: 90vh;
   overflow: hidden;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .modal.modal-sm {
@@ -2423,7 +2929,7 @@ function getVisiblePages() {
 }
 
 .timeline::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 8px;
   top: 8px;
@@ -2574,7 +3080,8 @@ function getVisiblePages() {
   margin-bottom: 8px;
 }
 
-.form-select, .form-textarea {
+.form-select,
+.form-textarea {
   width: 100%;
   padding: 12px 16px;
   border: 2px solid #e5e7eb;
@@ -2583,7 +3090,8 @@ function getVisiblePages() {
   transition: all 0.2s;
 }
 
-.form-select:focus, .form-textarea:focus {
+.form-select:focus,
+.form-textarea:focus {
   border-color: #00a86b;
   outline: none;
 }
@@ -2687,31 +3195,31 @@ function getVisiblePages() {
   .orders-view {
     padding: 0 12px;
   }
-  
+
   .page-header {
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
   }
-  
+
   .filters-bar {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .search-box {
     min-width: auto;
   }
-  
+
   .data-table {
     min-width: 800px;
   }
-  
+
   .cards-grid {
     grid-template-columns: 1fr;
     padding: 16px;
   }
-  
+
   .pagination-container {
     flex-direction: column;
     gap: 16px;
@@ -2724,27 +3232,27 @@ function getVisiblePages() {
     margin: 10px;
     max-height: calc(100vh - 20px);
   }
-  
+
   .modal-header {
     padding: 20px;
   }
-  
+
   .modal-body {
     padding: 20px;
   }
-  
+
   .detail-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .modal-actions {
     flex-direction: column;
   }
-  
+
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .service-stats {
     grid-template-columns: 1fr;
   }
@@ -2770,25 +3278,25 @@ function getVisiblePages() {
 }
 
 .evidence-badge.pickup {
-  background: #FEF3C7;
-  color: #92400E;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .evidence-badge.pickup:hover {
-  background: #FDE68A;
+  background: #fde68a;
 }
 
 .evidence-badge.dropoff {
-  background: #D1FAE5;
-  color: #065F46;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .evidence-badge.dropoff:hover {
-  background: #A7F3D0;
+  background: #a7f3d0;
 }
 
 .no-evidence {
-  color: #9CA3AF;
+  color: #9ca3af;
   font-size: 12px;
 }
 
@@ -2799,13 +3307,5 @@ function getVisiblePages() {
 }
 </style>
 
-
-/* Reassign Button */
-.action-btn.reassign-btn {
-  color: #f59e0b;
-}
-
-.action-btn.reassign-btn:hover {
-  background: #fef3c7;
-  color: #d97706;
-}
+/* Reassign Button */ .action-btn.reassign-btn { color: #f59e0b; }
+.action-btn.reassign-btn:hover { background: #fef3c7; color: #d97706; }

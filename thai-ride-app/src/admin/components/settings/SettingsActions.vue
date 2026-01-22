@@ -70,49 +70,104 @@ defineEmits<{
 
 <style scoped>
 .settings-actions {
-  @apply flex items-center justify-between gap-3 pt-6 border-t border-gray-200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
 }
 
 .actions-right {
-  @apply flex items-center gap-3 ml-auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
 }
 
 .btn {
-  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
-  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-  @apply disabled:opacity-50 disabled:cursor-not-allowed;
-  @apply min-h-[44px] flex items-center justify-center;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:focus {
+  outline: none;
+  ring: 2px;
+  ring-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-primary {
-  @apply bg-primary-600 text-white;
-  @apply hover:bg-primary-700 active:scale-95;
-  @apply focus:ring-primary-500;
+  background-color: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn-primary:focus {
+  ring-color: #3b82f6;
 }
 
 .btn-secondary {
-  @apply bg-gray-100 text-gray-700;
-  @apply hover:bg-gray-200 active:scale-95;
-  @apply focus:ring-gray-500;
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #e5e7eb;
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn-secondary:focus {
+  ring-color: #6b7280;
 }
 
 .btn-ghost {
-  @apply text-gray-600;
-  @apply hover:bg-gray-100 active:scale-95;
-  @apply focus:ring-gray-500;
+  color: #4b5563;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: #f3f4f6;
+}
+
+.btn-ghost:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn-ghost:focus {
+  ring-color: #6b7280;
 }
 
 @media (max-width: 640px) {
   .settings-actions {
-    @apply flex-col;
+    flex-direction: column;
   }
   
   .actions-right {
-    @apply w-full;
+    width: 100%;
   }
   
   .btn {
-    @apply w-full;
+    width: 100%;
   }
 }
 </style>

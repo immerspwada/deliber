@@ -205,6 +205,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { module: 'finance' }
       },
       {
+        path: 'topup-requests/settings',
+        name: 'AdminTopupSettingsV2',
+        component: AdminTopupRequestsView,
+        meta: { module: 'finance', tab: 'settings' }
+      },
+      {
         path: 'withdrawals',
         name: 'AdminWithdrawalsV2',
         component: WithdrawalsView,
@@ -355,6 +361,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         path: 'settings/financial',
         name: 'AdminFinancialSettingsV2',
         component: AdminFinancialSettingsView,
+        meta: { module: 'settings' }
+      },
+      {
+        path: 'settings/theme',
+        name: 'AdminThemeSettingsV2',
+        component: () => import('./views/ThemeSettingsView.vue'),
         meta: { module: 'settings' }
       },
       {

@@ -13,10 +13,11 @@ import { useAdminUIStore } from '../stores/adminUI.store'
 import { useErrorHandler } from '@/composables/useErrorHandler'
 import { useToast } from '@/composables/useToast'
 import { useAdminRealtime } from '@/admin/composables/useAdminRealtime'
+import ProviderCommissionModal from '@/admin/components/ProviderCommissionModal.vue'
 
 const uiStore = useAdminUIStore()
 const errorHandler = useErrorHandler()
-const toast = useToast()
+const { showSuccess, showError } = useToast()
 const realtime = useAdminRealtime()
 
 // Use new composable
@@ -56,6 +57,7 @@ const typeFilter = ref<'ride' | 'delivery' | 'shopping' | 'all' | ''>('')
 const selectedProvider = ref<any | null>(null)
 const showDetailModal = ref(false)
 const showActionModal = ref(false)
+const showCommissionModal = ref(false)
 const actionType = ref<'approve' | 'reject' | 'suspend'>('approve')
 const actionReason = ref('')
 const isProcessing = ref(false)
@@ -68,13 +70,31 @@ const filters = computed(() => ({
   offset: (currentPage.value - 1) * pageSize.value
 }))
 
+// Helper function for row styling
+function getProviderRowClass(status: string): string {
+  const baseClass = "";
+  
+  switch (status) {
+    case "pending":
+      return `${baseClass} bg-gradient-to-r from-yellow-50 to-transparent border-l-4 border-l-yellow-400`;
+    case "approved":
+      return `${baseClass} bg-gradient-to-r from-green-50 to-transparent border-l-4 border-l-green-400`;
+    case "rejected":
+      return `${baseClass} bg-gradient-to-r from-red-50 to-transparent border-l-4 border-l-red-400`;
+    case "suspended":
+      return `${baseClass} bg-gradient-to-r from-gray-50 to-transparent border-l-4 border-l-gray-400`;
+    default:
+      return baseClass;
+  }
+}
+
 // Load providers with error handling
 async function loadProviders() {
   try {
     await fetchProviders(filters.value)
     await fetchCount({
       status: statusFilter.value || undefined,
-      provider_type: typeFilter.value || undefined
+      providerType: typeFilter.value || undefined
     })
   } catch (e) {
     errorHandler.handle(e, 'loadProviders')
@@ -93,11 +113,20 @@ function openActionModal(provider: any, action: 'approve' | 'reject' | 'suspend'
   showActionModal.value = true
 }
 
+function openCommissionModal(provider: any) {
+  selectedProvider.value = provider
+  showCommissionModal.value = true
+}
+
+function handleCommissionUpdated() {
+  loadProviders()
+}
+
 async function executeAction() {
   if (!selectedProvider.value) return
   
   if ((actionType.value === 'reject' || actionType.value === 'suspend') && !actionReason.value.trim()) {
-    toast.error('กรุณาระบุเหตุผล')
+    showError('กรุณาระบุเหตุผล')
     return
   }
   
@@ -105,13 +134,13 @@ async function executeAction() {
   try {
     if (actionType.value === 'approve') {
       await approveProviderAction(selectedProvider.value.id, actionReason.value || 'อนุมัติโดยแอดมิน')
-      toast.success('อนุมัติผู้ให้บริการเรียบร้อยแล้ว')
+      showSuccess('อนุมัติผู้ให้บริการเรียบร้อยแล้ว')
     } else if (actionType.value === 'reject') {
       await rejectProviderAction(selectedProvider.value.id, actionReason.value)
-      toast.success('ปฏิเสธผู้ให้บริการเรียบร้อยแล้ว')
+      showSuccess('ปฏิเสธผู้ให้บริการเรียบร้อยแล้ว')
     } else if (actionType.value === 'suspend') {
       await suspendProviderAction(selectedProvider.value.id, actionReason.value)
-      toast.success('ระงับผู้ให้บริการเรียบร้อยแล้ว')
+      showSuccess('ระงับผู้ให้บริการเรียบร้อยแล้ว')
     }
     
     showActionModal.value = false
@@ -153,117 +182,348 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="providers-view">
-    <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">ผู้ให้บริการ</h1>
-        <span class="total-count">{{ totalCount.toLocaleString() }} คน</span>
-        <span
-          class="realtime-indicator"
-          :class="{ connected: realtime.isConnected.value }"
-          :title="realtime.isConnected.value ? 'Real-time connected' : 'Connecting...'"
+  <div class="providers-view min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            ผู้ให้บริการ
+          </h1>
+          <p class="text-gray-600 mt-2 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            ทั้งหมด {{ totalCount.toLocaleString() }} คน
+            <span
+              class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all"
+              :class="realtime.isConnected.value ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+              :title="realtime.isConnected.value ? 'Real-time connected' : 'Connecting...'"
+            >
+              <span class="w-2 h-2 rounded-full" :class="realtime.isConnected.value ? 'bg-green-500 animate-pulse' : 'bg-gray-400'"></span>
+              {{ realtime.isConnected.value ? 'Live' : '...' }}
+            </span>
+          </p>
+        </div>
+        
+        <button 
+          class="min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+          @click="loadProviders" 
+          :disabled="loading" 
+          aria-label="รีเฟรช"
         >
-          <span class="pulse-dot"></span>
-          {{ realtime.isConnected.value ? 'Live' : '...' }}
-        </span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+          </svg>
+          รีเฟรช
+        </button>
       </div>
-      <div class="header-stats">
-        <div class="stat-badge pending">
-          <span class="stat-label">รอตรวจสอบ</span>
-          <span class="stat-value">{{ pendingProviders.length }}</span>
+
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white px-6 py-4 rounded-xl shadow-sm border-l-4 border-l-yellow-400 hover:shadow-md transition-shadow">
+          <div class="text-sm font-medium text-gray-600">รอตรวจสอบ</div>
+          <div class="text-3xl font-bold text-yellow-600 mt-1">{{ pendingProviders.length }}</div>
         </div>
-        <div class="stat-badge approved">
-          <span class="stat-label">อนุมัติแล้ว</span>
-          <span class="stat-value">{{ approvedProviders.length }}</span>
+        <div class="bg-white px-6 py-4 rounded-xl shadow-sm border-l-4 border-l-green-400 hover:shadow-md transition-shadow">
+          <div class="text-sm font-medium text-gray-600">อนุมัติแล้ว</div>
+          <div class="text-3xl font-bold text-green-600 mt-1">{{ approvedProviders.length }}</div>
         </div>
-        <div class="stat-badge online">
-          <span class="stat-label">ออนไลน์</span>
-          <span class="stat-value">{{ onlineProviders.length }}</span>
+        <div class="bg-white px-6 py-4 rounded-xl shadow-sm border-l-4 border-l-blue-400 hover:shadow-md transition-shadow">
+          <div class="text-sm font-medium text-gray-600">ออนไลน์</div>
+          <div class="text-3xl font-bold text-blue-600 mt-1">{{ onlineProviders.length }}</div>
         </div>
       </div>
-      <button class="refresh-btn" @click="loadProviders" :disabled="loading" aria-label="รีเฟรช">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-      </button>
     </div>
 
-    <div class="filters-bar">
-      <div class="search-box">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input 
-          v-model="searchQuery" 
-          type="text" 
-          placeholder="ค้นหาชื่อ, เบอร์โทร..." 
-          class="search-input"
-          aria-label="ค้นหาผู้ให้บริการ"
-        />
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex flex-wrap gap-4">
+        <!-- Search -->
+        <div class="flex-1 min-w-[300px]">
+          <label for="search" class="sr-only">ค้นหา</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              id="search"
+              v-model="searchQuery"
+              type="text"
+              placeholder="ค้นหาชื่อ, เบอร์โทร..."
+              class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              aria-label="ค้นหาผู้ให้บริการ"
+            />
+          </div>
+        </div>
+
+        <!-- Status Filter -->
+        <select
+          v-model="statusFilter"
+          class="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all min-h-[44px]"
+          aria-label="กรองตามสถานะ"
+        >
+          <option value="">ทุกสถานะ</option>
+          <option value="pending">รอตรวจสอบ</option>
+          <option value="approved">อนุมัติแล้ว</option>
+          <option value="rejected">ปฏิเสธ</option>
+          <option value="suspended">ระงับ</option>
+        </select>
+
+        <!-- Type Filter -->
+        <select
+          v-model="typeFilter"
+          class="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all min-h-[44px]"
+          aria-label="กรองตามประเภท"
+        >
+          <option value="">ทุกประเภท</option>
+          <option value="ride">Ride</option>
+          <option value="delivery">Delivery</option>
+          <option value="shopping">Shopping</option>
+          <option value="all">All Services</option>
+        </select>
       </div>
-      <select v-model="statusFilter" class="filter-select" aria-label="กรองตามสถานะ">
-        <option value="">ทุกสถานะ</option>
-        <option value="pending">รอตรวจสอบ</option>
-        <option value="approved">อนุมัติแล้ว</option>
-        <option value="rejected">ปฏิเสธ</option>
-        <option value="suspended">ระงับ</option>
-      </select>
-      <select v-model="typeFilter" class="filter-select" aria-label="กรองตามประเภท">
-        <option value="">ทุกประเภท</option>
-        <option value="ride">Ride</option>
-        <option value="delivery">Delivery</option>
-        <option value="shopping">Shopping</option>
-        <option value="all">All Services</option>
-      </select>
     </div>
 
-    <div class="table-container">
-      <div v-if="loading" class="loading-state"><div class="skeleton" v-for="i in 10" :key="i" /></div>
-      <div v-else-if="error" class="error-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+      <!-- Loading State -->
+      <div v-if="loading" class="p-8 text-center">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent" />
+        <p class="mt-2 text-gray-600">กำลังโหลด...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="p-8 text-center">
+        <svg class="w-12 h-12 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
-        <button class="btn btn-primary" @click="loadProviders">ลองใหม่</button>
+        <p class="mt-4 text-gray-600">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+        <button
+          class="mt-4 min-h-[44px] px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md"
+          @click="loadProviders"
+        >
+          ลองใหม่
+        </button>
       </div>
-      <table v-else-if="providers.length > 0" class="data-table">
-        <thead><tr><th>ผู้ให้บริการ</th><th>ประเภท</th><th>สถานะ</th><th>ออนไลน์</th><th>คะแนน</th><th>รายได้</th><th></th></tr></thead>
-        <tbody>
-          <tr v-for="provider in providers" :key="provider.id" @click="viewProvider(provider)">
-            <td>
-              <div class="provider-cell">
-                <div class="avatar">{{ (provider.first_name || 'P').charAt(0) }}</div>
-                <div class="info">
-                  <div class="name">{{ provider.first_name }} {{ provider.last_name }}</div>
-                  <div class="phone">{{ provider.phone_number || '-' }}</div>
+
+      <!-- Data Table -->
+      <div v-else-if="providers.length > 0" class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
+            <tr>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  ผู้ให้บริการ
                 </div>
-              </div>
-            </td>
-            <td><span class="type-badge">{{ getProviderTypeLabel(provider.provider_type) }}</span></td>
-            <td>
-              <span class="status-badge" :style="{ color: getStatusColor(provider.status), background: getStatusColor(provider.status) + '20' }">
-                {{ getStatusLabel(provider.status) }}
-              </span>
-            </td>
-            <td><span class="online-status" :class="{ online: provider.is_online }">{{ provider.is_online ? 'ออนไลน์' : 'ออฟไลน์' }}</span></td>
-            <td>
-              <div class="rating">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                {{ provider.rating?.toFixed(1) || '-' }}
-              </div>
-            </td>
-            <td class="earnings">{{ formatCurrency(provider.total_earnings || 0) }}</td>
-            <td>
-              <button class="action-btn" @click.stop="viewProvider(provider)" aria-label="ดูรายละเอียด">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="empty-state"><p>ไม่พบผู้ให้บริการ</p></div>
+              </th>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  ประเภท
+                </div>
+              </th>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  สถานะ
+                </div>
+              </th>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  คอมมิชชั่น
+                </div>
+              </th>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
+                  ออนไลน์
+                </div>
+              </th>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                  คะแนน
+                </div>
+              </th>
+              <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  รายได้
+                </div>
+              </th>
+              <th class="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div class="flex items-center justify-end gap-2">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
+                  จัดการ
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <tr
+              v-for="provider in providers"
+              :key="provider.id"
+              class="hover:bg-gray-50 transition-all duration-200 cursor-pointer"
+              :class="getProviderRowClass(provider.status)"
+              @click="viewProvider(provider)"
+            >
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                    {{ (provider.first_name || 'P').charAt(0).toUpperCase() }}
+                  </div>
+                  <div>
+                    <div class="text-sm font-bold text-gray-900">
+                      {{ provider.first_name }} {{ provider.last_name }}
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                      {{ provider.phone_number || '-' }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200 shadow-sm">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  {{ getProviderTypeLabel(provider.provider_type) }}
+                </span>
+              </td>
+              <td class="px-6 py-5">
+                <span
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border"
+                  :style="{ color: getStatusColor(provider.status), background: getStatusColor(provider.status) + '20', borderColor: getStatusColor(provider.status) + '40' }"
+                >
+                  <span 
+                    class="w-2 h-2 rounded-full" 
+                    :class="provider.status === 'pending' ? 'animate-pulse' : ''"
+                    :style="{ background: getStatusColor(provider.status) }"
+                  ></span>
+                  {{ getStatusLabel(provider.status) }}
+                </span>
+              </td>
+              <td class="px-6 py-5">
+                <span
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm"
+                  :class="provider.commission_type === 'fixed' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : 'bg-blue-100 text-blue-800 border border-blue-200'"
+                >
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{ provider.commission_type === 'fixed' ? `${provider.commission_value || 20} ฿` : `${provider.commission_value || 20}%` }}
+                </span>
+              </td>
+              <td class="px-6 py-5">
+                <span
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                  :class="provider.is_online ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-600 border border-gray-200'"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="provider.is_online ? 'bg-green-500 animate-pulse' : 'bg-gray-400'"></span>
+                  {{ provider.is_online ? 'ออนไลน์' : 'ออฟไลน์' }}
+                </span>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  <span class="text-sm font-bold text-gray-900">
+                    {{ provider.rating?.toFixed(1) || '-' }}
+                  </span>
+                  <span class="text-xs text-gray-500">/5.0</span>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <div class="text-sm font-bold text-green-600">
+                  {{ formatCurrency(provider.total_earnings || 0) }}
+                </div>
+              </td>
+              <td class="px-6 py-5 text-right">
+                <button
+                  type="button"
+                  class="min-h-[44px] min-w-[44px] p-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
+                  :aria-label="`ดูรายละเอียด ${provider.first_name} ${provider.last_name}`"
+                  @click.stop="viewProvider(provider)"
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else class="p-8 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+        </svg>
+        <p class="mt-4 text-gray-600">ไม่พบผู้ให้บริการ</p>
+      </div>
     </div>
 
-    <div v-if="totalPages > 1" class="pagination">
-      <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-      <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-      <button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex items-center justify-between mt-6 px-6 py-4 bg-white rounded-xl shadow-sm border border-gray-200">
+      <div class="text-sm text-gray-600">
+        แสดง {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, totalCount) }} จาก {{ totalCount }}
+      </div>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="min-h-[44px] px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+          :disabled="currentPage === 1"
+          @click="currentPage--"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+          ก่อนหน้า
+        </button>
+        <div class="flex items-center px-4 py-2 text-sm font-medium text-gray-700">
+          {{ currentPage }} / {{ totalPages }}
+        </div>
+        <button
+          type="button"
+          class="min-h-[44px] px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+          :disabled="currentPage === totalPages"
+          @click="currentPage++"
+        >
+          ถัดไป
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Detail Modal -->
@@ -294,6 +554,45 @@ onUnmounted(() => {
             <div class="detail-item"><label>Wallet</label><span>{{ formatCurrency(selectedProvider.wallet_balance || 0) }}</span></div>
             <div class="detail-item"><label>เอกสาร</label><span>{{ selectedProvider.documents_verified ? '✅ ตรวจสอบแล้ว' : '⏳ รอตรวจสอบ' }}</span></div>
             <div class="detail-item"><label>สมัครเมื่อ</label><span>{{ formatDate(selectedProvider.created_at) }}</span></div>
+          </div>
+          
+          <!-- Commission Info -->
+          <div class="commission-section">
+            <div class="section-header">
+              <h4>💰 ค่าคอมมิชชั่น</h4>
+              <button class="edit-commission-btn" @click.stop="openCommissionModal(selectedProvider)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                แก้ไข
+              </button>
+            </div>
+            <div class="commission-info-grid">
+              <div class="commission-info-item">
+                <label>ประเภท</label>
+                <span class="commission-type-badge" :class="selectedProvider.commission_type || 'percentage'">
+                  {{ selectedProvider.commission_type === 'fixed' ? '💵 จำนวนคงที่' : '📊 เปอร์เซ็นต์' }}
+                </span>
+              </div>
+              <div class="commission-info-item">
+                <label>ค่าคอมมิชชั่น</label>
+                <span class="commission-value">
+                  {{ selectedProvider.commission_type === 'fixed' 
+                    ? `${selectedProvider.commission_value || 20} บาท` 
+                    : `${selectedProvider.commission_value || 20}%` 
+                  }}
+                </span>
+              </div>
+              <div v-if="selectedProvider.commission_notes" class="commission-info-item full-width">
+                <label>หมายเหตุ</label>
+                <span class="commission-notes">{{ selectedProvider.commission_notes }}</span>
+              </div>
+              <div v-if="selectedProvider.commission_updated_at" class="commission-info-item full-width">
+                <label>อัพเดทล่าสุด</label>
+                <span class="commission-updated">{{ formatDate(selectedProvider.commission_updated_at) }}</span>
+              </div>
+            </div>
           </div>
           <div class="modal-actions">
             <button v-if="selectedProvider.status === 'pending'" class="btn btn-success" @click="openActionModal(selectedProvider, 'approve')">
@@ -364,6 +663,15 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Commission Modal -->
+    <ProviderCommissionModal
+      v-if="selectedProvider"
+      :provider="selectedProvider"
+      :show="showCommissionModal"
+      @close="showCommissionModal = false"
+      @updated="handleCommissionUpdated"
+    />
   </div>
 </template>
 
@@ -467,4 +775,23 @@ onUnmounted(() => {
 .reason-input:focus { outline: none; border-color: #00A86B; box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1); }
 .info-box { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #DBEAFE; border-radius: 10px; font-size: 13px; color: #1E40AF; margin-bottom: 20px; }
 .info-box svg { flex-shrink: 0; color: #3B82F6; }
+.commission-cell { display: flex; align-items: center; gap: 6px; }
+.commission-badge { display: inline-block; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; }
+.commission-badge.percentage { background: #DBEAFE; color: #1E40AF; }
+.commission-badge.fixed { background: #FEF3C7; color: #92400E; }
+.commission-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid #E5E7EB; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-header h4 { font-size: 16px; font-weight: 600; color: #1F2937; margin: 0; }
+.edit-commission-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #F3F4F6; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; color: #374151; cursor: pointer; transition: all 0.15s; }
+.edit-commission-btn:hover { background: #E5E7EB; }
+.commission-info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.commission-info-item { display: flex; flex-direction: column; gap: 4px; }
+.commission-info-item.full-width { grid-column: 1 / -1; }
+.commission-info-item label { font-size: 12px; font-weight: 500; color: #6B7280; text-transform: uppercase; }
+.commission-type-badge { display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.commission-type-badge.percentage { background: #DBEAFE; color: #1E40AF; }
+.commission-type-badge.fixed { background: #FEF3C7; color: #92400E; }
+.commission-value { font-size: 18px; font-weight: 700; color: #00A86B; }
+.commission-notes { font-size: 13px; color: #6B7280; font-style: italic; }
+.commission-updated { font-size: 13px; color: #9CA3AF; }
 </style>

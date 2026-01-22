@@ -48,34 +48,65 @@ defineEmits<{
 
 <style scoped>
 .empty-state {
-  @apply flex items-center justify-center py-12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 0;
 }
 
 .empty-content {
-  @apply flex flex-col items-center text-center max-w-md;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 28rem;
 }
 
 .empty-icon {
-  @apply text-6xl mb-4;
+  font-size: 3.75rem;
+  margin-bottom: 1rem;
 }
 
 .empty-title {
-  @apply mb-2;
+  margin-bottom: 0.5rem;
 }
 
 .empty-description {
-  @apply text-gray-600 mb-6;
+  color: #4b5563;
+  margin-bottom: 1.5rem;
 }
 
 .btn {
-  @apply px-6 py-3 rounded-lg font-medium transition-all duration-200;
-  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-  @apply min-h-[44px] flex items-center justify-center;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:focus {
+  outline: none;
+  ring: 2px;
+  ring-offset: 2px;
 }
 
 .btn-primary {
-  @apply bg-primary-600 text-white;
-  @apply hover:bg-primary-700 active:scale-95;
-  @apply focus:ring-primary-500;
+  background-color: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+}
+
+.btn-primary:active {
+  transform: scale(0.95);
+}
+
+.btn-primary:focus {
+  ring-color: #3b82f6;
 }
 </style>

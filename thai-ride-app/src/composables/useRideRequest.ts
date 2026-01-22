@@ -71,6 +71,7 @@ export function useRideRequest() {
   const { calculateDistance, calculateTravelTime } = useLocation()
   const { savedPlaces, recentPlaces, fetchSavedPlaces, fetchRecentPlaces } = useServices()
   const { balance, fetchBalance } = useWallet()
+  const { showSuccess, showWarning, showError } = useToast()
 
   // Core state
   const currentStep = ref<RideStep>('select')
@@ -107,6 +108,64 @@ export function useRideRequest() {
   const matchedDriver = ref<MatchedDriver | null>(null)
   const driverETA = ref(0)
   let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
+  
+  // Realtime subscription for ride updates
+  const currentRideId = computed(() => activeRide.value?.id ? String(activeRide.value.id) : null)
+  const { isSubscribed: isRealtimeConnected, connectionStatus: realtimeStatus } = useCustomerRideRealtime(
+    () => currentRideId.value,
+    {
+      onProviderChanged: async (oldProviderId, newProviderId) => {
+        console.log('[RideRequest] Provider changed via realtime:', { oldProviderId, newProviderId })
+        
+        // Show notification
+        showWarning('ไรเดอร์เปลี่ยนแปลง กำลังโหลดข้อมูลใหม่...')
+        
+        // Reload provider info
+        if (newProviderId) {
+          await fetchProviderInfo(newProviderId)
+          showSuccess('โหลดข้อมูลไรเดอร์ใหม่เรียบร้อย')
+        } else {
+          matchedDriver.value = null
+          showWarning('ไรเดอร์ถูกยกเลิก กำลังหาไรเดอร์ใหม่...')
+        }
+      },
+      
+      onStatusChanged: (oldStatus, newStatus) => {
+        console.log('[RideRequest] Status changed via realtime:', { oldStatus, newStatus })
+        
+        // Update UI based on status
+        if (newStatus === 'matched') {
+          showSuccess('พบไรเดอร์แล้ว!')
+          currentStep.value = 'tracking'
+          cleanupSearching()
+        } else if (newStatus === 'arriving') {
+          showSuccess('ไรเดอร์กำลังมาถึง')
+        } else if (newStatus === 'pickup' || newStatus === 'arrived') {
+          showSuccess('ไรเดอร์ถึงจุดรับแล้ว')
+        } else if (newStatus === 'in_progress' || newStatus === 'picked_up') {
+          showSuccess('เริ่มเดินทางแล้ว')
+        } else if (newStatus === 'completed') {
+          showSuccess('ถึงปลายทางแล้ว')
+          currentStep.value = 'rating'
+          cleanupSearching()
+        }
+      },
+      
+      onRideCancelled: () => {
+        console.log('[RideRequest] Ride cancelled via realtime')
+        showError('ไรด์ถูกยกเลิก')
+        resetAll()
+      },
+      
+      onRideUpdated: (ride) => {
+        console.log('[RideRequest] Ride updated via realtime:', ride)
+        // Update active ride with new data
+        if (activeRide.value) {
+          activeRide.value = { ...activeRide.value, ...ride }
+        }
+      }
+    }
+  )
   
   // Rating
   const userRating = ref(0)
@@ -971,6 +1030,10 @@ export function useRideRequest() {
     vehicles,
     savedPlaces,
     recentPlaces,
+    
+    // Realtime
+    isRealtimeConnected,
+    realtimeStatus,
     
     // Computed
     selectedVehicleInfo,

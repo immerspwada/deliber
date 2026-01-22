@@ -9,6 +9,7 @@
     <div class="content">
       <h3 :class="typography.h4" class="title">{{ title }}</h3>
       <p :class="typography.body" class="description">{{ description }}</p>
+      <p v-if="url" class="url">{{ url }}</p>
     </div>
     <div class="arrow" aria-hidden="true">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,6 +26,7 @@ interface Props {
   icon: string
   title: string
   description: string
+  url?: string
 }
 
 defineProps<Props>()
@@ -82,6 +84,17 @@ defineEmits<{
 .description {
   color: v-bind('colors.gray[600]');
   line-height: 1.5;
+}
+
+.url {
+  font-size: 0.75rem;
+  color: v-bind('colors.gray[400]');
+  font-family: 'Monaco', 'Courier New', monospace;
+  margin-top: v-bind('spacing.xs');
+  padding: 0.25rem 0.5rem;
+  background-color: v-bind('colors.gray[50]');
+  border-radius: v-bind('borderRadius.sm');
+  display: inline-block;
 }
 
 .arrow {

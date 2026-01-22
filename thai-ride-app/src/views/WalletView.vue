@@ -61,13 +61,28 @@
           <div class="form-group">
             <label>วิธีชำระเงิน</label>
             <select v-model="topupMethod">
-              <option value="promptpay">พร้อมเพย์</option>
-              <option value="bank_transfer">โอนเงินผ่านธนาคาร</option>
+              <option 
+                v-for="method in enabledPaymentMethods" 
+                :key="method.value" 
+                :value="method.value"
+              >
+                {{ method.label }}
+              </option>
             </select>
+            <p v-if="enabledPaymentMethods.length === 0" class="text-sm text-red-600 mt-2">
+              ไม่มีวิธีชำระเงินที่เปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ
+            </p>
           </div>
           <div class="modal-actions">
             <button class="btn-secondary" @click="closeTopupModal" type="button">ยกเลิก</button>
-            <button class="btn-primary" @click="goToPaymentStep" :disabled="topupAmount < 20" type="button">ถัดไป</button>
+            <button 
+              class="btn-primary" 
+              @click="goToPaymentStep" 
+              :disabled="topupAmount < 20 || enabledPaymentMethods.length === 0" 
+              type="button"
+            >
+              ถัดไป
+            </button>
           </div>
         </template>
 
@@ -276,7 +291,9 @@ import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useWalletStore } from '@/stores/wallet'
 import { useImageResize } from '@/composables/useImageResize'
+import { usePaymentAccountsSync } from '@/composables/usePaymentAccountsSync'
 import { storeToRefs } from 'pinia'
+import type { PaymentMethods } from '@/types/financial-settings'
 
 // Components
 import WalletBalance from '@/components/wallet/WalletBalance.vue'
@@ -292,6 +309,7 @@ import type { PaymentReceivingAccount } from '@/stores/wallet'
 const router = useRouter()
 const walletStore = useWalletStore()
 const { resizeImage } = useImageResize()
+const { loadPromptPayAccounts } = usePaymentAccountsSync()
 
 // Store state
 const {
@@ -316,12 +334,18 @@ const showWithdrawModal = ref(false)
 const showAddBankModal = ref(false)
 
 const topupAmount = ref(100)
-const topupMethod = ref<'promptpay' | 'bank_transfer'>('promptpay')
+const topupMethod = ref<'promptpay' | 'bank_transfer'>('bank_transfer')
 const topupLoading = ref(false)
 const topupStep = ref<'amount' | 'payment'>('amount')
 const slipFile = ref<File | null>(null)
 const slipPreview = ref<string | null>(null)
 const slipInput = ref<HTMLInputElement | null>(null)
+
+// Payment methods settings
+const paymentMethods = ref<PaymentMethods>({
+  bank_transfer: { enabled: true, fee: 0, display_name: 'โอนเงินผ่านธนาคาร' },
+  promptpay: { enabled: true, fee: 0, display_name: 'พร้อมเพย์' }
+})
 
 const withdrawAmount = ref(100)
 const selectedBankAccountId = ref('')
@@ -356,6 +380,15 @@ const isAddBankDisabled = computed(() => {
 // Computed
 const currentPaymentAccount = computed((): PaymentReceivingAccount | null => {
   return paymentAccounts.value.find(acc => acc.account_type === topupMethod.value) || null
+})
+
+const enabledPaymentMethods = computed(() => {
+  return Object.entries(paymentMethods.value)
+    .filter(([_, method]) => method.enabled)
+    .map(([key, method]) => ({
+      value: key,
+      label: method.display_name
+    }))
 })
 
 const pendingWithdrawCount = computed(() => 
@@ -405,6 +438,43 @@ const goToPaymentStep = async (): Promise<void> => {
     await walletStore.fetchPaymentAccounts()
   }
   topupStep.value = 'payment'
+}
+
+async function loadPaymentMethodsSettings() {
+  try {
+    // @ts-ignore - Supabase RPC types not fully typed
+    const { data, error } = await supabase.rpc(
+      'get_system_settings',
+      {
+        p_category: 'topup',
+        p_key: 'topup_settings'
+      }
+    ) as any
+
+    if (!error && data && data.length > 0) {
+      const settings = data[0]?.value
+      if (settings?.payment_methods) {
+        paymentMethods.value = settings.payment_methods.reduce((acc: PaymentMethods, method: any) => {
+          acc[method.id as keyof PaymentMethods] = {
+            enabled: method.enabled,
+            fee: method.fee || 0,
+            display_name: method.name
+          }
+          return acc
+        }, {} as PaymentMethods)
+        
+        // Set default to first enabled method
+        const firstEnabled = Object.entries(paymentMethods.value)
+          .find(([_, method]) => method.enabled)?.[0] as 'promptpay' | 'bank_transfer' | undefined
+        
+        if (firstEnabled) {
+          topupMethod.value = firstEnabled as 'promptpay' | 'bank_transfer'
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[WalletView] Error loading payment methods:', err)
+  }
 }
 
 const closeTopupModal = (): void => {
@@ -623,11 +693,19 @@ onMounted(async () => {
     
     console.log('[WalletView] Step 6: Fetching payment accounts...')
     await walletStore.fetchPaymentAccounts()
+
+    console.log('[WalletView] Step 7: Loading PromptPay accounts from settings...')
+    await loadPromptPayAccounts()
+    
+    console.log('[WalletView] Step 8: Loading payment methods settings...')
+    await loadPaymentMethodsSettings()
     
     console.log('[WalletView] ===== DATA LOADED =====')
     console.log('[WalletView] Balance:', formattedBalance.value)
     console.log('[WalletView] Transactions:', transactions.value.length)
     console.log('[WalletView] Topup Requests:', topupRequests.value.length)
+    console.log('[WalletView] Payment Accounts:', paymentAccounts.value.length)
+    console.log('[WalletView] Payment Methods:', paymentMethods.value)
     console.log('[WalletView] ========================')
     
     // Subscribe to realtime updates

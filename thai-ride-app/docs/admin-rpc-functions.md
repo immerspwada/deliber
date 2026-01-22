@@ -10,6 +10,10 @@ This document describes the RPC (Remote Procedure Call) functions available for 
 2. [count_admin_customers()](#count_admin_customers)
 3. [get_admin_providers_v2()](#get_admin_providers_v2)
 4. [count_admin_providers_v2()](#count_admin_providers_v2)
+5. [get_topup_requests_admin()](#get_topup_requests_admin)
+6. [count_topup_requests_admin()](#count_topup_requests_admin)
+7. [approve_topup_request()](#approve_topup_request)
+8. [reject_topup_request()](#reject_topup_request)
 
 ---
 
@@ -482,6 +486,445 @@ DROP FUNCTION IF EXISTS count_admin_customers CASCADE;
 DROP FUNCTION IF EXISTS get_admin_providers_v2 CASCADE;
 DROP FUNCTION IF EXISTS count_admin_providers_v2 CASCADE;
 ```
+
+---
+
+## get_topup_requests_admin()
+
+Retrieves a paginated list of customer topup requests with customer details and wallet balance information.
+
+### Function Signature
+
+```sql
+get_topup_requests_admin(
+  p_status TEXT DEFAULT NULL,
+  p_limit INT DEFAULT 20,
+  p_offset INT DEFAULT 0
+)
+RETURNS TABLE (...)
+```
+
+### Parameters
+
+| Parameter  | Type | Required | Default | Description                                                       |
+| ---------- | ---- | -------- | ------- | ----------------------------------------------------------------- |
+| `p_status` | TEXT | No       | NULL    | Filter by status ('pending', 'approved', 'rejected', 'cancelled') |
+| `p_limit`  | INT  | No       | 20      | Maximum number of records to return                               |
+| `p_offset` | INT  | No       | 0       | Number of records to skip (for pagination)                        |
+
+### Return Columns
+
+| Column              | Type        | Description                                      |
+| ------------------- | ----------- | ------------------------------------------------ |
+| `id`                | UUID        | Topup request unique identifier                  |
+| `user_id`           | UUID        | Customer's user ID                               |
+| `user_name`         | TEXT        | Customer's full name or email                    |
+| `user_email`        | TEXT        | Customer's email address                         |
+| `user_phone`        | TEXT        | Customer's phone number                          |
+| `amount`            | NUMERIC     | Topup amount requested                           |
+| `payment_method`    | TEXT        | Payment method used                              |
+| `payment_reference` | TEXT        | Payment reference/transaction ID                 |
+| `payment_proof_url` | TEXT        | URL to payment proof image                       |
+| `status`            | TEXT        | Request status                                   |
+| `requested_at`      | TIMESTAMPTZ | When the request was created                     |
+| `processed_at`      | TIMESTAMPTZ | When the request was processed (NULL if pending) |
+| `processed_by`      | UUID        | Admin who processed the request                  |
+| `rejection_reason`  | TEXT        | Reason for rejection (NULL if not rejected)      |
+| `wallet_balance`    | NUMERIC     | Customer's current wallet balance                |
+
+### Security
+
+- **SECURITY DEFINER**: Bypasses RLS policies
+- **Admin Role Check**: Verifies caller has admin role in users table
+- **Error**: Raises exception if caller is not admin
+
+### Performance
+
+- Uses INNER JOIN with users table for customer details
+- LEFT JOIN with wallets table for balance
+- Prioritizes pending requests in sorting
+- Expected execution time: < 300ms
+
+### Usage Examples
+
+#### TypeScript/JavaScript (Supabase Client)
+
+```typescript
+// Get all pending topup requests
+const { data, error } = await supabase.rpc("get_topup_requests_admin", {
+  p_status: "pending",
+  p_limit: 20,
+  p_offset: 0,
+});
+
+// Get all topup requests (any status)
+const { data, error } = await supabase.rpc("get_topup_requests_admin", {
+  p_status: null,
+  p_limit: 50,
+  p_offset: 0,
+});
+
+// Get approved requests
+const { data, error } = await supabase.rpc("get_topup_requests_admin", {
+  p_status: "approved",
+  p_limit: 20,
+  p_offset: 0,
+});
+```
+
+#### Vue Composable Example
+
+```typescript
+// composables/useAdminTopupRequests.ts
+import { ref } from "vue";
+import { supabase } from "@/lib/supabase";
+
+export function useAdminTopupRequests() {
+  const requests = ref([]);
+  const loading = ref(false);
+  const error = ref(null);
+  const totalCount = ref(0);
+
+  async function fetchRequests(options = {}) {
+    loading.value = true;
+    error.value = null;
+
+    try {
+      // Get count
+      const { data: count } = await supabase.rpc("count_topup_requests_admin", {
+        p_status: options.status || null,
+      });
+      totalCount.value = count || 0;
+
+      // Get requests
+      const { data, error: rpcError } = await supabase.rpc(
+        "get_topup_requests_admin",
+        {
+          p_status: options.status || null,
+          p_limit: options.limit || 20,
+          p_offset: options.offset || 0,
+        },
+      );
+
+      if (rpcError) throw rpcError;
+      requests.value = data || [];
+    } catch (e) {
+      error.value = e.message;
+      console.error("Error fetching topup requests:", e);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return {
+    requests,
+    loading,
+    error,
+    totalCount,
+    fetchRequests,
+  };
+}
+```
+
+### Payment Methods
+
+Supported payment methods:
+
+- `bank_transfer` - Bank transfer
+- `promptpay` - PromptPay
+- `mobile_banking` - Mobile banking
+- `cash` - Cash deposit
+- `other` - Other payment methods
+
+### Status Values
+
+- `pending` - Awaiting admin approval
+- `approved` - Approved and wallet credited
+- `rejected` - Rejected by admin
+- `cancelled` - Cancelled by customer
+
+---
+
+## count_topup_requests_admin()
+
+Returns the total count of topup requests matching the given status filter.
+
+### Function Signature
+
+```sql
+count_topup_requests_admin(
+  p_status TEXT DEFAULT NULL
+)
+RETURNS INT
+```
+
+### Parameters
+
+| Parameter  | Type | Required | Default | Description      |
+| ---------- | ---- | -------- | ------- | ---------------- |
+| `p_status` | TEXT | No       | NULL    | Filter by status |
+
+### Returns
+
+Returns a single INT value representing the total count of topup requests.
+
+### Usage Example
+
+```typescript
+const { data: count, error } = await supabase.rpc(
+  "count_topup_requests_admin",
+  {
+    p_status: "pending",
+  },
+);
+
+console.log(`Pending topup requests: ${count}`);
+```
+
+---
+
+## approve_topup_request()
+
+Approves a topup request and credits the customer's wallet with the requested amount.
+
+### Function Signature
+
+```sql
+approve_topup_request(
+  p_request_id UUID,
+  p_admin_id UUID,
+  p_admin_note TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  message TEXT,
+  new_balance DECIMAL(12,2)
+)
+```
+
+### Parameters
+
+| Parameter      | Type | Required | Default | Description                 |
+| -------------- | ---- | -------- | ------- | --------------------------- |
+| `p_request_id` | UUID | Yes      | -       | Topup request ID to approve |
+| `p_admin_id`   | UUID | Yes      | -       | Admin user ID (auth.uid())  |
+| `p_admin_note` | TEXT | No       | NULL    | Optional admin note         |
+
+### Return Columns
+
+| Column        | Type          | Description                     |
+| ------------- | ------------- | ------------------------------- |
+| `success`     | BOOLEAN       | Whether the operation succeeded |
+| `message`     | TEXT          | Success or error message (Thai) |
+| `new_balance` | DECIMAL(12,2) | Customer's new wallet balance   |
+
+### Security
+
+- **SECURITY DEFINER**: Bypasses RLS policies
+- **Admin Role Check**: Verifies caller has admin role
+- **Transaction Safety**: Uses row-level locking (FOR UPDATE)
+- **Atomic Operation**: All changes in single transaction
+
+### Behavior
+
+1. Verifies admin role
+2. Locks the topup request row
+3. Validates request status is 'pending'
+4. Updates request status to 'approved'
+5. Creates or updates customer wallet
+6. Credits wallet with topup amount
+7. Creates wallet transaction record
+8. Returns success with new balance
+
+### Usage Examples
+
+#### TypeScript/JavaScript
+
+```typescript
+// Approve a topup request
+const { data, error } = await supabase.rpc("approve_topup_request", {
+  p_request_id: "123e4567-e89b-12d3-a456-426614174000",
+  p_admin_id: adminUser.id,
+  p_admin_note: "ตรวจสอบแล้ว สลิปถูกต้อง",
+});
+
+if (error) {
+  console.error("Error:", error.message);
+} else if (data[0].success) {
+  console.log("Success:", data[0].message);
+  console.log("New balance:", data[0].new_balance);
+} else {
+  console.log("Failed:", data[0].message);
+}
+```
+
+#### Vue Component Example
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/stores/auth";
+
+const authStore = useAuthStore();
+const processing = ref(false);
+
+async function approveRequest(requestId: string, note: string = "") {
+  processing.value = true;
+
+  try {
+    const { data, error } = await supabase.rpc("approve_topup_request", {
+      p_request_id: requestId,
+      p_admin_id: authStore.user.id,
+      p_admin_note: note,
+    });
+
+    if (error) throw error;
+
+    if (data[0].success) {
+      toast.success(data[0].message);
+      // Refresh list
+      await fetchRequests();
+    } else {
+      toast.error(data[0].message);
+    }
+  } catch (e) {
+    toast.error("เกิดข้อผิดพลาด: " + e.message);
+  } finally {
+    processing.value = false;
+  }
+}
+</script>
+```
+
+### Error Messages (Thai)
+
+- `"ไม่พบคำขอเติมเงิน"` - Request not found
+- `"คำขอนี้ถูกดำเนินการแล้ว"` - Request already processed
+- `"อนุมัติคำขอเติมเงินสำเร็จ"` - Success message
+
+---
+
+## reject_topup_request()
+
+Rejects a topup request with a reason.
+
+### Function Signature
+
+```sql
+reject_topup_request(
+  p_request_id UUID,
+  p_admin_id UUID,
+  p_admin_note TEXT
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  message TEXT
+)
+```
+
+### Parameters
+
+| Parameter      | Type | Required | Default | Description                 |
+| -------------- | ---- | -------- | ------- | --------------------------- |
+| `p_request_id` | UUID | Yes      | -       | Topup request ID to reject  |
+| `p_admin_id`   | UUID | Yes      | -       | Admin user ID (auth.uid())  |
+| `p_admin_note` | TEXT | Yes      | -       | Rejection reason (required) |
+
+### Return Columns
+
+| Column    | Type    | Description                     |
+| --------- | ------- | ------------------------------- |
+| `success` | BOOLEAN | Whether the operation succeeded |
+| `message` | TEXT    | Success or error message (Thai) |
+
+### Security
+
+- **SECURITY DEFINER**: Bypasses RLS policies
+- **Admin Role Check**: Verifies caller has admin role
+- **Transaction Safety**: Uses row-level locking (FOR UPDATE)
+
+### Behavior
+
+1. Verifies admin role
+2. Locks the topup request row
+3. Validates request status is 'pending'
+4. Updates request status to 'rejected'
+5. Records rejection reason
+6. Returns success message
+
+### Usage Examples
+
+#### TypeScript/JavaScript
+
+```typescript
+// Reject a topup request
+const { data, error } = await supabase.rpc("reject_topup_request", {
+  p_request_id: "123e4567-e89b-12d3-a456-426614174000",
+  p_admin_id: adminUser.id,
+  p_admin_note: "สลิปไม่ชัดเจน กรุณาอัพโหลดใหม่",
+});
+
+if (error) {
+  console.error("Error:", error.message);
+} else if (data[0].success) {
+  console.log("Success:", data[0].message);
+} else {
+  console.log("Failed:", data[0].message);
+}
+```
+
+#### Vue Component Example
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/stores/auth";
+
+const authStore = useAuthStore();
+const processing = ref(false);
+const rejectionReason = ref("");
+
+async function rejectRequest(requestId: string) {
+  if (!rejectionReason.value.trim()) {
+    toast.error("กรุณาระบุเหตุผลในการปฏิเสธ");
+    return;
+  }
+
+  processing.value = true;
+
+  try {
+    const { data, error } = await supabase.rpc("reject_topup_request", {
+      p_request_id: requestId,
+      p_admin_id: authStore.user.id,
+      p_admin_note: rejectionReason.value,
+    });
+
+    if (error) throw error;
+
+    if (data[0].success) {
+      toast.success(data[0].message);
+      rejectionReason.value = "";
+      // Refresh list
+      await fetchRequests();
+    } else {
+      toast.error(data[0].message);
+    }
+  } catch (e) {
+    toast.error("เกิดข้อผิดพลาด: " + e.message);
+  } finally {
+    processing.value = false;
+  }
+}
+</script>
+```
+
+### Error Messages (Thai)
+
+- `"ไม่พบคำขอเติมเงิน"` - Request not found
+- `"คำขอนี้ถูกดำเนินการแล้ว"` - Request already processed
+- `"ปฏิเสธคำขอเติมเงินสำเร็จ"` - Success message
 
 ---
 
@@ -1200,36 +1643,354 @@ DROP FUNCTION IF EXISTS get_admin_payment_stats CASCADE;
 
 ---
 
+## Migration 316 & 317: Topup Request System
+
+### Migration 316: Topup Requests System
+
+**Migration File**: `316_topup_requests_system.sql`
+
+**Created**: 2026-01-22
+
+**Purpose**: Customer topup request management system with payment proof
+
+**Tables Created**:
+
+- `topup_requests` - Customer topup requests with payment proof and status tracking
+
+**Functions Created**:
+
+1. `get_topup_requests_admin(TEXT, INT, INT)` - Get customer topup requests
+2. `count_topup_requests_admin(TEXT)` - Count topup requests for pagination
+3. `approve_topup_request(UUID, UUID, TEXT)` - Approve topup and credit wallet
+4. `reject_topup_request(UUID, UUID, TEXT)` - Reject topup request
+
+**Key Features**:
+
+- Payment proof upload support
+- Multiple payment methods (bank_transfer, promptpay, mobile_banking, cash, other)
+- Admin approval workflow
+- Automatic wallet crediting on approval
+- Wallet transaction logging
+- RLS policies for customer and admin access
+
+### Migration 317: Function Conflict Resolution
+
+**Migration File**: `317_fix_topup_function_conflict.sql`
+
+**Created**: 2026-01-22
+
+**Issue**: PGRST203 - Multiple functions with similar signatures causing conflict
+
+**Purpose**: Resolve function overloading conflicts by removing old topup functions from migrations 187 and 198
+
+**Functions Dropped**:
+
+- `admin_get_topup_requests(VARCHAR, INTEGER, INTEGER)` - Old function with different signature
+- `admin_get_topup_requests_enhanced(...)` - Multiple overloaded versions
+- `admin_get_topup_stats(TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE)` - Old stats function
+- `admin_approve_topup_request(UUID, TEXT)` - Old approval function (2 params)
+- `admin_approve_topup_request(UUID, TEXT, UUID)` - Old approval function (3 params)
+- `admin_reject_topup_request(UUID, TEXT)` - Old rejection function (2 params)
+- `admin_reject_topup_request(UUID, TEXT, UUID)` - Old rejection function (3 params)
+
+### Migration 318: Comprehensive Topup Function Cleanup
+
+**Migration File**: `318_verify_and_fix_topup_conflicts.sql`
+
+**Created**: 2026-01-22
+
+**Issue**: PGRST203 - Function overloading conflicts still exist in production after migration 317
+
+**Purpose**: Comprehensive cleanup of ALL old topup function variations and verification of new standardized functions
+
+**What This Migration Does**:
+
+1. **Lists Existing Functions** - Checks all topup-related functions before cleanup
+2. **Drops ALL Old Variations** - Removes every possible old function signature including:
+   - All `admin_get_topup_requests` variations (VARCHAR, character varying, TEXT, text)
+   - All `admin_get_topup_requests_enhanced` variations (multiple signatures)
+   - All `admin_get_topup_stats` variations
+   - All `admin_approve_topup_request` variations (2 and 3 params)
+   - All `admin_reject_topup_request` variations (2 and 3 params)
+   - All `admin_count_topup_requests` variations
+   - Generic `get_topup_requests` and `count_topup_requests` functions
+3. **Verifies New Functions** - Confirms migration 316 functions exist with correct signatures
+4. **Checks for Conflicts** - Detects any remaining function conflicts and raises exception if found
+5. **Lists Final State** - Shows all remaining topup functions after cleanup
+
+**Functions Dropped** (Comprehensive List):
+
+```sql
+-- Old admin_get_topup_requests variations
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests(VARCHAR, INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests(character varying, integer, integer);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests(TEXT, INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests(text, integer, integer);
+
+-- Old admin_get_topup_requests_enhanced variations
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests_enhanced(VARCHAR, INTEGER, TEXT);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests_enhanced(character varying, integer, text);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests_enhanced(TEXT, INTEGER, TEXT);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests_enhanced(text, integer, text);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests_enhanced(VARCHAR, INTEGER, INTEGER, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.admin_get_topup_requests_enhanced(character varying, integer, integer, text, text, text);
+
+-- Old admin_get_topup_stats variations
+DROP FUNCTION IF EXISTS public.admin_get_topup_stats(TIMESTAMP WITH TIME ZONE, TIMESTAMP WITH TIME ZONE);
+DROP FUNCTION IF EXISTS public.admin_get_topup_stats(timestamptz, timestamptz);
+
+-- Old admin_approve_topup_request variations
+DROP FUNCTION IF EXISTS public.admin_approve_topup_request(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.admin_approve_topup_request(uuid, text);
+DROP FUNCTION IF EXISTS public.admin_approve_topup_request(UUID, TEXT, UUID);
+DROP FUNCTION IF EXISTS public.admin_approve_topup_request(uuid, text, uuid);
+
+-- Old admin_reject_topup_request variations
+DROP FUNCTION IF EXISTS public.admin_reject_topup_request(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.admin_reject_topup_request(uuid, text);
+DROP FUNCTION IF EXISTS public.admin_reject_topup_request(UUID, TEXT, UUID);
+DROP FUNCTION IF EXISTS public.admin_reject_topup_request(uuid, text, uuid);
+
+-- Old admin_count_topup_requests variations
+DROP FUNCTION IF EXISTS public.admin_count_topup_requests(VARCHAR);
+DROP FUNCTION IF EXISTS public.admin_count_topup_requests(character varying);
+DROP FUNCTION IF EXISTS public.admin_count_topup_requests(TEXT);
+DROP FUNCTION IF EXISTS public.admin_count_topup_requests(text);
+
+-- Generic functions that might conflict
+DROP FUNCTION IF EXISTS public.get_topup_requests(TEXT, INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS public.get_topup_requests(text, integer, integer);
+DROP FUNCTION IF EXISTS public.count_topup_requests(TEXT);
+DROP FUNCTION IF EXISTS public.count_topup_requests(text);
+```
+
+**Functions Verified** (from migration 316):
+
+- `get_topup_requests_admin(TEXT, INT, INT)` - New standardized function
+- `count_topup_requests_admin(TEXT)` - New count function
+- `approve_topup_request(UUID, UUID, TEXT)` - New approval function
+- `reject_topup_request(UUID, UUID, TEXT)` - New rejection function
+
+**Why These Migrations Were Needed**:
+
+PostgreSQL's function overloading can cause conflicts when multiple functions have similar signatures. The old topup functions from earlier migrations had inconsistent naming and parameter patterns:
+
+- Mixed naming conventions (`admin_get_topup_requests` vs `get_topup_requests_admin`)
+- Inconsistent parameter types (VARCHAR vs TEXT vs character varying, different parameter orders)
+- Multiple overloaded versions causing ambiguity
+- Case-sensitive type aliases (UUID vs uuid, TEXT vs text)
+
+**Migration 317** attempted to clean up conflicts but some variations remained in production.
+
+**Migration 318** provides comprehensive cleanup by:
+
+1. Listing all existing topup functions for visibility
+2. Dropping ALL possible variations (uppercase, lowercase, type aliases)
+3. Verifying new standardized functions exist with correct signatures
+4. Checking for any remaining conflicts and raising exception if found
+5. Listing final function state for verification
+
+**Migration Order**:
+
+1. Apply migration 316 first (creates new standardized functions)
+2. Apply migration 317 second (removes most old conflicting functions)
+3. Apply migration 318 third (comprehensive cleanup of ALL remaining variations)
+
+**Troubleshooting PGRST203 Errors**:
+
+If you encounter `PGRST203` errors about function overloading:
+
+1. Check existing functions: `SELECT proname, pronargs, pg_get_function_arguments(oid) FROM pg_proc WHERE proname LIKE '%topup%';`
+2. Look for duplicate function names with same argument count
+3. Drop old variations manually if needed
+4. Apply migration 318 to ensure comprehensive cleanup
+5. Verify only new functions remain: `get_topup_requests_admin`, `count_topup_requests_admin`, `approve_topup_request`, `reject_topup_request`
+
+**Rollback** (if needed):
+
+```sql
+-- Migrations 317 and 318 only drop functions, no rollback needed
+-- If you need to restore old functions, revert to migration 316 only
+-- To verify current state:
+SELECT proname, pronargs, pg_get_function_arguments(oid)
+FROM pg_proc
+WHERE proname LIKE '%topup%'
+ORDER BY proname, pronargs;
+```
+
+**Best Practices Established**:
+
+- Use consistent naming patterns for admin functions (`*_admin` suffix)
+- Avoid function overloading when possible
+- Use TEXT instead of VARCHAR for consistency
+- Document parameter order and types clearly
+- Verify new functions before dropping old ones
+
+---
+
+## admin_get_customer_withdrawals()
+
+Retrieves a paginated list of customer withdrawal requests with user details and wallet balance information.
+
+### Function Signature
+
+```sql
+admin_get_customer_withdrawals(
+  p_status TEXT DEFAULT NULL,
+  p_limit INT DEFAULT 20,
+  p_offset INT DEFAULT 0
+)
+RETURNS TABLE (...)
+```
+
+### Parameters
+
+| Parameter  | Type | Required | Default | Description                                                       |
+| ---------- | ---- | -------- | ------- | ----------------------------------------------------------------- |
+| `p_status` | TEXT | No       | NULL    | Filter by status ('pending', 'approved', 'rejected', 'cancelled') |
+| `p_limit`  | INT  | No       | 20      | Maximum number of records to return                               |
+| `p_offset` | INT  | No       | 0       | Number of records to skip (for pagination)                        |
+
+### Return Columns
+
+| Column                | Type        | Description                                      |
+| --------------------- | ----------- | ------------------------------------------------ |
+| `id`                  | UUID        | Withdrawal request unique identifier             |
+| `user_id`             | UUID        | Customer's user ID                               |
+| `user_name`           | TEXT        | Customer's full name or email                    |
+| `user_email`          | TEXT        | Customer's email address                         |
+| `user_phone`          | TEXT        | Customer's phone number                          |
+| `withdrawal_uid`      | TEXT        | Withdrawal unique identifier string              |
+| `amount`              | NUMERIC     | Withdrawal amount requested                      |
+| `bank_name`           | TEXT        | Bank name                                        |
+| `bank_account_number` | TEXT        | Bank account number                              |
+| `bank_account_name`   | TEXT        | Bank account holder name                         |
+| `status`              | TEXT        | Request status                                   |
+| `reason`              | TEXT        | Reason for rejection (NULL if not rejected)      |
+| `admin_notes`         | TEXT        | Admin notes on the request                       |
+| `processed_by`        | UUID        | Admin who processed the request                  |
+| `processed_at`        | TIMESTAMPTZ | When the request was processed (NULL if pending) |
+| `completed_at`        | TIMESTAMPTZ | When the request was completed (NULL if pending) |
+| `created_at`          | TIMESTAMPTZ | When the request was created                     |
+| `wallet_balance`      | NUMERIC     | Customer's current wallet balance                |
+
+### Security
+
+- **SECURITY DEFINER**: Bypasses RLS policies
+- **Admin Role Check**: Verifies caller has admin role in users table
+- **Error**: Raises exception if caller is not admin
+
+### Performance
+
+- Uses INNER JOIN with users table for customer details
+- Prioritizes pending requests in sorting
+- Expected execution time: < 300ms
+
+### Usage Examples
+
+#### TypeScript/JavaScript (Supabase Client)
+
+```typescript
+// Get all pending withdrawal requests
+const { data, error } = await supabase.rpc("admin_get_customer_withdrawals", {
+  p_status: "pending",
+  p_limit: 20,
+  p_offset: 0,
+});
+
+// Get all withdrawal requests (any status)
+const { data, error } = await supabase.rpc("admin_get_customer_withdrawals", {
+  p_status: null,
+  p_limit: 50,
+  p_offset: 0,
+});
+
+// Get completed requests
+const { data, error } = await supabase.rpc("admin_get_customer_withdrawals", {
+  p_status: "completed",
+  p_limit: 20,
+  p_offset: 0,
+});
+```
+
+#### Vue Component Example
+
+```vue
+<script setup lang="ts">
+import { ref, onMounted } from "vue";
+import { supabase } from "@/lib/supabase";
+
+const withdrawals = ref([]);
+const loading = ref(false);
+
+async function loadWithdrawals() {
+  loading.value = true;
+  try {
+    const { data, error } = await supabase.rpc(
+      "admin_get_customer_withdrawals",
+      {
+        p_status: null,
+        p_limit: 100,
+        p_offset: 0,
+      },
+    );
+    if (error) throw error;
+    withdrawals.value = data || [];
+  } catch (e) {
+    console.error("Load failed:", e);
+    alert("ไม่สามารถโหลดข้อมูลได้");
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(() => loadWithdrawals());
+</script>
+```
+
+### Status Values
+
+- `pending` - Awaiting admin approval
+- `approved` - Approved by admin
+- `completed` - Withdrawal completed and funds transferred
+- `rejected` - Rejected by admin
+- `cancelled` - Cancelled by customer
+
+---
+
 ## Complete Function List
 
-### Priority 1 (Critical)
+### Priority 1 (Critical - Customer & Provider Management)
 
 1. ✅ `get_admin_customers()` - Customer list with search and filters
 2. ✅ `count_admin_customers()` - Customer count for pagination
 3. ✅ `get_admin_providers_v2()` - Provider list with status
 4. ✅ `count_admin_providers_v2()` - Provider count for pagination
 
-### Priority 2 (Important)
+### Priority 2 (Important - Financial Management)
 
 5. ✅ `get_scheduled_rides()` - Scheduled rides for future dates
 6. ✅ `count_scheduled_rides()` - Scheduled rides count
 7. ✅ `get_provider_withdrawals_admin()` - Provider withdrawal requests
 8. ✅ `count_provider_withdrawals_admin()` - Withdrawal requests count
-9. ✅ `get_topup_requests_admin()` - Customer topup requests
-10. ✅ `count_topup_requests_admin()` - Topup requests count
+9. ✅ `get_topup_requests_admin(TEXT, INT, INT)` - Customer topup requests (migration 316)
+10. ✅ `count_topup_requests_admin(TEXT)` - Topup requests count (migration 316)
+11. ✅ `approve_topup_request(UUID, UUID, TEXT)` - Approve topup and credit wallet (migration 316)
+12. ✅ `reject_topup_request(UUID, UUID, TEXT)` - Reject topup request (migration 316)
+13. ✅ `admin_get_customer_withdrawals(TEXT, INT, INT)` - Customer withdrawal requests
 
 ### Priority 3 (Analytics)
 
-11. ✅ `get_admin_revenue_stats()` - Revenue statistics and breakdown
-12. ✅ `get_admin_payment_stats()` - Payment analytics and trends
+13. ✅ `get_admin_revenue_stats()` - Revenue statistics and breakdown
+14. ✅ `get_admin_payment_stats()` - Payment analytics and trends
 
 ### Existing Functions
 
-13. ✅ `get_admin_orders()` - All orders with filters (migration 295)
-14. ✅ `get_active_providers_locations()` - Real-time provider locations (migration 251)
-15. ✅ `get_push_analytics()` - Push notification metrics (migration 289)
-16. ✅ `get_cron_job_stats()` - Cron job monitoring (migration 278)
-17. ✅ `get_provider_heatmap_data()` - Provider location heatmap (migration 279)
+15. ✅ `get_admin_orders()` - All orders with filters (migration 295)
+16. ✅ `get_active_providers_locations()` - Real-time provider locations (migration 251)
+17. ✅ `get_push_analytics()` - Push notification metrics (migration 289)
+18. ✅ `get_cron_job_stats()` - Cron job monitoring (migration 278)
+19. ✅ `get_provider_heatmap_data()` - Provider location heatmap (migration 279)
 
 ---
 

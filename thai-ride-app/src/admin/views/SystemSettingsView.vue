@@ -9,10 +9,32 @@
       >
         ← กลับ
       </button>
-      <h1 class="text-2xl font-bold text-gray-900">การตั้งค่าระบบ</h1>
-      <p class="text-sm text-gray-600 mt-1">
-        จัดการข้อมูลพื้นฐานของเว็บไซต์ SEO และการติดต่อ
-      </p>
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">การตั้งค่าระบบ</h1>
+          <p class="text-sm text-gray-600 mt-1">
+            จัดการข้อมูลพื้นฐานของเว็บไซต์ SEO และการติดต่อ
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="btn-secondary"
+            @click="showAuditLog = true"
+            title="ดูประวัติการเปลี่ยนแปลง"
+          >
+            📋 ประวัติ
+          </button>
+          <button
+            type="button"
+            class="btn-secondary"
+            @click="exportSettings"
+            title="ส่งออกการตั้งค่า"
+          >
+            📥 ส่งออก
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -212,6 +234,11 @@
               />
               <span class="text-sm text-gray-700">เปิดใช้งานโหมดปิดปรับปรุง</span>
             </label>
+            <div v-if="form.maintenanceMode" class="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p class="text-sm text-amber-800">
+                ⚠️ เมื่อเปิดใช้งาน ผู้ใช้ทั่วไปจะไม่สามารถเข้าถึงระบบได้
+              </p>
+            </div>
           </SettingsFormField>
         </div>
       </SettingsSection>
@@ -225,25 +252,47 @@
         @reset="handleReset"
       />
     </form>
+
+    <!-- Audit Log Modal -->
+    <SettingsAuditLogModal
+      v-if="showAuditLog"
+      :audit-log="auditLog"
+      :loading="loadingAuditLog"
+      @close="showAuditLog = false"
+      @refresh="loadAuditLog"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  SettingsSection,
-  SettingsFormField,
-  SettingsActions,
-  SettingsLoadingState,
-  SettingsErrorState
-} from '@/admin/components/settings'
+import { useSystemSettings } from '@/admin/composables/useSystemSettings'
+import { useToast } from '@/composables/useToast'
+import SettingsSection from '@/admin/components/settings/SettingsSection.vue'
+import SettingsFormField from '@/admin/components/settings/SettingsFormField.vue'
+import SettingsActions from '@/admin/components/settings/SettingsActions.vue'
+import SettingsLoadingState from '@/admin/components/settings/SettingsLoadingState.vue'
+import SettingsErrorState from '@/admin/components/settings/SettingsErrorState.vue'
+import SettingsAuditLogModal from '@/admin/components/SettingsAuditLogModal.vue'
 
 const router = useRouter()
+const { showSuccess, showError, showWarning } = useToast()
+const {
+  settings,
+  isLoading: loading,
+  error: apiError,
+  fetchAllSettings,
+  updateSetting,
+  getSettingValue,
+  fetchAuditLog,
+  auditLog
+} = useSystemSettings()
 
-const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+const showAuditLog = ref(false)
+const loadingAuditLog = ref(false)
 
 const form = ref({
   siteName: '',
@@ -270,31 +319,41 @@ const hasChanges = computed(() => {
 })
 
 async function loadSettings() {
-  loading.value = true
   error.value = null
   
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await fetchAllSettings()
     
+    // Map settings to form
     form.value = {
-      siteName: 'Thai Ride App',
-      siteDescription: 'แพลตฟอร์มเรียกรถและจัดส่งสินค้าในประเทศไทย',
-      contactEmail: 'support@thairideapp.com',
-      contactPhone: '02-xxx-xxxx',
-      metaTitle: 'Thai Ride App - บริการเรียกรถและจัดส่งสินค้า',
-      metaDescription: 'แพลตฟอร์มเรียกรถและจัดส่งสินค้าที่ดีที่สุดในประเทศไทย',
-      metaKeywords: 'เรียกรถ, จัดส่งสินค้า, ไทย',
-      timezone: 'Asia/Bangkok',
-      currency: 'THB',
-      maintenanceMode: false
+      siteName: getSettingValue('site_name', 'general') || 'Thai Ride App',
+      siteDescription: getSettingValue('site_description', 'general') || '',
+      contactEmail: getSettingValue('contact_email', 'general') || '',
+      contactPhone: getSettingValue('contact_phone', 'general') || '',
+      metaTitle: getSettingValue('meta_title', 'seo') || '',
+      metaDescription: getSettingValue('meta_description', 'seo') || '',
+      metaKeywords: getSettingValue('meta_keywords', 'seo') || '',
+      timezone: getSettingValue('timezone', 'general') || 'Asia/Bangkok',
+      currency: getSettingValue('currency', 'general') || 'THB',
+      maintenanceMode: getSettingValue('maintenance_mode', 'general') === 'true'
     }
     
     originalForm.value = { ...form.value }
   } catch (e) {
-    error.value = 'ไม่สามารถโหลดการตั้งค่าได้ กรุณาลองใหม่อีกครั้ง'
-    console.error('Failed to load settings:', e)
+    error.value = apiError.value || 'ไม่สามารถโหลดการตั้งค่าได้ กรุณาลองใหม่อีกครั้ง'
+    console.error('[SystemSettingsView] Failed to load settings:', e)
+  }
+}
+
+async function loadAuditLog() {
+  loadingAuditLog.value = true
+  try {
+    await fetchAuditLog(50)
+  } catch (e) {
+    showError('ไม่สามารถโหลดประวัติการเปลี่ยนแปลงได้')
+    console.error('[SystemSettingsView] Failed to load audit log:', e)
   } finally {
-    loading.value = false
+    loadingAuditLog.value = false
   }
 }
 
@@ -330,14 +389,44 @@ async function handleSubmit() {
   saving.value = true
   
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    // Update all changed settings
+    const updates = [
+      { key: 'site_name', value: form.value.siteName, category: 'general' },
+      { key: 'site_description', value: form.value.siteDescription, category: 'general' },
+      { key: 'contact_email', value: form.value.contactEmail, category: 'general' },
+      { key: 'contact_phone', value: form.value.contactPhone, category: 'general' },
+      { key: 'timezone', value: form.value.timezone, category: 'general' },
+      { key: 'currency', value: form.value.currency, category: 'general' },
+      { key: 'maintenance_mode', value: String(form.value.maintenanceMode), category: 'general' },
+      { key: 'meta_title', value: form.value.metaTitle, category: 'seo' },
+      { key: 'meta_description', value: form.value.metaDescription, category: 'seo' },
+      { key: 'meta_keywords', value: form.value.metaKeywords, category: 'seo' }
+    ]
     
-    originalForm.value = { ...form.value }
+    let successCount = 0
+    let failCount = 0
     
-    alert('บันทึกการตั้งค่าสำเร็จ')
+    for (const update of updates) {
+      const result = await updateSetting(update.key, update.value, update.category)
+      if (result.success) {
+        successCount++
+      } else {
+        failCount++
+        console.error(`Failed to update ${update.key}:`, result.message)
+      }
+    }
+    
+    if (failCount === 0) {
+      originalForm.value = { ...form.value }
+      showSuccess('บันทึกการตั้งค่าสำเร็จ')
+    } else if (successCount > 0) {
+      showWarning(`บันทึกสำเร็จ ${successCount} รายการ แต่มี ${failCount} รายการที่ล้มเหลว`)
+    } else {
+      showError('ไม่สามารถบันทึกการตั้งค่าได้')
+    }
   } catch (e) {
-    alert('ไม่สามารถบันทึกการตั้งค่าได้ กรุณาลองใหม่อีกครั้ง')
-    console.error('Failed to save settings:', e)
+    showError('ไม่สามารถบันทึกการตั้งค่าได้ กรุณาลองใหม่อีกครั้ง')
+    console.error('[SystemSettingsView] Failed to save settings:', e)
   } finally {
     saving.value = false
   }
@@ -359,6 +448,30 @@ function handleReset() {
   }
 }
 
+function exportSettings() {
+  try {
+    const data = {
+      exported_at: new Date().toISOString(),
+      settings: form.value
+    }
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `system-settings-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    showSuccess('ส่งออกการตั้งค่าสำเร็จ')
+  } catch (e) {
+    showError('ไม่สามารถส่งออกการตั้งค่าได้')
+    console.error('[SystemSettingsView] Failed to export settings:', e)
+  }
+}
+
 onMounted(() => {
   loadSettings()
 })
@@ -366,27 +479,90 @@ onMounted(() => {
 
 <style scoped>
 .system-settings-view {
-  @apply max-w-4xl mx-auto px-4 py-6;
+  max-width: 56rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
 }
 
 .settings-card {
-  @apply bg-white border border-gray-200 rounded-lg p-6 space-y-4;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .form-input {
-  @apply w-full px-4 py-2 border border-gray-300 rounded-lg;
-  @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-  @apply transition-all duration-200;
-  @apply min-h-[44px];
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  min-height: 44px;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #3b82f6;
+  border-color: transparent;
 }
 
 .form-input:disabled {
-  @apply bg-gray-50 cursor-not-allowed;
+  background-color: #f9fafb;
+  cursor: not-allowed;
 }
 
 .form-checkbox {
-  @apply w-5 h-5 text-primary-600 border-gray-300 rounded;
-  @apply focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
-  @apply cursor-pointer;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #3b82f6;
+  border-color: #d1d5db;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.form-checkbox:focus {
+  ring: 2px;
+  ring-color: #3b82f6;
+  ring-offset: 2px;
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  min-height: 44px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #3b82f6;
+  ring-offset: 2px;
 }
 </style>

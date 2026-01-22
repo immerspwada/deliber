@@ -47,14 +47,14 @@ const headerId = computed(() =>
 
 <style scoped>
 .settings-section {
-  @apply mb-8;
+  margin-bottom: 2rem;
 }
 
 .section-header {
-  @apply mb-6;
+  margin-bottom: 1.5rem;
 }
 
-.section-content {
-  @apply space-y-4;
+.section-content > * + * {
+  margin-top: 1rem;
 }
 </style>

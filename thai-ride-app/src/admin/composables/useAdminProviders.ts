@@ -41,6 +41,11 @@ export interface AdminProvider {
   total_trips: number
   total_earnings: number
   wallet_balance: number
+  commission_type: 'percentage' | 'fixed' | null
+  commission_value: number | null
+  commission_notes: string | null
+  commission_updated_at: string | null
+  commission_updated_by: string | null
   documents_verified: boolean
   verification_notes: string | null
   created_at: string
@@ -267,16 +272,21 @@ export function useAdminProviders() {
     error.value = null
 
     try {
-      // Update provider status in providers_v2 table
-      const { error: updateError } = await supabase
-        .from('providers_v2')
-        .update({
-          status: 'suspended',
-          verification_notes: reason
-        })
-        .eq('id', providerId)
+      const currentUser = await supabase.auth.getUser()
+      const adminId = currentUser.data.user?.id
 
-      if (updateError) throw updateError
+      // Call RPC function to suspend provider
+      const { data, error: rpcError } = await supabase.rpc('suspend_provider_v2_enhanced', {
+        p_provider_id: providerId,
+        p_admin_id: adminId,
+        p_reason: reason
+      })
+
+      if (rpcError) throw rpcError
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to suspend provider')
+      }
 
       showSuccess('ระงับผู้ให้บริการสำเร็จ')
 
