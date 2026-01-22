@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useOrderReassignment, type Provider } from '../composables/useOrderReassignment';
 import { useAdminUIStore } from '../stores/adminUI.store';
-import { useFocusTrap } from '@/composables/usePerformance';
 
 interface Props {
   show: boolean;
@@ -25,8 +24,6 @@ const reassignment = useOrderReassignment();
 const modalContainerRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLElement | null>(null);
 
-// Focus trap
-const focusTrap = useFocusTrap(modalContainerRef);
 let previousActiveElement: HTMLElement | null = null;
 
 // State

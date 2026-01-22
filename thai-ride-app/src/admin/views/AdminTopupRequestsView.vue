@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/auth";
@@ -47,6 +47,7 @@ const topups = ref<TopupRequest[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const statusFilter = ref<string | null>(null);
+const searchQuery = ref("");
 const selectedTopup = ref<TopupRequest | null>(null);
 const showDetailModal = ref(false);
 const showApproveModal = ref(false);
@@ -54,6 +55,14 @@ const showRejectModal = ref(false);
 const rejectionReason = ref("");
 const approvalNote = ref("");
 const isProcessing = ref(false);
+const currentPage = ref(1);
+const itemsPerPage = ref(20);
+const sortBy = ref<'date' | 'amount'>('date');
+const sortOrder = ref<'asc' | 'desc'>('desc');
+const showImageModal = ref(false);
+const selectedImageUrl = ref<string | null>(null);
+const autoRefresh = ref(false);
+const refreshInterval = ref<number | null>(null);
 
 // Settings state
 const paymentMethods = ref([
@@ -116,9 +125,51 @@ const stats = computed(() => {
 });
 
 const filteredTopups = computed(() => {
-  if (!statusFilter.value) return topups.value;
-  return topups.value.filter((t) => t.status === statusFilter.value);
+  let filtered = topups.value;
+
+  // Filter by status
+  if (statusFilter.value) {
+    filtered = filtered.filter((t) => t.status === statusFilter.value);
+  }
+
+  // Filter by search query
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(
+      (t) =>
+        t.user_name.toLowerCase().includes(query) ||
+        t.user_email.toLowerCase().includes(query) ||
+        t.user_phone?.toLowerCase().includes(query) ||
+        t.payment_reference.toLowerCase().includes(query)
+    );
+  }
+
+  // Sort
+  filtered = [...filtered].sort((a, b) => {
+    let comparison = 0;
+    if (sortBy.value === 'date') {
+      comparison = new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime();
+    } else if (sortBy.value === 'amount') {
+      comparison = a.amount - b.amount;
+    }
+    return sortOrder.value === 'asc' ? comparison : -comparison;
+  });
+
+  return filtered;
 });
+
+const paginatedTopups = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return filteredTopups.value.slice(start, end);
+});
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredTopups.value.length / itemsPerPage.value);
+});
+
+const hasNextPage = computed(() => currentPage.value < totalPages.value);
+const hasPrevPage = computed(() => currentPage.value > 1);
 
 async function loadData() {
   loading.value = true;
@@ -147,8 +198,143 @@ async function loadData() {
 }
 
 function onFilterChange() {
+  currentPage.value = 1; // Reset to first page
   loadData();
 }
+
+function toggleSort(field: 'date' | 'amount') {
+  if (sortBy.value === field) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortBy.value = field;
+    sortOrder.value = 'desc';
+  }
+}
+
+function nextPage() {
+  if (hasNextPage.value) {
+    currentPage.value++;
+  }
+}
+
+function prevPage() {
+  if (hasPrevPage.value) {
+    currentPage.value--;
+  }
+}
+
+function goToPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page;
+  }
+}
+
+// Watch search query and reset page
+watch(searchQuery, () => {
+  currentPage.value = 1;
+});
+
+function viewImage(url: string | null) {
+  if (!url) return;
+  selectedImageUrl.value = url;
+  showImageModal.value = true;
+}
+
+function toggleAutoRefresh() {
+  autoRefresh.value = !autoRefresh.value;
+  
+  if (autoRefresh.value) {
+    // Refresh every 30 seconds
+    refreshInterval.value = window.setInterval(() => {
+      loadData();
+    }, 30000);
+    toast.success('เปิดการรีเฟรชอัตโนมัติ (ทุก 30 วินาที)');
+  } else {
+    if (refreshInterval.value) {
+      clearInterval(refreshInterval.value);
+      refreshInterval.value = null;
+    }
+    toast.success('ปิดการรีเฟรชอัตโนมัติ');
+  }
+}
+
+async function quickApprove(topup: TopupRequest) {
+  if (!confirm(`ยืนยันการอนุมัติเติมเงิน ${formatCurrency(topup.amount)} ให้ ${topup.user_name}?`)) {
+    return;
+  }
+
+  isProcessing.value = true;
+  try {
+    const { data, error: rpcError } = await supabase.rpc(
+      "admin_approve_topup_request",
+      {
+        p_request_id: topup.id,
+        p_admin_id: authStore.user?.id,
+        p_admin_note: 'Quick approve',
+      },
+    ) as any;
+
+    if (rpcError) throw rpcError;
+
+    if (data && data[0]?.success) {
+      toast.success("อนุมัติเรียบร้อยแล้ว");
+      await loadData();
+    } else {
+      toast.error(data?.[0]?.message || "เกิดข้อผิดพลาด");
+    }
+  } catch (e) {
+    errorHandler.handle(e, "quickApprove");
+  } finally {
+    isProcessing.value = false;
+  }
+}
+
+async function quickReject(topup: TopupRequest) {
+  const reason = prompt(`ระบุเหตุผลในการปฏิเสธคำขอเติมเงิน ${formatCurrency(topup.amount)} ของ ${topup.user_name}:`);
+  
+  if (!reason || !reason.trim()) {
+    return;
+  }
+
+  isProcessing.value = true;
+  try {
+    const { data, error: rpcError } = await supabase.rpc(
+      "admin_reject_topup_request",
+      {
+        p_request_id: topup.id,
+        p_admin_id: authStore.user?.id,
+        p_admin_note: reason,
+      },
+    ) as any;
+
+    if (rpcError) throw rpcError;
+
+    if (data && data[0]?.success) {
+      toast.success("ปฏิเสธเรียบร้อยแล้ว");
+      await loadData();
+    } else {
+      toast.error(data?.[0]?.message || "เกิดข้อผิดพลาด");
+    }
+  } catch (e) {
+    errorHandler.handle(e, "quickReject");
+  } finally {
+    isProcessing.value = false;
+  }
+}
+
+// Cleanup on unmount
+onMounted(() => {
+  if (!route.path.includes("/settings")) {
+    loadData();
+  }
+  loadSettings();
+  
+  return () => {
+    if (refreshInterval.value) {
+      clearInterval(refreshInterval.value);
+    }
+  };
+});
 
 function viewDetails(topup: TopupRequest) {
   selectedTopup.value = topup;
@@ -594,13 +780,7 @@ async function deleteBankAccount(id: string) {
   }
 }
 
-onMounted(() => {
-  // Only load data if on requests tab
-  if (!route.path.includes("/settings")) {
-    loadData();
-  }
-  loadSettings();
-});</script>
+</script>
 
 <template>
   <div class="admin-topup-container">
@@ -814,18 +994,62 @@ onMounted(() => {
 
         <!-- Filter Section -->
         <div class="filter-section">
-          <label for="status-filter">กรองตามสถานะ:</label>
-          <select
-            id="status-filter"
-            v-model="statusFilter"
-            @change="onFilterChange"
-          >
-            <option :value="null">ทุกสถานะ</option>
-            <option value="pending">รอดำเนินการ</option>
-            <option value="approved">อนุมัติแล้ว</option>
-            <option value="rejected">ปฏิเสธ</option>
-          </select>
-          <span class="count">แสดง {{ filteredTopups.length }} รายการ</span>
+          <div class="filter-left">
+            <div class="search-box">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="ค้นหาชื่อ, อีเมล, เบอร์โทร, เลขอ้างอิง..."
+                class="search-input"
+              />
+              <button
+                v-if="searchQuery"
+                @click="searchQuery = ''"
+                class="clear-search"
+                aria-label="ล้างการค้นหา"
+              >
+                ✕
+              </button>
+            </div>
+            <select
+              id="status-filter"
+              v-model="statusFilter"
+              @change="onFilterChange"
+              class="status-select"
+            >
+              <option :value="null">ทุกสถานะ</option>
+              <option value="pending">รอดำเนินการ</option>
+              <option value="approved">อนุมัติแล้ว</option>
+              <option value="rejected">ปฏิเสธ</option>
+            </select>
+          </div>
+          <div class="filter-right">
+            <button
+              @click="toggleAutoRefresh"
+              :class="['auto-refresh-btn', { active: autoRefresh }]"
+              :title="autoRefresh ? 'ปิดการรีเฟรชอัตโนมัติ' : 'เปิดการรีเฟรชอัตโนมัติ'"
+            >
+              <svg class="refresh-icon" :class="{ spinning: autoRefresh }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+              </svg>
+              {{ autoRefresh ? 'กำลังรีเฟรช' : 'รีเฟรชอัตโนมัติ' }}
+            </button>
+            <button
+              @click="loadData"
+              class="refresh-btn"
+              :disabled="loading"
+              title="รีเฟรชข้อมูล"
+            >
+              <svg class="refresh-icon" :class="{ spinning: loading }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+              </svg>
+            </button>
+            <span class="count">{{ filteredTopups.length }} รายการ</span>
+          </div>
         </div>
 
         <!-- Table Section -->
@@ -834,16 +1058,30 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>ลูกค้า</th>
-                <th>จำนวนเงิน</th>
+                <th class="sortable" @click="toggleSort('amount')">
+                  <div class="th-content">
+                    จำนวนเงิน
+                    <span class="sort-icon" v-if="sortBy === 'amount'">
+                      {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                    </span>
+                  </div>
+                </th>
                 <th>วิธีชำระเงิน</th>
                 <th>สถานะ</th>
-                <th>วันที่</th>
-                <th>จัดการ</th>
+                <th class="sortable" @click="toggleSort('date')">
+                  <div class="th-content">
+                    วันที่
+                    <span class="sort-icon" v-if="sortBy === 'date'">
+                      {{ sortOrder === 'asc' ? '↑' : '↓' }}
+                    </span>
+                  </div>
+                </th>
+                <th class="action-header">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="topup in filteredTopups"
+                v-for="topup in paginatedTopups"
                 :key="topup.id"
                 class="data-row"
               >
@@ -874,36 +1112,83 @@ onMounted(() => {
                 </td>
                 <td class="date-cell">{{ formatDate(topup.requested_at) }}</td>
                 <td class="action-cell">
-                  <button
-                    v-if="topup.status === 'pending'"
-                    @click="openApproveModal(topup)"
-                    class="btn btn-approve"
-                    title="อนุมัติ"
-                  >
-                    ✓
-                  </button>
-                  <button
-                    v-if="topup.status === 'pending'"
-                    @click="openRejectModal(topup)"
-                    class="btn btn-reject"
-                    title="ปฏิเสธ"
-                  >
-                    ✕
-                  </button>
-                  <button
-                    @click="viewDetails(topup)"
-                    class="btn btn-view"
-                    title="ดูรายละเอียด"
-                  >
-                    👁
-                  </button>
+                  <div class="action-buttons">
+                    <button
+                      v-if="topup.status === 'pending'"
+                      @click="quickApprove(topup)"
+                      class="btn btn-approve btn-icon"
+                      title="อนุมัติด่วน"
+                      :disabled="isProcessing"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button
+                      v-if="topup.status === 'pending'"
+                      @click="quickReject(topup)"
+                      class="btn btn-reject btn-icon"
+                      title="ปฏิเสธด่วน"
+                      :disabled="isProcessing"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <button
+                      @click="viewDetails(topup)"
+                      class="btn btn-view btn-icon"
+                      title="ดูรายละเอียด"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
 
-          <div v-if="filteredTopups.length === 0" class="empty-state">
-            <p>ไม่พบข้อมูล</p>
+          <div v-if="paginatedTopups.length === 0" class="empty-state">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="empty-title">ไม่พบข้อมูล</p>
+            <p class="empty-subtitle">
+              {{ searchQuery ? 'ลองค้นหาด้วยคำอื่น' : 'ยังไม่มีคำขอเติมเงิน' }}
+            </p>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="totalPages > 1" class="pagination">
+            <button
+              @click="prevPage"
+              :disabled="!hasPrevPage"
+              class="pagination-btn"
+              aria-label="หน้าก่อนหน้า"
+            >
+              ← ก่อนหน้า
+            </button>
+            <div class="pagination-pages">
+              <button
+                v-for="page in totalPages"
+                :key="page"
+                @click="goToPage(page)"
+                :class="['pagination-page', { active: page === currentPage }]"
+              >
+                {{ page }}
+              </button>
+            </div>
+            <button
+              @click="nextPage"
+              :disabled="!hasNextPage"
+              class="pagination-btn"
+              aria-label="หน้าถัดไป"
+            >
+              ถัดไป →
+            </button>
           </div>
         </div>
       </div>
@@ -957,6 +1242,30 @@ onMounted(() => {
             <div class="detail-item">
               <label>Wallet ปัจจุบัน</label>
               <p>{{ formatCurrency(selectedTopup.wallet_balance) }}</p>
+            </div>
+            <div v-if="selectedTopup.payment_proof_url" class="detail-item full-width">
+              <label>หลักฐานการโอนเงิน</label>
+              <div class="proof-image-container">
+                <img 
+                  :src="selectedTopup.payment_proof_url" 
+                  alt="หลักฐานการโอนเงิน"
+                  class="proof-image"
+                  @click="viewImage(selectedTopup.payment_proof_url)"
+                />
+                <button
+                  @click="viewImage(selectedTopup.payment_proof_url)"
+                  class="view-full-btn"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                  </svg>
+                  ดูขนาดเต็ม
+                </button>
+              </div>
+            </div>
+            <div v-if="selectedTopup.rejection_reason" class="detail-item full-width">
+              <label>เหตุผลที่ปฏิเสธ</label>
+              <p class="rejection-reason">{{ selectedTopup.rejection_reason }}</p>
             </div>
           </div>
         </div>
@@ -1201,6 +1510,41 @@ onMounted(() => {
               {{ isProcessing ? "กำลังบันทึก..." : "บันทึก" }}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div
+      v-if="showImageModal && selectedImageUrl"
+      class="modal-overlay image-modal-overlay"
+      @click.self="showImageModal = false"
+    >
+      <div class="image-modal-content">
+        <button class="close-btn image-close-btn" @click="showImageModal = false">✕</button>
+        <img :src="selectedImageUrl" alt="หลักฐานการโอนเงิน" class="full-image" />
+        <div class="image-actions">
+          <a 
+            :href="selectedImageUrl" 
+            target="_blank" 
+            class="btn btn-view"
+            download
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            ดาวน์โหลด
+          </a>
+          <a 
+            :href="selectedImageUrl" 
+            target="_blank" 
+            class="btn btn-approve"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            เปิดในแท็บใหม่
+          </a>
         </div>
       </div>
     </div>
@@ -1486,31 +1830,106 @@ onMounted(() => {
 
 .filter-section {
   background: white;
-  padding: 15px 20px;
+  padding: 20px;
   border-radius: 8px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 15px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.filter-section label {
-  font-weight: 500;
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex: 1;
+}
+
+.filter-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: #999;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 40px 10px 40px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.clear-search {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #e0e0e0;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.clear-search:hover {
+  background: #ccc;
   color: #333;
 }
 
-.filter-section select {
-  padding: 8px 12px;
+.status-select {
+  padding: 10px 14px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
   cursor: pointer;
+  background: white;
+  transition: all 0.2s;
+  min-width: 150px;
+}
+
+.status-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 .count {
-  margin-left: auto;
   color: #666;
   font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .table-section {
@@ -1537,6 +1956,31 @@ onMounted(() => {
   color: #333;
   font-size: 13px;
   text-transform: uppercase;
+  user-select: none;
+}
+
+.data-table th.sortable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.data-table th.sortable:hover {
+  background: #f0f0f0;
+}
+
+.th-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-icon {
+  font-size: 14px;
+  color: #007bff;
+}
+
+.action-header {
+  text-align: center;
 }
 
 .data-table tbody tr {
@@ -1632,18 +2076,41 @@ onMounted(() => {
 
 .action-cell {
   text-align: center;
-  width: 120px;
+  width: 140px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
 }
 
 .btn {
   padding: 6px 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   transition: all 0.2s;
-  margin: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon {
+  padding: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .btn-approve {
@@ -1651,8 +2118,10 @@ onMounted(() => {
   color: white;
 }
 
-.btn-approve:hover {
+.btn-approve:hover:not(:disabled) {
   background: #218838;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
 }
 
 .btn-reject {
@@ -1660,8 +2129,10 @@ onMounted(() => {
   color: white;
 }
 
-.btn-reject:hover {
+.btn-reject:hover:not(:disabled) {
   background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }
 
 .btn-view {
@@ -1669,8 +2140,10 @@ onMounted(() => {
   color: white;
 }
 
-.btn-view:hover {
+.btn-view:hover:not(:disabled) {
   background: #0056b3;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
 }
 
 .btn-secondary {
@@ -1689,8 +2162,95 @@ onMounted(() => {
 
 .empty-state {
   text-align: center;
-  padding: 40px;
+  padding: 60px 20px;
   color: #999;
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  color: #ccc;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.empty-subtitle {
+  font-size: 14px;
+  color: #999;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 5px;
+}
+
+.pagination-page {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-page:hover {
+  background: #f5f5f5;
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.pagination-page.active {
+  background: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
+.pagination-page.active:hover {
+  background: #0056b3;
+  border-color: #0056b3;
 }
 
 .modal-overlay {
@@ -1761,6 +2321,10 @@ onMounted(() => {
   gap: 20px;
 }
 
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
 .detail-item label {
   display: block;
   font-size: 12px;
@@ -1785,6 +2349,164 @@ onMounted(() => {
   background: #f5f5f5;
   padding: 5px 8px;
   border-radius: 4px;
+}
+
+.proof-image-container {
+  position: relative;
+  display: inline-block;
+}
+
+.proof-image {
+  max-width: 300px;
+  max-height: 300px;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.proof-image:hover {
+  border-color: #007bff;
+  transform: scale(1.02);
+}
+
+.view-full-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.view-full-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.view-full-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.rejection-reason {
+  background: #fee;
+  border-left: 4px solid #dc3545;
+  padding: 12px;
+  border-radius: 4px;
+  color: #721c24;
+}
+
+.image-modal-overlay {
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 2000;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.image-close-btn {
+  position: absolute;
+  top: -50px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 32px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.image-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.full-image {
+  max-width: 90vw;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.image-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.image-actions .btn {
+  padding: 10px 20px;
+}
+
+.image-actions svg {
+  width: 18px;
+  height: 18px;
+}
+
+.auto-refresh-btn,
+.refresh-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refresh-btn {
+  padding: 8px;
+  min-width: 40px;
+}
+
+.auto-refresh-btn:hover,
+.refresh-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.auto-refresh-btn.active {
+  background: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
+.refresh-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.refresh-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 textarea {
