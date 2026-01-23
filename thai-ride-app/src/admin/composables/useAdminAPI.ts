@@ -542,24 +542,60 @@ export function useAdminAPI() {
       }
     ): Promise<boolean> {
       try {
+        console.log('[Admin API] updateOrderStatus called:', { orderId, status, options })
+        
         const tableName = options?.serviceType ? `${options.serviceType}_requests` : 'ride_requests'
+        
+        // Verify authentication first
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('[Admin API] Current session:', { 
+          hasSession: !!session, 
+          userId: session?.user?.id,
+          expiresAt: session?.expires_at 
+        })
+        
+        if (!session) {
+          throw new Error('No active session - please login again')
+        }
         
         // Build update object
         const updateData: Record<string, any> = { status }
         
         // If cancelling, add cancellation details
         if (status === 'cancelled') {
+          // Get current admin user ID
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            throw new Error('Not authenticated')
+          }
+          
+          console.log('[Admin API] Cancelling as admin:', user.id)
+          
           updateData.cancelled_at = new Date().toISOString()
-          updateData.cancelled_by = 'admin'
+          updateData.cancelled_by = user.id // Use admin's user ID (UUID)
+          updateData.cancelled_by_role = 'admin' // Store role separately
           updateData.cancel_reason = options?.cancelReason || 'ยกเลิกโดย Admin'
         }
         
-        const { error: updateError } = await supabase
+        console.log('[Admin API] Updating table:', tableName, 'with data:', updateData)
+        
+        const { data, error: updateError } = await supabase
           .from(tableName as any)
           .update(updateData)
           .eq('id', orderId)
+          .select()
 
-        if (updateError) throw updateError
+        console.log('[Admin API] Update result:', { data, error: updateError })
+
+        if (updateError) {
+          console.error('[Admin API] Update error details:', {
+            message: updateError.message,
+            code: updateError.code,
+            details: updateError.details,
+            hint: updateError.hint
+          })
+          throw updateError
+        }
         
         // Send notification to customer about status change
         try {
