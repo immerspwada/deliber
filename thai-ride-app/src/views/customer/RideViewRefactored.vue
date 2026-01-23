@@ -56,12 +56,12 @@ const router = useRouter()
 // =====================================================
 // ROLE-BASED ACCESS CONTROL (PRODUCTION)
 // =====================================================
-const { isCustomer, isAdmin } = useRoleAccess()
+const { isCustomer, isAdmin, isSuperAdmin } = useRoleAccess()
 const { handleError } = useErrorHandler()
 const { reverseGeocode } = useGeocode()
 
-// Check role on mount - redirect if not customer/admin
-const hasAccess = computed(() => isCustomer.value || isAdmin.value)
+// Check role on mount - redirect if not customer/admin/super_admin
+const hasAccess = computed(() => isCustomer.value || isAdmin.value || isSuperAdmin.value)
 
 // Use the ride request composable
 const {
@@ -214,7 +214,7 @@ function handleBook(options: BookingOptions): void {
 onMounted(() => {
   // ✅ PRODUCTION: Check role before initializing
   if (!hasAccess.value) {
-    console.warn('[RideView] Access denied - not customer/admin')
+    console.warn('[RideView] Access denied - not customer/admin/super_admin')
     router.push('/customer')
     return
   }
@@ -226,7 +226,7 @@ onMounted(() => {
 
 <template>
   <div class="ride-page">
-    <!-- ⚠️ PRODUCTION: Show access denied if not customer/admin -->
+    <!-- ⚠️ PRODUCTION: Show access denied if not customer/admin/super_admin -->
     <div v-if="!hasAccess" class="access-denied">
       <div class="access-denied-content">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -241,7 +241,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- ✅ Main content (only for customers/admins) -->
+    <!-- ✅ Main content (only for customers/admins/super_admins) -->
     <template v-else>
     <!-- Pull-to-Refresh Indicator -->
     <PullToRefreshIndicator
