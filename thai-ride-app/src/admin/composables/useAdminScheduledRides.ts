@@ -240,9 +240,77 @@ export function useAdminScheduledRides() {
       confirmed: 'ยืนยันแล้ว',
       assigned: 'มอบหมายแล้ว',
       cancelled: 'ยกเลิก',
-      completed: 'เสร็จสิ้น'
+      completed: 'เสร็จสิ้น',
+      scheduled: 'กำหนดการแล้ว',
+      expired: 'หมดอายุ'
     }
     return labels[status] || status
+  }
+
+  /**
+   * Cancel scheduled ride
+   */
+  async function cancelScheduledRide(rideId: string, reason?: string): Promise<boolean> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc('admin_cancel_scheduled_ride', {
+        p_ride_id: rideId,
+        p_reason: reason || 'Cancelled by admin'
+      })
+
+      if (rpcError) throw rpcError
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to cancel ride')
+      }
+
+      // Refresh list
+      await fetchScheduledRides()
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to cancel scheduled ride'
+      error.value = message
+      handleError(err, 'useAdminScheduledRides.cancelScheduledRide')
+      showError('ไม่สามารถยกเลิกการจองได้')
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Update scheduled ride status
+   */
+  async function updateScheduledRideStatus(rideId: string, newStatus: string): Promise<boolean> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc('admin_update_scheduled_ride_status', {
+        p_ride_id: rideId,
+        p_new_status: newStatus
+      })
+
+      if (rpcError) throw rpcError
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to update status')
+      }
+
+      // Refresh list
+      await fetchScheduledRides()
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update status'
+      error.value = message
+      handleError(err, 'useAdminScheduledRides.updateScheduledRideStatus')
+      showError('ไม่สามารถอัพเดทสถานะได้')
+      return false
+    } finally {
+      loading.value = false
+    }
   }
 
   return {
@@ -261,6 +329,8 @@ export function useAdminScheduledRides() {
     // Methods
     fetchScheduledRides,
     fetchCount,
+    cancelScheduledRide,
+    updateScheduledRideStatus,
 
     // Helpers
     formatCurrency,

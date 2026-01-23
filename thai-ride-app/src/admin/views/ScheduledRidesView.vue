@@ -24,6 +24,8 @@ const {
   unassignedRides,
   fetchScheduledRides,
   fetchCount,
+  cancelScheduledRide,
+  updateScheduledRideStatus,
   formatCurrency,
   formatDate,
   formatDateOnly,
@@ -42,10 +44,16 @@ const totalPages = computed(() => Math.ceil(totalCount.value / pageSize.value))
 // Filter state
 const dateFromFilter = ref<string>('')
 const dateToFilter = ref<string>('')
+const statusFilter = ref<string>('all')
 
 // UI state
 const selectedRide = ref<ScheduledRide | null>(null)
 const showDetailModal = ref(false)
+const showCancelModal = ref(false)
+const showStatusModal = ref(false)
+const cancelReason = ref('')
+const newStatus = ref('')
+const actionLoading = ref(false)
 
 // Computed filters
 const filters = computed(() => {
@@ -105,6 +113,47 @@ function getRideTypeLabel(type: string) {
 
 function isUpcoming(date: string) {
   return new Date(date) > new Date()
+}
+
+// Action handlers
+function openCancelModal(ride: ScheduledRide) {
+  selectedRide.value = ride
+  cancelReason.value = ''
+  showCancelModal.value = true
+}
+
+function openStatusModal(ride: ScheduledRide) {
+  selectedRide.value = ride
+  newStatus.value = ride.status
+  showStatusModal.value = true
+}
+
+async function handleCancelRide() {
+  if (!selectedRide.value) return
+  
+  actionLoading.value = true
+  const success = await cancelScheduledRide(selectedRide.value.id, cancelReason.value)
+  actionLoading.value = false
+  
+  if (success) {
+    showCancelModal.value = false
+    showDetailModal.value = false
+    await loadRides()
+  }
+}
+
+async function handleUpdateStatus() {
+  if (!selectedRide.value || !newStatus.value) return
+  
+  actionLoading.value = true
+  const success = await updateScheduledRideStatus(selectedRide.value.id, newStatus.value)
+  actionLoading.value = false
+  
+  if (success) {
+    showStatusModal.value = false
+    showDetailModal.value = false
+    await loadRides()
+  }
 }
 
 // Set date range presets
@@ -215,6 +264,17 @@ onMounted(() => {
 
     <!-- Date Range Filters -->
     <div class="filters-bar">
+      <div class="filter-group">
+        <label class="filter-label">สถานะ:</label>
+        <select v-model="statusFilter" class="filter-select">
+          <option value="all">ทั้งหมด</option>
+          <option value="scheduled">กำหนดการแล้ว</option>
+          <option value="confirmed">ยืนยันแล้ว</option>
+          <option value="cancelled">ยกเลิก</option>
+          <option value="completed">เสร็จสิ้น</option>
+          <option value="expired">หมดอายุ</option>
+        </select>
+      </div>
       <div class="filter-group">
         <label class="filter-label">ช่วงเวลา:</label>
         <div class="date-presets">
@@ -347,13 +407,39 @@ onMounted(() => {
             <td>
               <div class="action-buttons">
                 <button 
-                  class="action-btn" 
+                  class="action-btn view-btn" 
                   @click.stop="viewRide(ride)" 
                   title="ดูรายละเอียด"
                   aria-label="ดูรายละเอียด"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+                <button 
+                  v-if="ride.status !== 'cancelled' && ride.status !== 'completed'"
+                  class="action-btn status-btn" 
+                  @click.stop="openStatusModal(ride)" 
+                  title="เปลี่ยนสถานะ"
+                  aria-label="เปลี่ยนสถานะ"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <button 
+                  v-if="ride.status !== 'cancelled' && ride.status !== 'completed'"
+                  class="action-btn cancel-btn" 
+                  @click.stop="openCancelModal(ride)" 
+                  title="ยกเลิก"
+                  aria-label="ยกเลิก"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
                   </svg>
                 </button>
               </div>
@@ -505,6 +591,122 @@ onMounted(() => {
             <button class="btn btn-secondary" @click="showDetailModal = false">
               ปิด
             </button>
+            <button 
+              v-if="selectedRide.status !== 'cancelled' && selectedRide.status !== 'completed'"
+              class="btn btn-primary" 
+              @click="openStatusModal(selectedRide)"
+            >
+              เปลี่ยนสถานะ
+            </button>
+            <button 
+              v-if="selectedRide.status !== 'cancelled' && selectedRide.status !== 'completed'"
+              class="btn btn-danger" 
+              @click="openCancelModal(selectedRide)"
+            >
+              ยกเลิกการจอง
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cancel Modal -->
+    <div v-if="showCancelModal && selectedRide" class="modal-overlay" @click.self="showCancelModal = false">
+      <div class="modal modal-sm">
+        <div class="modal-header">
+          <h2>ยกเลิกการจอง</h2>
+          <button 
+            class="close-btn" 
+            @click="showCancelModal = false" 
+            aria-label="ปิด"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="confirm-text">
+            คุณต้องการยกเลิกการจอง <strong>{{ selectedRide.tracking_id }}</strong> ใช่หรือไม่?
+          </p>
+          
+          <div class="form-group">
+            <label for="cancel-reason">เหตุผลในการยกเลิก</label>
+            <textarea 
+              id="cancel-reason"
+              v-model="cancelReason" 
+              class="form-textarea" 
+              rows="3"
+              placeholder="ระบุเหตุผล (ไม่บังคับ)"
+            />
+          </div>
+
+          <div class="modal-actions">
+            <button 
+              class="btn btn-secondary" 
+              @click="showCancelModal = false"
+              :disabled="actionLoading"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              class="btn btn-danger" 
+              @click="handleCancelRide"
+              :disabled="actionLoading"
+            >
+              {{ actionLoading ? 'กำลังยกเลิก...' : 'ยืนยันการยกเลิก' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Update Modal -->
+    <div v-if="showStatusModal && selectedRide" class="modal-overlay" @click.self="showStatusModal = false">
+      <div class="modal modal-sm">
+        <div class="modal-header">
+          <h2>เปลี่ยนสถานะ</h2>
+          <button 
+            class="close-btn" 
+            @click="showStatusModal = false" 
+            aria-label="ปิด"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="confirm-text">
+            เปลี่ยนสถานะการจอง <strong>{{ selectedRide.tracking_id }}</strong>
+          </p>
+          
+          <div class="form-group">
+            <label for="new-status">สถานะใหม่</label>
+            <select 
+              id="new-status"
+              v-model="newStatus" 
+              class="form-select"
+            >
+              <option value="scheduled">กำหนดการแล้ว</option>
+              <option value="confirmed">ยืนยันแล้ว</option>
+              <option value="cancelled">ยกเลิก</option>
+              <option value="completed">เสร็จสิ้น</option>
+              <option value="expired">หมดอายุ</option>
+            </select>
+          </div>
+
+          <div class="modal-actions">
+            <button 
+              class="btn btn-secondary" 
+              @click="showStatusModal = false"
+              :disabled="actionLoading"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              class="btn btn-primary" 
+              @click="handleUpdateStatus"
+              :disabled="actionLoading || !newStatus"
+            >
+              {{ actionLoading ? 'กำลังอัพเดท...' : 'บันทึก' }}
+            </button>
           </div>
         </div>
       </div>
@@ -588,9 +790,13 @@ onMounted(() => {
 .amount { font-weight: 600; color: #059669; }
 
 .action-buttons { display: flex; gap: 4px; }
-.action-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 8px; cursor: pointer; color: #6b7280; font-size: 16px; }
+.action-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 8px; cursor: pointer; color: #6b7280; font-size: 16px; transition: all 0.2s; }
 .action-btn:hover { background: #f3f4f6; }
-.action-btn.reminder-btn:hover { background: #fef3c7; }
+.action-btn.view-btn:hover { background: #dbeafe; color: #2563eb; }
+.action-btn.status-btn:hover { background: #fef3c7; color: #f59e0b; }
+.action-btn.cancel-btn:hover { background: #fee2e2; color: #ef4444; }
+
+.filter-select { padding: 8px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; min-width: 140px; cursor: pointer; }
 
 /* Empty & Error States */
 .empty-state, .error-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: #9ca3af; text-align: center; }

@@ -47,7 +47,7 @@ async function loadStats() {
     // Get ride stats
     const { data: rides } = await supabase
       .from('ride_requests')
-      .select('id, status, final_fare, tip_amount, promo_discount, payment_status, created_at')
+      .select('id, status, final_fare, tip_amount, promo_discount_amount, payment_status, created_at')
       .gte('created_at', startDate)
 
     const completedRides = rides?.filter(r => r.status === 'completed') || []
@@ -56,7 +56,7 @@ async function loadStats() {
 
     const totalRevenue = completedRides.reduce((sum, r) => sum + (r.final_fare || 0), 0)
     const totalTips = completedRides.reduce((sum, r) => sum + (r.tip_amount || 0), 0)
-    const totalPromoDiscount = completedRides.reduce((sum, r) => sum + (r.promo_discount || 0), 0)
+    const totalPromoDiscount = completedRides.reduce((sum, r) => sum + (r.promo_discount_amount || 0), 0)
 
     stats.value = {
       totalRevenue,
@@ -77,12 +77,12 @@ async function loadStats() {
     // Get delivery stats
     const { data: deliveries } = await supabase
       .from('delivery_requests')
-      .select('id, status, total_price')
+      .select('id, status, final_fee, created_at')
       .gte('created_at', startDate)
       .eq('status', 'completed')
 
     if (deliveries?.length) {
-      const deliveryRevenue = deliveries.reduce((sum, d) => sum + (d.total_price || 0), 0)
+      const deliveryRevenue = deliveries.reduce((sum, d) => sum + (d.final_fee || 0), 0)
       revenueByService.value.push({ service: 'Delivery', revenue: deliveryRevenue, count: deliveries.length })
       stats.value.totalRevenue += deliveryRevenue
       stats.value.completedOrders += deliveries.length
@@ -91,12 +91,12 @@ async function loadStats() {
     // Get shopping stats
     const { data: shopping } = await supabase
       .from('shopping_requests')
-      .select('id, status, total_price')
+      .select('id, status, total_cost, created_at')
       .gte('created_at', startDate)
       .eq('status', 'completed')
 
     if (shopping?.length) {
-      const shoppingRevenue = shopping.reduce((sum, s) => sum + (s.total_price || 0), 0)
+      const shoppingRevenue = shopping.reduce((sum, s) => sum + (s.total_cost || 0), 0)
       revenueByService.value.push({ service: 'Shopping', revenue: shoppingRevenue, count: shopping.length })
       stats.value.totalRevenue += shoppingRevenue
       stats.value.completedOrders += shopping.length
