@@ -569,11 +569,16 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
-  const requestWithdrawal = async (bankAccountId: string, amount: number) => {
+  const requestWithdrawal = async (bankAccountId: string | null, amount: number) => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         return { success: false, message: 'กรุณาเข้าสู่ระบบ' }
+      }
+
+      // Validate bank account ID
+      if (!bankAccountId) {
+        return { success: false, message: 'กรุณาเลือกบัญชีธนาคารที่ต้องการถอนเงิน' }
       }
 
       if (amount < 100) {
@@ -585,6 +590,11 @@ export const useWalletStore = defineStore('wallet', () => {
         p_bank_account_id: bankAccountId,
         p_amount: amount
       })
+
+      if (error) {
+        console.error('[WalletStore] RPC error:', error)
+        return { success: false, message: error.message || 'ไม่สามารถถอนเงินได้' }
+      }
 
       if (!error && data && data.length > 0 && data[0].success) {
         await Promise.all([fetchWithdrawals(), fetchBalance()])

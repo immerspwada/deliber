@@ -28,6 +28,14 @@ export const routes: RouteRecordRaw[] = [
     meta: { hideNavigation: true, public: true }
   },
   
+  // Public delivery tracking by tracking ID (no auth required)
+  {
+    path: '/tracking/:trackingId',
+    name: 'PublicTracking',
+    component: () => import('../views/PublicTrackingView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
+  
   // Root redirect
   {
     path: '/',

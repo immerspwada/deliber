@@ -91,36 +91,61 @@ export function useShopping() {
     distanceKm: number
     referenceImages?: string[]
   }) => {
-    if (!authStore.user?.id) return null
+    if (!authStore.user?.id) {
+      console.error('❌ No user ID found')
+      throw new Error('กรุณาเข้าสู่ระบบก่อนสั่งบริการ')
+    }
 
     loading.value = true
+    console.log('🛒 Creating shopping request...', {
+      userId: authStore.user.id,
+      storeName: data.storeName,
+      storeAddress: data.storeAddress,
+      storeLocation: data.storeLocation,
+      deliveryAddress: data.deliveryAddress,
+      deliveryLocation: data.deliveryLocation,
+      itemList: data.itemList,
+      budgetLimit: data.budgetLimit,
+      distanceKm: data.distanceKm,
+      hasImages: !!data.referenceImages?.length
+    })
+
     try {
       const serviceFee = calculateServiceFee(data.budgetLimit, data.distanceKm)
+      console.log('💰 Service fee calculated:', serviceFee)
 
       // Parse item list into structured items
       const items: ShoppingItem[] = data.itemList
         .split('\n')
         .filter(line => line.trim())
         .map(line => ({ name: line.trim(), quantity: 1 }))
+      console.log('📝 Items parsed:', items.length, 'items')
+
+      // Prepare RPC parameters
+      const rpcParams = {
+        p_user_id: authStore.user.id,
+        p_store_name: data.storeName || null,
+        p_store_address: data.storeAddress || 'ร้านค้า',
+        p_store_lat: data.storeLocation?.lat || 0,
+        p_store_lng: data.storeLocation?.lng || 0,
+        p_delivery_address: data.deliveryAddress,
+        p_delivery_lat: data.deliveryLocation.lat,
+        p_delivery_lng: data.deliveryLocation.lng,
+        p_item_list: data.itemList,
+        p_budget_limit: data.budgetLimit,
+        p_special_instructions: data.specialInstructions || null,
+        p_reference_images: data.referenceImages || null
+      }
+      console.log('📤 RPC parameters:', rpcParams)
 
       // Use atomic function for wallet check and order creation
-      const { data: result, error: rpcError } = await supabase.rpc('create_shopping_atomic', {
-        p_user_id: authStore.user.id,
-        p_pickup_lat: data.storeLocation?.lat || 0,
-        p_pickup_lng: data.storeLocation?.lng || 0,
-        p_pickup_address: data.storeAddress || 'ร้านค้า',
-        p_destination_lat: data.deliveryLocation.lat,
-        p_destination_lng: data.deliveryLocation.lng,
-        p_destination_address: data.deliveryAddress,
-        p_store_name: data.storeName || null,
-        p_shopping_list: items,
-        p_estimated_total: data.budgetLimit,
-        p_estimated_fare: serviceFee,
-        p_promo_code: null
-      })
+      console.log('🔌 Calling create_shopping_atomic...')
+      const { data: result, error: rpcError } = await supabase.rpc('create_shopping_atomic', rpcParams)
+
+      console.log('📥 RPC response:', { result, error: rpcError })
 
       if (rpcError) {
-        console.error('Atomic create error:', rpcError)
+        console.error('❌ Atomic create error:', rpcError)
         // Handle specific error types
         if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
           throw new Error('ยอดเงินใน Wallet ไม่เพียงพอ กรุณาเติมเงินก่อนสั่งบริการ')
@@ -128,10 +153,11 @@ export function useShopping() {
         if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
           throw new Error('ไม่พบ Wallet กรุณาติดต่อฝ่ายสนับสนุน')
         }
-        throw rpcError
+        throw new Error(rpcError.message || 'เกิดข้อผิดพลาดในการสร้างคำสั่งซื้อ')
       }
 
       if (result?.success) {
+        console.log('✅ Shopping request created:', result.shopping_id)
         // Fetch the created shopping request
         const { data: shopping, error: fetchError } = await (supabase
           .from('shopping_requests') as any)
@@ -139,14 +165,30 @@ export function useShopping() {
           .eq('id', result.shopping_id)
           .single()
 
+        if (fetchError) {
+          console.error('❌ Error fetching shopping request:', fetchError)
+        }
+
         if (!fetchError && shopping) {
+          console.log('✅ Shopping request fetched:', shopping)
           currentShopping.value = shopping as ShoppingRequest
           return shopping
         }
+      } else {
+        // RPC returned success=false, check for error message
+        console.error('❌ RPC returned success=false:', result)
+        const errorMsg = result?.message || result?.error || 'ไม่สามารถสร้างคำสั่งซื้อได้ กรุณาลองใหม่'
+        
+        // Check if it's an insufficient balance error
+        if (errorMsg.includes('ยอดเงิน') || errorMsg.includes('INSUFFICIENT_BALANCE')) {
+          throw new Error(errorMsg)
+        }
+        
+        throw new Error(errorMsg)
       }
       return null
     } catch (err: any) {
-      console.error('Error creating shopping request:', err)
+      console.error('❌ Error creating shopping request:', err)
       throw err
     } finally {
       loading.value = false

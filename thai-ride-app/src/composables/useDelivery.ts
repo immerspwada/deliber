@@ -412,14 +412,15 @@ export function useDelivery() {
         .from('delivery_requests') as any)
         .select(`
           *,
-          provider:provider_id (
+          provider:providers_v2!delivery_requests_provider_id_fkey (
             id,
             first_name,
             last_name,
             phone_number,
-            rating
-          ),
-          user:user_id (name, phone)
+            rating,
+            vehicle_type,
+            vehicle_plate
+          )
         `)
         .eq('tracking_id', trackingId)
         .single()

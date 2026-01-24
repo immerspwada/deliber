@@ -227,6 +227,23 @@ const canSubmit = computed(
   () => senderLocation.value && recipientLocation.value && recipientPhone.value
 );
 
+// Validation error messages
+const validationErrors = computed(() => {
+  const errors: string[] = [];
+  if (!senderLocation.value) errors.push("กรุณาเลือกจุดรับพัสดุ");
+  if (!recipientLocation.value) errors.push("กรุณาเลือกจุดส่งพัสดุ");
+  if (!recipientPhone.value) errors.push("กรุณากรอกเบอร์โทรผู้รับ");
+  return errors;
+});
+
+const showValidationError = () => {
+  if (validationErrors.value.length > 0) {
+    const errorMsg = validationErrors.value.join("\n• ");
+    alert(`กรุณากรอกข้อมูลให้ครบถ้วน:\n\n• ${errorMsg}`);
+    triggerHaptic("heavy");
+  }
+};
+
 const hasRoute = computed(
   () => !!(senderLocation.value && recipientLocation.value)
 );
@@ -352,8 +369,14 @@ const selectPackageType = (type: "document" | "small" | "medium" | "large") => {
 
 const handleSubmit = async () => {
   clearError();
-  if (!canSubmit.value || !senderLocation.value || !recipientLocation.value)
+  
+  // Show validation errors if form is incomplete
+  if (!canSubmit.value) {
+    showValidationError();
     return;
+  }
+  
+  if (!senderLocation.value || !recipientLocation.value) return;
 
   // Check wallet balance before submit
   await wallet.fetchBalance(); // Refresh balance
@@ -955,6 +978,26 @@ const clearDropoff = () => {
             </div>
           </Transition>
 
+          <!-- Validation Hint -->
+          <Transition name="fade">
+            <div v-if="!senderLocation" class="step-hint-card">
+              <div class="hint-icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              </div>
+              <div class="hint-content">
+                <span class="hint-title">เลือกจุดรับพัสดุ</span>
+                <span class="hint-message">เลือกตำแหน่งที่ไรเดอร์จะมารับของจากด้านบน</span>
+              </div>
+            </div>
+          </Transition>
+
           <!-- Continue Button -->
           <Transition name="slide-up">
             <button
@@ -1224,6 +1267,27 @@ const clearDropoff = () => {
               >
                 เปลี่ยน
               </button>
+            </div>
+          </Transition>
+
+          <!-- Validation Hint -->
+          <Transition name="fade">
+            <div v-if="!recipientLocation" class="step-hint-card">
+              <div class="hint-icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </div>
+              <div class="hint-content">
+                <span class="hint-title">เลือกจุดส่งพัสดุ</span>
+                <span class="hint-message">เลือกตำแหน่งที่ต้องการส่งพัสดุไปจากด้านบน</span>
+              </div>
             </div>
           </Transition>
 
@@ -1598,7 +1662,7 @@ const clearDropoff = () => {
 
           <!-- Recipient Phone -->
           <div class="input-section">
-            <label class="input-label-enhanced">
+            <label class="input-label-enhanced required">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -1609,16 +1673,38 @@ const clearDropoff = () => {
                   d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"
                 />
               </svg>
-              <span>เบอร์ผู้รับ (จำเป็น)</span>
+              <span>เบอร์ผู้รับ</span>
+              <span class="required-badge">จำเป็น</span>
             </label>
             <input
               v-model="recipientPhone"
               type="tel"
               placeholder="08X-XXX-XXXX"
-              class="input-field-enhanced"
+              :class="['input-field-enhanced', { 'input-error': !recipientPhone && currentStep === 'confirm' }]"
               inputmode="tel"
             />
-            <p v-if="!recipientPhone" class="input-hint">
+            <p v-if="!recipientPhone" class="input-hint error">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              กรุณากรอกเบอร์โทรผู้รับ - ไรเดอร์จะโทรหาผู้รับเมื่อถึงจุดส่ง
+            </p>
+            <p v-else class="input-hint success">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
               ไรเดอร์จะโทรหาผู้รับเมื่อถึงจุดส่ง
             </p>
           </div>
@@ -1668,16 +1754,45 @@ const clearDropoff = () => {
             ></textarea>
           </div>
 
+          <!-- Validation Warning -->
+          <Transition name="slide-up">
+            <div v-if="!recipientPhone" class="validation-warning">
+              <div class="warning-icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                  />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div class="warning-content">
+                <span class="warning-title">ข้อมูลยังไม่ครบ</span>
+                <span class="warning-message">กรุณากรอกเบอร์โทรผู้รับเพื่อดำเนินการต่อ</span>
+              </div>
+            </div>
+          </Transition>
+
           <!-- Continue Button -->
           <button
             class="continue-btn primary"
             :disabled="!recipientPhone"
             @click="
-              currentStep = 'confirm';
-              triggerHaptic('medium');
+              if (recipientPhone) {
+                currentStep = 'confirm';
+                triggerHaptic('medium');
+              } else {
+                triggerHaptic('heavy');
+                alert('กรุณากรอกเบอร์โทรผู้รับก่อนดำเนินการต่อ');
+              }
             "
           >
-            <span>ดูสรุปและยืนยัน</span>
+            <span>{{ recipientPhone ? 'ดูสรุปและยืนยัน' : 'กรุณากรอกเบอร์ผู้รับ' }}</span>
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -4590,5 +4705,171 @@ const clearDropoff = () => {
 .modal-enter-from .confirm-dialog,
 .modal-leave-to .confirm-dialog {
   transform: scale(0.9);
+}
+
+/* Validation Warning */
+.validation-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border: 1px solid #ffb74d;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.warning-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: #f57c00;
+}
+
+.warning-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.warning-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warning-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e65100;
+}
+
+.warning-message {
+  font-size: 13px;
+  color: #f57c00;
+  line-height: 1.4;
+}
+
+/* Required Field Styles */
+.input-label-enhanced.required {
+  position: relative;
+}
+
+.required-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input-field-enhanced.input-error {
+  border-color: #ff6b6b;
+  background: #fff5f5;
+}
+
+.input-field-enhanced.input-error:focus {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+}
+
+.input-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #757575;
+  margin-top: 8px;
+}
+
+.input-hint svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.input-hint.error {
+  color: #ff6b6b;
+  font-weight: 500;
+}
+
+.input-hint.error svg {
+  color: #ff6b6b;
+}
+
+.input-hint.success {
+  color: #00a86b;
+}
+
+.input-hint.success svg {
+  color: #00a86b;
+}
+
+/* Continue Button States */
+.continue-btn:disabled {
+  background: #e0e0e0;
+  color: #9e9e9e;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.continue-btn:disabled:active {
+  transform: none;
+}
+
+/* Step Hint Card */
+.step-hint-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border: 1px solid #64b5f6;
+  border-radius: 16px;
+  margin-top: 16px;
+}
+
+.hint-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: #1976d2;
+}
+
+.hint-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hint-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hint-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0d47a1;
+}
+
+.hint-message {
+  font-size: 13px;
+  color: #1565c0;
+  line-height: 1.4;
 }
 </style>

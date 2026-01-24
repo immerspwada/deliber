@@ -92,15 +92,35 @@ export function useSavedPlaces() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        savedPlaces.value = JSON.parse(stored).map(parseStoredPlace)
+        const parsed = JSON.parse(stored)
+        // Ensure it's an array
+        if (Array.isArray(parsed)) {
+          savedPlaces.value = parsed.map(parseStoredPlace)
+        } else {
+          console.warn('[useSavedPlaces] Invalid stored data format, clearing')
+          localStorage.removeItem(STORAGE_KEY)
+          savedPlaces.value = []
+        }
       }
       
       const pending = localStorage.getItem(PENDING_KEY)
       if (pending) {
-        pendingChanges.value = JSON.parse(pending)
+        const parsedPending = JSON.parse(pending)
+        if (Array.isArray(parsedPending)) {
+          pendingChanges.value = parsedPending
+        } else {
+          console.warn('[useSavedPlaces] Invalid pending data format, clearing')
+          localStorage.removeItem(PENDING_KEY)
+          pendingChanges.value = []
+        }
       }
     } catch (err) {
       console.warn('[useSavedPlaces] Failed to load from storage:', err)
+      // Clear corrupted data
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(PENDING_KEY)
+      savedPlaces.value = []
+      pendingChanges.value = []
     }
   }
 

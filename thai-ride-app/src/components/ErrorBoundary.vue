@@ -23,7 +23,7 @@ const emit = defineEmits<{
   'error': [error: Error]
 }>()
 
-const { showError } = useToast()
+const toast = useToast()
 const error = ref<Error | null>(null)
 const errorCount = ref(0)
 
@@ -35,7 +35,7 @@ onErrorCaptured((err: Error) => {
   
   // Show toast notification
   try {
-    showError(props.fallbackMessage)
+    toast.error(props.fallbackMessage)
   } catch (toastErr) {
     console.warn('[ErrorBoundary] Toast failed:', toastErr)
   }

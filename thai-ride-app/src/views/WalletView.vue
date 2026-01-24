@@ -216,25 +216,56 @@
       <div class="modal">
         <h2>ถอนเงิน</h2>
         <div class="available-balance">ยอดที่ถอนได้: <strong>฿{{ formatNumber(availableForWithdrawal) }}</strong></div>
+        
         <div class="form-group">
-          <label>บัญชีธนาคาร</label>
+          <label>บัญชีธนาคาร <span class="text-red-500">*</span></label>
           <div v-if="bankAccounts.length === 0" class="no-bank">
             <p>ยังไม่มีบัญชีธนาคาร</p>
-            <button class="btn-link" @click="showAddBankModal = true" type="button">+ เพิ่มบัญชี</button>
+            <button class="btn-link" @click="showAddBankModal = true; showWithdrawModal = false" type="button">+ เพิ่มบัญชี</button>
           </div>
-          <select v-else v-model="selectedBankAccountId">
-            <option value="">เลือกบัญชี</option>
-            <option v-for="acc in bankAccounts" :key="acc.id" :value="acc.id">{{ acc.bank_name }} - {{ acc.account_number }}</option>
-          </select>
+          <div v-else>
+            <select 
+              v-model="selectedBankAccountId"
+              :class="{ 'border-red-500': !selectedBankAccountId && withdrawAmount >= 100 }"
+            >
+              <option value="">-- เลือกบัญชีธนาคาร --</option>
+              <option v-for="acc in bankAccounts" :key="acc.id" :value="acc.id">
+                {{ acc.bank_name }} - {{ acc.account_number }} ({{ acc.account_name }})
+              </option>
+            </select>
+            <p v-if="!selectedBankAccountId && withdrawAmount >= 100" class="text-sm text-red-600 mt-1">
+              กรุณาเลือกบัญชีธนาคารที่ต้องการถอนเงิน
+            </p>
+          </div>
         </div>
+        
         <div class="form-group">
-          <label>จำนวนเงิน (บาท)</label>
-          <input v-model.number="withdrawAmount" type="number" min="100" placeholder="ขั้นต่ำ 100 บาท"/>
+          <label>จำนวนเงิน (บาท) <span class="text-red-500">*</span></label>
+          <input 
+            v-model.number="withdrawAmount" 
+            type="number" 
+            min="100" 
+            :max="availableForWithdrawal"
+            placeholder="ขั้นต่ำ 100 บาท"
+            :class="{ 'border-red-500': withdrawAmount < 100 || withdrawAmount > availableForWithdrawal }"
+          />
+          <p v-if="withdrawAmount < 100" class="text-sm text-red-600 mt-1">
+            จำนวนเงินขั้นต่ำ 100 บาท
+          </p>
+          <p v-else-if="withdrawAmount > availableForWithdrawal" class="text-sm text-red-600 mt-1">
+            จำนวนเงินเกินยอดที่ถอนได้ (สูงสุด ฿{{ formatNumber(availableForWithdrawal) }})
+          </p>
         </div>
+        
         <div class="modal-actions">
           <button class="btn-secondary" @click="showWithdrawModal = false" type="button">ยกเลิก</button>
-          <button class="btn-primary" @click="handleWithdraw" :disabled="withdrawLoading || withdrawAmount < 100 || !selectedBankAccountId" type="button">
-            {{ withdrawLoading ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}
+          <button 
+            class="btn-primary" 
+            @click="handleWithdraw" 
+            :disabled="withdrawLoading || withdrawAmount < 100 || !selectedBankAccountId || selectedBankAccountId === '' || withdrawAmount > availableForWithdrawal" 
+            type="button"
+          >
+            {{ withdrawLoading ? 'กำลังดำเนินการ...' : 'ยืนยันถอนเงิน' }}
           </button>
         </div>
       </div>
@@ -514,6 +545,16 @@ watch(showTopupModal, async (newValue) => {
   }
 })
 
+// Watch for withdraw modal opening to reset state
+watch(showWithdrawModal, (newValue) => {
+  if (newValue) {
+    // Reset withdrawal form when modal opens
+    withdrawAmount.value = 100
+    selectedBankAccountId.value = ''
+    console.log('[WalletView] Withdraw modal opened, state reset')
+  }
+})
+
 
 const handleSlipUpload = async (event: Event): Promise<void> => {
   const input = event.target as HTMLInputElement
@@ -618,18 +659,36 @@ const handleTopup = async (): Promise<void> => {
 
 
 const handleWithdraw = async (): Promise<void> => {
+  console.log('[WalletView] handleWithdraw: Starting...', {
+    amount: withdrawAmount.value,
+    bankAccountId: selectedBankAccountId.value,
+    bankAccountsCount: bankAccounts.value.length
+  })
+  
+  // Validation
   if (withdrawAmount.value < 100) { 
     showToast('จำนวนเงินขั้นต่ำ 100 บาท', 'error')
     return 
   }
-  if (!selectedBankAccountId.value) { 
-    showToast('กรุณาเลือกบัญชีธนาคาร', 'error')
+  
+  // Check if bank account is selected (empty string or null)
+  if (!selectedBankAccountId.value || selectedBankAccountId.value === '') { 
+    showToast('กรุณาเลือกบัญชีธนาคารที่ต้องการถอนเงิน', 'error')
     return 
+  }
+  
+  // Check if amount exceeds available balance
+  if (withdrawAmount.value > availableForWithdrawal.value) {
+    showToast(`ยอดเงินไม่เพียงพอ (ถอนได้สูงสุด ฿${formatNumber(availableForWithdrawal.value)})`, 'error')
+    return
   }
   
   withdrawLoading.value = true
   try {
+    console.log('[WalletView] handleWithdraw: Calling requestWithdrawal...')
     const result = await walletStore.requestWithdrawal(selectedBankAccountId.value, withdrawAmount.value)
+    console.log('[WalletView] handleWithdraw: Result:', result)
+    
     if (result.success) { 
       showToast(result.message || 'สร้างคำขอถอนเงินสำเร็จ')
       showWithdrawModal.value = false
@@ -639,6 +698,7 @@ const handleWithdraw = async (): Promise<void> => {
       showToast(result.message || 'เกิดข้อผิดพลาด', 'error') 
     }
   } catch (err: unknown) { 
+    console.error('[WalletView] handleWithdraw: Exception:', err)
     const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
     showToast(errorMessage, 'error') 
   } finally { 
@@ -787,6 +847,11 @@ onUnmounted(() => {
 .form-group label { display: block; font-size: 14px; font-weight: 500; color: #666; margin-bottom: 8px; }
 .form-group input, .form-group select { width: 100%; padding: 12px 16px; border: 2px solid #e8e8e8; border-radius: 12px; font-size: 16px; box-sizing: border-box; }
 .form-group input:focus, .form-group select:focus { outline: none; border-color: #00A86B; }
+.form-group input.border-red-500, .form-group select.border-red-500 { border-color: #ef4444; }
+.form-group .text-red-500 { color: #ef4444; font-size: 13px; }
+.form-group .text-red-600 { color: #dc2626; }
+.form-group .text-sm { font-size: 13px; }
+.form-group .mt-1 { margin-top: 4px; }
 .quick-amounts { display: flex; gap: 8px; margin-top: 8px; }
 .quick-amounts button { flex: 1; padding: 8px; border: 1px solid #e8e8e8; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; }
 .quick-amounts button:hover { background: #f5f5f5; }

@@ -1,0 +1,693 @@
+/**
+ * Public Tracking Page Styles
+ * Isolated CSS for /tracking/:trackingId route
+ * No dependencies on global styles
+ */
+
+/* ===== BASE RESET ===== */
+.tracking-page * {
+  box-sizing: border-box;
+}
+
+/* ===== LAYOUT ===== */
+.tracking-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1a1a1a;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tracking-container {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* ===== HEADER ===== */
+.tracking-header {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.tracking-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #666;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+
+.tracking-back-btn:hover {
+  color: #1a1a1a;
+}
+
+/* ===== LOADING STATE ===== */
+.tracking-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 1rem;
+}
+
+.tracking-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid #e8e8e8;
+  border-top-color: #1a1a1a;
+  border-radius: 50%;
+  animation: tracking-spin 0.8s linear infinite;
+}
+
+@keyframes tracking-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tracking-loading-text {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+/* ===== ERROR STATE ===== */
+.tracking-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  padding: 2rem;
+}
+
+.tracking-error-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.tracking-error-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #1a1a1a;
+}
+
+.tracking-error-message {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.tracking-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.tracking-retry-btn:hover {
+  background: #f5f5f5;
+}
+
+/* ===== CONTENT ===== */
+.tracking-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ===== STATUS SECTION ===== */
+.tracking-status {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.tracking-status-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  line-height: 1;
+}
+
+.tracking-status-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+/* ===== CARD SECTION ===== */
+.tracking-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.tracking-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.tracking-card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #999;
+  margin: 0;
+}
+
+.tracking-copy-btn {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #666;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.tracking-copy-btn:hover {
+  color: #1a1a1a;
+  background: #f5f5f5;
+}
+
+/* ===== TRACKING ID ===== */
+.tracking-id {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #1a1a1a;
+  word-break: break-all;
+  margin: 0;
+}
+
+/* ===== TIMELINE ===== */
+.tracking-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tracking-timeline-item {
+  display: flex;
+  gap: 1rem;
+  position: relative;
+}
+
+.tracking-timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 0.375rem;
+  top: 1.5rem;
+  bottom: -1.5rem;
+  width: 1px;
+  background: #e8e8e8;
+}
+
+.tracking-timeline-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.25rem;
+  background: #1a1a1a;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.tracking-timeline-content {
+  flex: 1;
+}
+
+.tracking-timeline-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  margin: 0 0 0.25rem 0;
+}
+
+.tracking-timeline-time {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0;
+}
+
+/* ===== LOCATION ===== */
+.tracking-location {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tracking-location-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tracking-location-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tracking-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.tracking-badge-light {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+.tracking-badge-dark {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.tracking-location-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #666;
+}
+
+.tracking-location-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.tracking-location-detail {
+  font-size: 0.875rem;
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ===== DETAILS ===== */
+.tracking-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tracking-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  padding: 0.5rem 0;
+}
+
+.tracking-detail-label {
+  color: #666;
+}
+
+.tracking-detail-value {
+  font-weight: 500;
+  color: #1a1a1a;
+  text-align: right;
+}
+
+.tracking-detail-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 0.5rem 0;
+}
+
+.tracking-detail-total {
+  padding-top: 0.75rem;
+  border-top: 1px solid #f0f0f0;
+  font-weight: 600;
+}
+
+.tracking-detail-total .tracking-detail-label,
+.tracking-detail-total .tracking-detail-value {
+  color: #1a1a1a;
+  font-size: 1rem;
+}
+
+/* ===== NOTES ===== */
+.tracking-notes {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.tracking-notes-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+  margin: 0 0 0.5rem 0;
+}
+
+.tracking-notes-text {
+  font-size: 0.875rem;
+  color: #333;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ===== DRIVER ===== */
+.tracking-driver {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.tracking-driver-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+  background: #f0f0f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.tracking-driver-info {
+  flex: 1;
+}
+
+.tracking-driver-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 0.25rem 0;
+}
+
+.tracking-driver-vehicle {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0 0 0.25rem 0;
+}
+
+.tracking-driver-rating {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0;
+}
+
+/* ===== HELP SECTION ===== */
+.tracking-help {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #999;
+}
+
+.tracking-help-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 0.25rem 0;
+}
+
+.tracking-help-text {
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+/* ===== ACTIONS ===== */
+.tracking-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0 2rem 0;
+}
+
+.tracking-actions-note {
+  font-size: 0.75rem;
+  color: #999;
+  margin: 0;
+}
+
+.tracking-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #dc2626;
+  background: #fff;
+  border: 1.5px solid #dc2626;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.tracking-cancel-btn:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.tracking-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== MODAL ===== */
+.tracking-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.tracking-modal {
+  background: #fff;
+  border-radius: 0.75rem;
+  max-width: 28rem;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.tracking-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.tracking-modal-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.tracking-modal-close {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.15s;
+}
+
+.tracking-modal-close:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+
+.tracking-modal-body {
+  padding: 1.5rem;
+}
+
+.tracking-modal-text {
+  font-size: 0.875rem;
+  color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
+}
+
+.tracking-modal-subtext {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0 0 1.5rem 0;
+}
+
+.tracking-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tracking-modal-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #666;
+}
+
+.tracking-modal-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: #1a1a1a;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+
+.tracking-modal-textarea:focus {
+  outline: none;
+  border-color: #1a1a1a;
+}
+
+.tracking-modal-textarea:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.tracking-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.tracking-modal-btn {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  border: none;
+}
+
+.tracking-modal-btn-secondary {
+  color: #666;
+  background: #f5f5f5;
+}
+
+.tracking-modal-btn-secondary:hover:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.tracking-modal-btn-danger {
+  color: #fff;
+  background: #dc2626;
+}
+
+.tracking-modal-btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.tracking-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  .tracking-container {
+    padding: 1rem;
+  }
+  
+  .tracking-header {
+    padding: 1rem;
+  }
+  
+  .tracking-card {
+    padding: 1rem;
+  }
+  
+  .tracking-status {
+    padding: 1.5rem 0;
+  }
+  
+  .tracking-status-icon {
+    font-size: 2.5rem;
+  }
+  
+  .tracking-status-title {
+    font-size: 1.25rem;
+  }
+
+  .tracking-modal {
+    margin: 1rem;
+  }
+
+  .tracking-modal-header,
+  .tracking-modal-body,
+  .tracking-modal-footer {
+    padding: 1rem;
+  }
+
+  .tracking-modal-footer {
+    flex-direction: column;
+  }
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  .tracking-page {
+    background: #fff;
+  }
+  
+  .tracking-back-btn,
+  .tracking-copy-btn {
+    display: none;
+  }
+  
+  .tracking-card {
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+  }
+}

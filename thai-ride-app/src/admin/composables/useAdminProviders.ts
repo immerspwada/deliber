@@ -32,6 +32,7 @@ export interface AdminProvider {
   last_name: string
   phone_number: string
   provider_type: 'ride' | 'delivery' | 'shopping' | 'all'
+  service_types: ('ride' | 'delivery' | 'shopping' | 'moving' | 'laundry' | 'queue')[]
   status: 'pending' | 'approved' | 'rejected' | 'suspended'
   is_online: boolean
   is_available: boolean
@@ -63,7 +64,7 @@ export interface ProviderFilters {
 
 export function useAdminProviders() {
   const { handle: handleError } = useErrorHandler()
-  const { showSuccess, showError } = useToast()
+  const toast = useToast()
   const { logProviderApproval, logProviderRejection, logProviderSuspension } = useAuditLog()
 
   const loading = ref(false)
@@ -115,7 +116,7 @@ export function useAdminProviders() {
       const message = err instanceof Error ? err.message : 'Failed to fetch providers'
       error.value = message
       handleError(err, 'useAdminProviders.fetchProviders')
-      showError('ไม่สามารถโหลดข้อมูลผู้ให้บริการได้')
+      toast.error('ไม่สามารถโหลดข้อมูลผู้ให้บริการได้')
       return []
     } finally {
       loading.value = false
@@ -157,7 +158,7 @@ export function useAdminProviders() {
       const validation = validateInput(ProviderApprovalSchema, { providerId, notes })
       if (!validation.success) {
         const errorMessage = Object.values(validation.errors).join(', ')
-        showError(errorMessage)
+        toast.error(errorMessage)
         return { success: false, message: errorMessage }
       }
 
@@ -181,7 +182,7 @@ export function useAdminProviders() {
       // Log audit trail
       await logProviderApproval(providerId, notes)
 
-      showSuccess('อนุมัติผู้ให้บริการสำเร็จ')
+      toast.success('อนุมัติผู้ให้บริการสำเร็จ')
 
       // Update local state
       const index = providers.value.findIndex(p => p.id === providerId)
@@ -201,7 +202,7 @@ export function useAdminProviders() {
       const message = err instanceof Error ? err.message : 'Failed to approve provider'
       error.value = message
       handleError(err, 'useAdminProviders.approveProvider')
-      showError('ไม่สามารถอนุมัติผู้ให้บริการได้')
+      toast.error('ไม่สามารถอนุมัติผู้ให้บริการได้')
       return { success: false, message }
     } finally {
       loading.value = false
@@ -235,7 +236,7 @@ export function useAdminProviders() {
 
       if (updateError) throw updateError
 
-      showSuccess('ปฏิเสธผู้ให้บริการสำเร็จ')
+      toast.success('ปฏิเสธผู้ให้บริการสำเร็จ')
 
       // Update local state
       const index = providers.value.findIndex(p => p.id === providerId)
@@ -254,7 +255,7 @@ export function useAdminProviders() {
       const message = err instanceof Error ? err.message : 'Failed to reject provider'
       error.value = message
       handleError(err, 'useAdminProviders.rejectProvider')
-      showError('ไม่สามารถปฏิเสธผู้ให้บริการได้')
+      toast.error('ไม่สามารถปฏิเสธผู้ให้บริการได้')
       return { success: false, message }
     } finally {
       loading.value = false
@@ -288,7 +289,7 @@ export function useAdminProviders() {
         throw new Error(data?.error || 'Failed to suspend provider')
       }
 
-      showSuccess('ระงับผู้ให้บริการสำเร็จ')
+      toast.success('ระงับผู้ให้บริการสำเร็จ')
 
       // Update local state
       const index = providers.value.findIndex(p => p.id === providerId)
@@ -305,7 +306,7 @@ export function useAdminProviders() {
       const message = err instanceof Error ? err.message : 'Failed to suspend provider'
       error.value = message
       handleError(err, 'useAdminProviders.suspendProvider')
-      showError('ไม่สามารถระงับผู้ให้บริการได้')
+      toast.error('ไม่สามารถระงับผู้ให้บริการได้')
       return { success: false, message }
     } finally {
       loading.value = false
