@@ -105,7 +105,7 @@ async function handleRestore(provider: Provider) {
     toast.success(`คืนสถานะ ${provider.first_name} ${provider.last_name} เรียบร้อยแล้ว`)
     await loadData()
   } catch (e) {
-    errorHandler.handle(e, 'handleRestore')
+    handleError(e, 'handleRestore')
     toast.error('ไม่สามารถคืนสถานะผู้ให้บริการได้')
   } finally {
     isProcessing.value = false
