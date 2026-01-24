@@ -89,26 +89,40 @@ async function handleSuspend(provider: Provider) {
 
 
 async function handleRestore(provider: Provider) {
+  console.log('🔄 [handleRestore] Called', { id: provider.id, status: provider.status })
+  
   if (provider.status !== 'suspended' && provider.status !== 'rejected') {
+    console.log('❌ [handleRestore] Invalid status')
     toast.error('สามารถคืนสถานะได้เฉพาะผู้ให้บริการที่ถูกระงับหรือปฏิเสธเท่านั้น')
     return
   }
   
+  if (!confirm(`คืนสถานะ ${provider.first_name} ${provider.last_name}?`)) {
+    console.log('⏹️ [handleRestore] Cancelled by user')
+    return
+  }
+  
   isProcessing.value = true
+  console.log('🔄 [handleRestore] Processing...')
   
   try {
     const restoreNote = provider.status === 'suspended' 
       ? 'คืนสถานะจากการระงับโดยแอดมิน' 
       : 'คืนสถานะจากการปฏิเสธโดยแอดมิน'
     
+    console.log('🔄 [handleRestore] Calling approveProviderAction')
     await approveProviderAction(provider.id, restoreNote)
+    console.log('✅ [handleRestore] Success!')
+    
     toast.success(`คืนสถานะ ${provider.first_name} ${provider.last_name} เรียบร้อยแล้ว`)
     await loadData()
   } catch (e) {
+    console.error('❌ [handleRestore] Error:', e)
     handleError(e, 'handleRestore')
     toast.error('ไม่สามารถคืนสถานะผู้ให้บริการได้')
   } finally {
     isProcessing.value = false
+    console.log('🔄 [handleRestore] Done')
   }
 }
 async function loadData() {
