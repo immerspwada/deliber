@@ -43,9 +43,9 @@ const emit = defineEmits<Emits>()
       <!-- Navigate Button -->
       <button 
         class="btn-navigate"
-        @click="emit('navigate')"
         type="button"
         aria-label="เปิดแผนที่นำทาง"
+        @click="emit('navigate')"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
@@ -56,9 +56,9 @@ const emit = defineEmits<Emits>()
       <!-- Cancel Button (Small) -->
       <button 
         class="btn-cancel-small"
-        @click="emit('cancel')"
         type="button"
         aria-label="ยกเลิกงาน"
+        @click="emit('cancel')"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/>
@@ -77,8 +77,8 @@ const emit = defineEmits<Emits>()
         'pulse-animation': !updating 
       }"
       :disabled="updating"
-      @click="emit('updateStatus')"
       type="button"
+      @click="emit('updateStatus')"
     >
       <span v-if="updating" class="spinner" aria-hidden="true"></span>
       <template v-else>

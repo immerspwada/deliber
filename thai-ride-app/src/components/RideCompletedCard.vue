@@ -73,6 +73,7 @@ const emit = defineEmits<{
         ให้คะแนน
       </button>
     </div>
+  </div>
 </template>
 
     <div class="action-buttons">

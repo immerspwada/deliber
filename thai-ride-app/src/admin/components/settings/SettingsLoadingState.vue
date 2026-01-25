@@ -14,7 +14,7 @@
     </div>
     
     <div v-if="showSkeleton" class="skeleton-wrapper">
-      <div class="skeleton-card" v-for="i in skeletonCount" :key="i">
+      <div v-for="i in skeletonCount" :key="i" class="skeleton-card">
         <div class="skeleton-line skeleton-title"></div>
         <div class="skeleton-line skeleton-text"></div>
         <div class="skeleton-line skeleton-text short"></div>

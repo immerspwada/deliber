@@ -49,7 +49,7 @@
         <div class="option-info">
           <div class="option-name">{{ option.label }}</div>
           <div class="option-desc">{{ option.description }}</div>
-          <div class="option-eta" v-if="option.eta">
+          <div v-if="option.eta" class="option-eta">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12,6 12,12 16,14"/>

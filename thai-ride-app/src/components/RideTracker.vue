@@ -803,7 +803,7 @@ onUnmounted(() => {
 
     <!-- Actions -->
     <div v-if="canCancel" class="actions">
-      <button @click="emit('cancel')" class="btn-secondary cancel-btn">
+      <button class="btn-secondary cancel-btn" @click="emit('cancel')">
         ยกเลิกการเดินทาง
       </button>
     </div>

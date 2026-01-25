@@ -39,9 +39,11 @@ const removeTag = (tags: string[], index: number) => {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </span>
-      <input v-model="inputValue" type="text" :placeholder="modelValue.length ? '' : (placeholder || 'เพิ่มแท็ก...')"
+      <input
+        v-model="inputValue" type="text" :placeholder="modelValue.length ? '' : (placeholder || 'เพิ่มแท็ก...')"
         :disabled="maxTags !== undefined && modelValue.length >= maxTags"
-        @keydown.enter.prevent="addTag(modelValue, maxTags)" @keydown.tab.prevent="addTag(modelValue, maxTags)" />
+        @keydown.enter.prevent="addTag(modelValue, maxTags)" @keydown.tab.prevent="addTag(modelValue, maxTags)"
+      />
     </div>
   </div>
 </template>

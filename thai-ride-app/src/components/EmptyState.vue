@@ -74,7 +74,7 @@
     <h3 class="empty-title">{{ title }}</h3>
 
     <!-- Description -->
-    <p class="empty-description" v-if="description">{{ description }}</p>
+    <p v-if="description" class="empty-description">{{ description }}</p>
 
     <!-- Action Button -->
     <button 

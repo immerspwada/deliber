@@ -29,8 +29,8 @@
     </section>
 
     <div class="flex items-center justify-end gap-3 pt-4 border-t">
-      <button @click="reset" :disabled="!hasChanges" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">รีเซ็ต</button>
-      <button @click="save" :disabled="!hasChanges || saving" class="px-6 py-2 bg-primary-600 text-white rounded-lg">{{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}</button>
+      <button :disabled="!hasChanges" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg" @click="reset">รีเซ็ต</button>
+      <button :disabled="!hasChanges || saving" class="px-6 py-2 bg-primary-600 text-white rounded-lg" @click="save">{{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}</button>
     </div>
   </div>
 </template>

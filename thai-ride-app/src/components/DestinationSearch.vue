@@ -63,6 +63,8 @@ const emit = defineEmits<{
           </svg>
         </button>
       </div>
+    </div>
+  </div>
 </template>
 
       <div class="input-row dropoff">

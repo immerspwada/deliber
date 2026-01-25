@@ -38,8 +38,8 @@ const handleLogout = () => {
     <!-- Left: Menu Toggle -->
     <button 
       class="header-btn menu-toggle"
-      @click="toggleSidebar"
       aria-label="Toggle menu"
+      @click="toggleSidebar"
     >
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 12h18M3 6h18M3 18h18"/>
@@ -65,8 +65,8 @@ const handleLogout = () => {
       <!-- Logout Button -->
       <button 
         class="header-btn logout-btn"
-        @click="handleLogout"
         aria-label="Logout"
+        @click="handleLogout"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>

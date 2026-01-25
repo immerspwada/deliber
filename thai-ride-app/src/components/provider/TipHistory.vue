@@ -58,7 +58,7 @@ onMounted(() => {
     <!-- Error -->
     <div v-else-if="error" class="error-state">
       <p>{{ error }}</p>
-      <button @click="() => loadProviderTips()" type="button" class="btn-retry">
+      <button type="button" class="btn-retry" @click="() => loadProviderTips()">
         ลองใหม่
       </button>
     </div>

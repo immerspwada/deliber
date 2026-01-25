@@ -178,10 +178,10 @@ onMounted(async () => {
       <div class="error-icon">⚠️</div>
       <h2>เกิดข้อผิดพลาด</h2>
       <p>{{ error }}</p>
-      <button class="btn-retry" @click="loadJob(jobId)" type="button">
+      <button class="btn-retry" type="button" @click="loadJob(jobId)">
         ลองใหม่
       </button>
-      <button class="btn-back" @click="router.push('/provider/orders')" type="button">
+      <button class="btn-back" type="button" @click="router.push('/provider/orders')">
         กลับหน้างาน
       </button>
     </div>
@@ -231,7 +231,7 @@ onMounted(async () => {
         <div class="cancelled-icon">❌</div>
         <h2>งานถูกยกเลิก</h2>
         <p>งานนี้ถูกยกเลิกแล้ว</p>
-        <button class="btn-back-home" @click="router.push('/provider/orders')" type="button">
+        <button class="btn-back-home" type="button" @click="router.push('/provider/orders')">
           กลับหน้างาน
         </button>
       </div>
@@ -241,7 +241,7 @@ onMounted(async () => {
         <div class="error-icon">❓</div>
         <h2>สถานะไม่รู้จัก</h2>
         <p>สถานะ: {{ job.status }}</p>
-        <button class="btn-back" @click="router.push('/provider/orders')" type="button">
+        <button class="btn-back" type="button" @click="router.push('/provider/orders')">
           กลับหน้างาน
         </button>
       </div>
@@ -261,10 +261,10 @@ onMounted(async () => {
               class="cancel-textarea"
             ></textarea>
             <div class="modal-actions">
-              <button @click="showCancelModal = false" class="btn-secondary" type="button">
+              <button class="btn-secondary" type="button" @click="showCancelModal = false">
                 ไม่ยกเลิก
               </button>
-              <button @click="handleCancelJob" :disabled="updating" class="btn-danger" type="button">
+              <button :disabled="updating" class="btn-danger" type="button" @click="handleCancelJob">
                 <span v-if="updating" class="spinner-small"></span>
                 <span v-else>ยืนยันยกเลิก</span>
               </button>

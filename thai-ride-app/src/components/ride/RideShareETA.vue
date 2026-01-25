@@ -94,8 +94,8 @@ onMounted(() => {
       class="share-btn"
       :class="{ 'has-link': hasShareLink }"
       :disabled="loading"
-      @click="handleShare"
       aria-label="แชร์การเดินทาง"
+      @click="handleShare"
     >
       <svg v-if="loading" class="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
@@ -121,7 +121,7 @@ onMounted(() => {
         <div class="share-menu-content">
           <div class="share-header">
             <span class="share-title">แชร์การเดินทาง</span>
-            <button type="button" class="close-btn" @click="closeMenu" aria-label="ปิด">
+            <button type="button" class="close-btn" aria-label="ปิด" @click="closeMenu">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />

@@ -24,8 +24,8 @@ describe('Property Tests: Realtime Sync (Properties 14-17)', () => {
   let testUserId: string | null = null
   let testUser2Id: string | null = null
   let testProviderId: string | null = null
-  let createdRequestIds: { table: string; id: string }[] = []
-  let realtimeChannels: RealtimeChannel[] = []
+  const createdRequestIds: { table: string; id: string }[] = []
+  const realtimeChannels: RealtimeChannel[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

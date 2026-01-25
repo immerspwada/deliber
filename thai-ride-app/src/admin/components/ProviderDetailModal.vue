@@ -235,8 +235,8 @@ function formatDate(dateString: string | null): string {
               </p>
             </div>
             <button
-              @click="emit('close')"
               class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="emit('close')"
             >
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -378,22 +378,22 @@ function formatDate(dateString: string | null): string {
               <div class="grid grid-cols-3 gap-3">
                 <button
                   v-if="canApproveProvider"
-                  @click="setAction('approve')"
                   class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  @click="setAction('approve')"
                 >
                   อนุมัติ
                 </button>
                 <button
                   v-if="canRejectProvider"
-                  @click="setAction('reject')"
                   class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  @click="setAction('reject')"
                 >
                   ปฏิเสธ
                 </button>
                 <button
                   v-if="canSuspendProvider"
-                  @click="setAction('suspend')"
                   class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  @click="setAction('suspend')"
                 >
                   ระงับการใช้งาน
                 </button>
@@ -407,8 +407,8 @@ function formatDate(dateString: string | null): string {
                   {{ actionType === 'approve' ? 'อนุมัติผู้ให้บริการ' : actionType === 'reject' ? 'ปฏิเสธผู้ให้บริการ' : 'ระงับการใช้งาน' }}
                 </p>
                 <button
-                  @click="actionType = null"
                   class="text-sm text-gray-600 hover:text-gray-900"
+                  @click="actionType = null"
                 >
                   ยกเลิก
                 </button>
@@ -428,7 +428,6 @@ function formatDate(dateString: string | null): string {
               </div>
 
               <button
-                @click="executeAction"
                 :disabled="isProcessing || ((actionType === 'reject' || actionType === 'suspend') && actionReason.length < 10)"
                 class="w-full px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 :class="{
@@ -436,6 +435,7 @@ function formatDate(dateString: string | null): string {
                   'bg-red-600 hover:bg-red-700': actionType === 'reject',
                   'bg-orange-600 hover:bg-orange-700': actionType === 'suspend',
                 }"
+                @click="executeAction"
               >
                 <span v-if="isProcessing">กำลังดำเนินการ...</span>
                 <span v-else>ยืนยัน</span>

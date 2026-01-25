@@ -66,7 +66,7 @@ onUnmounted(() => {
       <div class="spacer"></div>
     </div>
 
-    <div class="content" v-if="currentRequest">
+    <div v-if="currentRequest" class="content">
       <!-- Tracking ID -->
       <div class="tracking-id-card">
         <span class="label">หมายเลขติดตาม</span>
@@ -120,7 +120,7 @@ onUnmounted(() => {
           </div>
         </div>
         
-        <div class="detail-row" v-if="currentRequest.item_description">
+        <div v-if="currentRequest.item_description" class="detail-row">
           <span class="label">รายการสิ่งของ</span>
           <span class="value">{{ currentRequest.item_description }}</span>
         </div>

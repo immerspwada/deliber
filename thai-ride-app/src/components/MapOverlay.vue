@@ -46,8 +46,10 @@ const layers = [
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
       </svg>
-      <input v-model="searchQuery" type="text" placeholder="ค้นหาสถานที่..." 
-        @keyup.enter="emit('search', searchQuery)" />
+      <input
+        v-model="searchQuery" type="text" placeholder="ค้นหาสถานที่..." 
+        @keyup.enter="emit('search', searchQuery)"
+      />
     </div>
 
     <!-- Info Cards -->
@@ -83,9 +85,11 @@ const layers = [
 
     <!-- Layer Selector -->
     <div class="overlay-layers">
-      <button v-for="layer in layers" :key="layer.key" type="button" class="layer-btn"
+      <button
+        v-for="layer in layers" :key="layer.key" type="button" class="layer-btn"
         :class="{ active: activeLayer === layer.key }"
-        @click="activeLayer = layer.key; emit('layerChange', layer.key)">
+        @click="activeLayer = layer.key; emit('layerChange', layer.key)"
+      >
         {{ layer.label }}
       </button>
     </div>

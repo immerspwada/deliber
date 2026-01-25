@@ -16,7 +16,7 @@ interface TestData {
 
 describe('Cross-Role Realtime Sync Integration', () => {
   let supabase: SupabaseClient
-  let testData: TestData = {}
+  const testData: TestData = {}
 
   beforeAll(() => {
     supabase = createClient(supabaseUrl, supabaseKey)

@@ -15,7 +15,7 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -648,7 +648,7 @@ watch(() => props.initialLocation, (newLoc) => {
         <div ref="mapContainer" class="map-container"></div>
         
         <!-- Drag hint tooltip -->
-        <div class="drag-hint" v-if="!isGettingAddress">
+        <div v-if="!isGettingAddress" class="drag-hint">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/>
           </svg>

@@ -202,8 +202,8 @@ const skipNps = () => {
 
           <button 
             class="submit-btn" 
-            @click="handleSubmit"
             :disabled="loading"
+            @click="handleSubmit"
           >
             {{ loading ? 'กำลังส่ง...' : 'ส่ง Feedback' }}
           </button>
@@ -221,7 +221,7 @@ const skipNps = () => {
         </div>
 
         <!-- Progress dots -->
-        <div class="progress-dots" v-if="step !== 'success'">
+        <div v-if="step !== 'success'" class="progress-dots">
           <span :class="{ active: step === 'rating' }"></span>
           <span :class="{ active: step === 'nps' }"></span>
           <span :class="{ active: step === 'details' }"></span>

@@ -22,8 +22,10 @@ const getArrowPath = (dir: string) => {
 <template>
   <div class="lane-guidance">
     <div v-for="(lane, index) in lanes" :key="index" class="lane" :class="{ active: lane.active }">
-      <svg v-for="(dir, i) in lane.directions" :key="i" width="20" height="20" viewBox="0 0 24 24" 
-           fill="none" stroke="currentColor" stroke-width="2.5">
+      <svg
+        v-for="(dir, i) in lane.directions" :key="i" width="20" height="20" viewBox="0 0 24 24" 
+        fill="none" stroke="currentColor" stroke-width="2.5"
+      >
         <path :d="getArrowPath(dir)"/>
       </svg>
     </div>

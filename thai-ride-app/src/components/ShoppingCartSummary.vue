@@ -45,6 +45,7 @@ const emit = defineEmits<{
       </svg>
       <p>ยังไม่มีสินค้าในตะกร้า</p>
     </div>
+  </div>
 </template>
 
     <div v-else class="cart-items">

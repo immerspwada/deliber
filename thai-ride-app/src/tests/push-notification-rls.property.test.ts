@@ -52,10 +52,10 @@ interface PushLog {
 
 describe('Property Tests: Push Notification RLS Isolation (Properties 14-15)', () => {
   let supabase: SupabaseClient
-  let testProviderIds: string[] = []
-  let testUserIds: string[] = []
-  let testPreferenceIds: string[] = []
-  let testLogIds: string[] = []
+  const testProviderIds: string[] = []
+  const testUserIds: string[] = []
+  const testPreferenceIds: string[] = []
+  const testLogIds: string[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

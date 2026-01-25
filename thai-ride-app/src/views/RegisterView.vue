@@ -206,9 +206,9 @@ onMounted(() => {
             <span class="member-id">{{ memberUid }}</span>
             <button 
               type="button"
-              @click="copyMemberUid" 
-              class="copy-btn"
+              class="copy-btn" 
               aria-label="คัดลอก Member ID"
+              @click="copyMemberUid"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -218,7 +218,7 @@ onMounted(() => {
             </button>
           </div>
           
-          <button type="button" @click="goToHome" class="btn-primary btn-with-icon">
+          <button type="button" class="btn-primary btn-with-icon" @click="goToHome">
             <span>เริ่มใช้งาน</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
@@ -233,9 +233,9 @@ onMounted(() => {
       <header class="header">
         <button 
           type="button"
-          @click="currentStep > 1 ? prevStep() : goToLogin()" 
           class="back-btn" 
-          :aria-label="currentStep > 1 ? 'กลับไปขั้นตอนก่อนหน้า' : 'กลับไปหน้าเข้าสู่ระบบ'"
+          :aria-label="currentStep > 1 ? 'กลับไปขั้นตอนก่อนหน้า' : 'กลับไปหน้าเข้าสู่ระบบ'" 
+          @click="currentStep > 1 ? prevStep() : goToLogin()"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -271,7 +271,7 @@ onMounted(() => {
               <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>
             </svg>
             <span>{{ error }}</span>
-            <button type="button" @click="dismissError" class="error-close" aria-label="ปิดข้อความแจ้งเตือน">
+            <button type="button" class="error-close" aria-label="ปิดข้อความแจ้งเตือน" @click="dismissError">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
@@ -281,7 +281,7 @@ onMounted(() => {
 
         <!-- Step 1: Account Info -->
         <Transition name="slide" mode="out-in">
-          <form v-if="currentStep === 1" key="step1" class="form-section" @submit.prevent="nextStep" novalidate>
+          <form v-if="currentStep === 1" key="step1" class="form-section" novalidate @submit.prevent="nextStep">
             <div class="section-header">
               <h2>สร้างบัญชีใหม่</h2>
               <p>กรอกข้อมูลเพื่อเริ่มใช้งาน</p>
@@ -391,10 +391,10 @@ onMounted(() => {
                 />
                 <button 
                   type="button" 
-                  @click="showPassword = !showPassword" 
                   class="icon-btn" 
-                  :aria-label="showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'"
+                  :aria-label="showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'" 
                   :aria-pressed="showPassword"
+                  @click="showPassword = !showPassword"
                 >
                   <svg v-if="!showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -447,10 +447,10 @@ onMounted(() => {
                 />
                 <button 
                   type="button" 
-                  @click="showConfirmPassword = !showConfirmPassword" 
                   class="icon-btn" 
-                  :aria-label="showConfirmPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'"
+                  :aria-label="showConfirmPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'" 
                   :aria-pressed="showConfirmPassword"
+                  @click="showConfirmPassword = !showConfirmPassword"
                 >
                   <svg v-if="!showConfirmPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -480,7 +480,7 @@ onMounted(() => {
             <div class="divider"><span>หรือสมัครด้วย</span></div>
 
             <div class="social-buttons">
-              <button type="button" @click="loginWithGoogle" :disabled="!!socialLoading" class="social-btn" aria-label="สมัครด้วย Google">
+              <button type="button" :disabled="!!socialLoading" class="social-btn" aria-label="สมัครด้วย Google" @click="loginWithGoogle">
                 <svg v-if="socialLoading !== 'google'" viewBox="0 0 24 24" class="google-icon" aria-hidden="true">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -490,7 +490,7 @@ onMounted(() => {
                 <span v-else class="spinner" aria-hidden="true"></span>
                 <span>Google</span>
               </button>
-              <button type="button" @click="loginWithFacebook" :disabled="!!socialLoading" class="social-btn" aria-label="สมัครด้วย Facebook">
+              <button type="button" :disabled="!!socialLoading" class="social-btn" aria-label="สมัครด้วย Facebook" @click="loginWithFacebook">
                 <svg v-if="socialLoading !== 'facebook'" viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
@@ -501,7 +501,7 @@ onMounted(() => {
           </form>
 
           <!-- Step 2: Confirmation -->
-          <form v-else-if="currentStep === 2" key="step2" class="form-section" @submit.prevent="submitRegistration" novalidate>
+          <form v-else-if="currentStep === 2" key="step2" class="form-section" novalidate @submit.prevent="submitRegistration">
             <div class="section-header">
               <h2>ยืนยันการสมัคร</h2>
               <p>ตรวจสอบข้อมูลและยอมรับเงื่อนไข</p>
@@ -527,7 +527,7 @@ onMounted(() => {
                 <span class="summary-label">อีเมล</span>
                 <span class="summary-value">{{ email }}</span>
               </div>
-              <button type="button" @click="prevStep" class="edit-btn">
+              <button type="button" class="edit-btn" @click="prevStep">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -541,12 +541,12 @@ onMounted(() => {
               <label class="checkbox-label">
                 <input v-model="acceptTerms" type="checkbox" required aria-required="true" />
                 <span class="checkmark" aria-hidden="true"></span>
-                <span>ฉันยอมรับ <a href="#" @click.prevent class="link">ข้อกำหนดและเงื่อนไข</a></span>
+                <span>ฉันยอมรับ <a href="#" class="link" @click.prevent>ข้อกำหนดและเงื่อนไข</a></span>
               </label>
               <label class="checkbox-label">
                 <input v-model="acceptPrivacy" type="checkbox" required aria-required="true" />
                 <span class="checkmark" aria-hidden="true"></span>
-                <span>ฉันยอมรับ <a href="#" @click.prevent class="link">นโยบายความเป็นส่วนตัว</a></span>
+                <span>ฉันยอมรับ <a href="#" class="link" @click.prevent>นโยบายความเป็นส่วนตัว</a></span>
               </label>
             </fieldset>
 
@@ -568,7 +568,7 @@ onMounted(() => {
 
         <div class="login-link">
           <span>มีบัญชีอยู่แล้ว?</span>
-          <button type="button" @click="goToLogin" class="link-btn">เข้าสู่ระบบ</button>
+          <button type="button" class="link-btn" @click="goToLogin">เข้าสู่ระบบ</button>
         </div>
       </main>
     </template>

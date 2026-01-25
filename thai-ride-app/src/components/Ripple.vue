@@ -35,14 +35,16 @@ const createRipple = (e: MouseEvent) => {
 <template>
   <div class="ripple-container" @click="createRipple">
     <slot></slot>
-    <span v-for="r in ripples" :key="r.id" class="ripple" :style="{
-      left: r.x + 'px',
-      top: r.y + 'px',
-      width: r.size + 'px',
-      height: r.size + 'px',
-      background: color,
-      animationDuration: duration + 'ms'
-    }"></span>
+    <span
+      v-for="r in ripples" :key="r.id" class="ripple" :style="{
+        left: r.x + 'px',
+        top: r.y + 'px',
+        width: r.size + 'px',
+        height: r.size + 'px',
+        background: color,
+        animationDuration: duration + 'ms'
+      }"
+    ></span>
   </div>
 </template>
 

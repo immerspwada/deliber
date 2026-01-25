@@ -401,8 +401,8 @@ function getDriverName(providerId: string): string {
         <button 
           v-if="selectedDriver" 
           class="clear-btn"
-          @click.stop="clearSelection"
           aria-label="ยกเลิกการเลือก"
+          @click.stop="clearSelection"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>
@@ -434,7 +434,7 @@ function getDriverName(providerId: string): string {
                 <span class="toggle-desc">ระบบจะพยายามจับคู่กับคนขับโปรดที่ว่างอยู่</span>
               </div>
             </div>
-            <input type="checkbox" v-model="autoMatch" @change="toggleAutoMatch" />
+            <input v-model="autoMatch" type="checkbox" @change="toggleAutoMatch" />
             <span class="toggle-switch"></span>
           </label>
         </div>
@@ -518,9 +518,9 @@ function getDriverName(providerId: string): string {
               <!-- History Button -->
               <button 
                 class="action-btn history-btn"
-                @click.stop="fetchDriverHistory(driver.provider_id || '')"
                 aria-label="ดูประวัติ"
                 title="ประวัติการเดินทาง"
+                @click.stop="fetchDriverHistory(driver.provider_id || '')"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="10"/>
@@ -532,10 +532,10 @@ function getDriverName(providerId: string): string {
               <button 
                 class="action-btn chat-btn"
                 :class="{ 'available': getDriverAvailability(driver.provider_id || '').isOnline }"
-                @click.stop="openChat(driver.provider_id || '')"
                 :disabled="!getDriverAvailability(driver.provider_id || '').isOnline"
                 aria-label="แชท"
                 title="ส่งข้อความ"
+                @click.stop="openChat(driver.provider_id || '')"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
@@ -546,9 +546,9 @@ function getDriverName(providerId: string): string {
               <button 
                 class="action-btn note-btn"
                 :class="{ 'has-note': getDriverNote(driver.provider_id || '') }"
-                @click.stop="startEditNote(driver.provider_id || '')"
                 aria-label="เพิ่มโน้ต"
                 title="โน้ตส่วนตัว"
+                @click.stop="startEditNote(driver.provider_id || '')"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>

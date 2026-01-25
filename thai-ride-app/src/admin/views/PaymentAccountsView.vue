@@ -108,7 +108,7 @@ async function saveAccount(): Promise<void> {
   try {
     if (editingAccount.value) {
       // Update existing
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error } = await (supabase.rpc as any)("admin_update_payment_account", {
         p_account_id: editingAccount.value.id,
         p_account_name: form.value.account_name,
@@ -123,7 +123,7 @@ async function saveAccount(): Promise<void> {
       showToast(true, "อัพเดทบัญชีสำเร็จ");
     } else {
       // Add new
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error } = await (supabase.rpc as any)("admin_add_payment_account", {
         p_account_type: form.value.account_type,
         p_account_name: form.value.account_name,
@@ -151,7 +151,7 @@ async function deleteAccount(account: PaymentAccount): Promise<void> {
   if (!confirm(`ต้องการลบบัญชี "${account.display_name || account.account_name}" หรือไม่?`)) return;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error } = await (supabase.rpc as any)("admin_delete_payment_account", {
       p_account_id: account.id,
     });
@@ -197,7 +197,7 @@ async function uploadQRCode(account: PaymentAccount, event: Event): Promise<void
       .getPublicUrl(fileName);
 
     // Update account
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error: updateError } = await (supabase.rpc as any)("admin_update_account_qr", {
       p_account_id: account.id,
       p_qr_code_url: urlData.publicUrl,
@@ -220,7 +220,7 @@ async function removeQRCode(account: PaymentAccount): Promise<void> {
   if (!confirm("ต้องการลบ QR Code นี้หรือไม่?")) return;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error } = await (supabase.rpc as any)("admin_update_account_qr", {
       p_account_id: account.id,
       p_qr_code_url: null,
@@ -253,7 +253,7 @@ onMounted(() => {
         <h1>บัญชีรับเงิน</h1>
         <span class="subtitle">จัดการบัญชีพร้อมเพย์และธนาคารสำหรับรับเงินเติมเงิน</span>
       </div>
-      <button class="refresh-btn" @click="loadAccounts" :disabled="isLoading">
+      <button class="refresh-btn" :disabled="isLoading" @click="loadAccounts">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M23 4v6h-6M1 20v-6h6" />
           <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
@@ -268,7 +268,7 @@ onMounted(() => {
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading-state">
-      <div class="skeleton" v-for="i in 4" :key="i" />
+      <div v-for="i in 4" :key="i" class="skeleton" />
     </div>
 
     <template v-else>
@@ -301,13 +301,13 @@ onMounted(() => {
             <div class="card-header">
               <span v-if="account.is_default" class="default-badge">หลัก</span>
               <div class="card-actions">
-                <button class="icon-btn" @click="openEditModal(account)" title="แก้ไข">
+                <button class="icon-btn" title="แก้ไข" @click="openEditModal(account)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <button class="icon-btn danger" @click="deleteAccount(account)" title="ลบ">
+                <button class="icon-btn danger" title="ลบ" @click="deleteAccount(account)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3,6 5,6 21,6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                   </svg>
@@ -326,7 +326,7 @@ onMounted(() => {
                 </button>
               </div>
               <label v-else class="qr-upload" :class="{ uploading: uploadingQR === account.id }">
-                <input type="file" accept="image/jpeg,image/png,image/webp" @change="uploadQRCode(account, $event)" :disabled="uploadingQR === account.id" />
+                <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="uploadingQR === account.id" @change="uploadQRCode(account, $event)" />
                 <svg v-if="uploadingQR !== account.id" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                 </svg>
@@ -382,13 +382,13 @@ onMounted(() => {
             <div class="card-header">
               <span v-if="account.is_default" class="default-badge">หลัก</span>
               <div class="card-actions">
-                <button class="icon-btn" @click="openEditModal(account)" title="แก้ไข">
+                <button class="icon-btn" title="แก้ไข" @click="openEditModal(account)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <button class="icon-btn danger" @click="deleteAccount(account)" title="ลบ">
+                <button class="icon-btn danger" title="ลบ" @click="deleteAccount(account)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3,6 5,6 21,6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                   </svg>
@@ -407,7 +407,7 @@ onMounted(() => {
                 </button>
               </div>
               <label v-else class="qr-upload" :class="{ uploading: uploadingQR === account.id }">
-                <input type="file" accept="image/jpeg,image/png,image/webp" @change="uploadQRCode(account, $event)" :disabled="uploadingQR === account.id" />
+                <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="uploadingQR === account.id" @change="uploadQRCode(account, $event)" />
                 <svg v-if="uploadingQR !== account.id" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
                 </svg>
@@ -492,7 +492,7 @@ onMounted(() => {
 
             <div class="form-group checkbox">
               <label>
-                <input type="checkbox" v-model="form.is_default" />
+                <input v-model="form.is_default" type="checkbox" />
                 <span>ตั้งเป็นบัญชีหลัก</span>
               </label>
             </div>
@@ -500,7 +500,7 @@ onMounted(() => {
 
           <div class="modal-footer">
             <button class="btn-secondary" @click="showModal = false">ยกเลิก</button>
-            <button class="btn-primary" @click="saveAccount" :disabled="isSaving">
+            <button class="btn-primary" :disabled="isSaving" @click="saveAccount">
               {{ isSaving ? 'กำลังบันทึก...' : 'บันทึก' }}
             </button>
           </div>

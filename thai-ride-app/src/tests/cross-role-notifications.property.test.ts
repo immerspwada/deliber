@@ -33,8 +33,8 @@ describe('Property Tests: Cross-Role Notifications (Properties 18-21)', () => {
   let testUserId: string | null = null
   let testProviderId: string | null = null
   let testProviderUserId: string | null = null
-  let createdRequestIds: { table: string; id: string }[] = []
-  let createdNotificationIds: string[] = []
+  const createdRequestIds: { table: string; id: string }[] = []
+  const createdNotificationIds: string[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

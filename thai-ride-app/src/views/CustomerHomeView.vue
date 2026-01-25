@@ -725,9 +725,7 @@ onUnmounted(() => {
       >
         <div class="section-header">
           <h3 class="section-title">กำลังดำเนินการ</h3>
-          <span v-if="!loadingOrders" class="order-count"
-            >{{ activeOrders.length }} รายการ</span
-          >
+          <span v-if="!loadingOrders" class="order-count">{{ activeOrders.length }} รายการ</span>
         </div>
 
         <!-- Skeleton Loading -->

@@ -76,10 +76,10 @@ const getAchievementStyle = computed(() => {
                 showingAchievement.rarity === "common"
                   ? "ทั่วไป"
                   : showingAchievement.rarity === "rare"
-                  ? "หายาก"
-                  : showingAchievement.rarity === "epic"
-                  ? "พิเศษ"
-                  : "ตำนาน"
+                    ? "หายาก"
+                    : showingAchievement.rarity === "epic"
+                      ? "พิเศษ"
+                      : "ตำนาน"
               }}
             </span>
           </div>

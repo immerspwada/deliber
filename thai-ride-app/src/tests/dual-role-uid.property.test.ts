@@ -18,8 +18,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 describe('Property Tests: Dual-Role UID System', () => {
   let supabase: ReturnType<typeof createClient>
-  let testUserIds: string[] = []
-  let testProviderIds: string[] = []
+  const testUserIds: string[] = []
+  const testProviderIds: string[] = []
 
   beforeAll(() => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

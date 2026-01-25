@@ -159,8 +159,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.total_referrals }}</span
-          ><span class="stat-label">ทั้งหมด</span>
+          <span class="stat-value">{{ stats.total_referrals }}</span><span class="stat-label">ทั้งหมด</span>
         </div>
       </div>
       <div class="stat-card">
@@ -178,8 +177,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.completed_referrals }}</span
-          ><span class="stat-label">สำเร็จ</span>
+          <span class="stat-value">{{ stats.completed_referrals }}</span><span class="stat-label">สำเร็จ</span>
         </div>
       </div>
       <div class="stat-card">
@@ -197,8 +195,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.pending_referrals }}</span
-          ><span class="stat-label">รอดำเนินการ</span>
+          <span class="stat-value">{{ stats.pending_referrals }}</span><span class="stat-label">รอดำเนินการ</span>
         </div>
       </div>
       <div class="stat-card">
@@ -218,8 +215,7 @@ onMounted(() => {
         <div class="stat-content">
           <span class="stat-value">{{
             formatCurrency(stats.total_rewards_paid)
-          }}</span
-          ><span class="stat-label">จ่ายแล้ว</span>
+          }}</span><span class="stat-label">จ่ายแล้ว</span>
         </div>
       </div>
     </div>
@@ -236,7 +232,7 @@ onMounted(() => {
     <!-- Table -->
     <div class="table-container">
       <div v-if="isLoading" class="loading">
-        <div class="skeleton" v-for="i in 8" :key="i" />
+        <div v-for="i in 8" :key="i" class="skeleton" />
       </div>
       <table v-else-if="referrals.length" class="data-table">
         <thead>
@@ -274,8 +270,7 @@ onMounted(() => {
                   color: getStatusColor(r.status),
                   background: getStatusColor(r.status) + '20',
                 }"
-                >{{ getStatusLabel(r.status) }}</span
-              >
+              >{{ getStatusLabel(r.status) }}</span>
             </td>
             <td class="date">{{ formatDate(r.created_at) }}</td>
           </tr>

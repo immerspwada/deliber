@@ -35,13 +35,13 @@ const {
 
 // Map state
 const mapContainer = ref<HTMLDivElement | null>(null)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let map: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let providerMarker: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let pickupMarker: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let dropoffMarker: any = null
 
 // Computed
@@ -216,9 +216,9 @@ onUnmounted(() => {
       
       <button 
         class="chat-btn"
-        @click="emit('openChat')"
         type="button"
         aria-label="แชทกับคนขับ"
+        @click="emit('openChat')"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>

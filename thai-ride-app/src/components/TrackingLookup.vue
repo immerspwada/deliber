@@ -100,7 +100,7 @@ const formatDate = (dateStr: string) => {
             @keyup.enter="handleSearch"
           />
         </div>
-        <button class="search-btn" @click="handleSearch" :disabled="loading">
+        <button class="search-btn" :disabled="loading" @click="handleSearch">
           {{ loading ? 'กำลังค้นหา...' : 'ค้นหา' }}
         </button>
       </div>

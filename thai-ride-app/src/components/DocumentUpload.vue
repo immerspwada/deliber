@@ -77,14 +77,14 @@
           <!-- Upload Area -->
           <div v-if="!isDocumentUploaded(doc.type)" class="mt-4">
             <div
-              @drop="handleDrop($event, doc.type)"
-              @dragover.prevent
-              @dragenter.prevent
               class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer"
               :class="{
                 'border-blue-400 bg-blue-50': isDragging === doc.type,
                 'border-red-400 bg-red-50': hasUploadError(doc.type)
               }"
+              @drop="handleDrop($event, doc.type)"
+              @dragover.prevent
+              @dragenter.prevent
               @click="triggerFileInput(doc.type)"
             >
               <svg class="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -101,8 +101,8 @@
               :ref="el => fileInputs[doc.type] = el"
               type="file"
               :accept="doc.acceptedTypes.join(',')"
-              @change="handleFileSelect($event, doc.type)"
               class="hidden"
+              @change="handleFileSelect($event, doc.type)"
             />
 
             <!-- Error Message -->
@@ -124,8 +124,8 @@
                 </div>
               </div>
               <button
-                @click="removeDocument(doc.type)"
                 class="text-red-600 hover:text-red-700 text-sm font-medium"
+                @click="removeDocument(doc.type)"
               >
                 ลบ
               </button>
@@ -137,16 +137,16 @@
       <!-- Submit Button -->
       <div class="mt-6 flex justify-between">
         <button
-          @click="$emit('back')"
           class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          @click="$emit('back')"
         >
           ย้อนกลับ
         </button>
         
         <button
-          @click="submitDocuments"
           :disabled="!canSubmit || submitting"
           class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          @click="submitDocuments"
         >
           {{ submitting ? 'กำลังบันทึก...' : 'บันทึกเอกสาร' }}
         </button>

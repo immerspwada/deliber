@@ -33,8 +33,10 @@ const decrement = (current: number, step: number, min?: number) => {
       <button type="button" class="control-btn" :disabled="min !== undefined && modelValue <= min" @click="decrement(modelValue, step || 1, min)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
-      <input type="number" :value="modelValue" :min="min" :max="max" :step="step"
-        @input="emit('update:modelValue', Number(($event.target as HTMLInputElement).value))" />
+      <input
+        type="number" :value="modelValue" :min="min" :max="max" :step="step"
+        @input="emit('update:modelValue', Number(($event.target as HTMLInputElement).value))"
+      />
       <button type="button" class="control-btn" :disabled="max !== undefined && modelValue >= max" @click="increment(modelValue, step || 1, max)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>

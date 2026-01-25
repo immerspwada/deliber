@@ -82,7 +82,7 @@ onUnmounted(() => {
       <div class="spacer"></div>
     </div>
 
-    <div class="content" v-if="currentRequest">
+    <div v-if="currentRequest" class="content">
       <!-- Tracking ID -->
       <div class="tracking-id-card">
         <span class="label">หมายเลขติดตาม</span>
@@ -124,16 +124,16 @@ onUnmounted(() => {
           <span class="value">{{ formatDateTime(currentRequest.scheduled_pickup) }}</span>
         </div>
         
-        <div class="detail-row" v-if="currentRequest.actual_weight">
+        <div v-if="currentRequest.actual_weight" class="detail-row">
           <span class="label">น้ำหนักจริง</span>
           <span class="value">{{ currentRequest.actual_weight }} กก.</span>
         </div>
-        <div class="detail-row" v-else-if="currentRequest.estimated_weight">
+        <div v-else-if="currentRequest.estimated_weight" class="detail-row">
           <span class="label">น้ำหนักประมาณ</span>
           <span class="value">~{{ currentRequest.estimated_weight }} กก.</span>
         </div>
         
-        <div class="detail-row" v-if="currentRequest.notes">
+        <div v-if="currentRequest.notes" class="detail-row">
           <span class="label">หมายเหตุ</span>
           <span class="value">{{ currentRequest.notes }}</span>
         </div>

@@ -49,6 +49,7 @@ const emit = defineEmits<{
       </div>
       <div class="license-plate">{{ licensePlate }}</div>
     </div>
+  </div>
 </template>
 
     <div v-if="otp" class="otp-section">

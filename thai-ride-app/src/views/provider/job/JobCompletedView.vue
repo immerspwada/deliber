@@ -97,10 +97,10 @@ function goHome(): void {
 
     <!-- Action Bar -->
     <footer class="action-bar">
-      <button class="btn-secondary" @click="goToOrders" type="button">
+      <button class="btn-secondary" type="button" @click="goToOrders">
         ดูงานทั้งหมด
       </button>
-      <button class="btn-primary" @click="goHome" type="button">
+      <button class="btn-primary" type="button" @click="goHome">
         รับงานใหม่
       </button>
     </footer>

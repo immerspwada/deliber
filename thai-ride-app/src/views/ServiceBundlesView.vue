@@ -2,7 +2,7 @@
   <div class="service-bundles-view">
     <!-- Header -->
     <header class="page-header">
-      <button @click="goBack" class="back-btn">
+      <button class="back-btn" @click="goBack">
         <svg
           width="24"
           height="24"
@@ -20,7 +20,7 @@
 
     <!-- Loading State -->
     <div v-if="loading" class="loading-state">
-      <div class="skeleton-card" v-for="i in 3" :key="i"></div>
+      <div v-for="i in 3" :key="i" class="skeleton-card"></div>
     </div>
 
     <!-- Empty State -->

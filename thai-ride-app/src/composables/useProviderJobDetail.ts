@@ -177,7 +177,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
         
         // Load ride request data - use any to bypass strict typing issues with generated types
         // Query base columns first (columns that exist in production)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const { data: rideData, error: rideError } = await (supabase
           .from('ride_requests') as any)
           .select(`
@@ -335,7 +335,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             break
         }
         
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const { error: updateError } = await (supabase
           .from('ride_requests') as any)
           .update(updateData)
@@ -400,7 +400,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
 
     try {
       await measureAsync('CancelJob', async () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const { error: updateError } = await (supabase
           .from('ride_requests') as any)
           .update({ 

@@ -79,11 +79,13 @@ onUnmounted(() => {
   <!-- Offline Banner -->
   <div v-if="!isOnline" class="offline-banner">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-        d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"/>
+      <path
+        stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+        d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
+      />
     </svg>
     <span>คุณกำลังออฟไลน์ - บางฟีเจอร์อาจไม่พร้อมใช้งาน</span>
-    <button v-if="pendingActionsCount > 0" @click="handleSync" class="sync-btn" :disabled="showSyncStatus">
+    <button v-if="pendingActionsCount > 0" class="sync-btn" :disabled="showSyncStatus" @click="handleSync">
       {{ showSyncStatus ? 'กำลังซิงค์...' : `${pendingActionsCount} รายการรอซิงค์` }}
     </button>
   </div>
@@ -91,11 +93,13 @@ onUnmounted(() => {
   <!-- Back Online Banner -->
   <div v-if="isOnline && pendingActionsCount > 0" class="sync-banner">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      <path
+        stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
     </svg>
     <span>มี {{ pendingActionsCount }} รายการรอซิงค์</span>
-    <button @click="handleSync" class="sync-action-btn" :disabled="showSyncStatus">
+    <button class="sync-action-btn" :disabled="showSyncStatus" @click="handleSync">
       {{ showSyncStatus ? 'กำลังซิงค์...' : 'ซิงค์เลย' }}
     </button>
   </div>
@@ -103,11 +107,13 @@ onUnmounted(() => {
   <!-- Offline Ready Banner -->
   <div v-if="showOfflineReady" class="offline-ready-banner">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      <path
+        stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
     </svg>
     <span>แอปพร้อมใช้งานแบบออฟไลน์แล้ว</span>
-    <button @click="dismissOfflineReady" class="dismiss-icon-btn">
+    <button class="dismiss-icon-btn" @click="dismissOfflineReady">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>
@@ -118,12 +124,14 @@ onUnmounted(() => {
   <div v-if="needsUpdate" class="update-banner">
     <div class="update-content">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        <path
+          stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+        />
       </svg>
       <span>มีเวอร์ชันใหม่พร้อมใช้งาน</span>
     </div>
-    <button @click="handleUpdate" class="update-btn">อัพเดท</button>
+    <button class="update-btn" @click="handleUpdate">อัพเดท</button>
   </div>
 
   <!-- Install Banner -->
@@ -131,8 +139,10 @@ onUnmounted(() => {
     <div class="install-content">
       <div class="install-icon">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="28" height="28">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          <path
+            stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+            d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+          />
         </svg>
       </div>
       <div class="install-text">
@@ -161,11 +171,13 @@ onUnmounted(() => {
       </div>
     </div>
     <div class="install-actions">
-      <button @click="dismiss" class="dismiss-btn">ไม่ใช่ตอนนี้</button>
-      <button @click="handleInstall" class="install-btn">
+      <button class="dismiss-btn" @click="dismiss">ไม่ใช่ตอนนี้</button>
+      <button class="install-btn" @click="handleInstall">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          <path
+            stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+          />
         </svg>
         ติดตั้ง
       </button>

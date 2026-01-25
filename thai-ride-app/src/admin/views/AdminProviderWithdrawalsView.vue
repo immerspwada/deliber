@@ -117,9 +117,9 @@ onMounted(() => loadData())
         <p class="text-sm text-gray-600 mt-1">จัดการคำขอถอนเงินของผู้ให้บริการ</p>
       </div>
       <button 
-        @click="loadData" 
-        :disabled="admin.loading.value"
+        :disabled="admin.loading.value" 
         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        @click="loadData"
       >
         {{ admin.loading.value ? 'กำลังโหลด...' : 'รีเฟรช' }}
       </button>
@@ -152,8 +152,8 @@ onMounted(() => loadData())
     <div class="mb-4 flex gap-4">
       <select 
         v-model="statusFilter" 
-        @change="onFilterChange"
         class="px-4 py-2 border rounded-lg bg-white"
+        @change="onFilterChange"
       >
         <option :value="null">ทุกสถานะ</option>
         <option value="pending">รอดำเนินการ</option>
@@ -188,8 +188,8 @@ onMounted(() => loadData())
               <td colspan="6" class="px-4 py-12 text-center text-gray-500">ไม่พบข้อมูล</td>
             </tr>
             <tr 
-              v-else 
               v-for="w in filteredWithdrawals" 
+              v-else 
               :key="w.id" 
               class="hover:bg-gray-50"
               :class="{ 'bg-yellow-50': w.status === 'pending' }"
@@ -229,16 +229,16 @@ onMounted(() => loadData())
               <td class="px-4 py-4 text-center">
                 <div v-if="w.status === 'pending'" class="flex gap-2 justify-center">
                   <button 
-                    @click="openApproveModal(w)"
                     class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                     aria-label="อนุมัติคำขอถอนเงิน"
+                    @click="openApproveModal(w)"
                   >
                     อนุมัติ
                   </button>
                   <button 
-                    @click="openRejectModal(w)"
                     class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
                     aria-label="ปฏิเสธคำขอถอนเงิน"
+                    @click="openRejectModal(w)"
                   >
                     ปฏิเสธ
                   </button>
@@ -288,17 +288,17 @@ onMounted(() => loadData())
         </div>
         <div class="p-6 border-t flex gap-3">
           <button 
-            @click="showApproveModal = false"
             type="button"
             class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            @click="showApproveModal = false"
           >
             ยกเลิก
           </button>
           <button 
-            @click="handleApprove"
             type="button"
             :disabled="!transactionId.trim() || admin.loading.value"
             class="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            @click="handleApprove"
           >
             {{ admin.loading.value ? 'กำลังดำเนินการ...' : 'ยืนยันอนุมัติ' }}
           </button>
@@ -343,17 +343,17 @@ onMounted(() => loadData())
         </div>
         <div class="p-6 border-t flex gap-3">
           <button 
-            @click="showRejectModal = false"
             type="button"
             class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            @click="showRejectModal = false"
           >
             ยกเลิก
           </button>
           <button 
-            @click="handleReject"
             type="button"
             :disabled="!rejectReason.trim() || admin.loading.value"
             class="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            @click="handleReject"
           >
             {{ admin.loading.value ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}
           </button>

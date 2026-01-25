@@ -94,7 +94,7 @@ if (props.autoStart) {
     <!-- Status Header -->
     <div class="tracker-header">
       <div class="status-indicator" :class="statusClass">
-        <div class="status-pulse" v-if="isTracking && !error"></div>
+        <div v-if="isTracking && !error" class="status-pulse"></div>
         <svg v-if="error" class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
           <path d="M12 8v4M12 16h.01"/>
@@ -126,7 +126,7 @@ if (props.autoStart) {
         </span>
       </div>
       
-      <div class="detail-item" v-if="currentLocation.speed !== null">
+      <div v-if="currentLocation.speed !== null" class="detail-item">
         <span class="detail-label">ความเร็ว</span>
         <span class="detail-value">
           {{ Math.round((currentLocation.speed || 0) * 3.6) }} km/h
@@ -147,8 +147,8 @@ if (props.autoStart) {
         type="button"
         class="btn btn-toggle"
         :class="{ active: isTracking }"
-        @click="handleToggle"
         :aria-label="isTracking ? 'หยุดติดตาม' : 'เริ่มติดตาม'"
+        @click="handleToggle"
       >
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path v-if="isTracking" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -161,9 +161,9 @@ if (props.autoStart) {
       <button
         type="button"
         class="btn btn-refresh"
-        @click="handleRefresh"
         :disabled="!isTracking"
         aria-label="รีเฟรชตำแหน่ง"
+        @click="handleRefresh"
       >
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2"/>

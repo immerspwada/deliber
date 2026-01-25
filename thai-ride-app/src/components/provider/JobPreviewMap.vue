@@ -34,13 +34,13 @@ const emit = defineEmits<{
 
 // State
 const mapContainer = ref<HTMLElement | null>(null)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let map: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let pickupMarker: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let dropoffMarker: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let routeLine: any = null
 
 const loading = ref(true)
@@ -231,7 +231,7 @@ onUnmounted(() => {
     <!-- Header -->
     <div class="map-header">
       <h4>ดูเส้นทาง</h4>
-      <button class="close-btn" @click="emit('close')" type="button" aria-label="ปิด">
+      <button class="close-btn" type="button" aria-label="ปิด" @click="emit('close')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6L6 18M6 6l12 12"/>
         </svg>
@@ -296,7 +296,7 @@ onUnmounted(() => {
     
     <!-- Actions -->
     <div class="map-actions">
-      <button class="google-maps-btn" @click="openGoogleMaps" type="button">
+      <button class="google-maps-btn" type="button" @click="openGoogleMaps">
         <svg viewBox="0 0 24 24" fill="currentColor" class="maps-icon">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>

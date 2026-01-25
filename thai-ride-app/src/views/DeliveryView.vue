@@ -658,7 +658,7 @@ const clearDropoff = () => {
         </svg>
       </button>
       <span class="page-title">ส่งพัสดุ</span>
-      <button class="nav-btn home-btn" @click="goHome" title="กลับหน้าหลัก">
+      <button class="nav-btn home-btn" title="กลับหน้าหลัก" @click="goHome">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -795,8 +795,8 @@ const clearDropoff = () => {
             <button
               class="location-card-btn current-location"
               :class="{ 'is-loading': isGettingLocation }"
-              @click="useCurrentLocationForPickup"
               :disabled="isGettingLocation"
+              @click="useCurrentLocationForPickup"
             >
               <div class="location-card-icon">
                 <template v-if="isGettingLocation">
@@ -1092,9 +1092,7 @@ const clearDropoff = () => {
               </div>
               <div class="route-preview-text">
                 <span class="route-preview-label">จุดส่ง</span>
-                <span class="route-preview-placeholder"
-                  >เลือกจุดส่งด้านล่าง</span
-                >
+                <span class="route-preview-placeholder">เลือกจุดส่งด้านล่าง</span>
               </div>
             </div>
           </div>
@@ -1402,12 +1400,10 @@ const clearDropoff = () => {
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 6v6l4 2" />
                 </svg>
-                <span
-                  >{{ estimatedTimeRange.min }}-{{
-                    estimatedTimeRange.max
-                  }}
-                  นาที</span
-                >
+                <span>{{ estimatedTimeRange.min }}-{{
+                  estimatedTimeRange.max
+                }}
+                  นาที</span>
               </div>
             </div>
           </div>
@@ -1505,11 +1501,9 @@ const clearDropoff = () => {
                       <span class="quality-option-label">{{
                         preset.label
                       }}</span>
-                      <span class="quality-option-desc"
-                        >{{ preset.description }} ({{
-                          preset.estimatedSize
-                        }})</span
-                      >
+                      <span class="quality-option-desc">{{ preset.description }} ({{
+                        preset.estimatedSize
+                      }})</span>
                     </div>
                     <div v-if="selectedQuality === key" class="quality-check">
                       <svg
@@ -1604,12 +1598,12 @@ const clearDropoff = () => {
               <button
                 v-for="(type, index) in packageTypes"
                 :key="type.value"
-                @click="selectPackageType(type.value)"
                 :class="[
                   'package-type-card',
                   { active: packageType === type.value },
                 ]"
                 :style="{ animationDelay: `${index * 50}ms` }"
+                @click="selectPackageType(type.value)"
               >
                 <div class="package-type-icon">
                   <svg
@@ -1642,9 +1636,7 @@ const clearDropoff = () => {
                 </div>
                 <div class="package-type-info">
                   <span class="package-type-name">{{ type.label }}</span>
-                  <span class="package-type-weight"
-                    >≤{{ type.maxWeight }} กก.</span
-                  >
+                  <span class="package-type-weight">≤{{ type.maxWeight }} กก.</span>
                 </div>
                 <div v-if="packageType === type.value" class="package-check">
                   <svg
@@ -1904,12 +1896,10 @@ const clearDropoff = () => {
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 6v6l4 2" />
                 </svg>
-                <span
-                  >{{ estimatedTimeRange.min }}-{{
-                    estimatedTimeRange.max
-                  }}
-                  นาที</span
-                >
+                <span>{{ estimatedTimeRange.min }}-{{
+                  estimatedTimeRange.max
+                }}
+                  นาที</span>
               </div>
             </div>
           </div>
@@ -2024,9 +2014,7 @@ const clearDropoff = () => {
               </div>
               <div class="fee-row">
                 <span class="fee-label">ระยะทาง</span>
-                <span class="fee-value"
-                  >{{ estimatedDistance.toFixed(1) }} กม.</span
-                >
+                <span class="fee-value">{{ estimatedDistance.toFixed(1) }} กม.</span>
               </div>
 
               <!-- Promo Code Input -->
@@ -2070,8 +2058,7 @@ const clearDropoff = () => {
               <span
                 class="wallet-amount"
                 :class="{ insufficient: hasInsufficientBalance }"
-                >฿{{ walletBalance.toLocaleString() }}</span
-              >
+              >฿{{ walletBalance.toLocaleString() }}</span>
             </div>
             <button
               v-if="hasInsufficientBalance"
@@ -2102,23 +2089,21 @@ const clearDropoff = () => {
               </svg>
               <div class="warning-text">
                 <span class="warning-title">ยอดเงินไม่เพียงพอ</span>
-                <span class="warning-detail"
-                  >ต้องการ ฿{{ finalPrice.toLocaleString() }} แต่คงเหลือ ฿{{
-                    walletBalance.toLocaleString()
-                  }}</span
-                >
+                <span class="warning-detail">ต้องการ ฿{{ finalPrice.toLocaleString() }} แต่คงเหลือ ฿{{
+                  walletBalance.toLocaleString()
+                }}</span>
               </div>
             </div>
           </Transition>
 
           <!-- Confirm Button -->
           <button
-            @click="handleSubmit"
             :disabled="!canSubmit || loading || hasInsufficientBalance"
             :class="[
               'confirm-book-btn',
               { 'is-loading': loading, 'is-disabled': hasInsufficientBalance },
             ]"
+            @click="handleSubmit"
           >
             <template v-if="loading">
               <div class="booking-spinner"></div>

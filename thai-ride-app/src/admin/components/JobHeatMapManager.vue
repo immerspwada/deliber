@@ -7,16 +7,16 @@
       </div>
       <div class="flex space-x-3">
         <button
-          @click="refreshData"
           :disabled="isLoading"
           class="btn-secondary"
+          @click="refreshData"
         >
           <ArrowPathIcon class="w-4 h-4 mr-2" />
           Refresh Data
         </button>
         <button
-          @click="showSettingsModal = true"
           class="btn-primary"
+          @click="showSettingsModal = true"
         >
           <CogIcon class="w-4 h-4 mr-2" />
           Settings
@@ -83,13 +83,13 @@
           <button
             v-for="range in timeRanges"
             :key="range.value"
-            @click="selectedTimeRange = range.value"
             :class="[
               'px-3 py-1 text-sm rounded-md',
               selectedTimeRange === range.value
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             ]"
+            @click="selectedTimeRange = range.value"
           >
             {{ range.label }}
           </button>
@@ -218,7 +218,7 @@
         <div class="mt-3">
           <h3 class="text-lg font-medium text-gray-900 mb-4">Heat Map Settings</h3>
           
-          <form @submit.prevent="saveSettings" class="space-y-4">
+          <form class="space-y-4" @submit.prevent="saveSettings">
             <div>
               <label class="block text-sm font-medium text-gray-700">Grid Size (km)</label>
               <input
@@ -270,8 +270,8 @@
             <div class="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
-                @click="showSettingsModal = false"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                @click="showSettingsModal = false"
               >
                 Cancel
               </button>
@@ -339,8 +339,8 @@
           
           <div class="flex justify-end pt-4">
             <button
-              @click="selectedPoint = null"
               class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+              @click="selectedPoint = null"
             >
               Close
             </button>

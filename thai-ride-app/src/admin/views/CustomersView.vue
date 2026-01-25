@@ -144,7 +144,7 @@ onMounted(() => {
           <span class="stat-value">{{ suspendedCustomers.length }}</span>
         </div>
       </div>
-      <button class="refresh-btn" @click="loadCustomers" :disabled="loading" aria-label="รีเฟรช">
+      <button class="refresh-btn" :disabled="loading" aria-label="รีเฟรช" @click="loadCustomers">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
       </button>
     </div>
@@ -169,7 +169,7 @@ onMounted(() => {
     </div>
 
     <div class="table-container">
-      <div v-if="loading" class="loading-state"><div class="skeleton" v-for="i in 10" :key="i" /></div>
+      <div v-if="loading" class="loading-state"><div v-for="i in 10" :key="i" class="skeleton" /></div>
       <div v-else-if="error" class="error-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -180,7 +180,7 @@ onMounted(() => {
       <table v-else-if="customers.length > 0" class="data-table">
         <thead><tr><th>ลูกค้า</th><th>ติดต่อ</th><th>สถานะ</th><th>Wallet</th><th>สมัครเมื่อ</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="customer in customers" :key="customer.id" @click="viewCustomer(customer)" :class="{ 'suspended-row': customer.status === 'suspended' }">
+          <tr v-for="customer in customers" :key="customer.id" :class="{ 'suspended-row': customer.status === 'suspended' }" @click="viewCustomer(customer)">
             <td>
               <div class="customer-cell">
                 <div class="avatar" :class="{ suspended: customer.status === 'suspended' }">
@@ -201,13 +201,13 @@ onMounted(() => {
             <td class="wallet">{{ formatCurrency(customer.wallet_balance) }}</td>
             <td class="date">{{ formatDate(customer.created_at) }}</td>
             <td class="actions-cell">
-              <button class="action-btn" @click.stop="viewCustomer(customer)" aria-label="ดูรายละเอียด">
+              <button class="action-btn" aria-label="ดูรายละเอียด" @click.stop="viewCustomer(customer)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
-              <button v-if="customer.status !== 'suspended'" class="action-btn suspend-btn" @click.stop="openSuspendModal(customer)" aria-label="ระงับการใช้งาน" title="ระงับการใช้งาน">
+              <button v-if="customer.status !== 'suspended'" class="action-btn suspend-btn" aria-label="ระงับการใช้งาน" title="ระงับการใช้งาน" @click.stop="openSuspendModal(customer)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>
               </button>
-              <button v-else class="action-btn unsuspend-btn" @click.stop="unsuspendCustomer(customer)" aria-label="ปลดระงับ" title="ปลดระงับ">
+              <button v-else class="action-btn unsuspend-btn" aria-label="ปลดระงับ" title="ปลดระงับ" @click.stop="unsuspendCustomer(customer)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </button>
             </td>
@@ -218,9 +218,9 @@ onMounted(() => {
     </div>
 
     <div v-if="totalPages > 1" class="pagination">
-      <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--" aria-label="หน้าก่อน"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <button class="page-btn" :disabled="currentPage === 1" aria-label="หน้าก่อน" @click="currentPage--"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
       <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-      <button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++" aria-label="หน้าถัดไป"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="page-btn" :disabled="currentPage === totalPages" aria-label="หน้าถัดไป" @click="currentPage++"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
     </div>
 
     <!-- Detail Modal -->
@@ -228,7 +228,7 @@ onMounted(() => {
       <div class="modal">
         <div class="modal-header">
           <h2>รายละเอียดลูกค้า</h2>
-          <button class="close-btn" @click="showDetailModal = false" aria-label="ปิด"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+          <button class="close-btn" aria-label="ปิด" @click="showDetailModal = false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
         </div>
         <div class="modal-body">
           <div class="customer-header">
@@ -247,7 +247,7 @@ onMounted(() => {
             <div class="alert-content">
               <div class="alert-title">บัญชีถูกระงับ</div>
               <div class="alert-reason">{{ selectedCustomer.suspension_reason }}</div>
-              <div class="alert-date" v-if="selectedCustomer.suspended_at">ระงับเมื่อ: {{ formatDate(selectedCustomer.suspended_at) }}</div>
+              <div v-if="selectedCustomer.suspended_at" class="alert-date">ระงับเมื่อ: {{ formatDate(selectedCustomer.suspended_at) }}</div>
             </div>
           </div>
           
@@ -282,7 +282,7 @@ onMounted(() => {
       <div class="modal suspend-modal">
         <div class="modal-header danger">
           <h2>🚫 ระงับการใช้งาน</h2>
-          <button class="close-btn" @click="showSuspendModal = false" aria-label="ปิด"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+          <button class="close-btn" aria-label="ปิด" @click="showSuspendModal = false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
         </div>
         <div class="modal-body">
           <div class="suspend-target">
@@ -304,8 +304,8 @@ onMounted(() => {
           </div>
           
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="showSuspendModal = false" :disabled="isSuspending">ยกเลิก</button>
-            <button class="btn btn-danger" @click="confirmSuspend" :disabled="!suspendReason.trim() || isSuspending">
+            <button class="btn btn-secondary" :disabled="isSuspending" @click="showSuspendModal = false">ยกเลิก</button>
+            <button class="btn btn-danger" :disabled="!suspendReason.trim() || isSuspending" @click="confirmSuspend">
               {{ isSuspending ? 'กำลังดำเนินการ...' : 'ยืนยันระงับ' }}
             </button>
           </div>

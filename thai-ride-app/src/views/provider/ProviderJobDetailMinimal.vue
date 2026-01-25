@@ -159,7 +159,7 @@ onUnmounted(() => {
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <p>{{ error }}</p>
-      <button @click="router.push('/provider/my-jobs')" class="btn-secondary">
+      <button class="btn-secondary" @click="router.push('/provider/my-jobs')">
         กลับหน้าหลัก
       </button>
     </div>
@@ -168,7 +168,7 @@ onUnmounted(() => {
     <template v-else-if="job">
       <!-- Header -->
       <div class="page-header">
-        <button @click="router.push('/provider/my-jobs')" class="btn-back" aria-label="กลับ">
+        <button class="btn-back" aria-label="กลับ" @click="router.push('/provider/my-jobs')">
           <!-- Back Arrow SVG -->
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -244,13 +244,13 @@ onUnmounted(() => {
             <h3>{{ job.customer?.name || 'ลูกค้า' }}</h3>
             <p v-if="job.customer?.phone">{{ job.customer.phone }}</p>
           </div>
-          <button v-if="job.customer?.phone" @click="callCustomer" class="btn-call" aria-label="โทรหาลูกค้า">
+          <button v-if="job.customer?.phone" class="btn-call" aria-label="โทรหาลูกค้า" @click="callCustomer">
             <!-- Phone SVG Icon -->
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
             </svg>
           </button>
-          <button @click="openChat" class="btn-chat" aria-label="แชทกับลูกค้า">
+          <button class="btn-chat" aria-label="แชทกับลูกค้า" @click="openChat">
             <!-- Chat SVG Icon -->
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -307,7 +307,7 @@ onUnmounted(() => {
 
       <!-- Action Buttons -->
       <div v-if="!isJobCompleted && !isJobCancelled" class="action-section">
-        <button @click="openNavigation" class="btn-navigate">
+        <button class="btn-navigate" @click="openNavigation">
           <!-- Navigation SVG Icon -->
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -317,10 +317,10 @@ onUnmounted(() => {
 
         <button 
           v-if="canUpdate"
-          @click="handleUpdateStatus"
           :disabled="updating"
           class="btn-primary"
           :class="{ completing: nextStatus?.key === 'completed' }"
+          @click="handleUpdateStatus"
         >
           <span v-if="updating" class="spinner-small"></span>
           <span v-else>{{ nextStatus?.action }}</span>
@@ -328,8 +328,8 @@ onUnmounted(() => {
 
         <button 
           v-if="currentStatusIndex < 3"
-          @click="showCancelModal = true"
           class="btn-cancel"
+          @click="showCancelModal = true"
         >
           ยกเลิกงาน
         </button>
@@ -344,7 +344,7 @@ onUnmounted(() => {
         </svg>
         <h2>งานเสร็จสิ้น!</h2>
         <div class="completed-fare">฿{{ job.fare.toLocaleString() }}</div>
-        <button @click="router.push('/provider/my-jobs')" class="btn-primary">
+        <button class="btn-primary" @click="router.push('/provider/my-jobs')">
           กลับหน้าหลัก
         </button>
       </div>
@@ -366,10 +366,10 @@ onUnmounted(() => {
           ></textarea>
 
           <div class="modal-actions">
-            <button @click="showCancelModal = false" class="btn-secondary">
+            <button class="btn-secondary" @click="showCancelModal = false">
               ไม่ยกเลิก
             </button>
-            <button @click="handleCancelJob" :disabled="updating" class="btn-danger">
+            <button :disabled="updating" class="btn-danger" @click="handleCancelJob">
               <span v-if="updating" class="spinner-small"></span>
               <span v-else>ยืนยันยกเลิก</span>
             </button>

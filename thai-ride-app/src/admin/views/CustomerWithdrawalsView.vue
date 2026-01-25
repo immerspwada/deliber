@@ -386,9 +386,9 @@ const canProcess = (withdrawal: any, action: string) => {
             <div class="action-buttons">
               <button
                 v-if="canProcess(withdrawal, 'approve')"
-                @click="openProcessModal(withdrawal, 'approve')"
                 class="action-btn approve"
                 title="อนุมัติ"
+                @click="openProcessModal(withdrawal, 'approve')"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -401,9 +401,9 @@ const canProcess = (withdrawal: any, action: string) => {
               </button>
               <button
                 v-if="canProcess(withdrawal, 'reject')"
-                @click="openProcessModal(withdrawal, 'reject')"
                 class="action-btn reject"
                 title="ปฏิเสธ"
+                @click="openProcessModal(withdrawal, 'reject')"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -416,9 +416,9 @@ const canProcess = (withdrawal: any, action: string) => {
               </button>
               <button
                 v-if="canProcess(withdrawal, 'complete')"
-                @click="openProcessModal(withdrawal, 'complete')"
                 class="action-btn complete"
                 title="เสร็จสิ้น"
+                @click="openProcessModal(withdrawal, 'complete')"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -446,7 +446,7 @@ const canProcess = (withdrawal: any, action: string) => {
           <div class="modal">
             <div class="modal-header">
               <h2>{{ getActionLabel(processAction) }}การถอนเงิน</h2>
-              <button @click="showProcessModal = false" class="modal-close">
+              <button class="modal-close" @click="showProcessModal = false">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
@@ -498,13 +498,13 @@ const canProcess = (withdrawal: any, action: string) => {
               </div>
 
               <div class="modal-actions">
-                <button @click="showProcessModal = false" class="btn-cancel">
+                <button class="btn-cancel" @click="showProcessModal = false">
                   ยกเลิก
                 </button>
                 <button
-                  @click="handleProcess"
                   :disabled="processLoading"
                   :class="['btn-primary', processAction]"
+                  @click="handleProcess"
                 >
                   {{ processLoading ? 'กำลังดำเนินการ...' : getActionLabel(processAction) }}
                 </button>

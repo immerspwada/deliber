@@ -42,8 +42,8 @@ const selectColor = (color: string) => {
       </div>
       
       <div v-if="showInput" class="color-custom">
-        <input type="color" v-model="inputValue" class="native-picker" />
-        <input type="text" v-model="inputValue" class="hex-input" placeholder="#000000" maxlength="7" />
+        <input v-model="inputValue" type="color" class="native-picker" />
+        <input v-model="inputValue" type="text" class="hex-input" placeholder="#000000" maxlength="7" />
       </div>
     </div>
   </div>

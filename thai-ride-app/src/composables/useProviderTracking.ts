@@ -30,7 +30,7 @@ export function useProviderTracking(rideId: string) {
 
     try {
       // Query provider_location_history for the most recent location
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: dbError } = await (supabase as any)
         .from('provider_location_history')
         .select('provider_id, latitude, longitude, heading, speed, accuracy, recorded_at')
@@ -199,7 +199,7 @@ export function useLocationUpdater() {
     error.value = null
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error: dbError } = await (supabase as any).rpc('upsert_provider_location', {
         p_provider_id: providerId.value,
         p_ride_id: rideId,

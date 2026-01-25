@@ -59,7 +59,7 @@ const selectedBank = () => banks.find(b => b.code === form.value.bankCode)
         <input v-model="form.accountName" type="text" class="form-input" placeholder="ชื่อ-นามสกุล ตามบัญชี" />
       </div>
       <label class="default-toggle">
-        <input type="checkbox" v-model="form.isDefault" />
+        <input v-model="form.isDefault" type="checkbox" />
         <span>ตั้งเป็นบัญชีหลัก</span>
       </label>
     </div>

@@ -601,9 +601,7 @@ const rideTypes = [
             </div>
             <div class="ride-type-info">
               <span class="ride-type-name">{{ type.name }}</span>
-              <span class="ride-type-price"
-                >฿{{ Math.round(estimatedFare * type.multiplier) }}</span
-              >
+              <span class="ride-type-price">฿{{ Math.round(estimatedFare * type.multiplier) }}</span>
             </div>
             <div v-if="selectedRideType === type.id" class="check-icon">
               <svg
@@ -622,10 +620,8 @@ const rideTypes = [
 
         <!-- Request Button -->
         <button class="request-btn" :disabled="isLoading" @click="requestRide">
-          <span v-if="!isLoading"
-            >เรียก
-            {{ rideTypes.find((t) => t.id === selectedRideType)?.name }}</span
-          >
+          <span v-if="!isLoading">เรียก
+            {{ rideTypes.find((t) => t.id === selectedRideType)?.name }}</span>
           <span v-else class="loading-text">
             <span class="spinner"></span>
             กำลังค้นหา...

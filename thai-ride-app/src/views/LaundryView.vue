@@ -232,7 +232,7 @@ const formatPrice = (price: number) => {
         </svg>
       </button>
       <h1>บริการซักผ้า</h1>
-      <button class="home-btn" @click="goHome" title="กลับหน้าหลัก">
+      <button class="home-btn" title="กลับหน้าหลัก" @click="goHome">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -359,11 +359,11 @@ const formatPrice = (price: number) => {
         <div class="datetime-row">
           <div class="datetime-field">
             <label>วันที่</label>
-            <input type="date" v-model="pickupDate" :min="today" />
+            <input v-model="pickupDate" type="date" :min="today" />
           </div>
           <div class="datetime-field">
             <label>เวลา</label>
-            <input type="time" v-model="pickupTime" />
+            <input v-model="pickupTime" type="time" />
           </div>
         </div>
       </section>
@@ -413,8 +413,8 @@ const formatPrice = (price: number) => {
     <div class="footer">
       <button
         class="submit-btn"
-        @click="confirmSubmit"
         :disabled="!isFormValid || loading"
+        @click="confirmSubmit"
       >
         <span v-if="loading">กำลังส่งคำขอ...</span>
         <span v-else>นัดรับผ้า</span>
@@ -492,8 +492,8 @@ const formatPrice = (price: number) => {
           <button class="btn-cancel" @click="cancelConfirmation">ยกเลิก</button>
           <button
             class="btn-confirm"
-            @click="submitRequest"
             :disabled="loading"
+            @click="submitRequest"
           >
             {{ loading ? "กำลังส่ง..." : "ยืนยัน" }}
           </button>

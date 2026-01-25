@@ -213,10 +213,10 @@ function handleNavigate(): void {
       <button
         type="button"
         class="btn btn-navigate"
-        @click="handleNavigate"
         :disabled="loading || !job.pickup_location"
         aria-label="นำทางไปจุดรับ"
         title="เปิดแผนที่นำทาง"
+        @click="handleNavigate"
       >
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 11l19-9-9 19-2-8-8-2z"/>
@@ -227,9 +227,9 @@ function handleNavigate(): void {
       <button
         type="button"
         class="btn btn-secondary"
-        @click="handleView"
         :disabled="loading"
         aria-label="ดูรายละเอียดงาน"
+        @click="handleView"
       >
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -241,10 +241,10 @@ function handleNavigate(): void {
       <button
         type="button"
         class="btn btn-primary"
-        @click="handleAccept"
         :disabled="loading"
         :aria-busy="loading"
         aria-label="รับงาน"
+        @click="handleAccept"
       >
         <svg v-if="loading" class="btn-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 12a9 9 0 11-6.219-8.56"/>

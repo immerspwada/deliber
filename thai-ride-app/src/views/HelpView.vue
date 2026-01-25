@@ -98,7 +98,7 @@ const goBack = () => router.back()
     <div class="content-container">
       <!-- Header -->
       <div class="page-header">
-        <button @click="goBack" class="back-btn">
+        <button class="back-btn" @click="goBack">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
@@ -113,8 +113,8 @@ const goBack = () => router.back()
           <button 
             v-for="opt in supportOptions" 
             :key="opt.label"
-            @click="handleSupport(opt.action)"
             class="support-card"
+            @click="handleSupport(opt.action)"
           >
             <div class="support-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@ const goBack = () => router.back()
             :key="index"
             class="faq-item"
           >
-            <button @click="toggleFaq(index)" class="faq-question">
+            <button class="faq-question" @click="toggleFaq(index)">
               <span>{{ faq.question }}</span>
               <svg 
                 :class="['faq-arrow', { expanded: expandedFaq === index }]"

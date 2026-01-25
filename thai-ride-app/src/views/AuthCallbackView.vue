@@ -103,7 +103,7 @@ const goToLogin = () => router.push('/login')
         </div>
         <p class="status-text error">เกิดข้อผิดพลาด</p>
         <p class="status-hint">{{ errorMessage }}</p>
-        <button @click="goToLogin" class="btn-primary">กลับไปหน้าเข้าสู่ระบบ</button>
+        <button class="btn-primary" @click="goToLogin">กลับไปหน้าเข้าสู่ระบบ</button>
       </div>
     </div>
   </div>

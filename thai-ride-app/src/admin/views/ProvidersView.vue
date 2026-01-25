@@ -55,7 +55,7 @@ async function handleApprove(provider: Provider) {
   try {
     await approveProvider(provider.id, 'อนุมัติโดยแอดมิน')
     toast.success('อนุมัติสำเร็จ')
-    await loadData()
+    await loadProviders()
   } catch (e) {
     toast.error('ไม่สามารถอนุมัติได้')
   }
@@ -68,7 +68,7 @@ async function handleReject(provider: Provider) {
   try {
     await rejectProvider(provider.id, reason)
     toast.success('ปฏิเสธสำเร็จ')
-    await loadData()
+    await loadProviders()
   } catch (e) {
     toast.error('ไม่สามารถปฏิเสธได้')
   }
@@ -81,7 +81,7 @@ async function handleSuspend(provider: Provider) {
   try {
     await suspendProvider(provider.id, reason)
     toast.success('ระงับสำเร็จ')
-    await loadData()
+    await loadProviders()
   } catch (e) {
     toast.error('ไม่สามารถระงับได้')
   }
@@ -110,12 +110,12 @@ async function handleRestore(provider: Provider) {
       ? 'คืนสถานะจากการระงับโดยแอดมิน' 
       : 'คืนสถานะจากการปฏิเสธโดยแอดมิน'
     
-    console.log('🔄 [handleRestore] Calling approveProviderAction')
-    await approveProviderAction(provider.id, restoreNote)
+    console.log('🔄 [handleRestore] Calling approveProvider')
+    await approveProvider(provider.id, restoreNote)
     console.log('✅ [handleRestore] Success!')
     
     toast.success(`คืนสถานะ ${provider.first_name} ${provider.last_name} เรียบร้อยแล้ว`)
-    await loadData()
+    await loadProviders()
   } catch (e) {
     console.error('❌ [handleRestore] Error:', e)
     handleError(e, 'handleRestore')
@@ -125,7 +125,7 @@ async function handleRestore(provider: Provider) {
     console.log('🔄 [handleRestore] Done')
   }
 }
-async function loadData() {
+async function loadProviders() {
   await fetchProviders({
     limit: pageSize.value,
     offset: (currentPage.value - 1) * pageSize.value
@@ -138,10 +138,10 @@ onMounted(() => {
     { label: 'Admin', path: '/admin' },
     { label: 'Providers' }
   ])
-  loadData()
+  loadProviders()
 })
 
-watch([currentPage, statusFilter], loadData)
+watch([currentPage, statusFilter], loadProviders)
 </script>
 
 <template>
@@ -152,7 +152,7 @@ watch([currentPage, statusFilter], loadData)
         <h1 class="title">Providers</h1>
         <p class="subtitle">{{ totalCount }} providers</p>
       </div>
-      <button @click="loadData" class="btn-icon" :disabled="loading">
+      <button class="btn-icon" :disabled="loading" @click="loadProviders">
         <svg class="icon" :class="{ spin: loading }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
@@ -212,33 +212,33 @@ watch([currentPage, statusFilter], loadData)
               <div class="actions">
                 <button 
                   v-if="p.status === 'pending'" 
-                  @click.stop="handleApprove(p)"
                   class="btn btn-approve"
                   title="Approve"
+                  @click.stop="handleApprove(p)"
                 >
                   ✓
                 </button>
                 <button 
                   v-if="p.status === 'pending'" 
-                  @click.stop="handleReject(p)"
                   class="btn btn-reject"
                   title="Reject"
+                  @click.stop="handleReject(p)"
                 >
                   ✕
                 </button>
                 <button 
                   v-if="p.status === 'approved'" 
-                  @click.stop="handleSuspend(p)"
                   class="btn btn-suspend"
                   title="Suspend"
+                  @click.stop="handleSuspend(p)"
                 >
                   ⏸
                 </button>
                 <button 
                   v-if="p.status === 'suspended' || p.status === 'rejected'" 
-                  @click.stop="handleRestore(p)"
                   class="btn btn-restore"
                   title="คืนสถานะ (Restore)"
+                  @click.stop="handleRestore(p)"
                 >
                   ↻
                 </button>
@@ -256,17 +256,17 @@ watch([currentPage, statusFilter], loadData)
     <!-- Pagination -->
     <div v-if="totalPages > 1" class="pagination">
       <button 
-        @click="currentPage--" 
-        :disabled="currentPage === 1"
+        :disabled="currentPage === 1" 
         class="btn-page"
+        @click="currentPage--"
       >
         ←
       </button>
       <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
       <button 
-        @click="currentPage++" 
-        :disabled="currentPage === totalPages"
+        :disabled="currentPage === totalPages" 
         class="btn-page"
+        @click="currentPage++"
       >
         →
       </button>

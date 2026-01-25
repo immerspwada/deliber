@@ -605,7 +605,7 @@ const clearError = () => {
         </svg>
       </button>
       <span class="page-title">ซื้อของ</span>
-      <button class="nav-btn home-btn" @click="goHome" title="กลับหน้าหลัก">
+      <button class="nav-btn home-btn" title="กลับหน้าหลัก" @click="goHome">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -757,12 +757,12 @@ const clearError = () => {
                 'is-loading': isGettingLocation,
                 'is-pressed': pressedButton === 'current-loc',
               }"
+              :disabled="isGettingLocation"
               @mousedown="handleButtonPress('current-loc')"
               @mouseup="handleButtonRelease"
               @touchstart="handleButtonPress('current-loc')"
               @touchend="handleButtonRelease"
               @click="useCurrentLocationForStore"
-              :disabled="isGettingLocation"
             >
               <div class="action-card-icon">
                 <template v-if="isGettingLocation">
@@ -1003,9 +1003,7 @@ const clearError = () => {
               <div class="route-dot destination empty"></div>
               <div class="route-preview-text">
                 <span class="route-preview-label">จุดส่ง</span>
-                <span class="route-preview-placeholder"
-                  >เลือกที่อยู่จัดส่งด้านล่าง</span
-                >
+                <span class="route-preview-placeholder">เลือกที่อยู่จัดส่งด้านล่าง</span>
               </div>
             </div>
           </div>
@@ -1235,9 +1233,7 @@ const clearError = () => {
           <div class="form-card">
             <div class="label-row">
               <label class="input-label">รายการที่ต้องการ</label>
-              <span v-if="itemCount > 0" class="item-badge"
-                >{{ itemCount }} รายการ</span
-              >
+              <span v-if="itemCount > 0" class="item-badge">{{ itemCount }} รายการ</span>
             </div>
             <textarea
               v-model="itemList"
@@ -1270,9 +1266,7 @@ const clearError = () => {
           <div class="form-card">
             <div class="label-row">
               <label class="input-label">รูปภาพอ้างอิง (ไม่บังคับ)</label>
-              <span class="image-count"
-                >{{ images.length }}/{{ MAX_IMAGES }}</span
-              >
+              <span class="image-count">{{ images.length }}/{{ MAX_IMAGES }}</span>
             </div>
 
             <div class="images-grid">
@@ -1482,9 +1476,7 @@ const clearError = () => {
             <div class="price-divider"></div>
             <div class="price-row total">
               <span>ค่าบริการ</span>
-              <span class="total-price"
-                >฿{{ serviceFee.toLocaleString() }}</span
-              >
+              <span class="total-price">฿{{ serviceFee.toLocaleString() }}</span>
             </div>
             <p class="price-note">* ไม่รวมราคาสินค้า จ่ายเพิ่มตามจริง</p>
           </div>
@@ -1561,15 +1553,11 @@ const clearError = () => {
               <div class="favorite-info" @click="applyFavorite(fav)">
                 <div class="favorite-name">{{ fav.name }}</div>
                 <div class="favorite-meta">
-                  <span
-                    >{{
-                      fav.items.split("\n").filter((l) => l.trim()).length
-                    }}
-                    รายการ</span
-                  >
-                  <span v-if="fav.estimated_budget"
-                    >฿{{ fav.estimated_budget.toLocaleString() }}</span
-                  >
+                  <span>{{
+                    fav.items.split("\n").filter((l) => l.trim()).length
+                  }}
+                    รายการ</span>
+                  <span v-if="fav.estimated_budget">฿{{ fav.estimated_budget.toLocaleString() }}</span>
                 </div>
                 <div v-if="fav.use_count > 0" class="favorite-usage">
                   ใช้แล้ว {{ fav.use_count }} ครั้ง

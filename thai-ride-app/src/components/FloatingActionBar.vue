@@ -4,9 +4,9 @@
       <button
         v-for="item in items"
         :key="item.id"
-        @click="handleClick(item.id)"
         :class="['nav-item', { 'nav-item-active': activeId === item.id }]"
         :aria-label="item.label"
+        @click="handleClick(item.id)"
       >
         <div class="nav-icon-wrapper">
           <component :is="item.icon" class="nav-icon" />

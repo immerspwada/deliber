@@ -102,7 +102,7 @@ onMounted(() => {
       <!-- Header -->
       <div class="modal-header">
         <h2>ความปลอดภัย</h2>
-        <button @click="emit('close')" class="close-btn">
+        <button class="close-btn" @click="emit('close')">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -112,20 +112,20 @@ onMounted(() => {
       <!-- Tabs -->
       <div class="tabs">
         <button 
-          @click="activeTab = 'share'" 
-          :class="['tab', { active: activeTab === 'share' }]"
+          :class="['tab', { active: activeTab === 'share' }]" 
+          @click="activeTab = 'share'"
         >
           แชร์การเดินทาง
         </button>
         <button 
-          @click="activeTab = 'sos'" 
-          :class="['tab', { active: activeTab === 'sos' }]"
+          :class="['tab', { active: activeTab === 'sos' }]" 
+          @click="activeTab = 'sos'"
         >
           SOS
         </button>
         <button 
-          @click="activeTab = 'contacts'" 
-          :class="['tab', { active: activeTab === 'contacts' }]"
+          :class="['tab', { active: activeTab === 'contacts' }]" 
+          @click="activeTab = 'contacts'"
         >
           ผู้ติดต่อ
         </button>
@@ -146,7 +146,7 @@ onMounted(() => {
             <input v-model="shareEmail" type="email" placeholder="email@example.com" />
           </div>
           
-          <button @click="handleShare" class="btn-primary">
+          <button class="btn-primary" @click="handleShare">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
             </svg>
@@ -164,20 +164,20 @@ onMounted(() => {
           <p>ลิงก์ติดตามการเดินทาง:</p>
           <div class="link-box">
             <span>{{ shareLink }}</span>
-            <button @click="copyLink" class="copy-btn">
+            <button class="copy-btn" @click="copyLink">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
               </svg>
             </button>
           </div>
-          <button @click="showShareSuccess = false" class="btn-secondary">แชร์อีกครั้ง</button>
+          <button class="btn-secondary" @click="showShareSuccess = false">แชร์อีกครั้ง</button>
         </div>
       </div>
 
       <!-- SOS Tab -->
       <div v-if="activeTab === 'sos'" class="tab-content">
         <div class="sos-section">
-          <button @click="handleSOS" class="sos-btn">
+          <button class="sos-btn" @click="handleSOS">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
@@ -189,19 +189,19 @@ onMounted(() => {
         <div class="emergency-numbers">
           <h4>เบอร์ฉุกเฉิน</h4>
           <div class="number-grid">
-            <button @click="callEmergency('police')" class="number-btn">
+            <button class="number-btn" @click="callEmergency('police')">
               <span class="number">191</span>
               <span class="label">ตำรวจ</span>
             </button>
-            <button @click="callEmergency('ambulance')" class="number-btn">
+            <button class="number-btn" @click="callEmergency('ambulance')">
               <span class="number">1669</span>
               <span class="label">รถพยาบาล</span>
             </button>
-            <button @click="callEmergency('fire')" class="number-btn">
+            <button class="number-btn" @click="callEmergency('fire')">
               <span class="number">199</span>
               <span class="label">ดับเพลิง</span>
             </button>
-            <button @click="callEmergency('tourist')" class="number-btn">
+            <button class="number-btn" @click="callEmergency('tourist')">
               <span class="number">1155</span>
               <span class="label">ท่องเที่ยว</span>
             </button>
@@ -215,7 +215,7 @@ onMounted(() => {
         <div v-if="showAddContact" class="add-contact-form">
           <div class="form-header">
             <h4>เพิ่มผู้ติดต่อฉุกเฉิน</h4>
-            <button @click="showAddContact = false" class="close-form-btn">
+            <button class="close-form-btn" @click="showAddContact = false">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -238,8 +238,8 @@ onMounted(() => {
               <button 
                 v-for="rel in relationshipOptions" 
                 :key="rel"
-                @click="newContact.relationship = rel"
                 :class="['rel-btn', { active: newContact.relationship === rel }]"
+                @click="newContact.relationship = rel"
               >
                 {{ rel }}
               </button>
@@ -252,9 +252,9 @@ onMounted(() => {
           </label>
           
           <button 
-            @click="handleAddContact" 
-            :disabled="!newContact.name || !newContact.phone || savingContact"
+            :disabled="!newContact.name || !newContact.phone || savingContact" 
             class="btn-primary"
+            @click="handleAddContact"
           >
             {{ savingContact ? 'กำลังบันทึก...' : 'บันทึก' }}
           </button>
@@ -266,7 +266,7 @@ onMounted(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
           </svg>
           <p>ยังไม่มีผู้ติดต่อฉุกเฉิน</p>
-          <button @click="showAddContact = true" class="btn-secondary">เพิ่มผู้ติดต่อ</button>
+          <button class="btn-secondary" @click="showAddContact = true">เพิ่มผู้ติดต่อ</button>
         </div>
 
         <!-- Contacts List -->
@@ -285,7 +285,7 @@ onMounted(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
                   </svg>
                 </a>
-                <button @click="handleDeleteContact(contact.id)" class="delete-btn">
+                <button class="delete-btn" @click="handleDeleteContact(contact.id)">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                   </svg>
@@ -293,7 +293,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <button @click="showAddContact = true" class="btn-add-more">
+          <button class="btn-add-more" @click="showAddContact = true">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
             </svg>

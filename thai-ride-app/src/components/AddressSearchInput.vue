@@ -162,15 +162,15 @@ defineExpose({ focus })
       <input
         ref="inputRef"
         :value="modelValue"
-        @input="onInput"
-        @focus="onFocus"
-        @blur="onBlur"
         :placeholder="placeholder"
         :readonly="readonly"
         type="text"
         autocomplete="off"
         class="search-input"
         :class="{ 'has-icon': icon !== 'none' }"
+        @input="onInput"
+        @focus="onFocus"
+        @blur="onBlur"
       />
       
       <!-- Loading spinner -->
@@ -189,8 +189,8 @@ defineExpose({ focus })
       <button
         v-for="(item, index) in suggestions"
         :key="index"
-        @mousedown.prevent="selectItem(item)"
         class="dropdown-item"
+        @mousedown.prevent="selectItem(item)"
       >
         <div class="item-icon">
           <!-- Home -->

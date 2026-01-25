@@ -92,8 +92,8 @@ const downloadQR = () => {
         <template v-for="(row, i) in qrPattern" :key="i">
           <rect
             v-for="(cell, j) in (row || [])"
-            :key="j"
             v-show="cell"
+            :key="j"
             :x="j + 2"
             :y="i + 2"
             width="1"

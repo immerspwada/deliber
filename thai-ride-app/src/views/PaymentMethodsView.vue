@@ -168,7 +168,7 @@ onMounted(() => {
     <div class="content-container">
       <!-- Header with back button -->
       <div class="page-header">
-        <button @click="goBack" class="back-btn">
+        <button class="back-btn" @click="goBack">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
@@ -196,7 +196,7 @@ onMounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
         </svg>
         <p>{{ error }}</p>
-        <button @click="fetchPaymentMethods" class="retry-btn">ลองใหม่</button>
+        <button class="retry-btn" @click="fetchPaymentMethods">ลองใหม่</button>
       </div>
 
       <template v-else>
@@ -226,12 +226,12 @@ onMounted(() => {
               <span class="method-detail">{{ method.detail }}</span>
             </div>
             <div class="method-actions">
-              <button v-if="!method.is_default" @click="setDefault(method.id)" class="action-btn" title="ตั้งเป็นค่าเริ่มต้น">
+              <button v-if="!method.is_default" class="action-btn" title="ตั้งเป็นค่าเริ่มต้น" @click="setDefault(method.id)">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
               </button>
-              <button v-if="method.type !== 'cash'" @click="removeMethod(method.id)" class="action-btn delete" title="ลบ">
+              <button v-if="method.type !== 'cash'" class="action-btn delete" title="ลบ" @click="removeMethod(method.id)">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
@@ -249,7 +249,7 @@ onMounted(() => {
         </div>
 
         <!-- Add New Method -->
-        <button @click="showAddModal = true" class="add-method-btn">
+        <button class="add-method-btn" @click="showAddModal = true">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
           </svg>
@@ -294,7 +294,7 @@ onMounted(() => {
       <div class="modal">
         <div class="modal-header">
           <h2>เพิ่มวิธีการชำระเงิน</h2>
-          <button @click="showAddModal = false" class="close-btn">
+          <button class="close-btn" @click="showAddModal = false">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -303,8 +303,8 @@ onMounted(() => {
         <div class="modal-body">
           <div class="method-options">
             <button
-              @click="newMethodType = 'promptpay'"
               :class="['option-btn', { active: newMethodType === 'promptpay' }]"
+              @click="newMethodType = 'promptpay'"
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
@@ -312,8 +312,8 @@ onMounted(() => {
               <span>พร้อมเพย์</span>
             </button>
             <button
-              @click="newMethodType = 'card'"
               :class="['option-btn', { active: newMethodType === 'card' }]"
+              @click="newMethodType = 'card'"
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
@@ -367,8 +367,8 @@ onMounted(() => {
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="showAddModal = false; resetForm()" class="btn-secondary">ยกเลิก</button>
-          <button @click="addMethod" class="btn-primary" :disabled="isSubmitting || !canSubmit">
+          <button class="btn-secondary" @click="showAddModal = false; resetForm()">ยกเลิก</button>
+          <button class="btn-primary" :disabled="isSubmitting || !canSubmit" @click="addMethod">
             <span v-if="isSubmitting">กำลังเพิ่ม...</span>
             <span v-else>เพิ่ม</span>
           </button>

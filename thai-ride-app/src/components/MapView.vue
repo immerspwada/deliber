@@ -422,7 +422,7 @@ onMounted(async () => {
       <div v-if="!isMapReady" class="map-skeleton">
         <div class="skeleton-pulse"></div>
         <div class="skeleton-grid">
-          <div class="skeleton-tile" v-for="i in 9" :key="i"></div>
+          <div v-for="i in 9" :key="i" class="skeleton-tile"></div>
         </div>
         <div class="skeleton-center">
           <div class="skeleton-spinner"></div>

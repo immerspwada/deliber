@@ -110,7 +110,7 @@ onMounted(() => {
         <h1 class="page-title">การชำระเงิน</h1>
         <span class="total-count">{{ totalPayments.toLocaleString() }} รายการ</span>
       </div>
-      <button class="refresh-btn" @click="loadPayments" :disabled="isLoading">
+      <button class="refresh-btn" :disabled="isLoading" @click="loadPayments">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
       </button>
     </div>
@@ -133,7 +133,7 @@ onMounted(() => {
     </div>
 
     <div class="table-container">
-      <div v-if="isLoading" class="loading-state"><div class="skeleton" v-for="i in 10" :key="i" /></div>
+      <div v-if="isLoading" class="loading-state"><div v-for="i in 10" :key="i" class="skeleton" /></div>
       <table v-else-if="payments.length > 0" class="data-table">
         <thead><tr><th>Tracking ID</th><th>ลูกค้า</th><th>จำนวนเงิน</th><th>ช่องทาง</th><th>สถานะ</th><th>วันที่</th></tr></thead>
         <tbody>

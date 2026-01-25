@@ -4,8 +4,8 @@
       v-if="showReset"
       type="button"
       class="btn btn-ghost"
-      @click="$emit('reset')"
       :disabled="loading || !hasChanges"
+      @click="$emit('reset')"
     >
       รีเซ็ต
     </button>
@@ -15,8 +15,8 @@
         v-if="showCancel"
         type="button"
         class="btn btn-secondary"
-        @click="$emit('cancel')"
         :disabled="loading"
+        @click="$emit('cancel')"
       >
         ยกเลิก
       </button>

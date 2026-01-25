@@ -24,7 +24,7 @@ describe('Property Tests: Admin Full Access (Properties 22-26)', () => {
   let supabase: SupabaseClient
   let testUserId: string | null = null
   let testProviderId: string | null = null
-  let createdRequestIds: { table: string; id: string }[] = []
+  const createdRequestIds: { table: string; id: string }[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

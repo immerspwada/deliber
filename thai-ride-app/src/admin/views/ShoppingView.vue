@@ -137,8 +137,8 @@ onUnmounted(() => {
         }}</span>
         <button
           class="refresh-btn"
-          @click="loadData"
           :disabled="api.isLoading.value"
+          @click="loadData"
         >
           <svg
             width="18"
@@ -284,8 +284,8 @@ onUnmounted(() => {
           <tr
             v-for="item in items"
             :key="item.id"
-            @click="viewDetail(item)"
             class="clickable-row"
+            @click="viewDetail(item)"
           >
             <td>
               <code class="tracking-id">{{ item.tracking_id }}</code>
@@ -318,8 +318,8 @@ onUnmounted(() => {
             <td @click.stop>
               <button
                 class="action-btn"
-                @click="openStatusModal(item)"
                 title="เปลี่ยนสถานะ"
+                @click="openStatusModal(item)"
               >
                 <svg
                   width="16"

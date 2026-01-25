@@ -33,9 +33,9 @@
       </div>
 
       <button 
-        @click="() => handleApply()" 
-        class="apply-btn"
+        class="apply-btn" 
         :disabled="applying"
+        @click="() => handleApply()"
       >
         <span v-if="applying">กำลังใช้...</span>
         <span v-else>ใช้เลย</span>
@@ -45,8 +45,8 @@
     <!-- More Promos -->
     <button 
       v-if="rankedPromos.length > 1" 
-      @click="showAllPromos = true"
       class="more-promos-btn"
+      @click="showAllPromos = true"
     >
       ดูโปรโมชั่นอื่น ({{ rankedPromos.length - 1 }})
     </button>
@@ -57,7 +57,7 @@
         <div class="promo-modal" @click.stop>
           <div class="modal-header">
             <h2>โปรโมชั่นทั้งหมด</h2>
-            <button @click="showAllPromos = false" class="close-btn">✕</button>
+            <button class="close-btn" @click="showAllPromos = false">✕</button>
           </div>
 
           <div class="modal-body">
@@ -91,9 +91,9 @@
               </div>
 
               <button 
-                @click="() => handleApply(promo.code)" 
-                class="use-btn"
+                class="use-btn" 
                 :disabled="applying"
+                @click="() => handleApply(promo.code)"
               >
                 ใช้โค้ดนี้
               </button>

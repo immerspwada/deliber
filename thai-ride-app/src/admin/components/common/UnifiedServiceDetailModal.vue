@@ -214,13 +214,11 @@ function handleRefund() {
                 ] || order.payment_method
               }}</span>
             </div>
-            <div class="info-item" v-if="order.promo_discount">
+            <div v-if="order.promo_discount" class="info-item">
               <label>ส่วนลด</label>
-              <span class="discount"
-                >-{{ formatCurrency(order.promo_discount) }}</span
-              >
+              <span class="discount">-{{ formatCurrency(order.promo_discount) }}</span>
             </div>
-            <div class="info-item" v-if="order.tip_amount">
+            <div v-if="order.tip_amount" class="info-item">
               <label>ทิป</label>
               <span>{{ formatCurrency(order.tip_amount) }}</span>
             </div>
@@ -231,7 +229,7 @@ function handleRefund() {
         <div class="info-section">
           <h3>ไทม์ไลน์</h3>
           <div class="timeline">
-            <div class="timeline-item" v-if="order.created_at">
+            <div v-if="order.created_at" class="timeline-item">
               <div class="timeline-dot active"></div>
               <div class="timeline-content">
                 <span class="timeline-label">สร้างคำสั่ง</span>
@@ -240,7 +238,7 @@ function handleRefund() {
                 }}</span>
               </div>
             </div>
-            <div class="timeline-item" v-if="order.matched_at">
+            <div v-if="order.matched_at" class="timeline-item">
               <div class="timeline-dot active"></div>
               <div class="timeline-content">
                 <span class="timeline-label">จับคู่สำเร็จ</span>
@@ -249,7 +247,7 @@ function handleRefund() {
                 }}</span>
               </div>
             </div>
-            <div class="timeline-item" v-if="order.started_at">
+            <div v-if="order.started_at" class="timeline-item">
               <div class="timeline-dot active"></div>
               <div class="timeline-content">
                 <span class="timeline-label">เริ่มดำเนินการ</span>
@@ -258,7 +256,7 @@ function handleRefund() {
                 }}</span>
               </div>
             </div>
-            <div class="timeline-item" v-if="order.completed_at">
+            <div v-if="order.completed_at" class="timeline-item">
               <div class="timeline-dot completed"></div>
               <div class="timeline-content">
                 <span class="timeline-label">เสร็จสิ้น</span>
@@ -267,14 +265,14 @@ function handleRefund() {
                 }}</span>
               </div>
             </div>
-            <div class="timeline-item" v-if="order.cancelled_at">
+            <div v-if="order.cancelled_at" class="timeline-item">
               <div class="timeline-dot cancelled"></div>
               <div class="timeline-content">
                 <span class="timeline-label">ยกเลิก</span>
                 <span class="timeline-time">{{
                   formatDate(order.cancelled_at)
                 }}</span>
-                <span class="timeline-note" v-if="order.cancel_reason">{{
+                <span v-if="order.cancel_reason" class="timeline-note">{{
                   order.cancel_reason
                 }}</span>
               </div>
@@ -283,19 +281,19 @@ function handleRefund() {
         </div>
 
         <!-- Notes -->
-        <div class="info-section" v-if="order.customer_notes">
+        <div v-if="order.customer_notes" class="info-section">
           <h3>หมายเหตุ</h3>
           <p class="notes">{{ order.customer_notes }}</p>
         </div>
 
         <!-- Rating -->
         <div
-          class="info-section"
           v-if="order.customer_rating || order.provider_rating"
+          class="info-section"
         >
           <h3>คะแนน</h3>
           <div class="info-grid">
-            <div class="info-item" v-if="order.customer_rating">
+            <div v-if="order.customer_rating" class="info-item">
               <label>จากลูกค้า</label>
               <div class="rating">
                 <svg
@@ -313,7 +311,7 @@ function handleRefund() {
                 </svg>
               </div>
             </div>
-            <div class="info-item" v-if="order.provider_rating">
+            <div v-if="order.provider_rating" class="info-item">
               <label>จากผู้ให้บริการ</label>
               <div class="rating">
                 <svg
@@ -337,7 +335,7 @@ function handleRefund() {
 
       <!-- Footer Actions -->
       <div class="modal-footer">
-        <div class="status-actions" v-if="availableStatuses.length > 0">
+        <div v-if="availableStatuses.length > 0" class="status-actions">
           <span class="action-label">เปลี่ยนสถานะ:</span>
           <button
             v-for="status in availableStatuses"

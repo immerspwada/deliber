@@ -61,7 +61,7 @@ const subtotal = computed(() => breakdown.value.reduce((sum, item) => sum + item
           ส่วนลด
           <span v-if="promoCode" class="promo-badge">
             {{ promoCode }}
-            <button class="remove-promo" @click="emit('removePromo')" aria-label="ลบโค้ด">×</button>
+            <button class="remove-promo" aria-label="ลบโค้ด" @click="emit('removePromo')">×</button>
           </span>
         </span>
         <span class="item-amount">-฿{{ discount.toLocaleString() }}</span>

@@ -139,7 +139,7 @@ onUnmounted(() => {
   <div class="pickup-picker">
     <!-- Header -->
     <div class="picker-header">
-      <button class="back-btn" @click="emit('close')" type="button" aria-label="กลับ">
+      <button class="back-btn" type="button" aria-label="กลับ" @click="emit('close')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 18l-6-6 6-6" />
         </svg>
@@ -199,19 +199,19 @@ onUnmounted(() => {
           type="text"
           class="search-input"
           :value="searchQuery"
-          @input="onSearchInput"
           placeholder="ค้นหาสถานที่..."
           autocomplete="off"
           autocorrect="off"
           autocapitalize="off"
           spellcheck="false"
+          @input="onSearchInput"
         />
         <button 
           v-if="searchQuery" 
           class="clear-btn" 
-          @click="clearSearch"
           type="button"
           aria-label="ล้างการค้นหา"
+          @click="clearSearch"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />

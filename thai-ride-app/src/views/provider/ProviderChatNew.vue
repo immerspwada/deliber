@@ -120,7 +120,7 @@ async function loadChats() {
       // Fetch unread counts for each ride
       const unreadCounts = new Map<string, number>()
       for (const rideId of rideIds) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const { data: countData } = await (supabase.rpc as any)('get_unread_message_count', {
           p_ride_id: rideId,
           p_user_id: user.id

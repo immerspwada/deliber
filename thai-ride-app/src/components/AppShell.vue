@@ -107,7 +107,7 @@ const goToHome = () => {
   <div class="app-shell">
     <header v-if="showHeader" class="header">
       <div class="header-content">
-        <button v-if="canGoBack" @click="goBack" class="back-btn">
+        <button v-if="canGoBack" class="back-btn" @click="goBack">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
@@ -125,8 +125,8 @@ const goToHome = () => {
         <button
           v-if="hideBottomNav"
           class="header-home-btn"
-          @click="goToHome"
           aria-label="กลับหน้าหลัก"
+          @click="goToHome"
         >
           <svg
             viewBox="0 0 24 24"
@@ -161,8 +161,8 @@ const goToHome = () => {
           <button
             v-for="(item, index) in navigationItems"
             :key="item.path"
-            @click="navigateTo(item.path, index)"
             :class="['nav-item', { 'nav-item-active': isActive(item.path) }]"
+            @click="navigateTo(item.path, index)"
           >
             <div class="nav-icon-wrapper">
               <svg
@@ -235,7 +235,7 @@ const goToHome = () => {
                   d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                 />
               </svg>
-              <span class="active-dot" v-if="isActive(item.path)"></span>
+              <span v-if="isActive(item.path)" class="active-dot"></span>
             </div>
             <span class="nav-label">{{ item.name }}</span>
           </button>

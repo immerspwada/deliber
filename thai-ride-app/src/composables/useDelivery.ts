@@ -181,8 +181,8 @@ export function useDelivery() {
     quality = 0.8
   ): Promise<File> => {
     // Handle quality preset
-    let finalMaxWidth = typeof maxWidthOrPreset === 'number' ? maxWidthOrPreset : QUALITY_PRESETS[maxWidthOrPreset].maxWidth
-    let finalQuality = typeof maxWidthOrPreset === 'number' ? quality : QUALITY_PRESETS[maxWidthOrPreset].quality
+    const finalMaxWidth = typeof maxWidthOrPreset === 'number' ? maxWidthOrPreset : QUALITY_PRESETS[maxWidthOrPreset].maxWidth
+    const finalQuality = typeof maxWidthOrPreset === 'number' ? quality : QUALITY_PRESETS[maxWidthOrPreset].quality
     
     return new Promise((resolve) => {
       const reader = new FileReader()

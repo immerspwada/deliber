@@ -72,7 +72,7 @@ export const usePaymentStore = defineStore('payment', () => {
         status: 'pending'
       }
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: insertError } = await (supabase as any)
         .from('payments')
         .insert(paymentData)
@@ -101,7 +101,7 @@ export const usePaymentStore = defineStore('payment', () => {
     
     try {
       // Update status to processing
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await (supabase as any)
         .from('payments')
         .update({ status: 'processing' })
@@ -114,7 +114,7 @@ export const usePaymentStore = defineStore('payment', () => {
       const transactionRef = `TH${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`
       
       // Update to completed
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: updateError } = await (supabase as any)
         .from('payments')
         .update({ 
@@ -137,7 +137,7 @@ export const usePaymentStore = defineStore('payment', () => {
       error.value = err instanceof Error ? err.message : 'Unknown error'
       
       // Mark as failed
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await (supabase as any)
         .from('payments')
         .update({ status: 'failed' })
@@ -155,7 +155,7 @@ export const usePaymentStore = defineStore('payment', () => {
     error.value = null
     
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: updateError } = await (supabase as any)
         .from('payments')
         .update({ 

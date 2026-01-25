@@ -12,7 +12,7 @@
       <div v-if="isOpen" class="dialog-overlay" @click.self="handleCancel">
         <div class="dialog-content" :class="variant">
           <!-- Icon -->
-          <div class="dialog-icon" v-if="showIcon">
+          <div v-if="showIcon" class="dialog-icon">
             <svg v-if="variant === 'danger'" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
               <line x1="12" y1="9" x2="12" y2="13"/>
@@ -38,10 +38,10 @@
           <h3 class="dialog-title">{{ title }}</h3>
 
           <!-- Message -->
-          <p class="dialog-message" v-if="message">{{ message }}</p>
+          <p v-if="message" class="dialog-message">{{ message }}</p>
 
           <!-- Custom Content -->
-          <div class="dialog-body" v-if="$slots.default">
+          <div v-if="$slots.default" class="dialog-body">
             <slot></slot>
           </div>
 
@@ -50,16 +50,16 @@
             <button 
               v-if="showCancel"
               class="btn-cancel" 
-              @click="handleCancel"
               :disabled="loading"
+              @click="handleCancel"
             >
               {{ cancelText }}
             </button>
             <button 
               class="btn-confirm" 
               :class="variant"
-              @click="handleConfirm"
               :disabled="loading"
+              @click="handleConfirm"
             >
               <span v-if="loading" class="loading-spinner"></span>
               <span>{{ confirmText }}</span>

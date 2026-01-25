@@ -142,8 +142,8 @@ const successRate = computed(() => {
         <button
           v-if="hasActiveFilters"
           type="button"
-          @click="handleClearFilters"
           class="text-sm text-blue-600 hover:text-blue-700"
+          @click="handleClearFilters"
         >
           ล้างตัวกรอง
         </button>
@@ -195,9 +195,9 @@ const successRate = computed(() => {
 
       <button
         type="button"
-        @click="applyFilters"
         class="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
                focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        @click="applyFilters"
       >
         ค้นหา
       </button>

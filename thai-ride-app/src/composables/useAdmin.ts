@@ -543,7 +543,7 @@ export function useAdmin() {
   const updateUserStatus = async (userId: string, isActive: boolean) => {
     try {
       const status = isActive ? 'verified' : 'rejected'
-      // @ts-ignore - Supabase types not fully configured
+      // @ts-expect-error - Supabase types not fully configured
       await supabase.from('users').update({ 
         verification_status: status,
         is_active: isActive,
@@ -565,7 +565,7 @@ export function useAdmin() {
         updates.verified_at = new Date().toISOString()
       }
       
-      // @ts-ignore - Supabase types not fully configured
+      // @ts-expect-error - Supabase types not fully configured
       await supabase.from('users').update(updates).eq('id', userId)
       
       // Send notification to user
@@ -576,7 +576,7 @@ export function useAdmin() {
         ? 'บัญชีของคุณได้รับการยืนยันแล้ว สามารถใช้งานได้เต็มรูปแบบ'
         : reason || 'กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง'
       
-      // @ts-ignore
+      // @ts-expect-error
       await supabase.from('user_notifications').insert({
         user_id: userId,
         type: 'system',
@@ -595,7 +595,7 @@ export function useAdmin() {
   // Update provider verification status
   const updateProviderStatus = async (providerId: string, isVerified: boolean) => {
     try {
-      // @ts-ignore - Supabase types not fully configured
+      // @ts-expect-error - Supabase types not fully configured
       await supabase.from('service_providers').update({ is_verified: isVerified }).eq('id', providerId)
       return true
     } catch { return false }
@@ -623,7 +623,7 @@ export function useAdmin() {
     
     try {
       // เรียก database function
-      // @ts-ignore
+      // @ts-expect-error
       const { data, error: rpcError } = await supabase.rpc('update_provider_services', {
         p_provider_id: providerId,
         p_services: services
@@ -631,7 +631,7 @@ export function useAdmin() {
       
       if (rpcError) {
         // Fallback: update directly
-        // @ts-ignore
+        // @ts-expect-error
         await supabase.from('service_providers').update({
           allowed_services: services,
           provider_type: services.length === 0 ? 'pending' : (services.length === 1 ? 
@@ -668,7 +668,7 @@ export function useAdmin() {
   // ดึง service types ทั้งหมด
   const fetchServiceTypes = async () => {
     try {
-      // @ts-ignore
+      // @ts-expect-error
       const { data } = await supabase
         .from('service_types')
         .select('*')
@@ -687,7 +687,7 @@ export function useAdmin() {
       const update: Record<string, any> = { status }
       if (resolution) update.resolution = resolution
       if (status === 'resolved') update.resolved_at = new Date().toISOString()
-      // @ts-ignore - Supabase types not fully configured
+      // @ts-expect-error - Supabase types not fully configured
       await supabase.from('support_tickets').update(update).eq('id', ticketId)
       return true
     } catch { return false }
@@ -696,7 +696,7 @@ export function useAdmin() {
   // Create promo code
   const createPromoCode = async (promo: Record<string, any>) => {
     try {
-      // @ts-ignore - Supabase types not fully configured
+      // @ts-expect-error - Supabase types not fully configured
       const { data } = await supabase.from('promo_codes').insert(promo).select().single()
       return data
     } catch { return null }
@@ -705,7 +705,7 @@ export function useAdmin() {
   // Update promo code
   const updatePromoCode = async (id: string, updates: Record<string, any>) => {
     try {
-      // @ts-ignore - Supabase types not fully configured
+      // @ts-expect-error - Supabase types not fully configured
       const { data } = await supabase.from('promo_codes').update(updates).eq('id', id).select().single()
       return data
     } catch { return null }

@@ -62,6 +62,8 @@ const emit = defineEmits<{
         <span>ค่าบริการ</span>
         <span>{{ currency }}{{ serviceFee.toLocaleString() }}</span>
       </div>
+    </div>
+  </div>
 </template>
 
       <div v-if="discount" class="fare-row discount">

@@ -171,9 +171,7 @@ onMounted(() => {
     <div class="page-header">
       <div class="header-left">
         <h1>Fraud Alerts</h1>
-        <span class="count critical" v-if="stats.critical_alerts > 0"
-          >{{ stats.critical_alerts }} Critical</span
-        >
+        <span v-if="stats.critical_alerts > 0" class="count critical">{{ stats.critical_alerts }} Critical</span>
       </div>
       <button
         class="refresh-btn"
@@ -218,8 +216,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.open_alerts }}</span
-          ><span class="stat-label">เปิดอยู่</span>
+          <span class="stat-value">{{ stats.open_alerts }}</span><span class="stat-label">เปิดอยู่</span>
         </div>
       </div>
       <div class="stat-card">
@@ -238,8 +235,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.critical_alerts }}</span
-          ><span class="stat-label">Critical</span>
+          <span class="stat-value">{{ stats.critical_alerts }}</span><span class="stat-label">Critical</span>
         </div>
       </div>
       <div class="stat-card">
@@ -257,8 +253,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.resolved_today }}</span
-          ><span class="stat-label">แก้ไขวันนี้</span>
+          <span class="stat-value">{{ stats.resolved_today }}</span><span class="stat-label">แก้ไขวันนี้</span>
         </div>
       </div>
       <div class="stat-card">
@@ -276,9 +271,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value"
-            >{{ Math.round(stats.avg_resolution_hours) }}h</span
-          ><span class="stat-label">เวลาเฉลี่ย</span>
+          <span class="stat-value">{{ Math.round(stats.avg_resolution_hours) }}h</span><span class="stat-label">เวลาเฉลี่ย</span>
         </div>
       </div>
     </div>
@@ -302,7 +295,7 @@ onMounted(() => {
     <!-- Table -->
     <div class="table-container">
       <div v-if="isLoading" class="loading">
-        <div class="skeleton" v-for="i in 8" :key="i" />
+        <div v-for="i in 8" :key="i" class="skeleton" />
       </div>
       <table v-else-if="alerts.length" class="data-table">
         <thead>
@@ -322,8 +315,7 @@ onMounted(() => {
               <span
                 class="severity-badge"
                 :style="{ background: getSeverityColor(a.severity) }"
-                >{{ a.severity }}</span
-              >
+              >{{ a.severity }}</span>
             </td>
             <td>{{ getAlertTypeLabel(a.alert_type) }}</td>
             <td>
@@ -343,8 +335,7 @@ onMounted(() => {
                   color: getStatusColor(a.status),
                   background: getStatusColor(a.status) + '20',
                 }"
-                >{{ a.status }}</span
-              >
+              >{{ a.status }}</span>
             </td>
             <td class="date">{{ formatDate(a.created_at) }}</td>
             <td>
@@ -436,8 +427,8 @@ onMounted(() => {
             </button>
             <button
               class="btn-primary"
-              @click="resolveAlert"
               :disabled="processing"
+              @click="resolveAlert"
             >
               {{ processing ? "กำลังดำเนินการ..." : "ยืนยัน" }}
             </button>

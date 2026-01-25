@@ -81,10 +81,10 @@ const goToLogin = () => router.push('/login')
         <p class="hint">กรุณาคลิกลิงก์ในอีเมลเพื่อยืนยันบัญชี</p>
         
         <div class="actions">
-          <button @click="resendVerification" :disabled="isResending" class="btn-secondary">
+          <button :disabled="isResending" class="btn-secondary" @click="resendVerification">
             {{ isResending ? 'กำลังส่ง...' : 'ส่งอีเมลอีกครั้ง' }}
           </button>
-          <button @click="goToLogin" class="btn-text">กลับไปหน้าเข้าสู่ระบบ</button>
+          <button class="btn-text" @click="goToLogin">กลับไปหน้าเข้าสู่ระบบ</button>
         </div>
       </div>
 
@@ -114,7 +114,7 @@ const goToLogin = () => router.push('/login')
         <p class="desc">{{ errorMessage || 'ลิงก์อาจหมดอายุหรือไม่ถูกต้อง' }}</p>
         
         <div class="actions">
-          <button @click="goToLogin" class="btn-primary">กลับไปหน้าเข้าสู่ระบบ</button>
+          <button class="btn-primary" @click="goToLogin">กลับไปหน้าเข้าสู่ระบบ</button>
         </div>
       </div>
 

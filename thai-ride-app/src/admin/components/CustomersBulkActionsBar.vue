@@ -50,9 +50,9 @@ function handleCancel() {
 
       <div v-else class="bulk-actions">
         <button 
-          @click="emit('suspend')"
           class="bulk-btn suspend"
           aria-label="ระงับลูกค้าที่เลือก"
+          @click="emit('suspend')"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
@@ -62,9 +62,9 @@ function handleCancel() {
         </button>
 
         <button 
-          @click="emit('export')"
           class="bulk-btn export"
           aria-label="ส่งออกข้อมูลลูกค้าที่เลือก"
+          @click="emit('export')"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -75,9 +75,9 @@ function handleCancel() {
         </button>
 
         <button 
-          @click="emit('email')"
           class="bulk-btn email"
           aria-label="ส่งอีเมลถึงลูกค้าที่เลือก"
+          @click="emit('email')"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -87,9 +87,9 @@ function handleCancel() {
         </button>
 
         <button 
-          @click="emit('push')"
           class="bulk-btn push"
           aria-label="ส่งการแจ้งเตือนถึงลูกค้าที่เลือก"
+          @click="emit('push')"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -99,9 +99,9 @@ function handleCancel() {
         </button>
 
         <button 
-          @click="handleCancel"
           class="bulk-btn cancel"
           aria-label="ยกเลิกการเลือก"
+          @click="handleCancel"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>

@@ -239,17 +239,15 @@ onMounted(() => {
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">คำขอถอนเงินลูกค้า</h1>
-        <span class="total-count"
-          >{{ totalWithdrawals.toLocaleString() }} รายการ</span
-        >
+        <span class="total-count">{{ totalWithdrawals.toLocaleString() }} รายการ</span>
       </div>
       <button
         class="refresh-btn"
+        :disabled="isLoading"
         @click="
           loadWithdrawals();
           loadStats();
         "
-        :disabled="isLoading"
       >
         <svg
           width="18"
@@ -283,13 +281,9 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-label">ยอดรวมทั้งหมด</span
-          ><span class="stat-value">{{
+          <span class="stat-label">ยอดรวมทั้งหมด</span><span class="stat-value">{{
             formatCurrency(stats.total_amount)
-          }}</span
-          ><span class="stat-sub"
-            >{{ stats.total_count.toLocaleString() }} รายการ</span
-          >
+          }}</span><span class="stat-sub">{{ stats.total_count.toLocaleString() }} รายการ</span>
         </div>
       </div>
       <div class="stat-card">
@@ -307,13 +301,9 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-label">รอดำเนินการ</span
-          ><span class="stat-value warning">{{
+          <span class="stat-label">รอดำเนินการ</span><span class="stat-value warning">{{
             formatCurrency(stats.pending_amount)
-          }}</span
-          ><span class="stat-sub"
-            >{{ stats.pending_count.toLocaleString() }} รายการ</span
-          >
+          }}</span><span class="stat-sub">{{ stats.pending_count.toLocaleString() }} รายการ</span>
         </div>
       </div>
       <div class="stat-card">
@@ -331,13 +321,9 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-label">โอนแล้ว</span
-          ><span class="stat-value success">{{
+          <span class="stat-label">โอนแล้ว</span><span class="stat-value success">{{
             formatCurrency(stats.completed_amount)
-          }}</span
-          ><span class="stat-sub"
-            >{{ stats.completed_count.toLocaleString() }} รายการ</span
-          >
+          }}</span><span class="stat-sub">{{ stats.completed_count.toLocaleString() }} รายการ</span>
         </div>
       </div>
       <div class="stat-card">
@@ -356,13 +342,9 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-label">ยกเลิก</span
-          ><span class="stat-value error">{{
+          <span class="stat-label">ยกเลิก</span><span class="stat-value error">{{
             formatCurrency(stats.cancelled_amount || 0)
-          }}</span
-          ><span class="stat-sub"
-            >{{ (stats.cancelled_count || 0).toLocaleString() }} รายการ</span
-          >
+          }}</span><span class="stat-sub">{{ (stats.cancelled_count || 0).toLocaleString() }} รายการ</span>
         </div>
       </div>
     </div>
@@ -398,7 +380,7 @@ onMounted(() => {
 
     <div class="table-container">
       <div v-if="isLoading" class="loading-state">
-        <div class="skeleton" v-for="i in 10" :key="i" />
+        <div v-for="i in 10" :key="i" class="skeleton" />
       </div>
       <table v-else-if="withdrawals.length > 0" class="data-table">
         <thead>
@@ -415,8 +397,8 @@ onMounted(() => {
           <tr
             v-for="w in withdrawals"
             :key="w.id"
-            @click="openDetail(w)"
             class="clickable-row"
+            @click="openDetail(w)"
           >
             <td>
               <div class="provider-cell">
@@ -424,8 +406,7 @@ onMounted(() => {
                   {{ (w.user_name || "C").charAt(0) }}
                 </div>
                 <div class="info">
-                  <span class="name">{{ w.user_name || "-" }}</span
-                  ><code class="uid">{{ w.withdrawal_uid || "-" }}</code>
+                  <span class="name">{{ w.user_name || "-" }}</span><code class="uid">{{ w.withdrawal_uid || "-" }}</code>
                 </div>
               </div>
             </td>
@@ -436,11 +417,8 @@ onMounted(() => {
             </td>
             <td>
               <div class="bank-info">
-                <span class="bank-name">{{ w.bank_name || "-" }}</span
-                ><span class="account"
-                  >{{ w.bank_account_number || "-" }} -
-                  {{ w.bank_account_name || "-" }}</span
-                >
+                <span class="bank-name">{{ w.bank_name || "-" }}</span><span class="account">{{ w.bank_account_number || "-" }} -
+                  {{ w.bank_account_name || "-" }}</span>
               </div>
             </td>
             <td>
@@ -450,16 +428,15 @@ onMounted(() => {
                   color: getStatusColor(w.status),
                   background: getStatusColor(w.status) + '20',
                 }"
-                >{{ getStatusLabel(w.status) }}</span
-              >
+              >{{ getStatusLabel(w.status) }}</span>
             </td>
             <td class="date">{{ formatDate(w.created_at) }}</td>
             <td @click.stop>
               <div v-if="w.status === 'pending'" class="action-btns">
                 <button
                   class="btn-approve"
-                  @click="openAction(w, 'approve')"
                   title="อนุมัติ"
+                  @click="openAction(w, 'approve')"
                 >
                   <svg
                     width="16"
@@ -474,8 +451,8 @@ onMounted(() => {
                 </button>
                 <button
                   class="btn-reject"
-                  @click="openAction(w, 'reject')"
                   title="ปฏิเสธ"
+                  @click="openAction(w, 'reject')"
                 >
                   <svg
                     width="16"
@@ -524,9 +501,8 @@ onMounted(() => {
           stroke-width="2"
         >
           <path d="M15 18l-6-6 6-6" />
-        </svg></button
-      ><span class="page-info">{{ currentPage }} / {{ totalPages }}</span
-      ><button
+        </svg>
+      </button><span class="page-info">{{ currentPage }} / {{ totalPages }}</span><button
         class="page-btn"
         :disabled="currentPage === totalPages"
         @click="currentPage++"
@@ -570,26 +546,22 @@ onMounted(() => {
           <div class="detail-section">
             <h3>ข้อมูลลูกค้า</h3>
             <div class="detail-row">
-              <span class="label">ชื่อ</span
-              ><span class="value">{{
+              <span class="label">ชื่อ</span><span class="value">{{
                 selectedWithdrawal.user_name || "-"
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">Withdrawal UID</span
-              ><code class="value uid">{{
+              <span class="label">Withdrawal UID</span><code class="value uid">{{
                 selectedWithdrawal.withdrawal_uid || "-"
               }}</code>
             </div>
             <div class="detail-row">
-              <span class="label">อีเมล</span
-              ><span class="value">{{
+              <span class="label">อีเมล</span><span class="value">{{
                 selectedWithdrawal.user_email || "-"
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">เบอร์โทร</span
-              ><span class="value">{{
+              <span class="label">เบอร์โทร</span><span class="value">{{
                 selectedWithdrawal.user_phone || "-"
               }}</span>
             </div>
@@ -597,40 +569,34 @@ onMounted(() => {
           <div class="detail-section">
             <h3>ข้อมูลการถอนเงิน</h3>
             <div class="detail-row">
-              <span class="label">จำนวนเงิน</span
-              ><span class="value amount">{{
+              <span class="label">จำนวนเงิน</span><span class="value amount">{{
                 formatCurrency(selectedWithdrawal.amount)
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">สถานะ</span
-              ><span
+              <span class="label">สถานะ</span><span
                 class="status-badge"
                 :style="{
                   color: getStatusColor(selectedWithdrawal.status),
                   background: getStatusColor(selectedWithdrawal.status) + '20',
                 }"
-                >{{ getStatusLabel(selectedWithdrawal.status) }}</span
-              >
+              >{{ getStatusLabel(selectedWithdrawal.status) }}</span>
             </div>
           </div>
           <div class="detail-section">
             <h3>บัญชีปลายทาง</h3>
             <div class="detail-row">
-              <span class="label">ธนาคาร</span
-              ><span class="value">{{
+              <span class="label">ธนาคาร</span><span class="value">{{
                 selectedWithdrawal.bank_name || "-"
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">เลขบัญชี</span
-              ><span class="value">{{
+              <span class="label">เลขบัญชี</span><span class="value">{{
                 selectedWithdrawal.bank_account_number || "-"
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">ชื่อบัญชี</span
-              ><span class="value">{{
+              <span class="label">ชื่อบัญชี</span><span class="value">{{
                 selectedWithdrawal.bank_account_name || "-"
               }}</span>
             </div>
@@ -638,34 +604,29 @@ onMounted(() => {
           <div class="detail-section">
             <h3>ข้อมูลเพิ่มเติม</h3>
             <div class="detail-row">
-              <span class="label">วันที่ขอ</span
-              ><span class="value">{{
+              <span class="label">วันที่ขอ</span><span class="value">{{
                 formatDate(selectedWithdrawal.created_at)
               }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">วันที่ดำเนินการ</span
-              ><span class="value">{{
+              <span class="label">วันที่ดำเนินการ</span><span class="value">{{
                 selectedWithdrawal.processed_at
                   ? formatDate(selectedWithdrawal.processed_at)
                   : "-"
               }}</span>
             </div>
             <div v-if="selectedWithdrawal.processed_by_name" class="detail-row">
-              <span class="label">ดำเนินการโดย</span
-              ><span class="value">{{
+              <span class="label">ดำเนินการโดย</span><span class="value">{{
                 selectedWithdrawal.processed_by_name
               }}</span>
             </div>
             <div v-if="selectedWithdrawal.admin_notes" class="detail-row">
-              <span class="label">หมายเหตุ</span
-              ><span class="value">{{
+              <span class="label">หมายเหตุ</span><span class="value">{{
                 selectedWithdrawal.admin_notes
               }}</span>
             </div>
             <div v-if="selectedWithdrawal.reason" class="detail-row">
-              <span class="label">เหตุผล</span
-              ><span class="value error">{{
+              <span class="label">เหตุผล</span><span class="value error">{{
                 selectedWithdrawal.reason
               }}</span>
             </div>
@@ -689,9 +650,8 @@ onMounted(() => {
                 stroke="currentColor"
                 stroke-width="2"
               >
-                <polyline points="20 6 9 17 4 12" /></svg
-              >อนุมัติ</button
-            ><button
+                <polyline points="20 6 9 17 4 12" /></svg>อนุมัติ
+            </button><button
               class="btn-reject-lg"
               @click="
                 showDetailModal = false;
@@ -706,8 +666,7 @@ onMounted(() => {
                 stroke="currentColor"
                 stroke-width="2"
               >
-                <path d="M18 6L6 18M6 6l12 12" /></svg
-              >ปฏิเสธ
+                <path d="M18 6L6 18M6 6l12 12" /></svg>ปฏิเสธ
             </button>
           </div>
         </div>
@@ -745,26 +704,20 @@ onMounted(() => {
         <div class="modal-body">
           <div class="summary-card">
             <div class="summary-row">
-              <span class="label">ลูกค้า</span
-              ><span class="value">{{ selectedWithdrawal.user_name }}</span>
+              <span class="label">ลูกค้า</span><span class="value">{{ selectedWithdrawal.user_name }}</span>
             </div>
             <div class="summary-row">
-              <span class="label">จำนวนเงิน</span
-              ><span class="value amount">{{
+              <span class="label">จำนวนเงิน</span><span class="value amount">{{
                 formatCurrency(selectedWithdrawal.amount)
               }}</span>
             </div>
             <div class="summary-row">
-              <span class="label">บัญชี</span
-              ><span class="value"
-                >{{ selectedWithdrawal.bank_name }} -
-                {{ selectedWithdrawal.bank_account_number }}</span
-              >
+              <span class="label">บัญชี</span><span class="value">{{ selectedWithdrawal.bank_name }} -
+                {{ selectedWithdrawal.bank_account_number }}</span>
             </div>
           </div>
           <div v-if="actionType === 'approve'" class="form-group">
-            <label>เลขอ้างอิงการโอน (ถ้ามี)</label
-            ><input
+            <label>เลขอ้างอิงการโอน (ถ้ามี)</label><input
               v-model="transactionRef"
               type="text"
               placeholder="เช่น REF123456789"
@@ -774,8 +727,7 @@ onMounted(() => {
           <div class="form-group">
             <label>{{
               actionType === "approve" ? "หมายเหตุ (ถ้ามี)" : "เหตุผลที่ปฏิเสธ"
-            }}</label
-            ><textarea
+            }}</label><textarea
               v-model="actionNote"
               rows="3"
               :placeholder="
@@ -788,18 +740,18 @@ onMounted(() => {
           </div>
           <div class="modal-actions">
             <button class="btn-cancel" @click="showActionModal = false">
-              ยกเลิก</button
-            ><button
+              ยกเลิก
+            </button><button
               :class="actionType === 'approve' ? 'btn-primary' : 'btn-danger'"
-              @click="processAction"
               :disabled="processing"
+              @click="processAction"
             >
               {{
                 processing
                   ? "กำลังดำเนินการ..."
                   : actionType === "approve"
-                  ? "ยืนยันอนุมัติ"
-                  : "ยืนยันปฏิเสธ"
+                    ? "ยืนยันอนุมัติ"
+                    : "ยืนยันปฏิเสธ"
               }}
             </button>
           </div>

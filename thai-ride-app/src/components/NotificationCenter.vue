@@ -31,7 +31,7 @@ const emit = defineEmits<{
 const unreadCount = computed(() => props.notifications.filter(n => !n.read).length)
 
 // Icon paths for notification types - used in template
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const typeIcons = {
   info: 'M12 16v-4m0-4h.01M22 12a10 10 0 11-20 0 10 10 0 0120 0z',
   success: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -59,6 +59,7 @@ void typeIcons
         </button>
       </div>
     </div>
+  </div>
 </template>
 
     <div v-if="notifications.length === 0" class="empty-state">

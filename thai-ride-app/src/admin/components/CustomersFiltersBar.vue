@@ -95,17 +95,17 @@ function handleClearFilters() {
         </svg>
         <input 
           :value="filters.searchTerm"
-          @input="e => debouncedSearch((e.target as HTMLInputElement).value)"
-          type="text" 
+          type="text"
           placeholder="ค้นหาชื่อ, อีเมล, เบอร์โทร..." 
-          class="search-input"
+          class="search-input" 
           aria-label="ค้นหาลูกค้า"
+          @input="e => debouncedSearch((e.target as HTMLInputElement).value)"
         />
         <button 
           v-if="filters.searchTerm"
-          @click="() => { debouncedSearch(''); emit('apply') }"
           class="clear-search-btn"
           aria-label="ล้างการค้นหา"
+          @click="() => { debouncedSearch(''); emit('apply') }"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>
@@ -116,25 +116,25 @@ function handleClearFilters() {
       <!-- Status Filter -->
       <div class="filter-group">
         <button 
-          @click="() => { toggleStatus('active'); emit('apply') }"
           :class="['filter-chip', { active: filters.status.includes('active') }]"
           aria-label="กรองลูกค้าที่ใช้งานปกติ"
+          @click="() => { toggleStatus('active'); emit('apply') }"
         >
           <span class="chip-dot active"></span>
           ใช้งานปกติ
         </button>
         <button 
-          @click="() => { toggleStatus('suspended'); emit('apply') }"
           :class="['filter-chip', { active: filters.status.includes('suspended') }]"
           aria-label="กรองลูกค้าที่ถูกระงับ"
+          @click="() => { toggleStatus('suspended'); emit('apply') }"
         >
           <span class="chip-dot suspended"></span>
           ระงับแล้ว
         </button>
         <button 
-          @click="() => { toggleStatus('banned'); emit('apply') }"
           :class="['filter-chip', { active: filters.status.includes('banned') }]"
           aria-label="กรองลูกค้าที่ถูกแบน"
+          @click="() => { toggleStatus('banned'); emit('apply') }"
         >
           <span class="chip-dot banned"></span>
           แบนถาวร
@@ -143,9 +143,9 @@ function handleClearFilters() {
 
       <!-- Advanced Filters Toggle -->
       <button 
-        @click="toggleAdvancedFilters"
         :class="['advanced-toggle', { active: showAdvancedFilters }]"
         aria-label="แสดง/ซ่อนตัวกรองขั้นสูง"
+        @click="toggleAdvancedFilters"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -157,9 +157,9 @@ function handleClearFilters() {
       <!-- Clear All -->
       <button 
         v-if="hasActiveFilters"
-        @click="handleClearFilters"
         class="clear-all-btn"
         aria-label="ล้างตัวกรองทั้งหมด"
+        @click="handleClearFilters"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6L6 18M6 6l12 12"/>
@@ -185,16 +185,16 @@ function handleClearFilters() {
               v-model="dateStart"
               type="date"
               class="date-input"
-              @change="applyDateRange"
               aria-label="วันที่เริ่มต้น"
+              @change="applyDateRange"
             />
             <span class="range-separator">ถึง</span>
             <input 
               v-model="dateEnd"
               type="date"
               class="date-input"
-              @change="applyDateRange"
               aria-label="วันที่สิ้นสุด"
+              @change="applyDateRange"
             />
           </div>
         </div>
@@ -208,8 +208,8 @@ function handleClearFilters() {
               type="number"
               placeholder="ต่ำสุด"
               class="number-input"
-              @change="applyWalletRange"
               aria-label="ยอดเงินต่ำสุด"
+              @change="applyWalletRange"
             />
             <span class="range-separator">-</span>
             <input 
@@ -217,8 +217,8 @@ function handleClearFilters() {
               type="number"
               placeholder="สูงสุด"
               class="number-input"
-              @change="applyWalletRange"
               aria-label="ยอดเงินสูงสุด"
+              @change="applyWalletRange"
             />
           </div>
         </div>
@@ -232,8 +232,8 @@ function handleClearFilters() {
               type="number"
               placeholder="ต่ำสุด"
               class="number-input"
-              @change="applyOrderRange"
               aria-label="จำนวนออเดอร์ต่ำสุด"
+              @change="applyOrderRange"
             />
             <span class="range-separator">-</span>
             <input 
@@ -241,8 +241,8 @@ function handleClearFilters() {
               type="number"
               placeholder="สูงสุด"
               class="number-input"
-              @change="applyOrderRange"
               aria-label="จำนวนออเดอร์สูงสุด"
+              @change="applyOrderRange"
             />
           </div>
         </div>
@@ -259,8 +259,8 @@ function handleClearFilters() {
               step="0.1"
               placeholder="ต่ำสุด"
               class="number-input"
-              @change="applyRatingRange"
               aria-label="คะแนนต่ำสุด"
+              @change="applyRatingRange"
             />
             <span class="range-separator">-</span>
             <input 
@@ -271,8 +271,8 @@ function handleClearFilters() {
               step="0.1"
               placeholder="สูงสุด"
               class="number-input"
-              @change="applyRatingRange"
               aria-label="คะแนนสูงสุด"
+              @change="applyRatingRange"
             />
           </div>
         </div>

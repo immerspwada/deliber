@@ -6,8 +6,8 @@
         <button
           type="button"
           class="close-button"
-          @click="$emit('close')"
           aria-label="ปิด"
+          @click="$emit('close')"
         >
           ✕
         </button>
@@ -47,7 +47,7 @@
             v-model="jsonData"
             class="json-textarea"
             rows="10"
-            placeholder='{"version":"1.0","theme":{...}}'
+            placeholder="{&quot;version&quot;:&quot;1.0&quot;,&quot;theme&quot;:{...}}"
           ></textarea>
           <p v-if="error" class="error-message">{{ error }}</p>
         </div>
@@ -64,8 +64,8 @@
         <button
           type="button"
           class="btn-primary"
-          @click="handleImport"
           :disabled="!jsonData || importing"
+          @click="handleImport"
         >
           {{ importing ? 'กำลังนำเข้า...' : 'นำเข้าธีม' }}
         </button>

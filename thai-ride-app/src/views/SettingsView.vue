@@ -242,7 +242,7 @@ const formatBytes = (bytes: number): string => {
     <div class="content-container">
       <!-- Header -->
       <div class="page-header">
-        <button @click="goBack" class="back-btn">
+        <button class="back-btn" @click="goBack">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
@@ -258,427 +258,427 @@ const formatBytes = (bytes: number): string => {
       </template>
 
       <template v-else>
-      <!-- Notifications Section -->
-      <div class="settings-section">
-        <h2 class="section-title">การแจ้งเตือน</h2>
+        <!-- Notifications Section -->
+        <div class="settings-section">
+          <h2 class="section-title">การแจ้งเตือน</h2>
         
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">Push Notification</span>
-            <span class="setting-desc">รับการแจ้งเตือนบนอุปกรณ์</span>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Push Notification</span>
+              <span class="setting-desc">รับการแจ้งเตือนบนอุปกรณ์</span>
+            </div>
+            <label class="toggle">
+              <input v-model="settings.notifications.push" type="checkbox" @change="saveSettings" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-          <label class="toggle">
-            <input v-model="settings.notifications.push" type="checkbox" @change="saveSettings" />
-            <span class="toggle-slider"></span>
-          </label>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">อีเมล</span>
+              <span class="setting-desc">รับข่าวสารทางอีเมล</span>
+            </div>
+            <label class="toggle">
+              <input v-model="settings.notifications.email" type="checkbox" @change="saveSettings" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">SMS</span>
+              <span class="setting-desc">รับ SMS แจ้งเตือน</span>
+            </div>
+            <label class="toggle">
+              <input v-model="settings.notifications.sms" type="checkbox" @change="saveSettings" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">โปรโมชั่น</span>
+              <span class="setting-desc">รับข้อเสนอพิเศษและส่วนลด</span>
+            </div>
+            <label class="toggle">
+              <input v-model="settings.notifications.promotions" type="checkbox" @change="saveSettings" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
 
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">อีเมล</span>
-            <span class="setting-desc">รับข่าวสารทางอีเมล</span>
-          </div>
-          <label class="toggle">
-            <input v-model="settings.notifications.email" type="checkbox" @change="saveSettings" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">SMS</span>
-            <span class="setting-desc">รับ SMS แจ้งเตือน</span>
-          </div>
-          <label class="toggle">
-            <input v-model="settings.notifications.sms" type="checkbox" @change="saveSettings" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">โปรโมชั่น</span>
-            <span class="setting-desc">รับข้อเสนอพิเศษและส่วนลด</span>
-          </div>
-          <label class="toggle">
-            <input v-model="settings.notifications.promotions" type="checkbox" @change="saveSettings" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Privacy Section -->
-      <div class="settings-section">
-        <h2 class="section-title">ความเป็นส่วนตัว</h2>
+        <!-- Privacy Section -->
+        <div class="settings-section">
+          <h2 class="section-title">ความเป็นส่วนตัว</h2>
         
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">แชร์ตำแหน่ง</span>
-            <span class="setting-desc">อนุญาตให้แอปเข้าถึงตำแหน่ง</span>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">แชร์ตำแหน่ง</span>
+              <span class="setting-desc">อนุญาตให้แอปเข้าถึงตำแหน่ง</span>
+            </div>
+            <label class="toggle">
+              <input v-model="settings.privacy.shareLocation" type="checkbox" @change="saveSettings" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-          <label class="toggle">
-            <input v-model="settings.privacy.shareLocation" type="checkbox" @change="saveSettings" />
-            <span class="toggle-slider"></span>
-          </label>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">แชร์ประวัติการเดินทาง</span>
+              <span class="setting-desc">เพื่อปรับปรุงบริการ</span>
+            </div>
+            <label class="toggle">
+              <input v-model="settings.privacy.shareRideHistory" type="checkbox" @change="saveSettings" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
 
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">แชร์ประวัติการเดินทาง</span>
-            <span class="setting-desc">เพื่อปรับปรุงบริการ</span>
-          </div>
-          <label class="toggle">
-            <input v-model="settings.privacy.shareRideHistory" type="checkbox" @change="saveSettings" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Preferences Section -->
-      <div class="settings-section">
-        <h2 class="section-title">การตั้งค่าทั่วไป</h2>
+        <!-- Preferences Section -->
+        <div class="settings-section">
+          <h2 class="section-title">การตั้งค่าทั่วไป</h2>
         
-        <div class="setting-item select-item">
-          <div class="setting-info">
-            <span class="setting-label">ภาษา</span>
+          <div class="setting-item select-item">
+            <div class="setting-info">
+              <span class="setting-label">ภาษา</span>
+            </div>
+            <select v-model="settings.preferences.language" class="setting-select" @change="saveSettings">
+              <option v-for="lang in languages" :key="lang.code" :value="lang.code">
+                {{ lang.name }}
+              </option>
+            </select>
           </div>
-          <select v-model="settings.preferences.language" @change="saveSettings" class="setting-select">
-            <option v-for="lang in languages" :key="lang.code" :value="lang.code">
-              {{ lang.name }}
-            </option>
-          </select>
+
+          <div class="setting-item select-item">
+            <div class="setting-info">
+              <span class="setting-label">สกุลเงิน</span>
+            </div>
+            <select v-model="settings.preferences.currency" class="setting-select" @change="saveSettings">
+              <option v-for="curr in currencies" :key="curr.code" :value="curr.code">
+                {{ curr.name }}
+              </option>
+            </select>
+          </div>
         </div>
 
-        <div class="setting-item select-item">
-          <div class="setting-info">
-            <span class="setting-label">สกุลเงิน</span>
-          </div>
-          <select v-model="settings.preferences.currency" @change="saveSettings" class="setting-select">
-            <option v-for="curr in currencies" :key="curr.code" :value="curr.code">
-              {{ curr.name }}
-            </option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Push Notifications Section -->
-      <div class="settings-section" v-if="pushSupported">
-        <h2 class="section-title">Push Notifications</h2>
+        <!-- Push Notifications Section -->
+        <div v-if="pushSupported" class="settings-section">
+          <h2 class="section-title">Push Notifications</h2>
         
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">สถานะ Push</span>
-            <span class="setting-desc">{{ pushStatusText }}</span>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">สถานะ Push</span>
+              <span class="setting-desc">{{ pushStatusText }}</span>
+            </div>
+            <button 
+              :class="['toggle-btn', pushSubscribed ? 'active' : '']" 
+              :disabled="pushLoading"
+              @click="handleTogglePush"
+            >
+              {{ pushLoading ? 'กำลังดำเนินการ...' : (pushSubscribed ? 'ปิด' : 'เปิด') }}
+            </button>
           </div>
-          <button 
-            @click="handleTogglePush" 
-            :class="['toggle-btn', pushSubscribed ? 'active' : '']"
-            :disabled="pushLoading"
-          >
-            {{ pushLoading ? 'กำลังดำเนินการ...' : (pushSubscribed ? 'ปิด' : 'เปิด') }}
-          </button>
+
+          <div v-if="pushSubscribed" class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">ทดสอบการแจ้งเตือน</span>
+              <span class="setting-desc">ส่ง Push notification ทดสอบ</span>
+            </div>
+            <button class="test-btn" :disabled="testingPush" @click="handleTestPush">
+              {{ testingPush ? 'กำลังส่ง...' : 'ทดสอบ' }}
+            </button>
+          </div>
         </div>
 
-        <div v-if="pushSubscribed" class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">ทดสอบการแจ้งเตือน</span>
-            <span class="setting-desc">ส่ง Push notification ทดสอบ</span>
-          </div>
-          <button @click="handleTestPush" class="test-btn" :disabled="testingPush">
-            {{ testingPush ? 'กำลังส่ง...' : 'ทดสอบ' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Sync Status Section -->
-      <div class="settings-section">
-        <h2 class="section-title">สถานะการซิงค์</h2>
+        <!-- Sync Status Section -->
+        <div class="settings-section">
+          <h2 class="section-title">สถานะการซิงค์</h2>
         
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">รายการรอซิงค์</span>
-            <span class="setting-desc">{{ pendingCount }} รายการ</span>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">รายการรอซิงค์</span>
+              <span class="setting-desc">{{ pendingCount }} รายการ</span>
+            </div>
+            <div :class="['sync-badge', pendingCount > 0 ? 'pending' : 'synced']">
+              {{ pendingCount > 0 ? 'รอซิงค์' : 'ซิงค์แล้ว' }}
+            </div>
           </div>
-          <div :class="['sync-badge', pendingCount > 0 ? 'pending' : 'synced']">
-            {{ pendingCount > 0 ? 'รอซิงค์' : 'ซิงค์แล้ว' }}
-          </div>
-        </div>
 
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">ซิงค์ล่าสุด</span>
-            <span class="setting-desc">{{ formatLastSyncTime() }}</span>
-          </div>
-          <span v-if="lastSyncResult" class="sync-result">
-            <svg v-if="lastSyncResult.failed === 0" fill="none" stroke="#05944f" viewBox="0 0 24 24" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            <svg v-else fill="none" stroke="#e11900" viewBox="0 0 24 24" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-          </span>
-        </div>
-
-        <div v-if="pendingCount > 0" class="setting-item sync-actions-container">
-          <div class="sync-actions">
-            <button @click="handleManualSync" class="sync-btn" :disabled="isSyncing || !isOnline">
-              <svg v-if="isSyncing" class="spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">ซิงค์ล่าสุด</span>
+              <span class="setting-desc">{{ formatLastSyncTime() }}</span>
+            </div>
+            <span v-if="lastSyncResult" class="sync-result">
+              <svg v-if="lastSyncResult.failed === 0" fill="none" stroke="#05944f" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
               </svg>
-              <span>{{ isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ตอนนี้' }}</span>
-            </button>
-            <button @click="handleClearSyncQueue" class="clear-sync-btn">
-              ล้างคิว
-            </button>
-          </div>
-        </div>
-
-        <!-- Conflicts Alert -->
-        <div v-if="conflicts.length > 0" class="setting-item conflict-alert" @click="showConflicts = true">
-          <div class="setting-info">
-            <span class="setting-label">ข้อมูลขัดแย้ง</span>
-            <span class="setting-desc">{{ conflicts.length }} รายการต้องการการตัดสินใจ</span>
-          </div>
-          <svg fill="none" stroke="#E65100" viewBox="0 0 24 24" width="20" height="20">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-          </svg>
-        </div>
-
-        <!-- Sync History Button -->
-        <button class="action-item" @click="showSyncHistory = true">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <span>ประวัติการซิงค์</span>
-          <span v-if="syncHistory.length > 0" class="history-count">{{ syncHistory.length }}</span>
-          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Sync History Modal -->
-      <Teleport to="body">
-        <div v-if="showSyncHistory" class="modal-overlay" @click.self="showSyncHistory = false">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3>ประวัติการซิงค์</h3>
-              <button @click="showSyncHistory = false" class="close-btn">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div v-if="syncHistory.length === 0" class="empty-state">
-                <p>ยังไม่มีประวัติการซิงค์</p>
-              </div>
-              <div v-else class="history-list">
-                <div v-for="entry in [...syncHistory].reverse()" :key="entry.id" class="history-item">
-                  <div class="history-icon" :class="entry.status">
-                    <svg v-if="entry.status === 'success'" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                    </svg>
-                    <svg v-else-if="entry.status === 'failed'" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                    <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"/>
-                    </svg>
-                  </div>
-                  <div class="history-info">
-                    <span class="history-message">{{ entry.message }}</span>
-                    <span class="history-time">{{ formatHistoryTime(entry.timestamp) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-if="syncHistory.length > 0" class="modal-footer">
-              <button @click="handleClearHistory" class="clear-history-btn">ล้างประวัติ</button>
-            </div>
-          </div>
-        </div>
-      </Teleport>
-
-      <!-- Conflicts Modal -->
-      <Teleport to="body">
-        <div v-if="showConflicts" class="modal-overlay" @click.self="showConflicts = false">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3>ข้อมูลขัดแย้ง</h3>
-              <button @click="showConflicts = false" class="close-btn">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div v-if="conflicts.length === 0" class="empty-state">
-                <p>ไม่มีข้อมูลขัดแย้ง</p>
-              </div>
-              <div v-else class="conflict-list">
-                <div v-for="conflict in conflicts" :key="conflict.id" class="conflict-item">
-                  <div class="conflict-header">
-                    <span class="conflict-type">{{ conflict.type }}</span>
-                    <span class="conflict-time">{{ formatHistoryTime(conflict.createdAt) }}</span>
-                  </div>
-                  <div class="conflict-data">
-                    <div class="data-section">
-                      <span class="data-label">ข้อมูล Local:</span>
-                      <pre class="data-preview">{{ JSON.stringify(conflict.localData, null, 2).slice(0, 100) }}...</pre>
-                    </div>
-                    <div class="data-section">
-                      <span class="data-label">ข้อมูล Server:</span>
-                      <pre class="data-preview">{{ JSON.stringify(conflict.serverData, null, 2).slice(0, 100) }}...</pre>
-                    </div>
-                  </div>
-                  <div class="conflict-actions">
-                    <button @click="handleResolveConflict(conflict.id, 'local')" class="resolve-btn local">
-                      ใช้ Local
-                    </button>
-                    <button @click="handleResolveConflict(conflict.id, 'server')" class="resolve-btn server">
-                      ใช้ Server
-                    </button>
-                    <button @click="handleDismissConflict(conflict.id)" class="resolve-btn dismiss">
-                      ยกเลิก
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Teleport>
-
-      <!-- PWA Section -->
-      <div class="settings-section">
-        <h2 class="section-title">แอปพลิเคชัน</h2>
-        
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">สถานะการเชื่อมต่อ</span>
-            <span class="setting-desc">{{ isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}</span>
-          </div>
-          <div :class="['status-dot', isOnline ? 'online' : 'offline']"></div>
-        </div>
-
-        <div v-if="canInstall && !isInstalled" class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">ติดตั้งแอป</span>
-            <span class="setting-desc">เพิ่มลงหน้าจอหลัก</span>
-          </div>
-          <button @click="handleInstallApp" class="install-btn">ติดตั้ง</button>
-        </div>
-
-        <div v-if="isInstalled" class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">ติดตั้งแล้ว</span>
-            <span class="setting-desc">แอปพร้อมใช้งานแบบออฟไลน์</span>
-          </div>
-          <svg fill="none" stroke="#05944f" viewBox="0 0 24 24" width="24" height="24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-        </div>
-
-        <div v-if="notificationPermission !== 'granted'" class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">เปิดการแจ้งเตือน</span>
-            <span class="setting-desc">รับการแจ้งเตือนแบบ Push</span>
-          </div>
-          <button @click="handleEnableNotifications" class="enable-btn">เปิด</button>
-        </div>
-
-        <!-- Cache Info -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">พื้นที่แคช</span>
-            <span class="setting-desc">{{ formatBytes(cacheInfo.used) }} / {{ formatBytes(cacheInfo.quota) }} ({{ cacheInfo.percent }}%)</span>
-          </div>
-          <button @click="handleClearCache" class="clear-btn" :disabled="clearingCache">
-            {{ clearingCache ? 'กำลังล้าง...' : 'ล้างแคช' }}
-          </button>
-        </div>
-
-        <!-- Offline Map Section -->
-        <div class="setting-item offline-map-item">
-          <div class="setting-info">
-            <span class="setting-label">แผนที่ออฟไลน์</span>
-            <span class="setting-desc">
-              อ.สุไหงโกลก จ.นราธิวาส
-              <span v-if="offlineMapStats.count > 0" class="map-cached">
-                ({{ offlineMapStats.sizeFormatted }})
-              </span>
+              <svg v-else fill="none" stroke="#e11900" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
             </span>
           </div>
-          <button 
-            @click="handleDownloadOfflineMap" 
-            :class="['download-map-btn', { downloading: downloadingMap }]"
-            :disabled="downloadingMap"
-          >
-            <svg v-if="!downloadingMap" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+
+          <div v-if="pendingCount > 0" class="setting-item sync-actions-container">
+            <div class="sync-actions">
+              <button class="sync-btn" :disabled="isSyncing || !isOnline" @click="handleManualSync">
+                <svg v-if="isSyncing" class="spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <span>{{ isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ตอนนี้' }}</span>
+              </button>
+              <button class="clear-sync-btn" @click="handleClearSyncQueue">
+                ล้างคิว
+              </button>
+            </div>
+          </div>
+
+          <!-- Conflicts Alert -->
+          <div v-if="conflicts.length > 0" class="setting-item conflict-alert" @click="showConflicts = true">
+            <div class="setting-info">
+              <span class="setting-label">ข้อมูลขัดแย้ง</span>
+              <span class="setting-desc">{{ conflicts.length }} รายการต้องการการตัดสินใจ</span>
+            </div>
+            <svg fill="none" stroke="#E65100" viewBox="0 0 24 24" width="20" height="20">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
-            <svg v-else class="spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </div>
+
+          <!-- Sync History Button -->
+          <button class="action-item" @click="showSyncHistory = true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <span v-if="downloadingMap">{{ downloadProgress }}/{{ downloadTotal }}</span>
-            <span v-else>{{ offlineMapStats.count > 0 ? 'อัพเดท' : 'ดาวน์โหลด' }}</span>
+            <span>ประวัติการซิงค์</span>
+            <span v-if="syncHistory.length > 0" class="history-count">{{ syncHistory.length }}</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
           </button>
         </div>
-        
-        <!-- Download progress bar -->
-        <div v-if="downloadingMap" class="download-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: downloadTotal > 0 ? (downloadProgress / downloadTotal * 100) + '%' : '0%' }"></div>
+
+        <!-- Sync History Modal -->
+        <Teleport to="body">
+          <div v-if="showSyncHistory" class="modal-overlay" @click.self="showSyncHistory = false">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3>ประวัติการซิงค์</h3>
+                <button class="close-btn" @click="showSyncHistory = false">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div v-if="syncHistory.length === 0" class="empty-state">
+                  <p>ยังไม่มีประวัติการซิงค์</p>
+                </div>
+                <div v-else class="history-list">
+                  <div v-for="entry in [...syncHistory].reverse()" :key="entry.id" class="history-item">
+                    <div class="history-icon" :class="entry.status">
+                      <svg v-if="entry.status === 'success'" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      <svg v-else-if="entry.status === 'failed'" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                      <svg v-else fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"/>
+                      </svg>
+                    </div>
+                    <div class="history-info">
+                      <span class="history-message">{{ entry.message }}</span>
+                      <span class="history-time">{{ formatHistoryTime(entry.timestamp) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="syncHistory.length > 0" class="modal-footer">
+                <button class="clear-history-btn" @click="handleClearHistory">ล้างประวัติ</button>
+              </div>
+            </div>
           </div>
-          <span class="progress-text">กำลังดาวน์โหลดแผนที่... {{ Math.round(downloadProgress / downloadTotal * 100) || 0 }}%</span>
+        </Teleport>
+
+        <!-- Conflicts Modal -->
+        <Teleport to="body">
+          <div v-if="showConflicts" class="modal-overlay" @click.self="showConflicts = false">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3>ข้อมูลขัดแย้ง</h3>
+                <button class="close-btn" @click="showConflicts = false">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="modal-body">
+                <div v-if="conflicts.length === 0" class="empty-state">
+                  <p>ไม่มีข้อมูลขัดแย้ง</p>
+                </div>
+                <div v-else class="conflict-list">
+                  <div v-for="conflict in conflicts" :key="conflict.id" class="conflict-item">
+                    <div class="conflict-header">
+                      <span class="conflict-type">{{ conflict.type }}</span>
+                      <span class="conflict-time">{{ formatHistoryTime(conflict.createdAt) }}</span>
+                    </div>
+                    <div class="conflict-data">
+                      <div class="data-section">
+                        <span class="data-label">ข้อมูล Local:</span>
+                        <pre class="data-preview">{{ JSON.stringify(conflict.localData, null, 2).slice(0, 100) }}...</pre>
+                      </div>
+                      <div class="data-section">
+                        <span class="data-label">ข้อมูล Server:</span>
+                        <pre class="data-preview">{{ JSON.stringify(conflict.serverData, null, 2).slice(0, 100) }}...</pre>
+                      </div>
+                    </div>
+                    <div class="conflict-actions">
+                      <button class="resolve-btn local" @click="handleResolveConflict(conflict.id, 'local')">
+                        ใช้ Local
+                      </button>
+                      <button class="resolve-btn server" @click="handleResolveConflict(conflict.id, 'server')">
+                        ใช้ Server
+                      </button>
+                      <button class="resolve-btn dismiss" @click="handleDismissConflict(conflict.id)">
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Teleport>
+
+        <!-- PWA Section -->
+        <div class="settings-section">
+          <h2 class="section-title">แอปพลิเคชัน</h2>
+        
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">สถานะการเชื่อมต่อ</span>
+              <span class="setting-desc">{{ isOnline ? 'ออนไลน์' : 'ออฟไลน์' }}</span>
+            </div>
+            <div :class="['status-dot', isOnline ? 'online' : 'offline']"></div>
+          </div>
+
+          <div v-if="canInstall && !isInstalled" class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">ติดตั้งแอป</span>
+              <span class="setting-desc">เพิ่มลงหน้าจอหลัก</span>
+            </div>
+            <button class="install-btn" @click="handleInstallApp">ติดตั้ง</button>
+          </div>
+
+          <div v-if="isInstalled" class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">ติดตั้งแล้ว</span>
+              <span class="setting-desc">แอปพร้อมใช้งานแบบออฟไลน์</span>
+            </div>
+            <svg fill="none" stroke="#05944f" viewBox="0 0 24 24" width="24" height="24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+
+          <div v-if="notificationPermission !== 'granted'" class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">เปิดการแจ้งเตือน</span>
+              <span class="setting-desc">รับการแจ้งเตือนแบบ Push</span>
+            </div>
+            <button class="enable-btn" @click="handleEnableNotifications">เปิด</button>
+          </div>
+
+          <!-- Cache Info -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">พื้นที่แคช</span>
+              <span class="setting-desc">{{ formatBytes(cacheInfo.used) }} / {{ formatBytes(cacheInfo.quota) }} ({{ cacheInfo.percent }}%)</span>
+            </div>
+            <button class="clear-btn" :disabled="clearingCache" @click="handleClearCache">
+              {{ clearingCache ? 'กำลังล้าง...' : 'ล้างแคช' }}
+            </button>
+          </div>
+
+          <!-- Offline Map Section -->
+          <div class="setting-item offline-map-item">
+            <div class="setting-info">
+              <span class="setting-label">แผนที่ออฟไลน์</span>
+              <span class="setting-desc">
+                อ.สุไหงโกลก จ.นราธิวาส
+                <span v-if="offlineMapStats.count > 0" class="map-cached">
+                  ({{ offlineMapStats.sizeFormatted }})
+                </span>
+              </span>
+            </div>
+            <button 
+              :class="['download-map-btn', { downloading: downloadingMap }]" 
+              :disabled="downloadingMap"
+              @click="handleDownloadOfflineMap"
+            >
+              <svg v-if="!downloadingMap" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              <svg v-else class="spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <span v-if="downloadingMap">{{ downloadProgress }}/{{ downloadTotal }}</span>
+              <span v-else>{{ offlineMapStats.count > 0 ? 'อัพเดท' : 'ดาวน์โหลด' }}</span>
+            </button>
+          </div>
+        
+          <!-- Download progress bar -->
+          <div v-if="downloadingMap" class="download-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: downloadTotal > 0 ? (downloadProgress / downloadTotal * 100) + '%' : '0%' }"></div>
+            </div>
+            <span class="progress-text">กำลังดาวน์โหลดแผนที่... {{ Math.round(downloadProgress / downloadTotal * 100) || 0 }}%</span>
+          </div>
+
+          <button class="action-item" @click="handleCheckUpdates">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>ตรวจสอบอัพเดท</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
         </div>
 
-        <button @click="handleCheckUpdates" class="action-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          <span>ตรวจสอบอัพเดท</span>
-          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Other Actions -->
-      <div class="settings-section">
-        <h2 class="section-title">อื่นๆ</h2>
+        <!-- Other Actions -->
+        <div class="settings-section">
+          <h2 class="section-title">อื่นๆ</h2>
         
-        <button class="action-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          <span>ข้อกำหนดการใช้งาน</span>
-          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
+          <button class="action-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span>ข้อกำหนดการใช้งาน</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
 
-        <button class="action-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-          </svg>
-          <span>นโยบายความเป็นส่วนตัว</span>
-          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
+          <button class="action-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span>นโยบายความเป็นส่วนตัว</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
 
-        <button class="action-item">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <span>เกี่ยวกับ GOBEAR</span>
-          <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
+          <button class="action-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>เกี่ยวกับ GOBEAR</span>
+            <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
       </template>
 
       <p class="version-text">GOBEAR v1.0.0</p>

@@ -46,14 +46,16 @@ onUnmounted(() => {
 
 <template>
   <div v-if="active && particles.length" class="confetti-container">
-    <div v-for="p in particles" :key="p.id" class="confetti-particle" :style="{
-      left: p.x + '%',
-      '--start-y': p.y + '%',
-      '--color': p.color,
-      '--rotation': p.rotation + 'deg',
-      '--scale': p.scale,
-      '--duration': duration + 'ms'
-    }"></div>
+    <div
+      v-for="p in particles" :key="p.id" class="confetti-particle" :style="{
+        left: p.x + '%',
+        '--start-y': p.y + '%',
+        '--color': p.color,
+        '--rotation': p.rotation + 'deg',
+        '--scale': p.scale,
+        '--duration': duration + 'ms'
+      }"
+    ></div>
   </div>
 </template>
 

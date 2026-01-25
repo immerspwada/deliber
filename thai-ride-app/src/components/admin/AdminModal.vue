@@ -11,10 +11,10 @@
       <div v-if="modelValue" class="modal-overlay" @click="handleOverlayClick">
         <div 
           :class="modalClasses"
-          @click.stop
           role="dialog"
           :aria-labelledby="titleId"
           aria-modal="true"
+          @click.stop
         >
           <!-- Modal Header -->
           <div v-if="$slots.header || title" class="modal-header">
@@ -27,8 +27,8 @@
               variant="ghost"
               size="sm"
               :icon="CloseIcon"
-              @click="handleClose"
               class="close-button"
+              @click="handleClose"
             />
           </div>
 

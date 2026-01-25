@@ -324,7 +324,7 @@ function setupRealtimeSubscription() {
   <div class="orders-page">
     <!-- Header -->
     <header class="header">
-      <button class="back-btn" @click="goBack" aria-label="กลับ">
+      <button class="back-btn" aria-label="กลับ" @click="goBack">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 18l-6-6 6-6" />
         </svg>
@@ -356,11 +356,11 @@ function setupRealtimeSubscription() {
             </span>
           </div>
           <button 
-            class="drop-points-btn"
-            @click="openMapPreview(orders[0])"
             v-if="orders.length > 0"
+            class="drop-points-btn"
             type="button"
             aria-label="ดูแผนที่"
+            @click="openMapPreview(orders[0])"
           >
             {{ dropPointsCount }} จุดส่ง
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -368,8 +368,8 @@ function setupRealtimeSubscription() {
             </svg>
           </button>
           <button 
-            class="drop-points-btn"
             v-else
+            class="drop-points-btn"
             disabled
             type="button"
           >
@@ -389,7 +389,7 @@ function setupRealtimeSubscription() {
         </div>
         
         <div class="earnings-grid">
-          <div class="earnings-item" v-if="totalDiscount > 0">
+          <div v-if="totalDiscount > 0" class="earnings-item">
             <span class="item-label">ส่วนลดโปรโม</span>
             <span class="item-value discount">-฿{{ totalDiscount.toFixed(2) }}</span>
           </div>
@@ -416,8 +416,8 @@ function setupRealtimeSubscription() {
           <button 
             class="toggle-btn"
             :class="{ active: alwaysBestRoute }"
-            @click="alwaysBestRoute = !alwaysBestRoute"
             aria-label="สลับเส้นทางที่ดีที่สุด"
+            @click="alwaysBestRoute = !alwaysBestRoute"
           >
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
@@ -479,7 +479,7 @@ function setupRealtimeSubscription() {
 
     <!-- Bottom Actions -->
     <footer class="actions">
-      <button class="accept-btn" @click="acceptOrders" :disabled="selectedOrders.size === 0">
+      <button class="accept-btn" :disabled="selectedOrders.size === 0" @click="acceptOrders">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 13l4 4L19 7" />
         </svg>

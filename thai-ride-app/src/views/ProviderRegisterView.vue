@@ -606,7 +606,7 @@ onMounted(async () => {
           <span>เราจะแจ้งเตือนคุณทันทีเมื่อมีการอัพเดท</span>
         </div>
         
-        <button @click="goToOnboarding" class="btn-primary">ตกลง</button>
+        <button class="btn-primary" @click="goToOnboarding">ตกลง</button>
       </div>
     </div>
 
@@ -614,7 +614,7 @@ onMounted(async () => {
     <div v-else class="register-form">
       <!-- Header -->
       <div class="page-header">
-        <button @click="goBack" class="back-btn">
+        <button class="back-btn" @click="goBack">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
@@ -628,8 +628,10 @@ onMounted(async () => {
 
       <!-- Step Indicator -->
       <div class="step-indicator">
-        <div v-for="s in steps" :key="s.num" 
-          :class="['step-item', { active: step === s.num, done: step > s.num }]">
+        <div
+          v-for="s in steps" :key="s.num" 
+          :class="['step-item', { active: step === s.num, done: step > s.num }]"
+        >
           <div class="step-circle">
             <svg v-if="step > s.num" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
               <path d="M20 6L9 17l-5-5"/>
@@ -663,9 +665,11 @@ onMounted(async () => {
           <div class="form-group">
             <label class="label">ประเภทยานพาหนะ</label>
             <div class="vehicle-btns">
-              <button v-for="opt in vehicleOptions" :key="opt.value"
+              <button
+                v-for="opt in vehicleOptions" :key="opt.value"
+                :class="['vehicle-btn', { active: vehicleType === opt.value }]"
                 @click="selectVehicleType(opt.value)"
-                :class="['vehicle-btn', { active: vehicleType === opt.value }]">
+              >
                 {{ opt.label }}
               </button>
             </div>
@@ -696,17 +700,19 @@ onMounted(async () => {
           <div class="form-group">
             <label class="label">สีรถ</label>
             <div class="color-options">
-              <button v-for="c in colorOptions" :key="c.value"
-                @click="selectVehicleColor(c.value)"
+              <button
+                v-for="c in colorOptions" :key="c.value"
                 :class="['color-btn', { active: vehicleColor === c.value }]"
-                :style="{ '--color': c.color }">
+                :style="{ '--color': c.color }"
+                @click="selectVehicleColor(c.value)"
+              >
                 <span class="color-dot"></span>
                 <span>{{ c.label }}</span>
               </button>
             </div>
           </div>
 
-          <button @click="nextStep" :disabled="!canProceedStep1" class="btn-primary">
+          <button :disabled="!canProceedStep1" class="btn-primary" @click="nextStep">
             ถัดไป
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -722,9 +728,11 @@ onMounted(async () => {
           <div class="form-group">
             <label class="label">เลขบัตรประชาชน 13 หลัก</label>
             <div class="id-input-wrap">
-              <input v-model="nationalId" type="text" inputmode="numeric" maxlength="13"
+              <input
+                v-model="nationalId" type="text" inputmode="numeric" maxlength="13"
                 placeholder="x-xxxx-xxxxx-xx-x"
-                :class="['input', { valid: nationalIdValid, error: nationalIdError && nationalId.length > 0 }]" />
+                :class="['input', { valid: nationalIdValid, error: nationalIdError && nationalId.length > 0 }]"
+              />
               <div v-if="nationalIdValid" class="input-status valid">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
               </div>
@@ -749,8 +757,8 @@ onMounted(async () => {
           </div>
 
           <div class="btn-group">
-            <button @click="prevStep" class="btn-secondary">ย้อนกลับ</button>
-            <button @click="nextStep" :disabled="!canProceedStep2" class="btn-primary">ถัดไป</button>
+            <button class="btn-secondary" @click="prevStep">ย้อนกลับ</button>
+            <button :disabled="!canProceedStep2" class="btn-primary" @click="nextStep">ถัดไป</button>
           </div>
         </div>
 
@@ -772,7 +780,7 @@ onMounted(async () => {
             </div>
             <div v-else class="upload-preview">
               <img :src="idCardPreview" alt="ID Card" />
-              <button @click="removeFile('idCard')" class="remove-btn">
+              <button class="remove-btn" @click="removeFile('idCard')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -793,7 +801,7 @@ onMounted(async () => {
             </div>
             <div v-else class="upload-preview">
               <img :src="licensePreview" alt="License" />
-              <button @click="removeFile('license')" class="remove-btn">
+              <button class="remove-btn" @click="removeFile('license')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -815,7 +823,7 @@ onMounted(async () => {
             </div>
             <div v-else class="upload-preview">
               <img :src="vehiclePreview" alt="Vehicle" />
-              <button @click="removeFile('vehicle')" class="remove-btn">
+              <button class="remove-btn" @click="removeFile('vehicle')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -844,8 +852,8 @@ onMounted(async () => {
           </div>
 
           <div class="btn-group">
-            <button @click="prevStep" :disabled="isLoading" class="btn-secondary">ย้อนกลับ</button>
-            <button @click="submitApplication" :disabled="!canSubmit || isLoading" class="btn-primary">
+            <button :disabled="isLoading" class="btn-secondary" @click="prevStep">ย้อนกลับ</button>
+            <button :disabled="!canSubmit || isLoading" class="btn-primary" @click="submitApplication">
               <span v-if="isLoading" class="loading">
                 <span class="spinner"></span> กำลังส่ง
               </span>

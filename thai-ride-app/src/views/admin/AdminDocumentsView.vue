@@ -45,9 +45,9 @@
         
         <div class="flex items-end">
           <button
-            @click="loadProviders"
             :disabled="loading"
             class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            @click="loadProviders"
           >
             {{ loading ? 'กำลังโหลด...' : 'ค้นหา' }}
           </button>
@@ -76,8 +76,10 @@
             </h3>
             <p class="text-sm text-gray-600">{{ provider.email }} • {{ provider.phone_number }}</p>
             <div class="flex items-center mt-1">
-              <span class="text-xs px-2 py-1 rounded-full"
-                    :class="getProviderStatusClass(provider.status)">
+              <span
+                class="text-xs px-2 py-1 rounded-full"
+                :class="getProviderStatusClass(provider.status)"
+              >
                 {{ getProviderStatusText(provider.status) }}
               </span>
               <span class="ml-2 text-xs text-gray-500">
@@ -114,8 +116,10 @@
                 </div>
                 
                 <div class="flex items-center">
-                  <span class="text-xs px-2 py-1 rounded-full"
-                        :class="getDocumentStatusClass(doc.status)">
+                  <span
+                    class="text-xs px-2 py-1 rounded-full"
+                    :class="getDocumentStatusClass(doc.status)"
+                  >
                     {{ getDocumentStatusText(doc.status) }}
                   </span>
                 </div>
@@ -124,26 +128,26 @@
               <!-- Document Actions -->
               <div class="flex space-x-2 mt-3">
                 <button
-                  @click="viewDocument(doc.fileUrl)"
                   class="flex-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  @click="viewDocument(doc.fileUrl)"
                 >
                   ดูเอกสาร
                 </button>
                 
                 <button
                   v-if="doc.status === 'pending'"
-                  @click="approveDocument(provider.user_id, docType)"
                   :disabled="updatingDocument"
                   class="flex-1 px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  @click="approveDocument(provider.user_id, docType)"
                 >
                   อนุมัติ
                 </button>
                 
                 <button
                   v-if="doc.status === 'pending'"
-                  @click="openRejectModal(provider.user_id, docType)"
                   :disabled="updatingDocument"
                   class="flex-1 px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  @click="openRejectModal(provider.user_id, docType)"
                 >
                   ปฏิเสธ
                 </button>
@@ -190,15 +194,15 @@
         
         <div class="flex space-x-3">
           <button
-            @click="closeRejectModal"
             class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+            @click="closeRejectModal"
           >
             ยกเลิก
           </button>
           <button
-            @click="rejectDocument"
             :disabled="!rejectionReason.trim() || updatingDocument"
             class="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+            @click="rejectDocument"
           >
             {{ updatingDocument ? 'กำลังบันทึก...' : 'ปฏิเสธ' }}
           </button>

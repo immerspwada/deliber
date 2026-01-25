@@ -263,13 +263,13 @@ onMounted(async () => {
       <!-- Header -->
       <header class="page-header">
         <div class="header-top">
-          <button class="back-btn" @click="goBack" aria-label="กลับ">
+          <button class="back-btn" aria-label="กลับ" @click="goBack">
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
           </button>
           <h1 class="page-title">การจองล่วงหน้า</h1>
-          <button class="add-btn" @click="openCreateModal" aria-label="เพิ่มการจอง">
+          <button class="add-btn" aria-label="เพิ่มการจอง" @click="openCreateModal">
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
@@ -311,8 +311,8 @@ onMounted(async () => {
             <button
               v-for="filter in filters"
               :key="filter.id"
-              @click="changeFilter(filter.id)"
               :class="['filter-chip', { active: activeFilter === filter.id }]"
+              @click="changeFilter(filter.id)"
             >
               {{ filter.label }}
             </button>

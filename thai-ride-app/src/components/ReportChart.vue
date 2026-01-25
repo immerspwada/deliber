@@ -60,10 +60,12 @@ const getColor = (index: number, color?: string) => color || defaultColors[index
     <div v-else-if="type === 'pie'" class="pie-chart">
       <div class="pie-visual">
         <svg viewBox="0 0 100 100" :style="{ width: `${height}px`, height: `${height}px` }">
-          <circle v-for="(item, i) in data" :key="i" cx="50" cy="50" r="40" fill="transparent"
+          <circle
+            v-for="(item, i) in data" :key="i" cx="50" cy="50" r="40" fill="transparent"
             :stroke="getColor(i, item.color)" stroke-width="20"
             :stroke-dasharray="`${(item.value / total) * 251.2} 251.2`"
-            :stroke-dashoffset="`${-getPieAngle(item.value, i).start / 360 * 251.2}`" />
+            :stroke-dashoffset="`${-getPieAngle(item.value, i).start / 360 * 251.2}`"
+          />
         </svg>
         <div class="pie-center">
           <span class="pie-total">{{ total.toLocaleString() }}</span>
@@ -75,10 +77,14 @@ const getColor = (index: number, color?: string) => color || defaultColors[index
     <!-- Line Chart (simplified) -->
     <div v-else-if="type === 'line'" class="line-chart" :style="{ height: `${height}px` }">
       <svg class="line-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polyline fill="none" stroke="#000" stroke-width="2"
-          :points="data.map((d, i) => `${(i / (data.length - 1)) * 100},${100 - (d.value / maxValue) * 80}`).join(' ')" />
-        <circle v-for="(item, i) in data" :key="i" :cx="(i / (data.length - 1)) * 100"
-          :cy="100 - (item.value / maxValue) * 80" r="3" fill="#000" />
+        <polyline
+          fill="none" stroke="#000" stroke-width="2"
+          :points="data.map((d, i) => `${(i / (data.length - 1)) * 100},${100 - (d.value / maxValue) * 80}`).join(' ')"
+        />
+        <circle
+          v-for="(item, i) in data" :key="i" :cx="(i / (data.length - 1)) * 100"
+          :cy="100 - (item.value / maxValue) * 80" r="3" fill="#000"
+        />
       </svg>
       <div class="line-labels">
         <span v-for="(item, i) in data" :key="i" class="line-label">{{ item.label }}</span>

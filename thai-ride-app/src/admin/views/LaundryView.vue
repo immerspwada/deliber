@@ -136,8 +136,8 @@ onUnmounted(() => {
         }}</span>
         <button
           class="refresh-btn"
-          @click="loadData"
           :disabled="api.isLoading.value"
+          @click="loadData"
         >
           <svg
             width="18"
@@ -182,8 +182,7 @@ onUnmounted(() => {
           stroke-width="2"
         >
           <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" /></svg
-        ><input
+          <path d="m21 21-4.35-4.35" /></svg><input
           v-model="searchQuery"
           type="text"
           placeholder="ค้นหา..."
@@ -280,8 +279,8 @@ onUnmounted(() => {
           <tr
             v-for="item in items"
             :key="item.id"
-            @click="viewDetail(item)"
             class="clickable-row"
+            @click="viewDetail(item)"
           >
             <td>
               <code class="tracking-id">{{ item.tracking_id }}</code>
@@ -297,8 +296,7 @@ onUnmounted(() => {
                   color: getStatusColor(item.status),
                   background: getStatusColor(item.status) + '20',
                 }"
-                >{{ getStatusLabel(item.status, serviceType) }}</span
-              >
+              >{{ getStatusLabel(item.status, serviceType) }}</span>
             </td>
             <td class="amount">{{ formatCurrency(item.total_amount) }}</td>
             <td class="date">{{ formatDate(item.created_at) }}</td>
@@ -332,9 +330,8 @@ onUnmounted(() => {
         :disabled="currentPage === 1"
         @click="currentPage--"
       >
-        ←</button
-      ><span class="page-info">{{ currentPage }} / {{ totalPages }}</span
-      ><button
+        ←
+      </button><span class="page-info">{{ currentPage }} / {{ totalPages }}</span><button
         class="page-btn"
         :disabled="currentPage === totalPages"
         @click="currentPage++"

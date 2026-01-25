@@ -64,6 +64,7 @@ const vehicleIcons: Record<string, string> = {
       </div>
       <p v-if="description" class="option-desc">{{ description }}</p>
     </div>
+  </button>
 </template>
 
     <div class="option-price">

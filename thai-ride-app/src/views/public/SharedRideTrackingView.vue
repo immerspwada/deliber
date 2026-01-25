@@ -306,8 +306,8 @@ onUnmounted(() => {
         <MapView
           :pickup="pickup"
           :destination="destination"
-          :showRoute="true"
-          :driverLocation="driverLocation"
+          :show-route="true"
+          :driver-location="driverLocation"
           height="100%"
         />
         

@@ -38,7 +38,7 @@ const emit = defineEmits<{
 <template>
   <div class="place-suggestion-list">
     <div v-if="loading" class="loading-state">
-      <div class="skeleton-item" v-for="i in 3" :key="i">
+      <div v-for="i in 3" :key="i" class="skeleton-item">
         <div class="skeleton-icon"></div>
         <div class="skeleton-content">
           <div class="skeleton-line short"></div>
@@ -53,6 +53,7 @@ const emit = defineEmits<{
       </svg>
       <p>{{ emptyMessage }}</p>
     </div>
+  </div>
 </template>
 
     <div v-else class="suggestions">

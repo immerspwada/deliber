@@ -678,7 +678,7 @@ export function useAdvancedFeatures() {
       const plan = subscriptionPlans.value.find(p => p.id === planId)
       if (!plan) throw new Error('Plan not found')
 
-      let periodEnd = new Date()
+      const periodEnd = new Date()
       switch (plan.billing_cycle) {
         case 'weekly':
           periodEnd.setDate(periodEnd.getDate() + 7)

@@ -128,7 +128,7 @@ async function uploadPhoto(blob: Blob, originalName: string): Promise<void> {
       ? { pickup_photo: photoUrl, pickup_photo_at: new Date().toISOString() }
       : { dropoff_photo: photoUrl, dropoff_photo_at: new Date().toISOString() }
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error: updateError } = await (supabase
       .from('ride_requests') as any)
       .update(updateData)
@@ -165,8 +165,8 @@ function removePhoto(): void {
       accept="image/*"
       capture="environment"
       class="hidden-input"
-      @change="handleFileChange"
       :disabled="disabled || uploading || resizing"
+      @change="handleFileChange"
     />
     
     <!-- Has Photo -->
@@ -182,9 +182,9 @@ function removePhoto(): void {
         <button 
           v-if="!disabled"
           class="retake-btn"
-          @click="triggerFileInput"
           type="button"
           :disabled="uploading || resizing"
+          @click="triggerFileInput"
         >
           <span v-if="uploading || resizing" class="btn-loader" aria-hidden="true"></span>
           <span v-else>ถ่ายใหม่</span>
@@ -196,10 +196,10 @@ function removePhoto(): void {
     <button 
       v-else
       class="capture-btn"
-      @click="triggerFileInput"
       type="button"
       :disabled="disabled || uploading || resizing"
       :aria-label="`ถ่าย${label}`"
+      @click="triggerFileInput"
     >
       <div class="capture-icon">
         <svg v-if="!uploading && !resizing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

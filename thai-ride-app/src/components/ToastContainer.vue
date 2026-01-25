@@ -126,8 +126,8 @@
           <button
             v-if="!toast.persistent || toast.actions"
             class="toast-close"
-            @click="removeToast(toast.id)"
             aria-label="ปิดการแจ้งเตือน"
+            @click="removeToast(toast.id)"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="m18 6-12 12m0-12 12 12"/>

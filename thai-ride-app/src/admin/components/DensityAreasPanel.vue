@@ -77,9 +77,9 @@ function handleAreaClick(area: AreaStats): void {
           v-for="area in highDensityAreas"
           :key="`high-${area.area_name}`"
           type="button"
-          @click="handleAreaClick(area)"
           class="w-full text-left p-3 bg-white border border-gray-200 rounded-lg hover:border-red-300 
                  hover:bg-red-50 transition-colors group"
+          @click="handleAreaClick(area)"
         >
           <div class="flex items-start justify-between">
             <div class="flex-1">
@@ -125,9 +125,9 @@ function handleAreaClick(area: AreaStats): void {
           v-for="area in lowDensityAreas"
           :key="`low-${area.area_name}`"
           type="button"
-          @click="handleAreaClick(area)"
           class="w-full text-left p-3 bg-white border border-gray-200 rounded-lg hover:border-green-300 
                  hover:bg-green-50 transition-colors group"
+          @click="handleAreaClick(area)"
         >
           <div class="flex items-start justify-between">
             <div class="flex-1">

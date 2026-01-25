@@ -85,7 +85,7 @@ const handleRetry = () => {
         </span>
         
         <!-- Retry button -->
-        <button v-if="isOnline && pendingCount > 0 && !isSyncing" @click="handleRetry" class="retry-btn">
+        <button v-if="isOnline && pendingCount > 0 && !isSyncing" class="retry-btn" @click="handleRetry">
           ซิงค์เลย
         </button>
       </div>

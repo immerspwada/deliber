@@ -26,8 +26,8 @@
         type="button"
         class="btn-cancel"
         :disabled="cancellingId === wd.id"
-        @click="handleCancel(wd.id)"
         aria-label="ยกเลิกคำขอถอนเงิน"
+        @click="handleCancel(wd.id)"
       >
         {{ cancellingId === wd.id ? 'กำลังยกเลิก...' : 'ยกเลิก' }}
       </button>

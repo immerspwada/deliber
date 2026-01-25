@@ -401,7 +401,7 @@ watch(isProviderNearby, (nearby) => {
         <span class="status-dot"></span>
         <span class="status-text">
           {{ connectionStatus === 'connected' ? 'Live' : 
-             connectionStatus === 'waiting' ? 'รอสัญญาณ' : 'ไม่เชื่อมต่อ' }}
+            connectionStatus === 'waiting' ? 'รอสัญญาณ' : 'ไม่เชื่อมต่อ' }}
         </span>
       </div>
       

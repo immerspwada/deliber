@@ -31,7 +31,7 @@ export function usePaymentAccountsSync() {
     error.value = null
 
     try {
-      // @ts-ignore
+      // @ts-expect-error
       const { data, error: rpcError } = await supabase.rpc(
         'get_system_settings',
         { 
@@ -107,7 +107,7 @@ export function usePaymentAccountsSync() {
   // บันทึกบัญชีการชำระเงินลงฐานข้อมูล
   async function savePaymentAccountsToDatabase(accounts: any[]) {
     try {
-      // @ts-ignore
+      // @ts-expect-error
       const { error: rpcError } = await supabase.rpc(
         'set_system_settings',
         {

@@ -29,16 +29,18 @@ const statusActions = {
 
 <template>
   <div class="trip-action-buttons">
-    <button v-if="status !== 'completed'" type="button" class="btn-secondary" @click="emit('cancel')" :disabled="loading">
+    <button v-if="status !== 'completed'" type="button" class="btn-secondary" :disabled="loading" @click="emit('cancel')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
       ยกเลิก
     </button>
 
-    <button type="button" class="btn-primary" :style="{ background: statusActions[status].color }"
+    <button
+      type="button" class="btn-primary" :style="{ background: statusActions[status].color }"
       :disabled="loading || status === 'completed'"
-      @click="emit(statusActions[status].action as any)">
+      @click="emit(statusActions[status].action as any)"
+    >
       <span v-if="loading" class="spinner" />
       <template v-else>
         <svg v-if="status === 'pending'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -61,8 +61,10 @@ const cancel = () => {
   <div class="biometric-auth">
     <div class="icon-area" :class="status">
       <!-- Fingerprint Icon -->
-      <svg v-if="biometricType === 'fingerprint'" width="64" height="64" viewBox="0 0 24 24" fill="none" 
-           stroke="currentColor" stroke-width="1.5" class="icon">
+      <svg
+        v-if="biometricType === 'fingerprint'" width="64" height="64" viewBox="0 0 24 24" fill="none" 
+        stroke="currentColor" stroke-width="1.5" class="icon"
+      >
         <path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 018 4"/>
         <path d="M5 19.5C5.5 18 6 15 6 12c0-2 .5-4 2-5.5"/>
         <path d="M8.5 22c.4-1.5.5-3 .5-4.5 0-3 0-6 3-6s3 3 3 6c0 1.5.1 3 .5 4.5"/>
@@ -72,8 +74,10 @@ const cancel = () => {
       </svg>
       
       <!-- Face ID Icon -->
-      <svg v-else width="64" height="64" viewBox="0 0 24 24" fill="none" 
-           stroke="currentColor" stroke-width="1.5" class="icon">
+      <svg
+        v-else width="64" height="64" viewBox="0 0 24 24" fill="none" 
+        stroke="currentColor" stroke-width="1.5" class="icon"
+      >
         <path d="M7 3H5a2 2 0 00-2 2v2M17 3h2a2 2 0 012 2v2M7 21H5a2 2 0 01-2-2v-2M17 21h2a2 2 0 002-2v-2"/>
         <circle cx="9" cy="10" r="1"/>
         <circle cx="15" cy="10" r="1"/>

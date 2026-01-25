@@ -77,7 +77,7 @@ async function handleSubmit(): Promise<void> {
       <!-- Header -->
       <div class="modal-header">
         <h2 id="rating-title">ให้คะแนน</h2>
-        <button class="close-btn" @click="emit('close')" type="button" aria-label="ปิด">
+        <button class="close-btn" type="button" aria-label="ปิด" @click="emit('close')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12"/>
           </svg>
@@ -98,13 +98,13 @@ async function handleSubmit(): Promise<void> {
             :key="star"
             class="star-btn"
             :class="{ active: star <= displayRating }"
-            @click="setRating(star)"
-            @mouseenter="hoverRating = star"
-            @mouseleave="hoverRating = 0"
             type="button"
             :aria-label="`${star} ดาว`"
             :aria-checked="star === rating"
             role="radio"
+            @click="setRating(star)"
+            @mouseenter="hoverRating = star"
+            @mouseleave="hoverRating = 0"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
@@ -125,8 +125,8 @@ async function handleSubmit(): Promise<void> {
             :key="tag.key"
             class="tag-btn"
             :class="{ selected: selectedTags.includes(tag.key) }"
-            @click="toggleTag(tag.key)"
             type="button"
+            @click="toggleTag(tag.key)"
           >
             <span class="tag-icon">{{ tag.icon }}</span>
             <span class="tag-label">{{ tag.label }}</span>
@@ -155,8 +155,8 @@ async function handleSubmit(): Promise<void> {
       <button
         class="submit-btn"
         :disabled="!canSubmit"
-        @click="handleSubmit"
         type="button"
+        @click="handleSubmit"
       >
         <span v-if="loading" class="btn-loader" aria-hidden="true"></span>
         <span v-else>ส่งคะแนน</span>
@@ -165,8 +165,8 @@ async function handleSubmit(): Promise<void> {
       <!-- Skip Button -->
       <button
         class="skip-btn"
-        @click="emit('close')"
         type="button"
+        @click="emit('close')"
       >
         ข้ามไปก่อน
       </button>

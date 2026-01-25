@@ -63,7 +63,7 @@ const formatDate = (dateStr: string) => {
       <div class="content-container">
         <!-- Header -->
         <div class="page-header">
-          <button @click="router.back()" class="back-btn">
+          <button class="back-btn" @click="router.back()">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
@@ -213,13 +213,13 @@ const formatDate = (dateStr: string) => {
       <div class="modal-content">
         <div class="modal-header">
           <h3>แลกรางวัล</h3>
-          <button @click="showRedeemModal = false" class="close-btn">
+          <button class="close-btn" @click="showRedeemModal = false">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
-        <div class="modal-body" v-if="selectedReward">
+        <div v-if="selectedReward" class="modal-body">
           <div class="reward-preview">
             <div class="reward-preview-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,9 +239,9 @@ const formatDate = (dateStr: string) => {
           </div>
         </div>
         <button 
-          @click="confirmRedeem" 
           :disabled="redeeming || !canRedeem(selectedReward)" 
-          class="btn-primary"
+          class="btn-primary" 
+          @click="confirmRedeem"
         >
           {{ redeeming ? 'กำลังแลก...' : canRedeem(selectedReward) ? 'ยืนยันแลกรางวัล' : 'แต้มไม่เพียงพอ' }}
         </button>

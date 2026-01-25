@@ -371,8 +371,8 @@ defineExpose({
       <button 
         v-if="currentStatus !== 'pending'"
         class="dismiss-btn"
-        @click="dismiss"
         aria-label="ปิด"
+        @click="dismiss"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>

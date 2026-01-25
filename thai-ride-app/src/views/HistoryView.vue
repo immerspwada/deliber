@@ -147,7 +147,7 @@ onMounted(async () => {
       <!-- Header -->
       <header class="page-header">
         <div class="header-top">
-          <button class="back-btn" @click="goBack" aria-label="กลับ">
+          <button class="back-btn" aria-label="กลับ" @click="goBack">
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
@@ -190,8 +190,8 @@ onMounted(async () => {
             <button
               v-for="filter in filters"
               :key="filter.id"
-              @click="changeFilter(filter.id)"
               :class="['filter-chip', { active: activeFilter === filter.id }]"
+              @click="changeFilter(filter.id)"
             >
               <span class="filter-label">{{ filter.label }}</span>
               <span v-if="activeFilter === filter.id && filteredHistory.length > 0" class="filter-count">
@@ -301,9 +301,9 @@ onMounted(async () => {
                   <div class="action-btns">
                     <button 
                       v-if="item.status === 'completed'" 
-                      @click="viewReceipt(item.id)" 
-                      class="icon-btn"
+                      class="icon-btn" 
                       aria-label="ดูใบเสร็จ"
+                      @click="viewReceipt(item.id)"
                     >
                       <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -311,15 +311,15 @@ onMounted(async () => {
                     </button>
                     <button 
                       v-if="item.status === 'completed' && !item.rating && (item.type === 'delivery' || item.type === 'shopping')" 
-                      @click="openRatingModal(item)" 
-                      class="text-btn secondary"
+                      class="text-btn secondary" 
+                      @click="openRatingModal(item)"
                     >
                       ให้คะแนน
                     </button>
                     <button 
                       v-if="item.status === 'completed'" 
-                      @click="handleRebook(item)" 
-                      class="text-btn primary"
+                      class="text-btn primary" 
+                      @click="handleRebook(item)"
                     >
                       จองอีกครั้ง
                     </button>

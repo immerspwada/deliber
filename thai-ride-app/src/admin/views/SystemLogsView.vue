@@ -11,8 +11,8 @@
         <!-- Time Range -->
         <select
           v-model="selectedHours"
-          @change="handleTimeChange"
           class="time-select"
+          @change="handleTimeChange"
         >
           <option :value="1">1 ชั่วโมงที่แล้ว</option>
           <option :value="6">6 ชั่วโมงที่แล้ว</option>
@@ -21,7 +21,7 @@
         </select>
 
         <!-- Export Button -->
-        <button @click="handleExport" class="btn-export" :disabled="loading">
+        <button class="btn-export" :disabled="loading" @click="handleExport">
           <svg
             class="icon"
             viewBox="0 0 24 24"
@@ -37,9 +37,9 @@
 
         <!-- Clean Logs Button -->
         <button
-          @click="showCleanModal = true"
           class="btn-clean"
           :disabled="loading"
+          @click="showCleanModal = true"
         >
           <svg
             class="icon"
@@ -55,7 +55,7 @@
         </button>
 
         <!-- Refresh Button -->
-        <button @click="handleRefresh" class="btn-refresh" :disabled="loading">
+        <button class="btn-refresh" :disabled="loading" @click="handleRefresh">
           <svg
             class="icon"
             viewBox="0 0 24 24"
@@ -169,9 +169,9 @@
           <label>Category:</label>
           <input
             v-model="filters.category"
-            @input="applyFilters"
             type="text"
             placeholder="Filter by category..."
+            @input="applyFilters"
           />
         </div>
 
@@ -179,9 +179,9 @@
           <label>Page:</label>
           <input
             v-model="filters.page"
-            @input="applyFilters"
             type="text"
             placeholder="Filter by page..."
+            @input="applyFilters"
           />
         </div>
 
@@ -189,13 +189,13 @@
           <label>Search:</label>
           <input
             v-model="filters.search"
-            @input="applyFilters"
             type="text"
             placeholder="Search message..."
+            @input="applyFilters"
           />
         </div>
 
-        <button @click="clearFilters" class="btn-clear-filters">
+        <button class="btn-clear-filters" @click="clearFilters">
           Clear Filters
         </button>
       </div>
@@ -215,9 +215,7 @@
               <p class="error-meta">
                 <span class="error-category">{{ error.category }}</span>
                 <span class="error-count">{{ error.count }} occurrences</span>
-                <span class="error-users"
-                  >{{ error.affected_users }} users</span
-                >
+                <span class="error-users">{{ error.affected_users }} users</span>
                 <span class="error-time">{{
                   formatTimeAgo(error.last_seen)
                 }}</span>
@@ -277,7 +275,7 @@
                 </td>
                 <td class="log-page">{{ log.page || "-" }}</td>
                 <td>
-                  <button @click="viewLogDetail(log)" class="btn-view">
+                  <button class="btn-view" @click="viewLogDetail(log)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
@@ -393,13 +391,13 @@
             <option :value="180">180 วัน</option>
           </select>
           <div class="modal-actions">
-            <button @click="showCleanModal = false" class="btn-cancel">
+            <button class="btn-cancel" @click="showCleanModal = false">
               ยกเลิก
             </button>
             <button
-              @click="handleCleanLogs"
               class="btn-confirm"
               :disabled="cleaning"
+              @click="handleCleanLogs"
             >
               {{ cleaning ? "กำลังลบ..." : "ยืนยันลบ" }}
             </button>

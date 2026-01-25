@@ -67,7 +67,9 @@ const reset = () => {
                 class="option"
                 :class="{ active: dateRange === opt.value }"
                 @click="dateRange = opt.value"
-              >{{ opt.label }}</button>
+              >
+                {{ opt.label }}
+              </button>
             </div>
           </div>
           
@@ -81,7 +83,9 @@ const reset = () => {
                 class="option"
                 :class="{ active: status === opt.value }"
                 @click="status = opt.value"
-              >{{ opt.label }}</button>
+              >
+                {{ opt.label }}
+              </button>
             </div>
           </div>
           
@@ -95,7 +99,9 @@ const reset = () => {
                 class="option"
                 :class="{ active: rideType === opt.value }"
                 @click="rideType = opt.value"
-              >{{ opt.label }}</button>
+              >
+                {{ opt.label }}
+              </button>
             </div>
           </div>
           

@@ -63,8 +63,8 @@
         <div class="action-buttons">
           <button 
             class="btn btn-primary"
-            @click="handleReconnect"
             :disabled="isReconnecting"
+            @click="handleReconnect"
           >
             {{ isReconnecting ? 'กำลังเชื่อมต่อ...' : '🔄 เชื่อมต่อใหม่' }}
           </button>

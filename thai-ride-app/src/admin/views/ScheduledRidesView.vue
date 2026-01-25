@@ -211,9 +211,9 @@ onMounted(() => {
       <div class="header-right">
         <button 
           class="refresh-btn" 
-          @click="loadRides" 
           :disabled="loading" 
-          aria-label="รีเฟรช"
+          aria-label="รีเฟรช" 
+          @click="loadRides"
         >
           <svg 
             width="18" 
@@ -307,16 +307,16 @@ onMounted(() => {
       <div class="filter-group">
         <label class="filter-label">จาก:</label>
         <input 
-          type="date" 
           v-model="dateFromFilter" 
+          type="date" 
           class="date-input"
         />
       </div>
       <div class="filter-group">
         <label class="filter-label">ถึง:</label>
         <input 
-          type="date" 
           v-model="dateToFilter" 
+          type="date" 
           class="date-input"
         />
       </div>
@@ -332,7 +332,7 @@ onMounted(() => {
       </div>
 
       <div v-else-if="loading" class="loading-state">
-        <div class="skeleton" v-for="i in 8" :key="i"/>
+        <div v-for="i in 8" :key="i" class="skeleton"/>
       </div>
 
       <table v-else-if="scheduledRides.length > 0" class="data-table">
@@ -352,11 +352,11 @@ onMounted(() => {
           <tr 
             v-for="ride in scheduledRides" 
             :key="ride.id" 
-            @click="viewRide(ride)" 
             :class="{ 
               'upcoming-row': isUpcoming(ride.scheduled_datetime) && ride.status === 'pending',
               'soon-row': isRideSoon(ride.scheduled_datetime)
-            }"
+            }" 
+            @click="viewRide(ride)"
           >
             <td>
               <div class="datetime-cell">
@@ -408,9 +408,9 @@ onMounted(() => {
               <div class="action-buttons">
                 <button 
                   class="action-btn view-btn" 
-                  @click.stop="viewRide(ride)" 
-                  title="ดูรายละเอียด"
+                  title="ดูรายละเอียด" 
                   aria-label="ดูรายละเอียด"
+                  @click.stop="viewRide(ride)"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -420,9 +420,9 @@ onMounted(() => {
                 <button 
                   v-if="ride.status !== 'cancelled' && ride.status !== 'completed'"
                   class="action-btn status-btn" 
-                  @click.stop="openStatusModal(ride)" 
-                  title="เปลี่ยนสถานะ"
+                  title="เปลี่ยนสถานะ" 
                   aria-label="เปลี่ยนสถานะ"
+                  @click.stop="openStatusModal(ride)"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -432,9 +432,9 @@ onMounted(() => {
                 <button 
                   v-if="ride.status !== 'cancelled' && ride.status !== 'completed'"
                   class="action-btn cancel-btn" 
-                  @click.stop="openCancelModal(ride)" 
-                  title="ยกเลิก"
+                  title="ยกเลิก" 
                   aria-label="ยกเลิก"
+                  @click.stop="openCancelModal(ride)"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
@@ -459,8 +459,8 @@ onMounted(() => {
       <button 
         class="page-btn" 
         :disabled="currentPage === 1" 
-        @click="currentPage--"
         aria-label="หน้าก่อนหน้า"
+        @click="currentPage--"
       >
         ก่อนหน้า
       </button>
@@ -468,8 +468,8 @@ onMounted(() => {
       <button 
         class="page-btn" 
         :disabled="currentPage === totalPages" 
-        @click="currentPage++"
         aria-label="หน้าถัดไป"
+        @click="currentPage++"
       >
         ถัดไป
       </button>
@@ -482,8 +482,8 @@ onMounted(() => {
           <h2>รายละเอียดการจอง</h2>
           <button 
             class="close-btn" 
-            @click="showDetailModal = false" 
-            aria-label="ปิด"
+            aria-label="ปิด" 
+            @click="showDetailModal = false"
           >
             &times;
           </button>
@@ -570,7 +570,7 @@ onMounted(() => {
                 <label>เบอร์โทร</label>
                 <span>{{ selectedRide.provider_phone || '-' }}</span>
               </div>
-              <div class="detail-item" v-if="selectedRide.provider_rating">
+              <div v-if="selectedRide.provider_rating" class="detail-item">
                 <label>คะแนน</label>
                 <span>⭐ {{ selectedRide.provider_rating.toFixed(1) }}</span>
               </div>
@@ -617,8 +617,8 @@ onMounted(() => {
           <h2>ยกเลิกการจอง</h2>
           <button 
             class="close-btn" 
-            @click="showCancelModal = false" 
-            aria-label="ปิด"
+            aria-label="ปิด" 
+            @click="showCancelModal = false"
           >
             &times;
           </button>
@@ -642,15 +642,15 @@ onMounted(() => {
           <div class="modal-actions">
             <button 
               class="btn btn-secondary" 
-              @click="showCancelModal = false"
               :disabled="actionLoading"
+              @click="showCancelModal = false"
             >
               ยกเลิก
             </button>
             <button 
               class="btn btn-danger" 
-              @click="handleCancelRide"
               :disabled="actionLoading"
+              @click="handleCancelRide"
             >
               {{ actionLoading ? 'กำลังยกเลิก...' : 'ยืนยันการยกเลิก' }}
             </button>
@@ -666,8 +666,8 @@ onMounted(() => {
           <h2>เปลี่ยนสถานะ</h2>
           <button 
             class="close-btn" 
-            @click="showStatusModal = false" 
-            aria-label="ปิด"
+            aria-label="ปิด" 
+            @click="showStatusModal = false"
           >
             &times;
           </button>
@@ -695,15 +695,15 @@ onMounted(() => {
           <div class="modal-actions">
             <button 
               class="btn btn-secondary" 
-              @click="showStatusModal = false"
               :disabled="actionLoading"
+              @click="showStatusModal = false"
             >
               ยกเลิก
             </button>
             <button 
               class="btn btn-primary" 
-              @click="handleUpdateStatus"
               :disabled="actionLoading || !newStatus"
+              @click="handleUpdateStatus"
             >
               {{ actionLoading ? 'กำลังอัพเดท...' : 'บันทึก' }}
             </button>

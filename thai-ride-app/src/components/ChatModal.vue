@@ -75,7 +75,7 @@ onUnmounted(() => {
           </div>
           <span class="driver-name">{{ driverName }}</span>
         </div>
-        <button @click="emit('close')" class="close-btn">
+        <button class="close-btn" @click="emit('close')">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -105,9 +105,9 @@ onUnmounted(() => {
 
       <!-- Quick replies -->
       <div class="quick-replies">
-        <button @click="newMessage = 'ผมมาถึงแล้วครับ'" class="quick-btn">มาถึงแล้ว</button>
-        <button @click="newMessage = 'รอสักครู่นะครับ'" class="quick-btn">รอสักครู่</button>
-        <button @click="newMessage = 'อยู่ตรงไหนครับ?'" class="quick-btn">อยู่ตรงไหน?</button>
+        <button class="quick-btn" @click="newMessage = 'ผมมาถึงแล้วครับ'">มาถึงแล้ว</button>
+        <button class="quick-btn" @click="newMessage = 'รอสักครู่นะครับ'">รอสักครู่</button>
+        <button class="quick-btn" @click="newMessage = 'อยู่ตรงไหนครับ?'">อยู่ตรงไหน?</button>
       </div>
 
       <!-- Input -->
@@ -118,7 +118,7 @@ onUnmounted(() => {
           placeholder="พิมพ์ข้อความ..."
           @keyup.enter="handleSend"
         />
-        <button @click="handleSend" :disabled="!newMessage.trim()" class="send-btn">
+        <button :disabled="!newMessage.trim()" class="send-btn" @click="handleSend">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
           </svg>

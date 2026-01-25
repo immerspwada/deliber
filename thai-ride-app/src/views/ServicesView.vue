@@ -458,7 +458,7 @@ onUnmounted(() => {
 
       <!-- Top Bar -->
       <div class="top-bar">
-        <button class="back-btn" @click="goBack" aria-label="กลับ">
+        <button class="back-btn" aria-label="กลับ" @click="goBack">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -528,8 +528,7 @@ onUnmounted(() => {
           <span
             v-if="!loadingOrders && activeOrders.length > 0"
             class="order-count"
-            >{{ activeOrders.length }}</span
-          >
+          >{{ activeOrders.length }}</span>
         </div>
 
         <div v-if="loadingOrders" class="skeleton-orders">
@@ -774,9 +773,7 @@ onUnmounted(() => {
         </div>
         <div class="loyalty-info">
           <span class="loyalty-label">แต้มสะสม</span>
-          <span class="loyalty-points"
-            >{{ loyaltyPoints.toLocaleString() }} แต้ม</span
-          >
+          <span class="loyalty-points">{{ loyaltyPoints.toLocaleString() }} แต้ม</span>
         </div>
         <svg
           class="loyalty-arrow"

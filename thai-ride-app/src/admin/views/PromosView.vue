@@ -65,7 +65,7 @@ onMounted(() => { uiStore.setBreadcrumbs([{ label: 'Marketing' }, { label: 'โ�
       <select v-model="statusFilter" class="filter-select"><option value="">ทุกสถานะ</option><option value="active">ใช้งาน</option><option value="inactive">ปิด</option></select>
     </div>
     <div class="table-container">
-      <div v-if="isLoading" class="loading-state"><div class="skeleton" v-for="i in 8" :key="i" /></div>
+      <div v-if="isLoading" class="loading-state"><div v-for="i in 8" :key="i" class="skeleton" /></div>
       <table v-else-if="promos.length" class="data-table">
         <thead><tr><th>โค้ด</th><th>ส่วนลด</th><th>ใช้แล้ว/จำกัด</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>
@@ -89,7 +89,7 @@ onMounted(() => { uiStore.setBreadcrumbs([{ label: 'Marketing' }, { label: 'โ�
           <div class="form-row"><label>คำอธิบาย</label><input v-model="newPromo.description" type="text" /></div>
           <div class="form-row"><label>ส่วนลด</label><input v-model.number="newPromo.discount_value" type="number" /></div>
           <div class="form-row"><label>จำกัด</label><input v-model.number="newPromo.usage_limit" type="number" /></div>
-          <div class="modal-actions"><button class="btn-cancel" @click="showCreateModal = false">ยกเลิก</button><button class="btn-primary" @click="createPromo" :disabled="saving || !newPromo.code">สร้าง</button></div>
+          <div class="modal-actions"><button class="btn-cancel" @click="showCreateModal = false">ยกเลิก</button><button class="btn-primary" :disabled="saving || !newPromo.code" @click="createPromo">สร้าง</button></div>
         </div>
       </div>
     </div>

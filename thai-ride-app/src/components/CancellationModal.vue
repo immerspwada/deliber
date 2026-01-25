@@ -80,7 +80,7 @@
                   </svg>
                 </div>
                 <span class="reason-label">{{ option.label }}</span>
-                <div class="check-icon" v-if="selectedReason === option.reason">
+                <div v-if="selectedReason === option.reason" class="check-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                   </svg>

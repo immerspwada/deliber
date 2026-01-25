@@ -44,8 +44,8 @@
         </div>
         <div class="flex items-end">
           <button
-            @click="loadUsers"
             class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            @click="loadUsers"
           >
             Search
           </button>
@@ -113,14 +113,14 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button
-                  @click="editUser(user)"
                   class="text-blue-600 hover:text-blue-900 mr-3"
+                  @click="editUser(user)"
                 >
                   Edit
                 </button>
                 <button
-                  @click="suspendUser(user)"
                   class="text-red-600 hover:text-red-900"
+                  @click="suspendUser(user)"
                 >
                   Suspend
                 </button>

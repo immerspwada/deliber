@@ -142,9 +142,9 @@
       <!-- Action Buttons -->
       <div class="flex gap-3 pt-4">
         <button
-          @click="generateReport"
           :disabled="generating || !isValid"
           class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          @click="generateReport"
         >
           <span v-if="generating" class="flex items-center justify-center">
             <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -156,8 +156,8 @@
           <span v-else>Generate Report</span>
         </button>
         <button
-          @click="resetFilters"
           class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          @click="resetFilters"
         >
           Reset
         </button>
@@ -182,8 +182,8 @@
         </p>
       </div>
       <button
-        @click="downloadReport"
         class="mt-4 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        @click="downloadReport"
       >
         Download Report
       </button>

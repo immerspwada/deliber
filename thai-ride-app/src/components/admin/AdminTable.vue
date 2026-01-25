@@ -36,8 +36,8 @@
               <input
                 type="checkbox"
                 :checked="allSelected"
-                @change="toggleSelectAll"
                 class="checkbox"
+                @change="toggleSelectAll"
               >
             </th>
             <th
@@ -78,8 +78,8 @@
               <input
                 type="checkbox"
                 :checked="selectedRows.includes(row.id)"
-                @change="toggleSelectRow(row.id)"
                 class="checkbox"
+                @change="toggleSelectRow(row.id)"
               >
             </td>
             <td
@@ -125,9 +125,9 @@
       </div>
       <div class="pagination-controls">
         <button
-          @click="currentPage--"
           :disabled="currentPage === 1"
           class="pagination-btn"
+          @click="currentPage--"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M15 18l-6-6 6-6"/>
@@ -135,9 +135,9 @@
         </button>
         <span class="page-number">หน้า {{ currentPage }} / {{ totalPages }}</span>
         <button
-          @click="currentPage++"
           :disabled="currentPage === totalPages"
           class="pagination-btn"
+          @click="currentPage++"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M9 18l6-6-6-6"/>

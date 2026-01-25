@@ -18,26 +18,26 @@
       <h4 class="font-medium">Test Navigation:</h4>
       <div class="flex flex-wrap gap-2">
         <button 
-          @click="testNavigation('/customer')"
           class="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+          @click="testNavigation('/customer')"
         >
           Customer
         </button>
         <button 
-          @click="testNavigation('/provider/onboarding')"
           class="px-3 py-1 bg-green-500 text-white rounded text-sm"
+          @click="testNavigation('/provider/onboarding')"
         >
           Provider Onboarding
         </button>
         <button 
-          @click="testNavigation('/provider')"
           class="px-3 py-1 bg-yellow-500 text-white rounded text-sm"
+          @click="testNavigation('/provider')"
         >
           Provider Dashboard
         </button>
         <button 
-          @click="testNavigation('/admin')"
           class="px-3 py-1 bg-red-500 text-white rounded text-sm"
+          @click="testNavigation('/admin')"
         >
           Admin
         </button>

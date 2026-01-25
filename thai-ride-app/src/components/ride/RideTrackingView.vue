@@ -242,9 +242,9 @@ onMounted(async () => {
       <MapView
         :pickup="pickup"
         :destination="destination"
-        :showRoute="true"
-        :driverLocation="realtimeDriverLocation"
-        :locationHistory="hasHistory ? historyCoordinates : undefined"
+        :show-route="true"
+        :driver-location="realtimeDriverLocation"
+        :location-history="hasHistory ? historyCoordinates : undefined"
         height="100%"
       />
       
@@ -318,10 +318,12 @@ onMounted(async () => {
             <!-- Rating Stars Display -->
             <div class="driver-rating-display">
               <div class="rating-stars">
-                <svg v-for="i in 5" :key="i" width="16" height="16" viewBox="0 0 24 24" 
+                <svg
+                  v-for="i in 5" :key="i" width="16" height="16" viewBox="0 0 24 24" 
                   :fill="i <= Math.round(matchedDriver.rating || 0) ? '#FFD700' : '#E0E0E0'" 
                   :stroke="i <= Math.round(matchedDriver.rating || 0) ? '#FFD700' : '#E0E0E0'" 
-                  stroke-width="1" aria-hidden="true">
+                  stroke-width="1" aria-hidden="true"
+                >
                   <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
                 </svg>
               </div>
@@ -337,14 +339,14 @@ onMounted(async () => {
           </div>
           <div class="driver-actions">
             <!-- Chat Button -->
-            <button class="action-btn chat" @click="openChat" type="button" aria-label="แชทกับคนขับ">
+            <button class="action-btn chat" type="button" aria-label="แชทกับคนขับ" @click="openChat">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg>
               <span v-if="unreadMessages > 0" class="unread-badge">{{ unreadMessages }}</span>
             </button>
             <!-- Call Button -->
-            <button class="action-btn call" @click="emit('callDriver')" type="button" aria-label="โทรหาคนขับ">
+            <button class="action-btn call" type="button" aria-label="โทรหาคนขับ" @click="emit('callDriver')">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
               </svg>
@@ -420,9 +422,9 @@ onMounted(async () => {
     <!-- Chat Drawer -->
     <ChatDrawer
       v-if="rideId"
-      :rideId="rideId"
-      :otherUserName="driverName"
-      :isOpen="showChat"
+      :ride-id="rideId"
+      :other-user-name="driverName"
+      :is-open="showChat"
       @close="closeChat"
     />
   </div>

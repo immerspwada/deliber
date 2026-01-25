@@ -819,8 +819,8 @@ onUnmounted(() => {
       <div class="header-top">
         <button
           class="back-btn"
-          @click="navigateTo('/customer')"
           aria-label="กลับ"
+          @click="navigateTo('/customer')"
         >
           <svg
             viewBox="0 0 24 24"
@@ -861,7 +861,7 @@ onUnmounted(() => {
             @focus="handleSearchFocus"
             @blur="handleSearchBlur"
           />
-          <button v-if="searchQuery" class="clear-search-btn" @click="clearSearch" aria-label="ล้างการค้นหา">
+          <button v-if="searchQuery" class="clear-search-btn" aria-label="ล้างการค้นหา" @click="clearSearch">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
@@ -1058,7 +1058,7 @@ onUnmounted(() => {
       <section
         v-if="
           activeCategory === 'all' &&
-          (loadingRecommendations || recommendedServices.length > 0)
+            (loadingRecommendations || recommendedServices.length > 0)
         "
         class="recommended-section"
       >
@@ -1369,8 +1369,8 @@ onUnmounted(() => {
             <button 
               class="favorite-btn"
               :class="{ active: isFavorite(service.id) }"
-              @click="handleFavoriteToggle($event, service.id)"
               aria-label="เพิ่ม/ลบจากรายการโปรด"
+              @click="handleFavoriteToggle($event, service.id)"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -1675,9 +1675,7 @@ onUnmounted(() => {
           </div>
           <div class="loyalty-info">
             <span class="loyalty-label">แต้มสะสม</span>
-            <span class="loyalty-points"
-              >{{ loyaltyPoints.toLocaleString() }} แต้ม</span
-            >
+            <span class="loyalty-points">{{ loyaltyPoints.toLocaleString() }} แต้ม</span>
           </div>
           <svg
             class="loyalty-arrow"

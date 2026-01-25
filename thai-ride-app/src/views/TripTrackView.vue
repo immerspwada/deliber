@@ -179,10 +179,8 @@ const getStatusText = (status: string) => {
             <span class="driver-name">{{
               rideData.service_providers.name
             }}</span>
-            <span class="vehicle"
-              >{{ rideData.service_providers.vehicle_model }} -
-              {{ rideData.service_providers.license_plate }}</span
-            >
+            <span class="vehicle">{{ rideData.service_providers.vehicle_model }} -
+              {{ rideData.service_providers.license_plate }}</span>
           </div>
         </div>
 

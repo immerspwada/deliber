@@ -17,8 +17,8 @@
     
     <!-- Icon -->
     <component 
-      v-else-if="icon && iconPosition === 'left'" 
       :is="icon" 
+      v-else-if="icon && iconPosition === 'left'" 
       class="button-icon icon-left" 
     />
     
@@ -29,8 +29,8 @@
     
     <!-- Right Icon -->
     <component 
-      v-if="icon && iconPosition === 'right' && !loading" 
       :is="icon" 
+      v-if="icon && iconPosition === 'right' && !loading" 
       class="button-icon icon-right" 
     />
   </button>

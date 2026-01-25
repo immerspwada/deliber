@@ -260,7 +260,7 @@ onUnmounted(() => {
     <div class="tracking-container">
       <!-- Header -->
       <div class="tracking-header">
-        <button class="tracking-back-btn" @click="goBack" type="button">
+        <button class="tracking-back-btn" type="button" @click="goBack">
           ← กลับ
         </button>
       </div>
@@ -276,7 +276,7 @@ onUnmounted(() => {
         <div class="tracking-error-icon">😕</div>
         <h2 class="tracking-error-title">ไม่พบข้อมูล</h2>
         <p class="tracking-error-message">{{ error }}</p>
-        <button class="tracking-retry-btn" @click="loadDelivery" type="button">
+        <button class="tracking-retry-btn" type="button" @click="loadDelivery">
           🔄 ลองใหม่
         </button>
       </div>
@@ -293,7 +293,7 @@ onUnmounted(() => {
         <div class="tracking-card">
           <div class="tracking-card-header">
             <h2 class="tracking-card-title">Tracking ID</h2>
-            <button class="tracking-copy-btn" @click="copyTrackingId" type="button">
+            <button class="tracking-copy-btn" type="button" @click="copyTrackingId">
               📋 คัดลอก
             </button>
           </div>
@@ -415,9 +415,9 @@ onUnmounted(() => {
         <div v-if="canCancel" class="tracking-actions">
           <button 
             class="tracking-cancel-btn" 
-            @click="openCancelModal" 
-            type="button"
+            type="button" 
             :disabled="cancelling"
+            @click="openCancelModal"
           >
             🚫 ยกเลิกการจัดส่ง
           </button>
@@ -433,7 +433,7 @@ onUnmounted(() => {
       <div class="tracking-modal" @click.stop>
         <div class="tracking-modal-header">
           <h3 class="tracking-modal-title">ยืนยันการยกเลิก</h3>
-          <button class="tracking-modal-close" @click="closeCancelModal" type="button">
+          <button class="tracking-modal-close" type="button" @click="closeCancelModal">
             ✕
           </button>
         </div>
@@ -461,17 +461,17 @@ onUnmounted(() => {
         <div class="tracking-modal-footer">
           <button 
             class="tracking-modal-btn tracking-modal-btn-secondary" 
-            @click="closeCancelModal"
             type="button"
             :disabled="cancelling"
+            @click="closeCancelModal"
           >
             ไม่ยกเลิก
           </button>
           <button 
             class="tracking-modal-btn tracking-modal-btn-danger" 
-            @click="confirmCancel"
             type="button"
             :disabled="cancelling"
+            @click="confirmCancel"
           >
             {{ cancelling ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก' }}
           </button>

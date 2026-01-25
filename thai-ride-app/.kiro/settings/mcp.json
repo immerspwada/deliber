@@ -18,7 +18,9 @@
         "write_file",
         "list_allowed_directories",
         "edit_file",
-        "create_directory"
+        "create_directory",
+        "directory_tree",
+        "move_file"
       ]
     }
   }

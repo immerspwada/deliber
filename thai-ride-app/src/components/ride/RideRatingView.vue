@@ -92,10 +92,10 @@ function handleTipSuccess(amount: number): void {
           :key="star"
           class="star-btn"
           :class="getStarState(star)"
-          @click="handleStarClick(star)"
-          @mouseenter="handleStarHover(star)"
           :aria-label="`ให้ ${star} ดาว`"
           type="button"
+          @click="handleStarClick(star)"
+          @mouseenter="handleStarHover(star)"
         >
           <svg 
             width="40" 

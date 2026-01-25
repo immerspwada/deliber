@@ -193,7 +193,7 @@ const createAdminAccount = async () => {
       </div>
 
       <!-- Form -->
-      <form @submit.prevent="handleLogin" class="form">
+      <form class="form" @submit.prevent="handleLogin">
         <!-- Error Message -->
         <div v-if="authStore.error" class="error-message">
           <svg
@@ -224,11 +224,9 @@ const createAdminAccount = async () => {
             <rect x="3" y="11" width="18" height="11" rx="2" />
             <path d="M7 11V7a5 5 0 0110 0v4" />
           </svg>
-          <span
-            >บัญชีถูกล็อกชั่วคราว กรุณารอ
+          <span>บัญชีถูกล็อกชั่วคราว กรุณารอ
             {{ Math.ceil((authStore.lockoutEndTime - Date.now()) / 1000) }}
-            วินาที</span
-          >
+            วินาที</span>
         </div>
 
         <!-- Email -->

@@ -89,8 +89,8 @@ const handleClose = () => {
         <button 
           v-for="star in 5" 
           :key="star"
-          @click="overallRating = star"
           :class="['star-btn', { active: star <= overallRating }]"
+          @click="overallRating = star"
         >
           <svg fill="currentColor" viewBox="0 0 20 20">
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
@@ -103,8 +103,10 @@ const handleClose = () => {
         <div class="detail-rating-item">
           <span class="detail-label">เลือกของ</span>
           <div class="mini-stars">
-            <button v-for="star in 5" :key="star" @click="itemSelectionRating = star"
-              :class="['mini-star', { active: star <= itemSelectionRating }]">
+            <button
+              v-for="star in 5" :key="star" :class="['mini-star', { active: star <= itemSelectionRating }]"
+              @click="itemSelectionRating = star"
+            >
               <svg fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
               </svg>
@@ -114,8 +116,10 @@ const handleClose = () => {
         <div class="detail-rating-item">
           <span class="detail-label">ความสด</span>
           <div class="mini-stars">
-            <button v-for="star in 5" :key="star" @click="freshnessRating = star"
-              :class="['mini-star', { active: star <= freshnessRating }]">
+            <button
+              v-for="star in 5" :key="star" :class="['mini-star', { active: star <= freshnessRating }]"
+              @click="freshnessRating = star"
+            >
               <svg fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
               </svg>
@@ -125,8 +129,10 @@ const handleClose = () => {
         <div class="detail-rating-item">
           <span class="detail-label">การสื่อสาร</span>
           <div class="mini-stars">
-            <button v-for="star in 5" :key="star" @click="communicationRating = star"
-              :class="['mini-star', { active: star <= communicationRating }]">
+            <button
+              v-for="star in 5" :key="star" :class="['mini-star', { active: star <= communicationRating }]"
+              @click="communicationRating = star"
+            >
               <svg fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
               </svg>
@@ -136,8 +142,10 @@ const handleClose = () => {
         <div class="detail-rating-item">
           <span class="detail-label">การจัดส่ง</span>
           <div class="mini-stars">
-            <button v-for="star in 5" :key="star" @click="deliveryRating = star"
-              :class="['mini-star', { active: star <= deliveryRating }]">
+            <button
+              v-for="star in 5" :key="star" :class="['mini-star', { active: star <= deliveryRating }]"
+              @click="deliveryRating = star"
+            >
               <svg fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
               </svg>
@@ -150,8 +158,10 @@ const handleClose = () => {
       <div v-if="overallRating > 0" class="tags-section">
         <p class="tags-label">เลือกสิ่งที่ชอบ</p>
         <div class="tags-grid">
-          <button v-for="tag in SHOPPING_TAGS" :key="tag" @click="toggleTag(tag)"
-            :class="['tag-btn', { active: selectedTags.includes(tag) }]">
+          <button
+            v-for="tag in SHOPPING_TAGS" :key="tag" :class="['tag-btn', { active: selectedTags.includes(tag) }]"
+            @click="toggleTag(tag)"
+          >
             {{ tag }}
           </button>
         </div>
@@ -166,8 +176,10 @@ const handleClose = () => {
       <div class="tip-section">
         <p class="tip-label">ให้ทิปผู้ช่วยซื้อของ</p>
         <div class="tip-options">
-          <button v-for="tip in tipOptions" :key="tip" @click="tipAmount = tip"
-            :class="['tip-btn', { active: tipAmount === tip }]">
+          <button
+            v-for="tip in tipOptions" :key="tip" :class="['tip-btn', { active: tipAmount === tip }]"
+            @click="tipAmount = tip"
+          >
             {{ tip === 0 ? 'ไม่ให้' : `฿${tip}` }}
           </button>
         </div>
@@ -187,7 +199,7 @@ const handleClose = () => {
         <span>฿{{ totalAmount }}</span>
       </div>
 
-      <button @click="handleSubmit" :disabled="loading || overallRating === 0" class="btn-primary">
+      <button :disabled="loading || overallRating === 0" class="btn-primary" @click="handleSubmit">
         {{ loading ? 'กำลังบันทึก...' : 'เสร็จสิ้น' }}
       </button>
     </div>

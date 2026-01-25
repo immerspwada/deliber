@@ -157,7 +157,7 @@ onMounted(() => {
   <div class="onboarding-page">
     <!-- Header -->
     <div class="page-header">
-      <button @click="goBack" class="back-btn">
+      <button class="back-btn" @click="goBack">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
@@ -237,7 +237,7 @@ onMounted(() => {
           <li>ศึกษาวิธีการใช้งานแอป</li>
         </ul>
       </div>
-      <button type="button" @click="goBack" class="btn-secondary">กลับหน้าหลัก</button>
+      <button type="button" class="btn-secondary" @click="goBack">กลับหน้าหลัก</button>
     </div>
 
     <!-- Rejected Status -->
@@ -250,8 +250,8 @@ onMounted(() => {
       </div>
       <h2>ใบสมัครไม่ผ่าน</h2>
       <p>ขออภัย ใบสมัครของคุณไม่ผ่านการอนุมัติ<br/>กรุณาตรวจสอบเอกสารและลองสมัครใหม่</p>
-      <button type="button" @click="startRegistration" class="btn-primary">สมัครใหม่</button>
-      <button type="button" @click="goBack" class="btn-secondary">กลับหน้าหลัก</button>
+      <button type="button" class="btn-primary" @click="startRegistration">สมัครใหม่</button>
+      <button type="button" class="btn-secondary" @click="goBack">กลับหน้าหลัก</button>
     </div>
 
     <!-- Onboarding Content -->
@@ -314,7 +314,7 @@ onMounted(() => {
         
         <!-- Slider Controls -->
         <div class="slider-controls">
-          <button @click="prevSlide" :disabled="currentSlide === 0" class="slider-btn">
+          <button :disabled="currentSlide === 0" class="slider-btn" @click="prevSlide">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M15 18l-6-6 6-6"/>
             </svg>
@@ -323,11 +323,11 @@ onMounted(() => {
             <button 
               v-for="(_, index) in slides" 
               :key="index"
-              @click="goToSlide(index)"
               :class="['dot', { active: currentSlide === index }]"
+              @click="goToSlide(index)"
             ></button>
           </div>
-          <button @click="nextSlide" :disabled="currentSlide === slides.length - 1" class="slider-btn">
+          <button :disabled="currentSlide === slides.length - 1" class="slider-btn" @click="nextSlide">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
@@ -370,7 +370,7 @@ onMounted(() => {
 
       <!-- CTA Section -->
       <div class="cta-section">
-        <button @click="startRegistration" class="btn-primary btn-large">
+        <button class="btn-primary btn-large" @click="startRegistration">
           <span>เริ่มสมัครเลย</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14M12 5l7 7-7 7"/>

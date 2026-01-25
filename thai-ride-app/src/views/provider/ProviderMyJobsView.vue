@@ -348,8 +348,8 @@ onUnmounted(() => {
       <button 
         class="tab" 
         :class="{ active: activeTab === 'active' }"
-        @click="activeTab = 'active'"
         type="button"
+        @click="activeTab = 'active'"
       >
         กำลังดำเนินการ
         <span v-if="activeJobs.length" class="tab-count">{{ activeJobs.length }}</span>
@@ -357,8 +357,8 @@ onUnmounted(() => {
       <button 
         class="tab" 
         :class="{ active: activeTab === 'history' }"
-        @click="activeTab = 'history'"
         type="button"
+        @click="activeTab = 'history'"
       >
         ประวัติ
       </button>
@@ -369,7 +369,7 @@ onUnmounted(() => {
       <div class="error-icon">⚠️</div>
       <h3>เกิดข้อผิดพลาด</h3>
       <p>{{ error }}</p>
-      <button class="retry-btn" @click="retryLoad" type="button">
+      <button class="retry-btn" type="button" @click="retryLoad">
         ลองใหม่
       </button>
     </div>
@@ -402,8 +402,8 @@ onUnmounted(() => {
         :key="job.id" 
         class="job-item"
         :class="{ clickable: activeTab === 'active' }"
-        @click="goToJobDetail(job)"
         role="listitem"
+        @click="goToJobDetail(job)"
       >
         <div class="job-top">
           <div class="job-info">

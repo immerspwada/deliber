@@ -64,7 +64,7 @@ const tripOptions = [0, 50, 100, 500, 1000]
   <div class="drivers-page">
     <!-- Header -->
     <header class="page-header">
-      <button @click="router.back()" class="back-btn">
+      <button class="back-btn" @click="router.back()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
@@ -128,7 +128,7 @@ const tripOptions = [0, 50, 100, 500, 1000]
               {{ (driver as any).vehicle_type || 'รถยนต์' }} · {{ (driver as any).vehicle_plate || '-' }}
             </div>
           </div>
-          <button @click="confirmRemove(driver.provider_id || '')" class="remove-btn">
+          <button class="remove-btn" @click="confirmRemove(driver.provider_id || '')">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
             </svg>
@@ -145,7 +145,7 @@ const tripOptions = [0, 50, 100, 500, 1000]
           
           <label class="pref-toggle">
             <span>ต้องการคนขับหญิง</span>
-            <input type="checkbox" v-model="preferences.prefer_female_driver" />
+            <input v-model="preferences.prefer_female_driver" type="checkbox" />
             <span class="toggle-switch"></span>
           </label>
         </div>
@@ -155,7 +155,7 @@ const tripOptions = [0, 50, 100, 500, 1000]
           
           <label class="pref-toggle">
             <span>เลือกคนขับคะแนนสูง</span>
-            <input type="checkbox" v-model="preferences.prefer_high_rated" />
+            <input v-model="preferences.prefer_high_rated" type="checkbox" />
             <span class="toggle-switch"></span>
           </label>
 
@@ -182,7 +182,7 @@ const tripOptions = [0, 50, 100, 500, 1000]
           
           <label class="pref-toggle">
             <span>เลือกคนขับมีประสบการณ์</span>
-            <input type="checkbox" v-model="preferences.prefer_experienced" />
+            <input v-model="preferences.prefer_experienced" type="checkbox" />
             <span class="toggle-switch"></span>
           </label>
 
@@ -201,7 +201,7 @@ const tripOptions = [0, 50, 100, 500, 1000]
           </div>
         </div>
 
-        <button @click="savePreferences" :disabled="loading" class="btn-primary">
+        <button :disabled="loading" class="btn-primary" @click="savePreferences">
           {{ loading ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า' }}
         </button>
       </div>
@@ -213,8 +213,8 @@ const tripOptions = [0, 50, 100, 500, 1000]
         <h3>ลบคนขับโปรด?</h3>
         <p>คุณแน่ใจหรือไม่ที่จะลบคนขับนี้ออกจากรายการโปรด?</p>
         <div class="modal-actions">
-          <button @click="showRemoveConfirm = false" class="btn-secondary">ยกเลิก</button>
-          <button @click="handleRemove" class="btn-danger">ลบ</button>
+          <button class="btn-secondary" @click="showRemoveConfirm = false">ยกเลิก</button>
+          <button class="btn-danger" @click="handleRemove">ลบ</button>
         </div>
       </div>
     </div>

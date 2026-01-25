@@ -47,7 +47,7 @@ function goBack(): void {
   <div class="step-view in-progress-view">
     <!-- Header -->
     <header class="step-header">
-      <button class="btn-back" @click="goBack" type="button" aria-label="กลับ">
+      <button class="btn-back" type="button" aria-label="กลับ" @click="goBack">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
@@ -80,12 +80,12 @@ function goBack(): void {
           <p v-if="customer?.phone">{{ customer.phone }}</p>
         </div>
         <div class="customer-actions">
-          <button class="action-btn" @click="emit('call')" type="button" aria-label="โทร">
+          <button class="action-btn" type="button" aria-label="โทร" @click="emit('call')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
             </svg>
           </button>
-          <button class="action-btn" @click="emit('chat')" type="button" aria-label="แชท">
+          <button class="action-btn" type="button" aria-label="แชท" @click="emit('chat')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
             </svg>
@@ -100,7 +100,7 @@ function goBack(): void {
           <span class="location-label">จุดส่ง</span>
           <p class="location-address">{{ job.dropoff_address }}</p>
         </div>
-        <button class="nav-btn" @click="openNavigation" type="button" aria-label="นำทาง">
+        <button class="nav-btn" type="button" aria-label="นำทาง" @click="openNavigation">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
           </svg>
@@ -129,7 +129,7 @@ function goBack(): void {
 
     <!-- Action Bar -->
     <footer class="action-bar">
-      <button class="btn-primary full" @click="emit('update-status')" type="button" :disabled="updating">
+      <button class="btn-primary full" type="button" :disabled="updating" @click="emit('update-status')">
         <span v-if="updating" class="spinner"></span>
         <span v-else>🎉 ส่งลูกค้าสำเร็จ</span>
       </button>

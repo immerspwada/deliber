@@ -6,7 +6,7 @@
         <h1>Service Bundles</h1>
         <p class="subtitle">Manage multi-service packages and templates</p>
       </div>
-      <button @click="showCreateModal = true" class="btn-primary">
+      <button class="btn-primary" @click="showCreateModal = true">
         <svg
           width="20"
           height="20"
@@ -186,15 +186,15 @@
           </div>
 
           <div class="template-actions">
-            <button @click="editTemplate(template)" class="btn-secondary">
+            <button class="btn-secondary" @click="editTemplate(template)">
               Edit
             </button>
             <button
-              @click="toggleTemplateStatus(template)"
               :class="[
                 'btn-outline',
                 template.is_active ? 'danger' : 'success',
               ]"
+              @click="toggleTemplateStatus(template)"
             >
               {{ template.is_active ? "Deactivate" : "Activate" }}
             </button>
@@ -257,9 +257,7 @@
                 </div>
               </td>
               <td>
-                <span class="discount-badge"
-                  >-฿{{ bundle.bundle_discount }}</span
-                >
+                <span class="discount-badge">-฿{{ bundle.bundle_discount }}</span>
               </td>
               <td>
                 <span :class="['status-badge', bundle.status]">
@@ -289,7 +287,7 @@
               </td>
               <td>{{ formatDate(bundle.created_at) }}</td>
               <td>
-                <button @click="viewBundleDetails(bundle)" class="btn-icon">
+                <button class="btn-icon" @click="viewBundleDetails(bundle)">
                   <svg
                     width="18"
                     height="18"
@@ -354,7 +352,7 @@
                   : "Create Bundle Template"
               }}
             </h2>
-            <button @click="closeModal" class="close-btn">
+            <button class="close-btn" @click="closeModal">
               <svg
                 width="24"
                 height="24"
@@ -368,7 +366,7 @@
             </button>
           </div>
 
-          <form @submit.prevent="saveTemplate" class="modal-body">
+          <form class="modal-body" @submit.prevent="saveTemplate">
             <div class="form-group">
               <label>Name (English) *</label>
               <input
@@ -416,9 +414,9 @@
                   class="checkbox-label"
                 >
                   <input
+                    v-model="formData.service_types"
                     type="checkbox"
                     :value="service.id"
-                    v-model="formData.service_types"
                   />
                   <span class="checkbox-text">{{ service.name }}</span>
                 </label>
@@ -458,33 +456,31 @@
 
             <div class="form-group">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="formData.is_popular" />
+                <input v-model="formData.is_popular" type="checkbox" />
                 <span class="checkbox-text">Mark as Popular</span>
               </label>
             </div>
 
             <div class="form-group">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="formData.is_active" />
+                <input v-model="formData.is_active" type="checkbox" />
                 <span class="checkbox-text">Active (visible to customers)</span>
               </label>
             </div>
           </form>
 
           <div class="modal-footer">
-            <button type="button" @click="closeModal" class="btn-secondary">
+            <button type="button" class="btn-secondary" @click="closeModal">
               Cancel
             </button>
             <button
               type="button"
-              @click="saveTemplate"
               class="btn-primary"
               :disabled="saving || formData.service_types.length < 2"
+              @click="saveTemplate"
             >
               <span v-if="saving">Saving...</span>
-              <span v-else
-                >{{ editingTemplate ? "Update" : "Create" }} Template</span
-              >
+              <span v-else>{{ editingTemplate ? "Update" : "Create" }} Template</span>
             </button>
           </div>
         </div>

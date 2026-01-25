@@ -50,7 +50,7 @@ const formatCoverage = (amount: number) => {
   <div class="insurance-page">
     <!-- Header -->
     <header class="page-header">
-      <button @click="router.back()" class="back-btn">
+      <button class="back-btn" @click="router.back()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
@@ -115,17 +115,17 @@ const formatCoverage = (amount: number) => {
           </div>
 
           <button 
-            @click="viewPlanDetail(plan.id)" 
-            class="view-detail-btn"
+            class="view-detail-btn" 
+            @click="viewPlanDetail(plan.id)"
           >
             ดูรายละเอียด
           </button>
 
           <button 
             v-if="userInsurance?.plan_id !== plan.id"
-            @click="handleSubscribe(plan.id)"
             :disabled="loading || processingPlanId === plan.id"
             :class="['subscribe-btn', plan.coverage_type]"
+            @click="handleSubscribe(plan.id)"
           >
             <span v-if="processingPlanId === plan.id">กำลังดำเนินการ...</span>
             <span v-else>เลือกแผนนี้</span>
@@ -185,7 +185,7 @@ const formatCoverage = (amount: number) => {
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>{{ selectedPlan()?.name_th }}</h3>
-          <button @click="showPlanDetail = false" class="close-btn">
+          <button class="close-btn" @click="showPlanDetail = false">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -224,8 +224,8 @@ const formatCoverage = (amount: number) => {
         <div class="modal-footer">
           <button 
             v-if="userInsurance?.plan_id !== selectedPlan()?.id"
-            @click="handleSubscribe(selectedPlan()!.id); showPlanDetail = false"
             class="btn-primary"
+            @click="handleSubscribe(selectedPlan()!.id); showPlanDetail = false"
           >
             เลือกแผนนี้
           </button>

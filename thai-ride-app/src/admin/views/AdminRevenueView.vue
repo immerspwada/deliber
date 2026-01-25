@@ -119,11 +119,11 @@ onMounted(() => {
         <p class="text-sm text-gray-600 mt-1">วิเคราะห์รายได้และสถิติทางการเงิน</p>
       </div>
       <button 
-        @click="loadData" 
-        :disabled="revenue.loading.value"
+        :disabled="revenue.loading.value" 
         type="button"
         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
         aria-label="รีเฟรชข้อมูล"
+        @click="loadData"
       >
         {{ revenue.loading.value ? 'กำลังโหลด...' : 'รีเฟรช' }}
       </button>
@@ -140,8 +140,8 @@ onMounted(() => {
             id="date-from"
             v-model="dateFrom"
             type="date"
-            @change="onFilterChange"
             class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            @change="onFilterChange"
           />
         </div>
         <div>
@@ -152,8 +152,8 @@ onMounted(() => {
             id="date-to"
             v-model="dateTo"
             type="date"
-            @change="onFilterChange"
             class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            @change="onFilterChange"
           />
         </div>
         <div>
@@ -163,8 +163,8 @@ onMounted(() => {
           <select 
             id="service-type"
             v-model="serviceTypeFilter" 
-            @change="onFilterChange"
             class="w-full px-4 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            @change="onFilterChange"
           >
             <option :value="null">ทุกประเภท</option>
             <option value="ride">รถรับส่ง</option>
@@ -174,9 +174,9 @@ onMounted(() => {
         </div>
         <div class="flex items-end">
           <button
-            @click="initializeDateRange(); loadData()"
             type="button"
             class="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            @click="initializeDateRange(); loadData()"
           >
             30 วันล่าสุด
           </button>
@@ -344,9 +344,11 @@ onMounted(() => {
           <div class="relative h-64">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full">
               <!-- Grid lines -->
-              <line v-for="i in 5" :key="`grid-${i}`" 
+              <line
+                v-for="i in 5" :key="`grid-${i}`" 
                 x1="0" :y1="i * 20" x2="100" :y2="i * 20" 
-                stroke="#e5e7eb" stroke-width="0.2" />
+                stroke="#e5e7eb" stroke-width="0.2"
+              />
               
               <!-- Revenue line -->
               <polyline
@@ -388,7 +390,7 @@ onMounted(() => {
         </div>
         <div v-else class="text-center py-12 text-gray-500">
           ไม่มีข้อมูล
-          </div>
+        </div>
       </div>
 
       <!-- Daily Breakdown Table -->
@@ -413,8 +415,8 @@ onMounted(() => {
                 <td colspan="6" class="px-6 py-12 text-center text-gray-500">ไม่มีข้อมูล</td>
               </tr>
               <tr 
-                v-else
-                v-for="day in dailyChartData" 
+                v-for="day in dailyChartData"
+                v-else 
                 :key="day.date"
                 class="hover:bg-gray-50 transition-colors"
               >

@@ -2,8 +2,8 @@
   <button
     type="button"
     class="setting-card"
-    @click="$emit('click')"
     :aria-label="`ไปยัง ${title}`"
+    @click="$emit('click')"
   >
     <div class="icon" aria-hidden="true">{{ icon }}</div>
     <div class="content">

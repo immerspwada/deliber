@@ -144,10 +144,10 @@ const hasConditions = computed(() =>
       <button 
         class="master-toggle" 
         :class="{ active: autoAcceptEnabled }"
-        @click="toggleAutoAccept"
         type="button"
         :aria-pressed="autoAcceptEnabled"
         aria-label="เปิด/ปิดรับงานอัตโนมัติ"
+        @click="toggleAutoAccept"
       >
         <span class="toggle-track">
           <span class="toggle-thumb"></span>
@@ -182,10 +182,10 @@ const hasConditions = computed(() =>
           <button 
             class="rule-toggle"
             :class="{ active: rule.enabled }"
-            @click.stop="toggleRule(rule.id)"
             type="button"
             :aria-pressed="rule.enabled"
             :aria-label="rule.enabled ? 'ปิดกฎ' : 'เปิดกฎ'"
+            @click.stop="toggleRule(rule.id)"
           >
             <span class="mini-toggle-track">
               <span class="mini-toggle-thumb"></span>
@@ -193,9 +193,9 @@ const hasConditions = computed(() =>
           </button>
           <button 
             class="delete-btn"
-            @click.stop="confirmDelete(rule)"
             type="button"
             aria-label="ลบกฎ"
+            @click.stop="confirmDelete(rule)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
@@ -212,7 +212,7 @@ const hasConditions = computed(() =>
     </div>
 
     <!-- Add Button -->
-    <button class="add-rule-btn" @click="openAddModal" type="button">
+    <button class="add-rule-btn" type="button" @click="openAddModal">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 5v14M5 12h14"/>
       </svg>
@@ -224,7 +224,7 @@ const hasConditions = computed(() =>
       <div class="modal-content" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h4>{{ editingRule ? 'แก้ไขกฎ' : 'เพิ่มกฎใหม่' }}</h4>
-          <button class="close-btn" @click="showAddModal = false" type="button" aria-label="ปิด">
+          <button class="close-btn" type="button" aria-label="ปิด" @click="showAddModal = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -315,14 +315,14 @@ const hasConditions = computed(() =>
         </div>
 
         <div class="modal-footer">
-          <button class="cancel-btn" @click="showAddModal = false" type="button">
+          <button class="cancel-btn" type="button" @click="showAddModal = false">
             ยกเลิก
           </button>
           <button 
             class="save-btn" 
-            @click="saveRule" 
-            type="button"
+            type="button" 
             :disabled="!formName.trim() || !hasConditions"
+            @click="saveRule"
           >
             {{ editingRule ? 'บันทึก' : 'เพิ่มกฎ' }}
           </button>

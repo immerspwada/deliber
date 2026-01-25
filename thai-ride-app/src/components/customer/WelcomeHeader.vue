@@ -91,8 +91,8 @@ const firstName = computed(() => {
         <div class="notification-wrapper">
           <button
             class="action-btn"
-            @click.stop="toggleNotificationDropdown"
             aria-label="การแจ้งเตือน"
+            @click.stop="toggleNotificationDropdown"
           >
             <svg
               viewBox="0 0 24 24"
@@ -119,8 +119,8 @@ const firstName = computed(() => {
         <!-- Profile -->
         <button
           class="action-btn profile"
-          @click="emit('profile-click')"
           aria-label="โปรไฟล์"
+          @click="emit('profile-click')"
         >
           <svg
             viewBox="0 0 24 24"

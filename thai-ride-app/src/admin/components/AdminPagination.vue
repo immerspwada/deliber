@@ -3,16 +3,16 @@
     <!-- Mobile View -->
     <div class="flex flex-1 justify-between sm:hidden">
       <button
-        @click="goToPreviousPage"
         :disabled="currentPage === 1"
         class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        @click="goToPreviousPage"
       >
         ก่อนหน้า
       </button>
       <button
-        @click="goToNextPage"
         :disabled="currentPage === totalPages"
         class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        @click="goToNextPage"
       >
         ถัดไป
       </button>
@@ -29,8 +29,8 @@
           <select
             id="page-size"
             v-model="selectedPageSize"
-            @change="handlePageSizeChange"
             class="rounded-md border-gray-300 py-1 pl-3 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            @change="handlePageSizeChange"
           >
             <option v-for="size in pageSizeOptions" :key="size" :value="size">
               {{ size }}
@@ -58,9 +58,9 @@
         <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
           <!-- Previous Button -->
           <button
-            @click="goToPreviousPage"
             :disabled="currentPage === 1"
             class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="goToPreviousPage"
           >
             <span class="sr-only">Previous</span>
             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -72,13 +72,13 @@
           <template v-for="page in visiblePages" :key="page">
             <button
               v-if="page !== '...'"
-              @click="goToPage(page as number)"
               :class="[
                 page === currentPage
                   ? 'z-10 bg-primary-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600'
                   : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0',
                 'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20'
               ]"
+              @click="goToPage(page as number)"
             >
               {{ page }}
             </button>
@@ -92,9 +92,9 @@
 
           <!-- Next Button -->
           <button
-            @click="goToNextPage"
             :disabled="currentPage === totalPages"
             class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="goToNextPage"
           >
             <span class="sr-only">Next</span>
             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

@@ -132,20 +132,14 @@ watch(() => props.show, async (show) => {
     reassignment.subscribeToProviderUpdates();
     reassignment.subscribeToReassignmentUpdates(props.orderId);
     
-    // Activate focus trap and focus first element
-    await nextTick();
-    focusTrap.activate();
-    
     // Focus close button
+    await nextTick();
     if (closeButtonRef.value) {
       closeButtonRef.value.focus();
     }
   } else {
     // Unsubscribe from realtime updates
     reassignment.unsubscribeAll();
-    
-    // Deactivate focus trap
-    focusTrap.deactivate();
     
     // Restore focus to previous element
     if (previousActiveElement) {
@@ -179,7 +173,7 @@ onMounted(() => {
           <h2 id="modal-title" class="modal-title">ย้ายงานไปให้ไรเดอร์คนอื่น</h2>
           <p id="modal-description" class="modal-description">เลือกไรเดอร์ที่พร้อมรับงานเพื่อมอบหมายงานใหม่</p>
         </div>
-        <button ref="closeButtonRef" class="close-btn" @click="handleClose" aria-label="ปิดหน้าต่าง">
+        <button ref="closeButtonRef" class="close-btn" aria-label="ปิดหน้าต่าง" @click="handleClose">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
@@ -314,17 +308,17 @@ onMounted(() => {
       <div class="modal-footer">
         <button 
           class="btn btn-secondary" 
-          @click="handleClose" 
-          :disabled="isSubmitting"
+          :disabled="isSubmitting" 
           aria-label="ยกเลิกการย้ายงาน"
+          @click="handleClose"
         >
           ยกเลิก
         </button>
         <button
           class="btn btn-primary"
-          @click="handleSubmit"
           :disabled="!canSubmit"
           aria-label="ยืนยันการย้ายงาน"
+          @click="handleSubmit"
         >
           <span v-if="isSubmitting" class="btn-spinner"></span>
           <span>{{ isSubmitting ? 'กำลังย้ายงาน...' : 'ยืนยันการย้ายงาน' }}</span>

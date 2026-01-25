@@ -22,8 +22,10 @@ const emit = defineEmits<{
 
 <template>
   <div class="toggle-group" :class="{ 'full-width': fullWidth }">
-    <button v-for="opt in options" :key="opt.value" type="button" class="toggle-btn"
-      :class="{ active: modelValue === opt.value }" @click="emit('update:modelValue', opt.value)">
+    <button
+      v-for="opt in options" :key="opt.value" type="button" class="toggle-btn"
+      :class="{ active: modelValue === opt.value }" @click="emit('update:modelValue', opt.value)"
+    >
       <span v-if="opt.icon" class="btn-icon" v-html="opt.icon" />
       {{ opt.label }}
     </button>

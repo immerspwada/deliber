@@ -6,13 +6,13 @@
       <span v-else class="loading-text">กำลังโหลด...</span>
     </div>
     <div class="balance-actions">
-      <button class="action-btn topup-btn" @click="emit('topup')" type="button">
+      <button class="action-btn topup-btn" type="button" @click="emit('topup')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 6v12M6 12h12"/>
         </svg>
         <span>เติมเงิน</span>
       </button>
-      <button class="action-btn withdraw-btn" @click="emit('withdraw')" type="button">
+      <button class="action-btn withdraw-btn" type="button" @click="emit('withdraw')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
         </svg>

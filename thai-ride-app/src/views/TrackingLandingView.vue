@@ -126,9 +126,9 @@ const serviceTypes = [
           v-model="trackingId"
           type="text"
           placeholder="กรอกรหัสติดตาม เช่น RID-20251219-000001"
-          @keyup.enter="searchOrder"
           :disabled="isSearching"
           class="search-input"
+          @keyup.enter="searchOrder"
         />
         <button 
           v-if="trackingId" 
@@ -145,8 +145,8 @@ const serviceTypes = [
       
       <button 
         class="search-btn" 
-        @click="searchOrder"
         :disabled="isSearching || !trackingId.trim()"
+        @click="searchOrder"
       >
         <span v-if="isSearching" class="spinner"></span>
         <span v-else>ค้นหา</span>

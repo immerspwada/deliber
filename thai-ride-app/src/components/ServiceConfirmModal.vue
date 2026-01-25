@@ -41,7 +41,7 @@ const closeModal = () => {
       <div class="modal">
         <div class="modal-header">
           <h2>ยืนยันการ{{ serviceName }}</h2>
-          <button @click="closeModal" class="close-btn">
+          <button class="close-btn" @click="closeModal">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -88,8 +88,8 @@ const closeModal = () => {
         </div>
 
         <div class="modal-footer">
-          <button @click="closeModal" class="btn-secondary">ยกเลิก</button>
-          <button @click="confirmService" class="btn-primary">ยืนยัน</button>
+          <button class="btn-secondary" @click="closeModal">ยกเลิก</button>
+          <button class="btn-primary" @click="confirmService">ยืนยัน</button>
         </div>
       </div>
     </div>

@@ -87,7 +87,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
         status: 'pending'
       }
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: insertError } = await (supabase as any)
         .from('delivery_requests')
         .insert(deliveryData)
@@ -115,7 +115,7 @@ export const useDeliveryStore = defineStore('delivery', () => {
     error.value = null
     
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: updateError } = await (supabase as any)
         .from('delivery_requests')
         .update({ status: 'cancelled' })

@@ -17,8 +17,10 @@ const getPercentage = (count: number, total: number) => total > 0 ? (count / tot
     <div class="rating-summary">
       <span class="rating-value">{{ averageRating.toFixed(1) }}</span>
       <div class="rating-stars">
-        <svg v-for="i in 5" :key="i" width="16" height="16" viewBox="0 0 24 24" 
-          :fill="i <= Math.round(averageRating) ? '#f59e0b' : '#e5e5e5'" stroke="none">
+        <svg
+          v-for="i in 5" :key="i" width="16" height="16" viewBox="0 0 24 24" 
+          :fill="i <= Math.round(averageRating) ? '#f59e0b' : '#e5e5e5'" stroke="none"
+        >
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
       </div>

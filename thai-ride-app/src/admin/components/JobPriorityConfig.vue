@@ -6,8 +6,8 @@
         <p class="text-sm text-gray-500">จัดการน้ำหนักการคำนวณลำดับความสำคัญของงาน</p>
       </div>
       <button
-        @click="showCreateModal = true"
         class="btn-primary"
+        @click="showCreateModal = true"
       >
         <PlusIcon class="w-4 h-4 mr-2" />
         Create Config
@@ -114,25 +114,25 @@
             
             <div class="flex items-center space-x-2">
               <button
-                @click="editConfig(config)"
                 class="text-blue-600 hover:text-blue-800"
+                @click="editConfig(config)"
               >
                 <PencilIcon class="w-4 h-4" />
               </button>
               
               <button
                 v-if="!config.is_active"
-                @click="activateConfig(config.id)"
                 class="text-green-600 hover:text-green-800"
                 title="Activate"
+                @click="activateConfig(config.id)"
               >
                 <CheckIcon class="w-4 h-4" />
               </button>
               
               <button
                 v-if="!config.is_active"
-                @click="deleteConfig(config.id)"
                 class="text-red-600 hover:text-red-800"
+                @click="deleteConfig(config.id)"
               >
                 <TrashIcon class="w-4 h-4" />
               </button>
@@ -157,7 +157,7 @@
             {{ showCreateModal ? 'Create Priority Configuration' : 'Edit Priority Configuration' }}
           </h3>
           
-          <form @submit.prevent="saveConfig" class="space-y-4">
+          <form class="space-y-4" @submit.prevent="saveConfig">
             <div>
               <label class="block text-sm font-medium text-gray-700">Name</label>
               <input
@@ -261,8 +261,8 @@
             <div class="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
-                @click="closeModal"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                @click="closeModal"
               >
                 Cancel
               </button>

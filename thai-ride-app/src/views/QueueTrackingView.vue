@@ -154,7 +154,7 @@ onUnmounted(() => {
   <div class="tracking-page">
     <!-- Header -->
     <header class="header">
-      <button class="back-btn" @click="goBack" aria-label="ย้อนกลับ">
+      <button class="back-btn" aria-label="ย้อนกลับ" @click="goBack">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -192,7 +192,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Main Content -->
-    <main class="content" v-else-if="currentRequest">
+    <main v-else-if="currentRequest" class="content">
       <!-- Tracking ID Card -->
       <div class="tracking-id-card" :class="{ cancelled: isCancelled }">
         <span class="label">หมายเลขติดตาม</span>
@@ -213,10 +213,10 @@ onUnmounted(() => {
         </svg>
         <div class="notice-content">
           <span class="notice-title">การจองถูกยกเลิก</span>
-          <span class="notice-reason" v-if="currentRequest.cancel_reason">{{
+          <span v-if="currentRequest.cancel_reason" class="notice-reason">{{
             currentRequest.cancel_reason
           }}</span>
-          <span class="notice-time" v-if="currentRequest.cancelled_at">{{
+          <span v-if="currentRequest.cancelled_at" class="notice-time">{{
             formatDateTime(currentRequest.cancelled_at)
           }}</span>
         </div>
@@ -272,7 +272,7 @@ onUnmounted(() => {
           }}</span>
         </div>
 
-        <div class="detail-row" v-if="currentRequest.place_name">
+        <div v-if="currentRequest.place_name" class="detail-row">
           <span class="label">
             <svg
               viewBox="0 0 24 24"
@@ -290,7 +290,7 @@ onUnmounted(() => {
           <span class="value">{{ currentRequest.place_name }}</span>
         </div>
 
-        <div class="detail-row" v-if="currentRequest.place_address">
+        <div v-if="currentRequest.place_address" class="detail-row">
           <span class="label">
             <svg
               viewBox="0 0 24 24"
@@ -336,12 +336,10 @@ onUnmounted(() => {
             </svg>
             เวลา
           </span>
-          <span class="value"
-            >{{ formatTime(currentRequest.scheduled_time) }} น.</span
-          >
+          <span class="value">{{ formatTime(currentRequest.scheduled_time) }} น.</span>
         </div>
 
-        <div class="detail-row" v-if="currentRequest.details">
+        <div v-if="currentRequest.details" class="detail-row">
           <span class="label">
             <svg
               viewBox="0 0 24 24"
@@ -369,9 +367,7 @@ onUnmounted(() => {
             </svg>
             ค่าบริการ
           </span>
-          <span class="value"
-            >฿{{ currentRequest.final_fee || currentRequest.service_fee }}</span
-          >
+          <span class="value">฿{{ currentRequest.final_fee || currentRequest.service_fee }}</span>
         </div>
       </div>
 
@@ -381,8 +377,8 @@ onUnmounted(() => {
         <button
           v-if="canCancel(currentRequest)"
           class="btn-cancel"
-          @click="handleCancel"
           :disabled="loading"
+          @click="handleCancel"
         >
           <svg
             viewBox="0 0 24 24"
@@ -468,8 +464,8 @@ onUnmounted(() => {
             </button>
             <button
               class="btn-primary"
-              @click="handleRate"
               :disabled="submittingRating"
+              @click="handleRate"
             >
               {{ submittingRating ? "กำลังส่ง..." : "ส่งคะแนน" }}
             </button>

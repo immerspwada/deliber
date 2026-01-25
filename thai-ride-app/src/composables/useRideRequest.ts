@@ -476,7 +476,7 @@ export function useRideRequest() {
     // Query updated for providers_v2 schema - include all active statuses
     // Include vehicle info columns: vehicle_type, vehicle_plate, vehicle_color
     // Include media: avatar_url, vehicle_photo_url
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { data, error } = await (supabase as any)
       .from('ride_requests')
       .select(`
@@ -498,7 +498,7 @@ export function useRideRequest() {
     }
 
     if (data) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const rideData = data as any
       console.log('[RideRequest] Found active ride:', rideData.id, 'status:', rideData.status)
       activeRide.value = rideData
@@ -630,7 +630,7 @@ export function useRideRequest() {
       
       // First try using RPC function (bypasses RLS)
       if (activeRide.value?.id) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const { data: rpcData, error: rpcError } = await (supabase as any)
           .rpc('get_matched_provider_for_ride', { p_ride_id: activeRide.value.id })
         
@@ -663,7 +663,7 @@ export function useRideRequest() {
       
       // Fallback: Direct query (may fail due to RLS)
       console.log('[RideRequest] Trying direct provider query:', providerId)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error } = await (supabase as any)
         .from('providers_v2')
         .select('id, user_id, first_name, last_name, phone_number, rating, total_trips, vehicle_type, vehicle_plate, vehicle_color, avatar_url, vehicle_photo_url, current_lat, current_lng')
@@ -849,7 +849,7 @@ export function useRideRequest() {
   
   async function fetchProviderLocation(providerId: string): Promise<void> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error } = await (supabase as any)
         .from('provider_locations')
         .select('latitude, longitude, heading, updated_at')
@@ -859,7 +859,7 @@ export function useRideRequest() {
         .maybeSingle()
       
       if (!error && data && matchedDriver.value) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const locData = data as any
         matchedDriver.value.current_lat = Number(locData.latitude) || 0
         matchedDriver.value.current_lng = Number(locData.longitude) || 0
@@ -928,7 +928,7 @@ export function useRideRequest() {
       console.log('[RideRequest] Submitting rating:', { rideId, providerId, userId, rating: userRating.value })
       
       // Insert rating directly
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error: ratingError } = await (supabase as any)
         .from('ride_ratings')
         .insert({
@@ -948,7 +948,7 @@ export function useRideRequest() {
       }
       
       // Update ride status to completed if not already
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await (supabase as any)
         .from('ride_requests')
         .update({ status: 'completed' })

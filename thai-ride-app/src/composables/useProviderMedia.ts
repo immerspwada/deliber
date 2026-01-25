@@ -170,7 +170,7 @@ export function useProviderMedia(providerId?: string) {
       const publicUrl = urlData.publicUrl + `?t=${Date.now()}` // Cache bust
 
       // Update providers_v2 record
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error: updateError } = await (supabase
         .from('providers_v2') as any)
         .update({ avatar_url: publicUrl })
@@ -252,7 +252,7 @@ export function useProviderMedia(providerId?: string) {
       const publicUrl = urlData.publicUrl + `?t=${Date.now()}` // Cache bust
 
       // Update providers_v2 record
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error: updateError } = await (supabase
         .from('providers_v2') as any)
         .update({ vehicle_photo_url: publicUrl })
@@ -303,7 +303,7 @@ export function useProviderMedia(providerId?: string) {
       }
 
       // Update record
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await (supabase
         .from('providers_v2') as any)
         .update({ avatar_url: null })
@@ -344,7 +344,7 @@ export function useProviderMedia(providerId?: string) {
       }
 
       // Update record
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await (supabase
         .from('providers_v2') as any)
         .update({ vehicle_photo_url: null })

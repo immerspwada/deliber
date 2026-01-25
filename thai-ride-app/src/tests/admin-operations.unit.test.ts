@@ -22,7 +22,7 @@ describe('Unit Tests: Admin Operations (Task 9.4)', () => {
   let supabase: SupabaseClient
   let testUserId: string | null = null
   let testProviderId: string | null = null
-  let createdRecords: { table: string; id: string }[] = []
+  const createdRecords: { table: string; id: string }[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

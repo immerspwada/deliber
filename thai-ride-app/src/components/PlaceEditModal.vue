@@ -14,7 +14,7 @@
       </div>
 
       <!-- Form -->
-      <form @submit.prevent="handleSubmit" class="modal-body">
+      <form class="modal-body" @submit.prevent="handleSubmit">
         <!-- Place Type (only for new places) -->
         <div v-if="mode === 'add'" class="form-group">
           <label class="form-label">ประเภท</label>

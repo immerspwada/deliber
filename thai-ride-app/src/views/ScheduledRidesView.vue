@@ -375,7 +375,7 @@ const getPlaceIcon = (type: string) => {
 
     <!-- Hero Section - Clear Purpose -->
     <section class="hero-section">
-      <button class="refresh-btn" @click="handleRefresh" :disabled="isRefreshing">
+      <button class="refresh-btn" :disabled="isRefreshing" @click="handleRefresh">
         <svg :class="{ spinning: isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
         </svg>
@@ -461,7 +461,7 @@ const getPlaceIcon = (type: string) => {
             <span class="selected-label">ปลายทาง</span>
             <span class="selected-address">{{ selectedPlace.address }}</span>
           </div>
-          <button @click="clearPlace" class="clear-btn">
+          <button class="clear-btn" @click="clearPlace">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -483,8 +483,8 @@ const getPlaceIcon = (type: string) => {
             />
             <button 
               v-if="customAddress.trim()"
-              @click="setCustomAddress" 
-              class="confirm-address-btn"
+              class="confirm-address-btn" 
+              @click="setCustomAddress"
             >
               ตกลง
             </button>
@@ -549,7 +549,7 @@ const getPlaceIcon = (type: string) => {
         </div>
 
         <!-- Add New Place Button -->
-        <button v-if="!selectedPlace && !loadingPlaces" @click="openAddPlaceModal" class="add-place-btn">
+        <button v-if="!selectedPlace && !loadingPlaces" class="add-place-btn" @click="openAddPlaceModal">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
           </svg>
@@ -581,7 +581,7 @@ const getPlaceIcon = (type: string) => {
             </svg>
             <span>{{ ride.destination_address }}</span>
           </div>
-          <button @click="confirmCancel(ride.id)" class="cancel-btn">
+          <button class="cancel-btn" @click="confirmCancel(ride.id)">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -589,7 +589,7 @@ const getPlaceIcon = (type: string) => {
         </div>
       </div>
       
-      <button v-if="scheduledRides.length > 3" @click="router.push('/customer/history')" class="view-all-btn">
+      <button v-if="scheduledRides.length > 3" class="view-all-btn" @click="router.push('/customer/history')">
         ดูทั้งหมด
       </button>
     </section>
@@ -602,9 +602,9 @@ const getPlaceIcon = (type: string) => {
         <span class="summary-place">{{ selectedPlace?.address }}</span>
       </div>
       <button 
-        @click="quickBook" 
         :disabled="!canBook || loading" 
-        :class="['btn-book', { ready: canBook }]"
+        :class="['btn-book', { ready: canBook }]" 
+        @click="quickBook"
       >
         <template v-if="loading">
           <svg class="spinner" viewBox="0 0 24 24">
@@ -630,8 +630,8 @@ const getPlaceIcon = (type: string) => {
         <h3>ยกเลิกการจอง?</h3>
         <p>คุณแน่ใจหรือไม่?</p>
         <div class="modal-actions">
-          <button @click="showCancelConfirm = false" class="btn-secondary">ไม่</button>
-          <button @click="handleCancel" class="btn-danger">ยกเลิก</button>
+          <button class="btn-secondary" @click="showCancelConfirm = false">ไม่</button>
+          <button class="btn-danger" @click="handleCancel">ยกเลิก</button>
         </div>
       </div>
     </div>
@@ -695,11 +695,11 @@ const getPlaceIcon = (type: string) => {
         </div>
         
         <div class="modal-actions">
-          <button @click="showAddPlaceModal = false" class="btn-secondary">ยกเลิก</button>
+          <button class="btn-secondary" @click="showAddPlaceModal = false">ยกเลิก</button>
           <button 
-            @click="saveNewPlace" 
-            :disabled="!newPlace.name.trim() || !newPlace.address.trim() || savingPlace"
+            :disabled="!newPlace.name.trim() || !newPlace.address.trim() || savingPlace" 
             class="btn-primary"
+            @click="saveNewPlace"
           >
             {{ savingPlace ? 'กำลังบันทึก...' : 'บันทึก' }}
           </button>

@@ -204,7 +204,7 @@ onUnmounted(() => {
         <span class="total-count">{{ totalDeliveries.toLocaleString() }} รายการ</span>
       </div>
       <div class="header-right">
-        <button class="refresh-btn" @click="loadDeliveries" :disabled="isLoading" aria-label="รีเฟรช">
+        <button class="refresh-btn" :disabled="isLoading" aria-label="รีเฟรช" @click="loadDeliveries">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ spinning: isLoading }">
             <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
           </svg>
@@ -261,7 +261,7 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="isLoading" class="loading-state">
-        <div class="skeleton" v-for="i in 8" :key="i"/>
+        <div v-for="i in 8" :key="i" class="skeleton"/>
       </div>
 
       <table v-else-if="deliveries.length > 0" class="data-table">

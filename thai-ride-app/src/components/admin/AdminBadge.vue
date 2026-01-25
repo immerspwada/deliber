@@ -4,7 +4,7 @@
 
 <template>
   <span :class="badgeClasses" @click="clickable && $emit('click')">
-    <component v-if="icon" :is="icon" class="badge-icon" />
+    <component :is="icon" v-if="icon" class="badge-icon" />
     <span class="badge-text"><slot /></span>
   </span>
 </template>

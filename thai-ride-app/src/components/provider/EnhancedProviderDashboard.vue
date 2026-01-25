@@ -9,11 +9,11 @@
       
       <div class="header-right">
         <ConnectionHealthStatus
-          :connectionInfo="connectionInfo"
-          :lastCheck="lastCheck"
-          :onReconnect="forceReconnect"
-          :onToggleFallback="toggleFallbackMode"
-          :onGetDiagnostics="getDiagnostics"
+          :connection-info="connectionInfo"
+          :last-check="lastCheck"
+          :on-reconnect="forceReconnect"
+          :on-toggle-fallback="toggleFallbackMode"
+          :on-get-diagnostics="getDiagnostics"
         />
       </div>
     </div>
@@ -96,8 +96,8 @@
         <div class="section-actions">
           <button 
             class="refresh-btn"
-            @click="refreshJobs"
             :disabled="isLoading"
+            @click="refreshJobs"
           >
             <svg class="refresh-icon" :class="{ spinning: isLoading }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23,4 23,10 17,10"></polyline>
@@ -167,7 +167,7 @@
           </div>
           
           <div class="job-meta">
-            <div class="job-distance" v-if="job.distance">
+            <div v-if="job.distance" class="job-distance">
               📏 {{ job.distance.toFixed(1) }} km
             </div>
             <div class="job-time">
@@ -178,8 +178,8 @@
           <div class="job-actions">
             <button 
               class="accept-btn"
-              @click="acceptJob(job.id, job.type)"
               :disabled="isLoading"
+              @click="acceptJob(job.id, job.type)"
             >
               {{ isLoading ? 'กำลังรับงาน...' : 'รับงาน' }}
             </button>

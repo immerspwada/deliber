@@ -65,7 +65,7 @@ const updateStop = (index: number, field: keyof Stop, value: string) => {
         <div class="stop-content">
           <div class="stop-header">
             <span class="stop-label">จุดแวะ {{ index + 1 }}</span>
-            <button @click="removeStop(index)" class="remove-btn">
+            <button class="remove-btn" @click="removeStop(index)">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
@@ -73,25 +73,25 @@ const updateStop = (index: number, field: keyof Stop, value: string) => {
           </div>
           <input
             :value="stop.address"
-            @input="updateStop(index, 'address', ($event.target as HTMLInputElement).value)"
             type="text"
             placeholder="ระบุที่อยู่"
             class="stop-input"
+            @input="updateStop(index, 'address', ($event.target as HTMLInputElement).value)"
           />
           <div class="stop-contact">
             <input
               :value="stop.contactName"
-              @input="updateStop(index, 'contactName', ($event.target as HTMLInputElement).value)"
               type="text"
               placeholder="ชื่อผู้รับ (ไม่บังคับ)"
               class="contact-input"
+              @input="updateStop(index, 'contactName', ($event.target as HTMLInputElement).value)"
             />
             <input
               :value="stop.contactPhone"
-              @input="updateStop(index, 'contactPhone', ($event.target as HTMLInputElement).value)"
               type="tel"
               placeholder="เบอร์โทร"
               class="contact-input"
+              @input="updateStop(index, 'contactPhone', ($event.target as HTMLInputElement).value)"
             />
           </div>
         </div>
@@ -100,8 +100,8 @@ const updateStop = (index: number, field: keyof Stop, value: string) => {
 
     <button
       v-if="stops.length < maxStops"
-      @click="addStop"
       class="add-stop-btn"
+      @click="addStop"
     >
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>

@@ -323,14 +323,12 @@ onMounted(() => {
     <div class="page-header">
       <div class="header-left">
         <h1>Refunds</h1>
-        <span class="count"
-          >{{
-            activeTab === "cancellation"
-              ? cancellationStats.pending
-              : stats.pending_refunds
-          }}
-          รอดำเนินการ</span
-        >
+        <span class="count">{{
+          activeTab === "cancellation"
+            ? cancellationStats.pending
+            : stats.pending_refunds
+        }}
+          รอดำเนินการ</span>
       </div>
       <button
         class="refresh-btn"
@@ -497,7 +495,7 @@ onMounted(() => {
       <!-- Cancellation Refunds Table -->
       <div class="table-container">
         <div v-if="isLoading" class="loading">
-          <div class="skeleton" v-for="i in 8" :key="i" />
+          <div v-for="i in 8" :key="i" class="skeleton" />
         </div>
         <table v-else-if="cancellationRefunds.length" class="data-table">
           <thead>
@@ -543,8 +541,7 @@ onMounted(() => {
                     color: getStatusColor(r.status),
                     background: getStatusColor(r.status) + '20',
                   }"
-                  >{{ getStatusLabel(r.status) }}</span
-                >
+                >{{ getStatusLabel(r.status) }}</span>
               </td>
               <td class="date">{{ formatDate(r.created_at) }}</td>
               <td>
@@ -682,7 +679,7 @@ onMounted(() => {
       <!-- Table -->
       <div class="table-container">
         <div v-if="isLoading" class="loading">
-          <div class="skeleton" v-for="i in 8" :key="i" />
+          <div v-for="i in 8" :key="i" class="skeleton" />
         </div>
         <table v-else-if="refunds.length" class="data-table">
           <thead>
@@ -722,8 +719,7 @@ onMounted(() => {
                     color: getStatusColor(r.status),
                     background: getStatusColor(r.status) + '20',
                   }"
-                  >{{ getStatusLabel(r.status) }}</span
-                >
+                >{{ getStatusLabel(r.status) }}</span>
               </td>
               <td class="date">{{ formatDate(r.created_at) }}</td>
               <td>
@@ -805,8 +801,8 @@ onMounted(() => {
             <span class="label">Tracking ID</span>
             <code>{{
               selectedRefund.request_tracking_id ||
-              selectedRefund.tracking_id ||
-              selectedRefund.id.slice(0, 8)
+                selectedRefund.tracking_id ||
+                selectedRefund.id.slice(0, 8)
             }}</code>
           </div>
           <div class="info-row">
@@ -843,8 +839,7 @@ onMounted(() => {
                 color: getStatusColor(selectedRefund.status),
                 background: getStatusColor(selectedRefund.status) + '20',
               }"
-              >{{ getStatusLabel(selectedRefund.status) }}</span
-            >
+            >{{ getStatusLabel(selectedRefund.status) }}</span>
           </div>
           <div class="reason-box">
             <h4>เหตุผลการยกเลิก</h4>
@@ -950,21 +945,21 @@ onMounted(() => {
             </button>
             <button
               :class="actionType === 'approve' ? 'btn-approve' : 'btn-reject'"
+              :disabled="
+                processing || (actionType === 'reject' && !actionNotes.trim())
+              "
               @click="
                 activeTab === 'cancellation'
                   ? processCancellationAction()
                   : processRefund()
-              "
-              :disabled="
-                processing || (actionType === 'reject' && !actionNotes.trim())
               "
             >
               {{
                 processing
                   ? "กำลังดำเนินการ..."
                   : actionType === "approve"
-                  ? "อนุมัติ"
-                  : "ปฏิเสธ"
+                    ? "อนุมัติ"
+                    : "ปฏิเสธ"
               }}
             </button>
           </div>

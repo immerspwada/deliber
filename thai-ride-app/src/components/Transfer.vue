@@ -45,7 +45,7 @@ const canMoveToSource = computed(() => targetSelected.value.length > 0)
       <div class="transfer-header">{{ sourceTitle || 'Source' }} ({{ sourceItems.length }})</div>
       <div class="transfer-body">
         <label v-for="item in sourceItems" :key="item.key" class="transfer-item" :class="{ disabled: item.disabled }">
-          <input type="checkbox" v-model="sourceSelected" :value="item.key" :disabled="item.disabled" />
+          <input v-model="sourceSelected" type="checkbox" :value="item.key" :disabled="item.disabled" />
           <span>{{ item.label }}</span>
         </label>
       </div>
@@ -62,7 +62,7 @@ const canMoveToSource = computed(() => targetSelected.value.length > 0)
       <div class="transfer-header">{{ targetTitle || 'Target' }} ({{ targetItems.length }})</div>
       <div class="transfer-body">
         <label v-for="item in targetItems" :key="item.key" class="transfer-item" :class="{ disabled: item.disabled }">
-          <input type="checkbox" v-model="targetSelected" :value="item.key" :disabled="item.disabled" />
+          <input v-model="targetSelected" type="checkbox" :value="item.key" :disabled="item.disabled" />
           <span>{{ item.label }}</span>
         </label>
       </div>

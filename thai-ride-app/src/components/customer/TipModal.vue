@@ -124,7 +124,7 @@ onMounted(async () => {
           <!-- Header -->
           <div class="modal-header">
             <h2>ให้ทิปคนขับ</h2>
-            <button class="btn-close" @click="emit('close')" type="button" aria-label="ปิด">
+            <button class="btn-close" type="button" aria-label="ปิด" @click="emit('close')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
@@ -152,7 +152,7 @@ onMounted(async () => {
             <p v-else>
               ไม่สามารถให้ทิปได้ในขณะนี้
             </p>
-            <button class="btn-secondary" @click="emit('close')" type="button">
+            <button class="btn-secondary" type="button" @click="emit('close')">
               ปิด
             </button>
           </div>
@@ -178,16 +178,16 @@ onMounted(async () => {
                 :key="amount"
                 class="preset-btn"
                 :class="{ active: selectedAmount === amount && !isCustom }"
-                @click="selectPreset(amount)"
                 type="button"
+                @click="selectPreset(amount)"
               >
                 ฿{{ amount }}
               </button>
               <button
                 class="preset-btn"
                 :class="{ active: isCustom }"
-                @click="enableCustom"
                 type="button"
+                @click="enableCustom"
               >
                 อื่นๆ
               </button>
@@ -239,8 +239,8 @@ onMounted(async () => {
             <button
               class="btn-submit"
               :disabled="!canSubmit"
-              @click="handleSubmit"
               type="button"
+              @click="handleSubmit"
             >
               <span v-if="loading" class="spinner-small"></span>
               <template v-else>

@@ -166,7 +166,7 @@ onMounted(() => { fetchAnalytics() })
           <option value="30d">30 วันล่าสุด</option>
           <option value="90d">90 วันล่าสุด</option>
         </select>
-        <button class="refresh-btn" @click="fetchAnalytics" :disabled="loading">
+        <button class="refresh-btn" :disabled="loading" @click="fetchAnalytics">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12a9 9 0 11-6.219-8.56"/>
           </svg>

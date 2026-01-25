@@ -188,7 +188,7 @@ export function useCancellationAnalytics() {
       let byCustomer = 0
       let byProvider = 0
       let byAdmin = 0
-      let totalFees = 0
+      const totalFees = 0
       
       if (data) {
         for (const row of data) {

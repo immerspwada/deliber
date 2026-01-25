@@ -39,12 +39,12 @@
         <div class="route-point">
           <div class="point-label">จุดรับ</div>
           <div class="point-address">{{ pickupAddress }}</div>
-          <div class="point-time" v-if="pickupTime">{{ formatTime(pickupTime) }}</div>
+          <div v-if="pickupTime" class="point-time">{{ formatTime(pickupTime) }}</div>
         </div>
         <div class="route-point">
           <div class="point-label">จุดหมาย</div>
           <div class="point-address">{{ destinationAddress }}</div>
-          <div class="point-time" v-if="dropoffTime">{{ formatTime(dropoffTime) }}</div>
+          <div v-if="dropoffTime" class="point-time">{{ formatTime(dropoffTime) }}</div>
         </div>
       </div>
     </div>
@@ -60,7 +60,7 @@
       <div class="driver-info">
         <div class="driver-name">{{ driver.name }}</div>
         <div class="driver-vehicle">{{ driver.vehicleModel }} • {{ driver.licensePlate }}</div>
-        <div class="driver-rating" v-if="driver.rating">
+        <div v-if="driver.rating" class="driver-rating">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffc043">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
           </svg>
@@ -139,7 +139,7 @@
     </div>
 
     <!-- Actions -->
-    <div class="actions-section" v-if="showActions">
+    <div v-if="showActions" class="actions-section">
       <button class="action-btn secondary" @click="$emit('viewReceipt')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>

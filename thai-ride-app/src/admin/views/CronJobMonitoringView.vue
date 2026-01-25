@@ -127,11 +127,11 @@ onMounted(() => {
       </div>
       <button
         type="button"
-        @click="loadJobs"
         :disabled="loading"
         class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 
                disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         aria-label="รีเฟรชข้อมูล"
+        @click="loadJobs"
       >
         <svg class="w-5 h-5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -210,8 +210,8 @@ onMounted(() => {
       <p class="text-red-600">{{ error }}</p>
       <button
         type="button"
-        @click="loadJobs"
         class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+        @click="loadJobs"
       >
         ลองใหม่
       </button>
@@ -281,19 +281,19 @@ onMounted(() => {
                 <div class="flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    @click="viewHistory(job)"
                     class="text-blue-600 hover:text-blue-900"
                     aria-label="ดูประวัติ"
+                    @click="viewHistory(job)"
                   >
                     ประวัติ
                   </button>
                   <button
                     type="button"
-                    @click="handleRunJob(job)"
                     :disabled="!job.active || runningJobName === job.jobname"
                     class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700
                            disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="รันงาน"
+                    @click="handleRunJob(job)"
                   >
                     {{ runningJobName === job.jobname ? 'กำลังรัน...' : 'รันเลย' }}
                   </button>
@@ -319,9 +319,9 @@ onMounted(() => {
           </div>
           <button
             type="button"
-            @click="showHistoryModal = false"
             class="p-2 hover:bg-gray-100 rounded-lg"
             aria-label="ปิด"
+            @click="showHistoryModal = false"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -336,8 +336,8 @@ onMounted(() => {
         <div class="p-6 border-t border-gray-200">
           <button
             type="button"
-            @click="showHistoryModal = false"
             class="w-full py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200"
+            @click="showHistoryModal = false"
           >
             ปิด
           </button>

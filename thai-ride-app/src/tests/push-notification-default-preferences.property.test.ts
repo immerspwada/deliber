@@ -44,7 +44,7 @@ interface Provider {
 
 describe('Property 4: New Providers Have All Categories Enabled', () => {
   let supabase: SupabaseClient
-  let testPreferenceIds: string[] = []
+  const testPreferenceIds: string[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

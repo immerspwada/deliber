@@ -19,8 +19,8 @@
         <button
           type="button"
           class="details-toggle"
-          @click="showDetails = !showDetails"
           :aria-expanded="showDetails"
+          @click="showDetails = !showDetails"
         >
           {{ showDetails ? 'ซ่อนรายละเอียด' : 'แสดงรายละเอียด' }}
         </button>

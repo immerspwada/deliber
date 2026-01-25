@@ -244,8 +244,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.pending_feedback }}</span
-          ><span class="stat-label">รอตอบกลับ</span>
+          <span class="stat-value">{{ stats.pending_feedback }}</span><span class="stat-label">รอตอบกลับ</span>
         </div>
       </div>
       <div class="stat-card">
@@ -263,8 +262,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.resolved_feedback }}</span
-          ><span class="stat-label">ตอบกลับแล้ว</span>
+          <span class="stat-value">{{ stats.resolved_feedback }}</span><span class="stat-label">ตอบกลับแล้ว</span>
         </div>
       </div>
       <div class="stat-card">
@@ -282,9 +280,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value"
-            >{{ stats.avg_response_hours.toFixed(1) }}h</span
-          ><span class="stat-label">เวลาตอบเฉลี่ย</span>
+          <span class="stat-value">{{ stats.avg_response_hours.toFixed(1) }}h</span><span class="stat-label">เวลาตอบเฉลี่ย</span>
         </div>
       </div>
       <div class="stat-card">
@@ -303,8 +299,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.avg_rating.toFixed(1) }}</span
-          ><span class="stat-label">คะแนนเฉลี่ย</span>
+          <span class="stat-value">{{ stats.avg_rating.toFixed(1) }}</span><span class="stat-label">คะแนนเฉลี่ย</span>
         </div>
       </div>
     </div>
@@ -328,7 +323,7 @@ onMounted(() => {
     <!-- Table -->
     <div class="table-container">
       <div v-if="isLoading" class="loading">
-        <div class="skeleton" v-for="i in 8" :key="i" />
+        <div v-for="i in 8" :key="i" class="skeleton" />
       </div>
       <table v-else-if="feedbacks.length" class="data-table">
         <thead>
@@ -351,16 +346,14 @@ onMounted(() => {
             </td>
             <td>
               <div class="user-info">
-                <span class="name">{{ f.user_name }}</span
-                ><span class="uid">{{ f.member_uid }}</span>
+                <span class="name">{{ f.user_name }}</span><span class="uid">{{ f.member_uid }}</span>
               </div>
             </td>
             <td class="subject">
               {{ f.subject || f.message?.slice(0, 30) }}...
             </td>
             <td>
-              <span v-if="f.rating" class="rating">{{ f.rating }}/10</span
-              ><span v-else>-</span>
+              <span v-if="f.rating" class="rating">{{ f.rating }}/10</span><span v-else>-</span>
             </td>
             <td>
               <span
@@ -369,10 +362,9 @@ onMounted(() => {
                   color: getStatusColor(f.status),
                   background: getStatusColor(f.status) + '20',
                 }"
-                >{{
-                  f.status === "pending" ? "รอตอบกลับ" : "ตอบกลับแล้ว"
-                }}</span
-              >
+              >{{
+                f.status === "pending" ? "รอตอบกลับ" : "ตอบกลับแล้ว"
+              }}</span>
             </td>
             <td class="date">{{ formatDate(f.created_at) }}</td>
             <td>
@@ -430,8 +422,8 @@ onMounted(() => {
             </button>
             <button
               class="btn-primary"
-              @click="submitResponse"
               :disabled="processing || !responseText"
+              @click="submitResponse"
             >
               {{ processing ? "กำลังส่ง..." : "ส่งตอบกลับ" }}
             </button>

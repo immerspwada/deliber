@@ -96,8 +96,8 @@ const laundryServiceTypeArb = fc.constantFrom('wash', 'wash_iron', 'dry_clean', 
 describe('Property Tests: Service Request Creation (Properties 5-9)', () => {
   let supabase: SupabaseClient
   let testUserId: string | null = null
-  let createdRequestIds: { table: string; id: string }[] = []
-  let realtimeChannels: RealtimeChannel[] = []
+  const createdRequestIds: { table: string; id: string }[] = []
+  const realtimeChannels: RealtimeChannel[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

@@ -502,7 +502,7 @@ export function useAdminAuth() {
 // ========================================
 // Export singleton for router guards
 // ========================================
-let singletonInstance: ReturnType<typeof useAdminAuth> | null = null
+const singletonInstance: ReturnType<typeof useAdminAuth> | null = null
 
 export function getAdminAuthInstance() {
   // Create a minimal instance for router guards (doesn't need Vue reactivity)

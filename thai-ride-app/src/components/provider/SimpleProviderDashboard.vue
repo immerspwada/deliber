@@ -7,9 +7,9 @@
         <button 
           type="button"
           class="refresh-btn"
-          @click="refreshJobs"
           :disabled="isLoading"
           aria-label="รีเฟรช"
+          @click="refreshJobs"
         >
           <svg 
             class="refresh-icon" 
@@ -38,9 +38,9 @@
         <button 
           type="button"
           class="toggle-btn"
-          @click="toggleOnline"
           :disabled="isLoading || isToggling"
           :aria-label="isOnline ? 'ปิดรับงาน' : 'เปิดรับงาน'"
+          @click="toggleOnline"
         >
           <span v-if="isToggling" class="toggle-spinner"></span>
           <span v-else class="toggle-slider"></span>
@@ -61,7 +61,7 @@
       <div class="earnings-modal" @click.stop>
         <div class="earnings-header">
           <h2>สรุปรายได้วันนี้</h2>
-          <button type="button" class="close-btn" @click="closeEarningsSummary" aria-label="ปิด">
+          <button type="button" class="close-btn" aria-label="ปิด" @click="closeEarningsSummary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -92,7 +92,7 @@
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <span>{{ error }}</span>
-      <button type="button" class="error-close" @click="clearError" aria-label="ปิด">×</button>
+      <button type="button" class="error-close" aria-label="ปิด" @click="clearError">×</button>
     </div>
 
     <!-- Content -->
@@ -185,8 +185,8 @@
             <button 
               type="button"
               class="map-preview-btn"
-              @click="toggleMapPreview(job.id)"
               aria-label="ดูแผนที่"
+              @click="toggleMapPreview(job.id)"
             >
               <svg class="map-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
@@ -231,8 +231,8 @@
           <button 
             type="button"
             class="accept-btn"
-            @click="acceptJob(job.id)"
             :disabled="isLoading"
+            @click="acceptJob(job.id)"
           >
             <span v-if="isLoading" class="btn-spinner"></span>
             <span v-else>รับงานนี้</span>

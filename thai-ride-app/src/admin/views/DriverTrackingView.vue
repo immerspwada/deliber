@@ -286,7 +286,7 @@ onUnmounted(() => {
         <h1 class="text-2xl font-bold text-gray-900">ติดตามผู้ให้บริการ</h1>
         <p class="text-gray-600 mt-1">ติดตามตำแหน่งและสถานะผู้ให้บริการแบบ Real-time</p>
       </div>
-      <button type="button" @click="loadProviders" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+      <button type="button" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2" @click="loadProviders">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         รีเฟรช
       </button>
@@ -338,9 +338,9 @@ onUnmounted(() => {
           <input v-model="searchQuery" type="text" placeholder="ค้นหา ชื่อ, UID, เบอร์โทร..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
         </div>
         <div class="flex gap-2">
-          <button type="button" @click="filterStatus = 'all'" :class="['px-4 py-2 rounded-lg font-medium transition-colors', filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">ทั้งหมด</button>
-          <button type="button" @click="filterStatus = 'online'" :class="['px-4 py-2 rounded-lg font-medium transition-colors', filterStatus === 'online' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">ออนไลน์</button>
-          <button type="button" @click="filterStatus = 'available'" :class="['px-4 py-2 rounded-lg font-medium transition-colors', filterStatus === 'available' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">พร้อมรับงาน</button>
+          <button type="button" :class="['px-4 py-2 rounded-lg font-medium transition-colors', filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']" @click="filterStatus = 'all'">ทั้งหมด</button>
+          <button type="button" :class="['px-4 py-2 rounded-lg font-medium transition-colors', filterStatus === 'online' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']" @click="filterStatus = 'online'">ออนไลน์</button>
+          <button type="button" :class="['px-4 py-2 rounded-lg font-medium transition-colors', filterStatus === 'available' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']" @click="filterStatus = 'available'">พร้อมรับงาน</button>
         </div>
       </div>
     </div>
@@ -354,7 +354,7 @@ onUnmounted(() => {
     <!-- Error -->
     <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
       <p class="text-red-600">{{ error }}</p>
-      <button type="button" @click="loadProviders" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">ลองใหม่</button>
+      <button type="button" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" @click="loadProviders">ลองใหม่</button>
     </div>
 
     <!-- Empty -->
@@ -390,9 +390,9 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="flex gap-2 mt-3">
-          <button type="button" @click="focusOnProvider(provider)" v-if="provider.current_lat && provider.current_lng" class="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">ดูบนแผนที่</button>
-          <button type="button" @click="viewHistory(provider)" class="flex-1 px-3 py-2 text-sm bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100">ประวัติ</button>
-          <button type="button" @click="viewProvider(provider)" class="flex-1 px-3 py-2 text-sm bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100">รายละเอียด</button>
+          <button v-if="provider.current_lat && provider.current_lng" type="button" class="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" @click="focusOnProvider(provider)">ดูบนแผนที่</button>
+          <button type="button" class="flex-1 px-3 py-2 text-sm bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100" @click="viewHistory(provider)">ประวัติ</button>
+          <button type="button" class="flex-1 px-3 py-2 text-sm bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100" @click="viewProvider(provider)">รายละเอียด</button>
         </div>
       </div>
     </div>
@@ -402,7 +402,7 @@ onUnmounted(() => {
       <div class="bg-white rounded-2xl max-w-md w-full">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
           <h2 class="text-xl font-bold text-gray-900">รายละเอียดผู้ให้บริการ</h2>
-          <button type="button" @click="showDetailModal = false" class="p-2 hover:bg-gray-100 rounded-lg" aria-label="ปิด"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+          <button type="button" class="p-2 hover:bg-gray-100 rounded-lg" aria-label="ปิด" @click="showDetailModal = false"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
         </div>
         <div class="p-6 space-y-4">
           <div class="grid grid-cols-2 gap-4">
@@ -419,8 +419,8 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button type="button" @click="viewHistory(selectedProvider); showDetailModal = false" class="flex-1 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">ดูประวัติตำแหน่ง</button>
-          <button type="button" @click="showDetailModal = false" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">ปิด</button>
+          <button type="button" class="flex-1 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700" @click="viewHistory(selectedProvider); showDetailModal = false">ดูประวัติตำแหน่ง</button>
+          <button type="button" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200" @click="showDetailModal = false">ปิด</button>
         </div>
       </div>
     </div>
@@ -433,7 +433,7 @@ onUnmounted(() => {
             <h2 class="text-xl font-bold text-gray-900">ประวัติตำแหน่ง</h2>
             <p class="text-sm text-gray-500">{{ selectedProvider.user_name }} - 24 ชั่วโมงล่าสุด</p>
           </div>
-          <button type="button" @click="showHistoryModal = false" class="p-2 hover:bg-gray-100 rounded-lg" aria-label="ปิด"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+          <button type="button" class="p-2 hover:bg-gray-100 rounded-lg" aria-label="ปิด" @click="showHistoryModal = false"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
         </div>
         <div class="flex-1 overflow-hidden">
           <div v-if="historyLoading" class="h-[400px] flex items-center justify-center">
@@ -451,7 +451,7 @@ onUnmounted(() => {
           <p class="text-sm text-gray-600">พบ {{ locationHistory.length }} จุดตำแหน่ง • <span class="text-green-600">● จุดเริ่มต้น</span> • <span class="text-red-600">● ตำแหน่งล่าสุด</span></p>
         </div>
         <div class="p-6 border-t border-gray-200">
-          <button type="button" @click="showHistoryModal = false" class="w-full py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">ปิด</button>
+          <button type="button" class="w-full py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200" @click="showHistoryModal = false">ปิด</button>
         </div>
       </div>
     </div>

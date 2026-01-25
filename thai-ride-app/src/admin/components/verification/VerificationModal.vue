@@ -36,7 +36,7 @@ const getProviderName = (provider: any) => {
     <div class="modal-content">
       <div class="modal-header">
         <h2>ตรวจสอบเอกสาร</h2>
-        <button @click="$emit('close')" class="close-btn">
+        <button class="close-btn" @click="$emit('close')">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -90,9 +90,9 @@ const getProviderName = (provider: any) => {
           <label>หมายเหตุ / เหตุผล</label>
           <textarea 
             :value="notes"
-            @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
             placeholder="ระบุหมายเหตุหรือเหตุผล (จำเป็นสำหรับการปฏิเสธ)"
             rows="3"
+            @input="$emit('update:notes', ($event.target as HTMLTextAreaElement).value)"
           ></textarea>
         </div>
       </div>
@@ -100,22 +100,22 @@ const getProviderName = (provider: any) => {
       <div class="modal-footer">
         <button 
           class="btn-reject"
-          @click="$emit('reject')"
           :disabled="loading"
+          @click="$emit('reject')"
         >
           ปฏิเสธ
         </button>
         <button 
           class="btn-revision"
-          @click="$emit('needs-revision')"
           :disabled="loading"
+          @click="$emit('needs-revision')"
         >
           ขอแก้ไข
         </button>
         <button 
           class="btn-approve"
-          @click="$emit('approve')"
           :disabled="loading || !checklistComplete"
+          @click="$emit('approve')"
         >
           อนุมัติ
         </button>

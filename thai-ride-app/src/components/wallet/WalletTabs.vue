@@ -3,22 +3,22 @@
     <div class="tabs">
       <button
         :class="['tab', { active: modelValue === 'transactions' }]"
-        @click="emit('update:modelValue', 'transactions')"
         type="button"
+        @click="emit('update:modelValue', 'transactions')"
       >
         ประวัติ
       </button>
       <button
         :class="['tab', { active: modelValue === 'topup' }]"
-        @click="emit('update:modelValue', 'topup')"
         type="button"
+        @click="emit('update:modelValue', 'topup')"
       >
         เติมเงิน
       </button>
       <button
         :class="['tab', { active: modelValue === 'withdraw' }]"
-        @click="emit('update:modelValue', 'withdraw')"
         type="button"
+        @click="emit('update:modelValue', 'withdraw')"
       >
         ถอนเงิน
       </button>

@@ -267,8 +267,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.active_incentives }}</span
-          ><span class="stat-label">กำลังใช้งาน</span>
+          <span class="stat-value">{{ stats.active_incentives }}</span><span class="stat-label">กำลังใช้งาน</span>
         </div>
       </div>
       <div class="stat-card">
@@ -288,8 +287,7 @@ onMounted(() => {
         <div class="stat-content">
           <span class="stat-value">{{
             formatCurrency(stats.total_budget)
-          }}</span
-          ><span class="stat-label">งบประมาณรวม</span>
+          }}</span><span class="stat-label">งบประมาณรวม</span>
         </div>
       </div>
       <div class="stat-card">
@@ -309,8 +307,7 @@ onMounted(() => {
         <div class="stat-content">
           <span class="stat-value">{{
             formatCurrency(stats.total_claimed)
-          }}</span
-          ><span class="stat-label">จ่ายไปแล้ว</span>
+          }}</span><span class="stat-label">จ่ายไปแล้ว</span>
         </div>
       </div>
       <div class="stat-card">
@@ -330,8 +327,7 @@ onMounted(() => {
           </svg>
         </div>
         <div class="stat-content">
-          <span class="stat-value">{{ stats.providers_participating }}</span
-          ><span class="stat-label">ผู้ให้บริการเข้าร่วม</span>
+          <span class="stat-value">{{ stats.providers_participating }}</span><span class="stat-label">ผู้ให้บริการเข้าร่วม</span>
         </div>
       </div>
     </div>
@@ -355,7 +351,7 @@ onMounted(() => {
     <!-- Table -->
     <div class="table-container">
       <div v-if="isLoading" class="loading">
-        <div class="skeleton" v-for="i in 6" :key="i" />
+        <div v-for="i in 6" :key="i" class="skeleton" />
       </div>
       <table v-else-if="incentives.length" class="data-table">
         <thead>
@@ -394,8 +390,7 @@ onMounted(() => {
                   color: getStatusColor(inc.status),
                   background: getStatusColor(inc.status) + '20',
                 }"
-                >{{ getStatusLabel(inc.status) }}</span
-              >
+              >{{ getStatusLabel(inc.status) }}</span>
             </td>
             <td class="date">
               {{ formatDate(inc.start_date) }} - {{ formatDate(inc.end_date) }}
@@ -439,15 +434,13 @@ onMounted(() => {
         </div>
         <div class="modal-body">
           <div class="form-row">
-            <label>ชื่อ *</label
-            ><input
+            <label>ชื่อ *</label><input
               v-model="newIncentive.name"
               placeholder="เช่น โบนัสวันหยุด"
             />
           </div>
           <div class="form-row">
-            <label>รายละเอียด</label
-            ><textarea
+            <label>รายละเอียด</label><textarea
               v-model="newIncentive.description"
               placeholder="รายละเอียดเพิ่มเติม"
             ></textarea>
@@ -462,30 +455,26 @@ onMounted(() => {
               </select>
             </div>
             <div class="form-row">
-              <label>เป้าหมาย (งาน)</label
-              ><input
-                type="number"
+              <label>เป้าหมาย (งาน)</label><input
                 v-model.number="newIncentive.target_value"
+                type="number"
                 min="1"
               />
             </div>
           </div>
           <div class="form-row">
-            <label>รางวัล (บาท)</label
-            ><input
-              type="number"
+            <label>รางวัล (บาท)</label><input
               v-model.number="newIncentive.reward_amount"
+              type="number"
               min="1"
             />
           </div>
           <div class="form-grid">
             <div class="form-row">
-              <label>วันเริ่มต้น *</label
-              ><input type="date" v-model="newIncentive.start_date" />
+              <label>วันเริ่มต้น *</label><input v-model="newIncentive.start_date" type="date" />
             </div>
             <div class="form-row">
-              <label>วันสิ้นสุด</label
-              ><input type="date" v-model="newIncentive.end_date" />
+              <label>วันสิ้นสุด</label><input v-model="newIncentive.end_date" type="date" />
             </div>
           </div>
           <div class="modal-actions">
@@ -494,10 +483,10 @@ onMounted(() => {
             </button>
             <button
               class="btn-primary"
-              @click="createIncentive"
               :disabled="
                 processing || !newIncentive.name || !newIncentive.start_date
               "
+              @click="createIncentive"
             >
               {{ processing ? "กำลังสร้าง..." : "สร้าง Incentive" }}
             </button>
@@ -530,44 +519,34 @@ onMounted(() => {
         </div>
         <div class="modal-body">
           <div class="info-row">
-            <span class="label">ประเภท</span
-            ><span>{{ getTypeLabel(selectedIncentive.incentive_type) }}</span>
+            <span class="label">ประเภท</span><span>{{ getTypeLabel(selectedIncentive.incentive_type) }}</span>
           </div>
           <div class="info-row">
-            <span class="label">เป้าหมาย</span
-            ><span>{{ selectedIncentive.target_value }} งาน</span>
+            <span class="label">เป้าหมาย</span><span>{{ selectedIncentive.target_value }} งาน</span>
           </div>
           <div class="info-row">
-            <span class="label">รางวัล</span
-            ><span class="reward">{{
+            <span class="label">รางวัล</span><span class="reward">{{
               formatCurrency(selectedIncentive.reward_amount)
             }}</span>
           </div>
           <div class="info-row">
-            <span class="label">สถานะ</span
-            ><span
+            <span class="label">สถานะ</span><span
               class="badge"
               :style="{
                 color: getStatusColor(selectedIncentive.status),
                 background: getStatusColor(selectedIncentive.status) + '20',
               }"
-              >{{ getStatusLabel(selectedIncentive.status) }}</span
-            >
+            >{{ getStatusLabel(selectedIncentive.status) }}</span>
           </div>
           <div class="info-row">
-            <span class="label">ระยะเวลา</span
-            ><span
-              >{{ formatDate(selectedIncentive.start_date) }} -
-              {{ formatDate(selectedIncentive.end_date) }}</span
-            >
+            <span class="label">ระยะเวลา</span><span>{{ formatDate(selectedIncentive.start_date) }} -
+              {{ formatDate(selectedIncentive.end_date) }}</span>
           </div>
           <div class="info-row">
-            <span class="label">ผู้เข้าร่วม</span
-            ><span>{{ selectedIncentive.participants_count || 0 }} คน</span>
+            <span class="label">ผู้เข้าร่วม</span><span>{{ selectedIncentive.participants_count || 0 }} คน</span>
           </div>
           <div class="info-row">
-            <span class="label">สำเร็จแล้ว</span
-            ><span>{{ selectedIncentive.completed_count || 0 }} คน</span>
+            <span class="label">สำเร็จแล้ว</span><span>{{ selectedIncentive.completed_count || 0 }} คน</span>
           </div>
           <div v-if="selectedIncentive.description" class="desc-box">
             <h4>รายละเอียด</h4>

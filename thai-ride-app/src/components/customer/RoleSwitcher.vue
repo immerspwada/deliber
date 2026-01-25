@@ -87,9 +87,9 @@ onMounted(() => {
       <!-- Switch to Customer (always available) -->
       <button 
         v-if="isCurrentlyProvider"
-        @click="switchToCustomer"
         class="switch-btn customer-btn"
         :disabled="isLoading"
+        @click="switchToCustomer"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -101,9 +101,9 @@ onMounted(() => {
       <!-- Switch to Provider (if approved) -->
       <button 
         v-if="!isCurrentlyProvider && canSwitchToProvider"
-        @click="switchToProvider"
         class="switch-btn provider-btn"
         :disabled="isLoading"
+        @click="switchToProvider"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="1" y="3" width="15" height="13" rx="2"/>
@@ -117,9 +117,9 @@ onMounted(() => {
       <!-- Become Provider (if not registered) - Enhanced Version -->
       <button 
         v-if="!isCurrentlyProvider && providerStatus === 'none'"
-        @click="becomeProvider"
         class="switch-btn become-provider-btn enhanced"
         :disabled="isLoading"
+        @click="becomeProvider"
       >
         <div class="btn-content">
           <div class="btn-icon">

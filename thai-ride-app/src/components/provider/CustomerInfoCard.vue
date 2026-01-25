@@ -101,9 +101,9 @@ const initials = computed(() => {
       <!-- Chat Button -->
       <button 
         class="btn-action btn-chat"
-        @click="emit('chat')"
         type="button"
         :aria-label="`แชทกับ ${customer?.name || 'ลูกค้า'}`"
+        @click="emit('chat')"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -116,9 +116,9 @@ const initials = computed(() => {
         class="btn-action btn-call"
         :class="{ 'btn-disabled': !customer?.phone }"
         :disabled="!customer?.phone"
-        @click="customer?.phone && emit('call')"
         type="button"
         :aria-label="customer?.phone ? `โทรหา ${customer.name} ${formattedPhone}` : 'ไม่มีเบอร์โทร'"
+        @click="customer?.phone && emit('call')"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>

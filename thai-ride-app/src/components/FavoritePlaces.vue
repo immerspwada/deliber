@@ -24,8 +24,8 @@
         </div>
         <div class="quick-content">
           <div class="quick-label">บ้าน</div>
-          <div class="quick-address" v-if="homePlace">{{ homePlace.address }}</div>
-          <div class="quick-hint" v-else>ตั้งค่าที่อยู่บ้าน</div>
+          <div v-if="homePlace" class="quick-address">{{ homePlace.address }}</div>
+          <div v-else class="quick-hint">ตั้งค่าที่อยู่บ้าน</div>
         </div>
         <button 
           v-if="homePlace" 
@@ -53,8 +53,8 @@
         </div>
         <div class="quick-content">
           <div class="quick-label">ที่ทำงาน</div>
-          <div class="quick-address" v-if="workPlace">{{ workPlace.address }}</div>
-          <div class="quick-hint" v-else>ตั้งค่าที่ทำงาน</div>
+          <div v-if="workPlace" class="quick-address">{{ workPlace.address }}</div>
+          <div v-else class="quick-hint">ตั้งค่าที่ทำงาน</div>
         </div>
         <button 
           v-if="workPlace" 
@@ -70,7 +70,7 @@
     </div>
 
     <!-- Saved Places -->
-    <div class="saved-places" v-if="savedPlaces.length > 0">
+    <div v-if="savedPlaces.length > 0" class="saved-places">
       <div class="section-header">
         <h3>สถานที่บันทึกไว้</h3>
         <button class="add-btn" @click="$emit('addPlace')">

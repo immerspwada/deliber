@@ -155,9 +155,9 @@ function handleTypeChange(type: 'percentage' | 'fixed') {
         </div>
         <button 
           class="close-btn" 
-          @click="handleClose"
           :disabled="isProcessing"
           aria-label="ปิด"
+          @click="handleClose"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>
@@ -174,8 +174,8 @@ function handleTypeChange(type: 'percentage' | 'fixed') {
               type="button"
               class="type-btn"
               :class="{ active: isPercentage }"
-              @click="handleTypeChange('percentage')"
               :disabled="isProcessing"
+              @click="handleTypeChange('percentage')"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="19" y1="5" x2="5" y2="19"/>
@@ -192,8 +192,8 @@ function handleTypeChange(type: 'percentage' | 'fixed') {
               type="button"
               class="type-btn"
               :class="{ active: isFixed }"
-              @click="handleTypeChange('fixed')"
               :disabled="isProcessing"
+              @click="handleTypeChange('fixed')"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="1" x2="12" y2="23"/>
@@ -286,15 +286,15 @@ function handleTypeChange(type: 'percentage' | 'fixed') {
       <div class="modal-footer">
         <button 
           class="btn btn-secondary" 
-          @click="handleClose"
           :disabled="isProcessing"
+          @click="handleClose"
         >
           ยกเลิก
         </button>
         <button 
           class="btn btn-primary" 
-          @click="handleSubmit"
           :disabled="isProcessing"
+          @click="handleSubmit"
         >
           <svg v-if="isProcessing" class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>

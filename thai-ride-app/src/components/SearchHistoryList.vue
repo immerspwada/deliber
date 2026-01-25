@@ -9,7 +9,7 @@
 <template>
   <div class="search-history">
     <!-- Header -->
-    <div class="history-header" v-if="showHeader">
+    <div v-if="showHeader" class="history-header">
       <h3>ค้นหาล่าสุด</h3>
       <button v-if="history.length > 0" class="clear-btn" @click="handleClear">
         ล้างทั้งหมด
@@ -18,7 +18,7 @@
 
     <!-- Loading -->
     <div v-if="loading" class="loading-state">
-      <div class="skeleton" v-for="i in 3" :key="i"></div>
+      <div v-for="i in 3" :key="i" class="skeleton"></div>
     </div>
 
     <!-- History List -->
@@ -37,7 +37,7 @@
         </div>
         <div class="item-content">
           <div class="item-name">{{ item.name || item.address }}</div>
-          <div class="item-address" v-if="item.name">{{ item.address }}</div>
+          <div v-if="item.name" class="item-address">{{ item.address }}</div>
           <div class="item-time">{{ formatTimeAgo(item.searchedAt) }}</div>
         </div>
         <button 

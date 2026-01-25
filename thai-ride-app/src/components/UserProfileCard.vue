@@ -53,6 +53,7 @@ const emit = defineEmits<{
         </svg>
       </button>
     </div>
+  </div>
 </template>
 
     <div class="profile-stats">

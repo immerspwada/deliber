@@ -66,7 +66,7 @@ export const useShoppingStore = defineStore('shopping', () => {
         status: 'pending'
       } as any
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: insertError } = await (supabase as any)
         .from('shopping_requests')
         .insert(shoppingData)
@@ -94,7 +94,7 @@ export const useShoppingStore = defineStore('shopping', () => {
     error.value = null
     
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { data, error: updateError } = await (supabase as any)
         .from('shopping_requests')
         .update({ status: 'cancelled' })

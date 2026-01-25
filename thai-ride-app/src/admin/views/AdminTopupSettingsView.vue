@@ -52,10 +52,10 @@
           </p>
         </div>
         <button
-          @click="loadSettings"
           :disabled="loading"
           class="min-h-[44px] px-6 py-3 bg-white text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm border border-gray-200 font-medium flex items-center gap-2 justify-center"
           aria-label="รีเฟรชข้อมูล"
+          @click="loadSettings"
         >
           <svg
             class="w-5 h-5"

@@ -29,9 +29,9 @@ const selectMethod = (method: PaymentMethod) => {
       <button
         v-for="method in PAYMENT_METHODS"
         :key="method.id"
-        @click="selectMethod(method.id)"
         :class="['payment-method', { active: selected === method.id, disabled: !method.enabled }]"
         :disabled="!method.enabled"
+        @click="selectMethod(method.id)"
       >
         <div class="method-icon">
           <svg v-if="method.icon === 'qr'" fill="none" stroke="currentColor" viewBox="0 0 24 24">

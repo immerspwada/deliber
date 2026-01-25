@@ -197,7 +197,7 @@ onUnmounted(() => {
   <div class="job-detail-pro">
     <!-- Header -->
     <header class="page-header">
-      <button class="btn-back" @click="goBack" type="button" aria-label="กลับ">
+      <button class="btn-back" type="button" aria-label="กลับ" @click="goBack">
         <!-- Back Arrow -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -219,7 +219,7 @@ onUnmounted(() => {
     <div v-else-if="error" class="error-state" role="alert">
       <div class="error-icon" aria-hidden="true">⚠️</div>
       <p>{{ error }}</p>
-      <button class="btn-retry" @click="loadJob(jobId)" type="button">
+      <button class="btn-retry" type="button" @click="loadJob(jobId)">
         ลองใหม่
       </button>
     </div>
@@ -349,10 +349,10 @@ onUnmounted(() => {
       <div 
         v-if="showCancelModal" 
         class="modal-overlay" 
-        @click.self="showCancelModal = false"
         role="dialog"
         aria-modal="true"
         aria-labelledby="cancel-modal-title"
+        @click.self="showCancelModal = false"
       >
         <div class="modal-content">
           <h2 id="cancel-modal-title">ยกเลิกงาน</h2>
@@ -369,17 +369,17 @@ onUnmounted(() => {
 
           <div class="modal-actions">
             <button 
-              @click="showCancelModal = false" 
-              class="btn-secondary"
+              class="btn-secondary" 
               type="button"
+              @click="showCancelModal = false"
             >
               ไม่ยกเลิก
             </button>
             <button 
-              @click="handleCancelJob" 
               :disabled="updating" 
-              class="btn-danger"
+              class="btn-danger" 
               type="button"
+              @click="handleCancelJob"
             >
               <span v-if="updating" class="spinner-small" aria-hidden="true"></span>
               <span v-else>ยืนยันยกเลิก</span>

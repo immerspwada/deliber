@@ -73,7 +73,7 @@ const goToProviderDocs = () => {
     <!-- Header -->
     <div class="bg-white border-b sticky top-0 z-10">
       <div class="flex items-center px-4 py-3">
-        <button @click="router.back()" class="p-2 -ml-2">
+        <button class="p-2 -ml-2" @click="router.back()">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
@@ -117,8 +117,8 @@ const goToProviderDocs = () => {
             <button
               v-for="type in providerTypes.filter(t => unregisteredTypes.includes(t.value))"
               :key="type.value"
-              @click="selectType(type.value)"
               class="w-full flex items-center p-4 bg-gray-50 rounded-xl hover:bg-green-50 transition-colors border-2 border-transparent hover:border-green-500"
+              @click="selectType(type.value)"
             >
               <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
                 <svg v-if="type.icon === 'car'" class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,7 +154,7 @@ const goToProviderDocs = () => {
             กรอกข้อมูล{{ providerTypes.find(t => t.value === selectedType)?.label }}
           </h2>
 
-          <form @submit.prevent="handleSubmit" class="space-y-4">
+          <form class="space-y-4" @submit.prevent="handleSubmit">
             <!-- Vehicle info for driver/rider -->
             <template v-if="needsVehicle(selectedType)">
               <div>
@@ -214,8 +214,8 @@ const goToProviderDocs = () => {
             <div class="flex gap-3 pt-4">
               <button 
                 type="button"
-                @click="step = 1"
                 class="flex-1 py-3 border-2 border-gray-200 rounded-xl font-semibold"
+                @click="step = 1"
               >
                 ย้อนกลับ
               </button>
@@ -246,15 +246,15 @@ const goToProviderDocs = () => {
           </p>
 
           <button 
-            @click="goToProviderDocs"
             class="w-full py-3 bg-green-600 text-white rounded-xl font-semibold mb-3"
+            @click="goToProviderDocs"
           >
             อัพโหลดเอกสาร
           </button>
           
           <button 
-            @click="router.push('/home')"
             class="w-full py-3 border-2 border-gray-200 rounded-xl font-semibold"
+            @click="router.push('/home')"
           >
             กลับหน้าหลัก
           </button>

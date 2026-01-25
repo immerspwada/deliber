@@ -67,7 +67,7 @@
 
     <!-- Content -->
     <div v-else class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <form @submit.prevent="handleSubmit" class="space-y-6">
+      <form class="space-y-6" @submit.prevent="handleSubmit">
         <!-- Skin Color Card -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 class="text-lg font-semibold text-gray-900 mb-4">Skin Color</h2>
@@ -76,13 +76,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Primary</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.skinColor.primary"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.skinColor.primary"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#FFFFFF"
                 />
@@ -92,13 +92,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Secondary</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.skinColor.secondary"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.skinColor.secondary"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#0671E3"
                 />
@@ -115,13 +115,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Normal</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.buttonColor.normal"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.buttonColor.normal"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#0B1223"
                 />
@@ -131,13 +131,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Hover</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.buttonColor.hover"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.buttonColor.hover"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#DEDEDE"
                 />
@@ -154,13 +154,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Background</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.header.background"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.header.background"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#FFFFFF"
                 />
@@ -177,13 +177,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Background</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.footer.background"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.footer.background"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#00000C"
                 />
@@ -200,13 +200,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Normal</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.headerNav.normal"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.headerNav.normal"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#00000C"
                 />
@@ -216,13 +216,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Hover</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.headerNav.hover"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.headerNav.hover"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#0B1223"
                 />
@@ -239,13 +239,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Normal</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.footerNav.normal"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.footerNav.normal"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#FFFFFF"
                 />
@@ -255,13 +255,13 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">Hover</label>
               <div class="flex items-center gap-3">
                 <input
-                  type="color"
                   v-model="theme.footerNav.hover"
+                  type="color"
                   class="h-10 w-20 rounded border border-gray-300 cursor-pointer"
                 />
                 <input
-                  type="text"
                   v-model="theme.footerNav.hover"
+                  type="text"
                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="#FFFFFF"
                 />
@@ -275,8 +275,8 @@
           <button
             type="button"
             class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"
-            @click="handleCancel"
             :disabled="saving"
+            @click="handleCancel"
           >
             ยกเลิก
           </button>

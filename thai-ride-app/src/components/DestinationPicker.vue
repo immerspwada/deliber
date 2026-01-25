@@ -289,7 +289,7 @@ watch(() => searchQuery.value, () => {
   <div class="destination-picker">
     <!-- Search Header -->
     <div class="search-header">
-      <button class="back-btn" @click="emit('close')" type="button" aria-label="กลับ">
+      <button class="back-btn" type="button" aria-label="กลับ" @click="emit('close')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 18l-6-6 6-6" />
         </svg>
@@ -307,19 +307,19 @@ watch(() => searchQuery.value, () => {
           type="text"
           class="search-input"
           :value="searchQuery"
-          @input="onSearchInput"
           placeholder="ค้นหาสถานที่ปลายทาง..."
           autocomplete="off"
           autocorrect="off"
           autocapitalize="off"
           spellcheck="false"
+          @input="onSearchInput"
         />
         <button 
           v-if="searchQuery" 
           class="clear-btn" 
-          @click="clearSearch"
           type="button"
           aria-label="ล้างการค้นหา"
+          @click="clearSearch"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />
@@ -537,7 +537,7 @@ watch(() => searchQuery.value, () => {
           <div class="preview-modal" @click.stop>
             <div class="preview-header">
               <h3 class="preview-title">{{ previewPlace.name }}</h3>
-              <button class="preview-close" @click="closePreview" type="button" aria-label="ปิด">
+              <button class="preview-close" type="button" aria-label="ปิด" @click="closePreview">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
@@ -563,10 +563,10 @@ watch(() => searchQuery.value, () => {
             </div>
             
             <div class="preview-actions">
-              <button class="preview-btn cancel" @click="closePreview" type="button">
+              <button class="preview-btn cancel" type="button" @click="closePreview">
                 ยกเลิก
               </button>
-              <button class="preview-btn confirm" @click="selectFromPreview" type="button">
+              <button class="preview-btn confirm" type="button" @click="selectFromPreview">
                 เลือกสถานที่นี้
               </button>
             </div>

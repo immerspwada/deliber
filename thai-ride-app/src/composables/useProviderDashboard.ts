@@ -954,7 +954,7 @@ export function useProviderDashboard() {
 
     try {
       let rpcName = ''
-      let params: Record<string, any> = { p_provider_id: profile.value?.id }
+      const params: Record<string, any> = { p_provider_id: profile.value?.id }
 
       switch (activeJob.value.type) {
         case 'ride':

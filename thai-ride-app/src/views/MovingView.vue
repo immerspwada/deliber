@@ -177,7 +177,7 @@ const formatPrice = (price: number) => {
         </svg>
       </button>
       <h1>บริการยกของ</h1>
-      <button class="home-btn" @click="goHome" title="กลับหน้าหลัก">
+      <button class="home-btn" title="กลับหน้าหลัก" @click="goHome">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -242,9 +242,7 @@ const formatPrice = (price: number) => {
             <div class="service-info">
               <span class="service-name">{{ service.name }}</span>
               <span class="service-desc">{{ service.desc }}</span>
-              <span class="service-price"
-                >เริ่มต้น ฿{{ formatPrice(service.basePrice) }}</span
-              >
+              <span class="service-price">เริ่มต้น ฿{{ formatPrice(service.basePrice) }}</span>
             </div>
             <div v-if="selectedType === service.id" class="check-icon">
               <svg
@@ -324,8 +322,8 @@ const formatPrice = (price: number) => {
     <div class="footer">
       <button
         class="submit-btn"
-        @click="confirmSubmit"
         :disabled="!isFormValid || loading"
+        @click="confirmSubmit"
       >
         <span v-if="loading">กำลังส่งคำขอ...</span>
         <span v-else>ขอใบเสนอราคา</span>
@@ -399,8 +397,8 @@ const formatPrice = (price: number) => {
           <button class="btn-cancel" @click="cancelConfirmation">ยกเลิก</button>
           <button
             class="btn-confirm"
-            @click="submitRequest"
             :disabled="loading"
+            @click="submitRequest"
           >
             {{ loading ? "กำลังส่ง..." : "ยืนยัน" }}
           </button>

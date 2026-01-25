@@ -456,9 +456,7 @@ onUnmounted(() => {
                     ? "฿" + promo.discount_value
                     : promo.discount_value + "%"
                 }}</span>
-                <span class="promo-uses"
-                  >{{ promo.used_count || 0 }} ครั้ง</span
-                >
+                <span class="promo-uses">{{ promo.used_count || 0 }} ครั้ง</span>
               </div>
               <div
                 v-if="!promoApi.dashboardStats.value.top_promos?.length"
@@ -481,9 +479,7 @@ onUnmounted(() => {
                   <span class="user-name">{{ usage.user_name }}</span>
                 </div>
                 <div class="usage-meta">
-                  <span class="discount-amount"
-                    >-{{ promoApi.formatCurrency(usage.discount_amount) }}</span
-                  >
+                  <span class="discount-amount">-{{ promoApi.formatCurrency(usage.discount_amount) }}</span>
                   <span class="usage-time">{{
                     formatDateTime(usage.used_at)
                   }}</span>
@@ -576,16 +572,12 @@ onUnmounted(() => {
                       : promo.discount_value + "%"
                   }}
                 </span>
-                <span v-if="promo.max_discount" class="max-discount"
-                  >สูงสุด ฿{{ promo.max_discount }}</span
-                >
+                <span v-if="promo.max_discount" class="max-discount">สูงสุด ฿{{ promo.max_discount }}</span>
               </td>
               <td>{{ promoApi.getCategoryLabel(promo.category || "all") }}</td>
               <td>
                 <span class="usage-count">{{ promo.used_count || 0 }}</span>
-                <span class="usage-limit"
-                  >/ {{ promo.usage_limit || "∞" }}</span
-                >
+                <span class="usage-limit">/ {{ promo.usage_limit || "∞" }}</span>
               </td>
               <td>
                 <span
@@ -612,8 +604,8 @@ onUnmounted(() => {
               <td>
                 <button
                   class="action-btn delete"
-                  @click.stop="handleDeletePromo(promo.id)"
                   title="ลบ"
+                  @click.stop="handleDeletePromo(promo.id)"
                 >
                   <svg
                     width="16"
@@ -712,16 +704,13 @@ onUnmounted(() => {
           </p>
           <div class="campaign-stats">
             <div class="stat">
-              <span class="label">โปรโม</span
-              ><span class="value">{{ campaign.promo_count }}</span>
+              <span class="label">โปรโม</span><span class="value">{{ campaign.promo_count }}</span>
             </div>
             <div class="stat">
-              <span class="label">ใช้แล้ว</span
-              ><span class="value">{{ campaign.total_uses }}</span>
+              <span class="label">ใช้แล้ว</span><span class="value">{{ campaign.total_uses }}</span>
             </div>
             <div class="stat">
-              <span class="label">งบใช้</span
-              ><span class="value">{{
+              <span class="label">งบใช้</span><span class="value">{{
                 promoApi.formatCurrency(campaign.spent)
               }}</span>
             </div>
@@ -817,8 +806,8 @@ onUnmounted(() => {
               />
             </div>
             <div
-              class="form-row"
               v-if="newPromo.discount_type === 'percentage'"
+              class="form-row"
             >
               <label>ส่วนลดสูงสุด (฿)</label>
               <input
@@ -896,8 +885,8 @@ onUnmounted(() => {
           </button>
           <button
             class="btn-primary"
-            @click="handleCreatePromo"
             :disabled="promoApi.loading.value || !newPromo.code"
+            @click="handleCreatePromo"
           >
             {{ promoApi.loading.value ? "กำลังสร้าง..." : "สร้างโปรโม" }}
           </button>
@@ -979,8 +968,8 @@ onUnmounted(() => {
           </button>
           <button
             class="btn-primary"
-            @click="handleCreateCampaign"
             :disabled="promoApi.loading.value || !newCampaign.name"
+            @click="handleCreateCampaign"
           >
             {{ promoApi.loading.value ? "กำลังสร้าง..." : "สร้างแคมเปญ" }}
           </button>

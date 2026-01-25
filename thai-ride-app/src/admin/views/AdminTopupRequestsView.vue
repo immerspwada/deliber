@@ -176,7 +176,7 @@ async function loadData() {
   error.value = null;
 
   try {
-    // @ts-ignore - Supabase RPC types not fully typed
+    // @ts-expect-error - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
       "get_topup_requests_admin",
       {
@@ -358,7 +358,7 @@ async function approveRequest() {
 
   isProcessing.value = true;
   try {
-    // @ts-ignore - Supabase RPC types not fully typed
+    // @ts-expect-error - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
       "admin_approve_topup_request",
       {
@@ -393,7 +393,7 @@ async function rejectRequest() {
 
   isProcessing.value = true;
   try {
-    // @ts-ignore - Supabase RPC types not fully typed
+    // @ts-expect-error - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
       "admin_reject_topup_request",
       {
@@ -473,7 +473,7 @@ async function loadSettings() {
     await loadPaymentAccounts()
     
     // Load other settings from system_settings
-    // @ts-ignore - Supabase RPC types not fully typed
+    // @ts-expect-error - Supabase RPC types not fully typed
     const { data, error: rpcError } = await supabase.rpc(
       "get_system_settings",
       {
@@ -513,7 +513,7 @@ async function saveSettings() {
       max_topup_amount: maxTopupAmount.value,
     };
 
-    // @ts-ignore - Supabase RPC types not fully typed
+    // @ts-expect-error - Supabase RPC types not fully typed
     const { error: rpcError } = await supabase.rpc("set_system_settings", {
       p_category: "topup",
       p_key: "topup_settings",
@@ -820,9 +820,9 @@ async function deleteBankAccount(id: string) {
             >
               <div class="method-info">
                 <input
-                  type="checkbox"
-                  v-model="method.enabled"
                   :id="method.id"
+                  v-model="method.enabled"
+                  type="checkbox"
                 />
                 <label :for="method.id">{{ method.name }}</label>
               </div>
@@ -835,11 +835,11 @@ async function deleteBankAccount(id: string) {
           <div class="amount-settings">
             <div class="amount-input">
               <label>จำนวนเงินขั้นต่ำ (บาท):</label>
-              <input type="number" v-model.number="minTopupAmount" min="1" />
+              <input v-model.number="minTopupAmount" type="number" min="1" />
             </div>
             <div class="amount-input">
               <label>จำนวนเงินสูงสุด (บาท):</label>
-              <input type="number" v-model.number="maxTopupAmount" min="1" />
+              <input v-model.number="maxTopupAmount" type="number" min="1" />
             </div>
           </div>
         </div>
@@ -848,8 +848,8 @@ async function deleteBankAccount(id: string) {
           <div class="section-header-with-button">
             <h3>บัญชีพร้อมเพย์</h3>
             <button
-              @click="openPromptPayModal"
               class="btn btn-approve"
+              @click="openPromptPayModal"
             >
               + เพิ่มบัญชี
             </button>
@@ -872,16 +872,16 @@ async function deleteBankAccount(id: string) {
               </div>
               <div class="promptpay-actions">
                 <button
-                  @click="editPromptPayAccount(account)"
                   class="btn btn-small btn-edit"
                   title="แก้ไข"
+                  @click="editPromptPayAccount(account)"
                 >
                   ✎
                 </button>
                 <button
-                  @click="deletePromptPayAccount(account.id)"
                   class="btn btn-small btn-delete"
                   title="ลบ"
+                  @click="deletePromptPayAccount(account.id)"
                 >
                   ✕
                 </button>
@@ -894,8 +894,8 @@ async function deleteBankAccount(id: string) {
           <div class="section-header-with-button">
             <h3>บัญชีธนาคาร</h3>
             <button
-              @click="openBankModal"
               class="btn btn-approve"
+              @click="openBankModal"
             >
               + เพิ่มบัญชี
             </button>
@@ -918,16 +918,16 @@ async function deleteBankAccount(id: string) {
               </div>
               <div class="bank-actions">
                 <button
-                  @click="editBankAccount(account)"
                   class="btn btn-small btn-edit"
                   title="แก้ไข"
+                  @click="editBankAccount(account)"
                 >
                   ✎
                 </button>
                 <button
-                  @click="deleteBankAccount(account.id)"
                   class="btn btn-small btn-delete"
                   title="ลบ"
+                  @click="deleteBankAccount(account.id)"
                 >
                   ✕
                 </button>
@@ -938,15 +938,13 @@ async function deleteBankAccount(id: string) {
 
         <div class="settings-actions">
           <button
-            @click="saveSettings"
             :disabled="isProcessing"
             class="btn btn-approve"
+            @click="saveSettings"
           >
             {{ isProcessing ? "กำลังบันทึก..." : "บันทึกการตั้งค่า" }}
           </button>
-          <span v-if="settingsSaved" class="save-success"
-            >✓ บันทึกเรียบร้อยแล้ว</span
-          >
+          <span v-if="settingsSaved" class="save-success">✓ บันทึกเรียบร้อยแล้ว</span>
         </div>
       </div>
     </div>
@@ -1008,9 +1006,9 @@ async function deleteBankAccount(id: string) {
               />
               <button
                 v-if="searchQuery"
-                @click="searchQuery = ''"
                 class="clear-search"
                 aria-label="ล้างการค้นหา"
+                @click="searchQuery = ''"
               >
                 ✕
               </button>
@@ -1018,8 +1016,8 @@ async function deleteBankAccount(id: string) {
             <select
               id="status-filter"
               v-model="statusFilter"
-              @change="onFilterChange"
               class="status-select"
+              @change="onFilterChange"
             >
               <option :value="null">ทุกสถานะ</option>
               <option value="pending">รอดำเนินการ</option>
@@ -1029,9 +1027,9 @@ async function deleteBankAccount(id: string) {
           </div>
           <div class="filter-right">
             <button
-              @click="toggleAutoRefresh"
               :class="['auto-refresh-btn', { active: autoRefresh }]"
               :title="autoRefresh ? 'ปิดการรีเฟรชอัตโนมัติ' : 'เปิดการรีเฟรชอัตโนมัติ'"
+              @click="toggleAutoRefresh"
             >
               <svg class="refresh-icon" :class="{ spinning: autoRefresh }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
@@ -1039,10 +1037,10 @@ async function deleteBankAccount(id: string) {
               {{ autoRefresh ? 'กำลังรีเฟรช' : 'รีเฟรชอัตโนมัติ' }}
             </button>
             <button
-              @click="loadData"
               class="refresh-btn"
               :disabled="loading"
               title="รีเฟรชข้อมูล"
+              @click="loadData"
             >
               <svg class="refresh-icon" :class="{ spinning: loading }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
@@ -1061,7 +1059,7 @@ async function deleteBankAccount(id: string) {
                 <th class="sortable" @click="toggleSort('amount')">
                   <div class="th-content">
                     จำนวนเงิน
-                    <span class="sort-icon" v-if="sortBy === 'amount'">
+                    <span v-if="sortBy === 'amount'" class="sort-icon">
                       {{ sortOrder === 'asc' ? '↑' : '↓' }}
                     </span>
                   </div>
@@ -1071,7 +1069,7 @@ async function deleteBankAccount(id: string) {
                 <th class="sortable" @click="toggleSort('date')">
                   <div class="th-content">
                     วันที่
-                    <span class="sort-icon" v-if="sortBy === 'date'">
+                    <span v-if="sortBy === 'date'" class="sort-icon">
                       {{ sortOrder === 'asc' ? '↑' : '↓' }}
                     </span>
                   </div>
@@ -1115,10 +1113,10 @@ async function deleteBankAccount(id: string) {
                   <div class="action-buttons">
                     <button
                       v-if="topup.status === 'pending'"
-                      @click="quickApprove(topup)"
                       class="btn btn-approve btn-icon"
                       title="อนุมัติด่วน"
                       :disabled="isProcessing"
+                      @click="quickApprove(topup)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <path d="M5 13l4 4L19 7" />
@@ -1126,19 +1124,19 @@ async function deleteBankAccount(id: string) {
                     </button>
                     <button
                       v-if="topup.status === 'pending'"
-                      @click="quickReject(topup)"
                       class="btn btn-reject btn-icon"
                       title="ปฏิเสธด่วน"
                       :disabled="isProcessing"
+                      @click="quickReject(topup)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <path d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                     <button
-                      @click="viewDetails(topup)"
                       class="btn btn-view btn-icon"
                       title="ดูรายละเอียด"
+                      @click="viewDetails(topup)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1164,10 +1162,10 @@ async function deleteBankAccount(id: string) {
           <!-- Pagination -->
           <div v-if="totalPages > 1" class="pagination">
             <button
-              @click="prevPage"
               :disabled="!hasPrevPage"
               class="pagination-btn"
               aria-label="หน้าก่อนหน้า"
+              @click="prevPage"
             >
               ← ก่อนหน้า
             </button>
@@ -1175,17 +1173,17 @@ async function deleteBankAccount(id: string) {
               <button
                 v-for="page in totalPages"
                 :key="page"
-                @click="goToPage(page)"
                 :class="['pagination-page', { active: page === currentPage }]"
+                @click="goToPage(page)"
               >
                 {{ page }}
               </button>
             </div>
             <button
-              @click="nextPage"
               :disabled="!hasNextPage"
               class="pagination-btn"
               aria-label="หน้าถัดไป"
+              @click="nextPage"
             >
               ถัดไป →
             </button>
@@ -1253,8 +1251,8 @@ async function deleteBankAccount(id: string) {
                   @click="viewImage(selectedTopup.payment_proof_url)"
                 />
                 <button
-                  @click="viewImage(selectedTopup.payment_proof_url)"
                   class="view-full-btn"
+                  @click="viewImage(selectedTopup.payment_proof_url)"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
@@ -1297,13 +1295,13 @@ async function deleteBankAccount(id: string) {
             rows="3"
           ></textarea>
           <div class="modal-actions">
-            <button @click="showApproveModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showApproveModal = false">
               ยกเลิก
             </button>
             <button
-              @click="approveRequest"
               :disabled="isProcessing"
               class="btn btn-approve"
+              @click="approveRequest"
             >
               {{ isProcessing ? "กำลังดำเนินการ..." : "ยืนยันอนุมัติ" }}
             </button>
@@ -1338,13 +1336,13 @@ async function deleteBankAccount(id: string) {
             required
           ></textarea>
           <div class="modal-actions">
-            <button @click="showRejectModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showRejectModal = false">
               ยกเลิก
             </button>
             <button
-              @click="rejectRequest"
               :disabled="isProcessing || !rejectionReason.trim()"
               class="btn btn-reject"
+              @click="rejectRequest"
             >
               {{ isProcessing ? "กำลังดำเนินการ..." : "ยืนยันปฏิเสธ" }}
             </button>
@@ -1390,9 +1388,9 @@ async function deleteBankAccount(id: string) {
             <div v-if="qrCodePreview" class="qr-preview-container">
               <img :src="qrCodePreview" :alt="'QR Code ' + promptPayForm.account_name" class="qr-preview-image" />
               <button
-                @click="removeQRCode"
                 class="btn btn-small btn-delete"
                 title="ลบ QR Code"
+                @click="removeQRCode"
               >
                 ✕
               </button>
@@ -1402,8 +1400,8 @@ async function deleteBankAccount(id: string) {
                 ref="qrCodeInput"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                @change="handleQRCodeUpload"
                 style="display: none"
+                @change="handleQRCodeUpload"
               />
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
@@ -1412,13 +1410,13 @@ async function deleteBankAccount(id: string) {
             </label>
           </div>
           <div class="modal-actions">
-            <button @click="showPromptPayModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showPromptPayModal = false">
               ยกเลิก
             </button>
             <button
-              @click="savePromptPayAccount"
               :disabled="isProcessing || !promptPayForm.account_number?.trim() || !promptPayForm.account_name?.trim()"
               class="btn btn-approve"
+              @click="savePromptPayAccount"
             >
               {{ isProcessing ? "กำลังบันทึก..." : "บันทึก" }}
             </button>
@@ -1477,9 +1475,9 @@ async function deleteBankAccount(id: string) {
             <div v-if="bankQrCodePreview" class="qr-preview-container">
               <img :src="bankQrCodePreview" :alt="'QR Code ' + bankForm.bank_name" class="qr-preview-image" />
               <button
-                @click="removeBankQRCode"
                 class="btn btn-small btn-delete"
                 title="ลบ QR Code"
+                @click="removeBankQRCode"
               >
                 ✕
               </button>
@@ -1489,8 +1487,8 @@ async function deleteBankAccount(id: string) {
                 ref="bankQrCodeInput"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                @change="handleBankQRCodeUpload"
                 style="display: none"
+                @change="handleBankQRCodeUpload"
               />
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
@@ -1499,13 +1497,13 @@ async function deleteBankAccount(id: string) {
             </label>
           </div>
           <div class="modal-actions">
-            <button @click="showBankModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showBankModal = false">
               ยกเลิก
             </button>
             <button
-              @click="saveBankAccount"
               :disabled="isProcessing || !bankForm.bank_code || !bankForm.account_number || !bankForm.account_name"
               class="btn btn-approve"
+              @click="saveBankAccount"
             >
               {{ isProcessing ? "กำลังบันทึก..." : "บันทึก" }}
             </button>

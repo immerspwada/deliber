@@ -20,8 +20,10 @@ const defaultColors = ['#000000', '#ef4444', '#f59e0b', '#10b981', '#276ef1', '#
   <div class="color-picker">
     <label v-if="label" class="picker-label">{{ label }}</label>
     <div class="color-options">
-      <button v-for="color in (colors || defaultColors)" :key="color" type="button" class="color-btn"
-        :class="{ active: modelValue === color }" :style="{ background: color }" @click="emit('update:modelValue', color)" />
+      <button
+        v-for="color in (colors || defaultColors)" :key="color" type="button" class="color-btn"
+        :class="{ active: modelValue === color }" :style="{ background: color }" @click="emit('update:modelValue', color)"
+      />
     </div>
   </div>
 </template>

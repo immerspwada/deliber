@@ -451,7 +451,7 @@ onUnmounted(() => {
           <button class="retry-btn" @click="startCamera">ลองใหม่</button>
         </div>
         
-        <div class="camera-overlay" v-if="cameraReady">
+        <div v-if="cameraReady" class="camera-overlay">
           <div class="camera-circle"></div>
         </div>
       </div>
@@ -475,8 +475,8 @@ onUnmounted(() => {
           :key="preset.id"
           class="preset-item"
           :style="{ backgroundColor: preset.bg }"
-          @click="selectPreset(preset)"
           :disabled="isUploading"
+          @click="selectPreset(preset)"
         >
           <span class="preset-emoji">{{ preset.emoji }}</span>
         </button>
@@ -508,10 +508,10 @@ onUnmounted(() => {
       </div>
       
       <div class="cropper-actions">
-        <button class="btn-cancel" @click="cancelCrop" :disabled="isUploading">
+        <button class="btn-cancel" :disabled="isUploading" @click="cancelCrop">
           ยกเลิก
         </button>
-        <button class="btn-confirm" @click="cropAndUpload" :disabled="isUploading">
+        <button class="btn-confirm" :disabled="isUploading" @click="cropAndUpload">
           <span v-if="isUploading" class="spinner-small"></span>
           <span v-else>ใช้รูปนี้</span>
         </button>

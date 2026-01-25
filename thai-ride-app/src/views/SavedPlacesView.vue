@@ -1153,7 +1153,7 @@ const copyPlaceLink = async () => {
     <div class="content-container">
       <!-- Header -->
       <div class="page-header">
-        <button @click="goBack" class="back-btn">
+        <button class="back-btn" @click="goBack">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
@@ -1182,20 +1182,20 @@ const copyPlaceLink = async () => {
           <h3>ยินดีต้อนรับสู่ GOBEAR!</h3>
           <p>เพิ่มที่อยู่บ้านและที่ทำงานเพื่อการจองที่รวดเร็วขึ้น</p>
         </div>
-        <button @click="skipSetup" class="skip-btn">ข้าม</button>
+        <button class="skip-btn" @click="skipSetup">ข้าม</button>
       </div>
 
       <!-- Tabs with animation -->
       <div class="tabs">
         <button
-          @click="switchTab('saved')"
           :class="['tab', { active: activeTab === 'saved' }]"
+          @click="switchTab('saved')"
         >
           สถานที่บันทึก
         </button>
         <button
-          @click="switchTab('recent')"
           :class="['tab', { active: activeTab === 'recent' }]"
+          @click="switchTab('recent')"
         >
           ล่าสุด
         </button>
@@ -1241,17 +1241,17 @@ const copyPlaceLink = async () => {
                   <span class="place-address">{{ homePlace.address }}</span>
                 </div>
                 <div class="place-actions">
-                  <button class="action-btn map-btn" @click.stop="toggleMapPreview(homePlace.id, homePlace)" title="ดูแผนที่">
+                  <button class="action-btn map-btn" title="ดูแผนที่" @click.stop="toggleMapPreview(homePlace.id, homePlace)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
                   </button>
-                  <button class="action-btn share-btn" @click.stop="openShareModal(homePlace, $event)" title="แชร์">
+                  <button class="action-btn share-btn" title="แชร์" @click.stop="openShareModal(homePlace, $event)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                     </svg>
                   </button>
-                  <button class="action-btn use-btn" @click.stop="usePlaceForRide(homePlace)" title="ใช้เป็นจุดหมาย">
+                  <button class="action-btn use-btn" title="ใช้เป็นจุดหมาย" @click.stop="usePlaceForRide(homePlace)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1304,17 +1304,17 @@ const copyPlaceLink = async () => {
                   <span class="place-address">{{ workPlace.address }}</span>
                 </div>
                 <div class="place-actions">
-                  <button class="action-btn map-btn" @click.stop="toggleMapPreview(workPlace.id, workPlace)" title="ดูแผนที่">
+                  <button class="action-btn map-btn" title="ดูแผนที่" @click.stop="toggleMapPreview(workPlace.id, workPlace)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
                   </button>
-                  <button class="action-btn share-btn" @click.stop="openShareModal(workPlace, $event)" title="แชร์">
+                  <button class="action-btn share-btn" title="แชร์" @click.stop="openShareModal(workPlace, $event)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                     </svg>
                   </button>
-                  <button class="action-btn use-btn" @click.stop="usePlaceForRide(workPlace)" title="ใช้เป็นจุดหมาย">
+                  <button class="action-btn use-btn" title="ใช้เป็นจุดหมาย" @click.stop="usePlaceForRide(workPlace)">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1366,13 +1366,13 @@ const copyPlaceLink = async () => {
               <h3>สถานที่อื่นๆ</h3>
               <div class="header-actions">
                 <!-- Sort Button -->
-                <button class="header-action-btn" @click="toggleSortOptions" :class="{ active: sortOption !== 'default' }">
+                <button class="header-action-btn" :class="{ active: sortOption !== 'default' }" @click="toggleSortOptions">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                   </svg>
                 </button>
                 <!-- Filter Button -->
-                <button class="header-action-btn" @click="toggleCategoryFilter" :class="{ active: selectedCategory !== 'all' }">
+                <button class="header-action-btn" :class="{ active: selectedCategory !== 'all' }" @click="toggleCategoryFilter">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                   </svg>
@@ -1492,7 +1492,7 @@ const copyPlaceLink = async () => {
                   </div>
                   <span class="place-address">{{ place.address }}</span>
                 </div>
-                <button class="offline-toggle-btn" @click="toggleOfflinePlace(place, $event)" :title="isOfflineAvailable(place.id) ? 'ลบจากออฟไลน์' : 'บันทึกออฟไลน์'">
+                <button class="offline-toggle-btn" :title="isOfflineAvailable(place.id) ? 'ลบจากออฟไลน์' : 'บันทึกออฟไลน์'" @click="toggleOfflinePlace(place, $event)">
                   <svg v-if="isOfflineAvailable(place.id)" fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
                     <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                   </svg>
@@ -1534,14 +1534,14 @@ const copyPlaceLink = async () => {
                 placeholder="ค้นหาสถานที่ล่าสุด..."
                 class="recent-search-input"
               />
-              <button v-if="recentSearchQuery" @click="recentSearchQuery = ''" class="clear-search-btn">
+              <button v-if="recentSearchQuery" class="clear-search-btn" @click="recentSearchQuery = ''">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             <div class="recent-actions">
-              <button class="recent-action-btn" @click="toggleRecentSettings" title="ตั้งค่า">
+              <button class="recent-action-btn" title="ตั้งค่า" @click="toggleRecentSettings">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1550,8 +1550,8 @@ const copyPlaceLink = async () => {
               <button 
                 v-if="recentPlaces.length > 0"
                 class="recent-action-btn danger" 
-                @click="clearRecentHistory" 
-                title="ล้างประวัติ"
+                title="ล้างประวัติ" 
+                @click="clearRecentHistory"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1635,18 +1635,18 @@ const copyPlaceLink = async () => {
                 <span class="place-address">{{ place.address }}</span>
               </div>
               <div class="place-actions">
-                <button class="action-btn save-btn" @click.stop="saveRecentToSaved(place)" title="บันทึก">
+                <button class="action-btn save-btn" title="บันทึก" @click.stop="saveRecentToSaved(place)">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
                 </button>
-                <button class="action-btn use-btn" @click.stop="usePlaceForRide(place)" title="ใช้เป็นจุดหมาย">
+                <button class="action-btn use-btn" title="ใช้เป็นจุดหมาย" @click.stop="usePlaceForRide(place)">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </button>
-                <button class="action-btn delete-btn" @click="deleteRecentPlace(place.id, $event)" title="ลบ">
+                <button class="action-btn delete-btn" title="ลบ" @click="deleteRecentPlace(place.id, $event)">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -1663,8 +1663,8 @@ const copyPlaceLink = async () => {
       <!-- Import FAB -->
       <button
         class="fab-import"
-        @click="openImportOptions"
         title="นำเข้าจาก Maps"
+        @click="openImportOptions"
       >
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -1679,8 +1679,8 @@ const copyPlaceLink = async () => {
       <!-- Quick Add FAB -->
       <button
         class="fab-quick-add"
-        @click="openQuickAddMap"
         title="เพิ่มจากแผนที่"
+        @click="openQuickAddMap"
       >
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -1710,7 +1710,7 @@ const copyPlaceLink = async () => {
         <div class="import-sheet">
           <div class="import-header">
             <h3>นำเข้าสถานที่</h3>
-            <button @click="closeImportOptions" class="close-btn">
+            <button class="close-btn" @click="closeImportOptions">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -1802,7 +1802,7 @@ const copyPlaceLink = async () => {
       <div v-if="showQuickAddMap" class="quick-add-overlay">
         <div class="quick-add-container">
           <div class="quick-add-header">
-            <button @click="closeQuickAddMap" class="close-btn">
+            <button class="close-btn" @click="closeQuickAddMap">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -1816,7 +1816,7 @@ const copyPlaceLink = async () => {
             <div style="width: 36px"></div>
           </div>
 
-          <div class="quick-add-map" ref="quickAddMapContainer"></div>
+          <div ref="quickAddMapContainer" class="quick-add-map"></div>
 
           <div class="quick-add-info">
             <div class="map-hint">
@@ -1832,9 +1832,9 @@ const copyPlaceLink = async () => {
             </div>
 
             <button
-              @click="useCurrentLocationForQuickAdd"
               class="btn-current-location"
               :disabled="isLoadingAddress"
+              @click="useCurrentLocationForQuickAdd"
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -1859,9 +1859,7 @@ const copyPlaceLink = async () => {
                 </svg>
               </div>
               <div class="location-text">
-                <span v-if="isLoadingAddress" class="loading-text"
-                  >กำลังค้นหาที่อยู่...</span
-                >
+                <span v-if="isLoadingAddress" class="loading-text">กำลังค้นหาที่อยู่...</span>
                 <span v-else>{{
                   quickAddLocation.address || "ไม่พบที่อยู่"
                 }}</span>
@@ -1870,11 +1868,11 @@ const copyPlaceLink = async () => {
           </div>
 
           <div class="quick-add-actions">
-            <button @click="closeQuickAddMap" class="btn-cancel">ยกเลิก</button>
+            <button class="btn-cancel" @click="closeQuickAddMap">ยกเลิก</button>
             <button
-              @click="confirmQuickAdd"
               class="btn-confirm"
               :disabled="!quickAddLocation || isLoadingAddress"
+              @click="confirmQuickAdd"
             >
               ยืนยันตำแหน่ง
             </button>
@@ -1893,9 +1891,9 @@ const copyPlaceLink = async () => {
         <div class="modal-header">
           <h3>{{ modalTitle }}</h3>
           <button
-            @click="showAddModal = false"
             class="close-btn"
             :disabled="saving"
+            @click="showAddModal = false"
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -1914,8 +1912,8 @@ const copyPlaceLink = async () => {
             <button
               v-for="type in placeTypes"
               :key="type.id"
-              @click="newPlace.type = type.id as any"
               :class="['type-btn', { active: newPlace.type === type.id }]"
+              @click="newPlace.type = type.id as any"
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -1937,9 +1935,9 @@ const copyPlaceLink = async () => {
             <button
               v-for="cat in PLACE_CATEGORIES"
               :key="cat.id"
-              @click="selectPlaceCategory(cat.id)"
               :class="['category-btn', { active: newPlace.category === cat.id }]"
               :style="{ '--cat-color': cat.color }"
+              @click="selectPlaceCategory(cat.id)"
             >
               <div class="cat-icon" :style="{ background: cat.color + '20', color: cat.color }">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -2007,16 +2005,16 @@ const copyPlaceLink = async () => {
         <div class="modal-actions">
           <button
             v-if="editingPlace"
-            @click="deletePlace(editingPlace.id)"
             class="btn-delete"
             :disabled="saving"
+            @click="deletePlace(editingPlace.id)"
           >
             ลบสถานที่
           </button>
           <button
-            @click="savePlace"
             class="btn-primary"
             :disabled="saving || !isFormValid"
+            @click="savePlace"
           >
             <span v-if="saving">กำลังบันทึก...</span>
             <span v-else>บันทึก</span>
@@ -2031,7 +2029,7 @@ const copyPlaceLink = async () => {
         <div class="share-sheet">
           <div class="share-header">
             <h3>แชร์สถานที่</h3>
-            <button @click="closeShareModal" class="close-btn">
+            <button class="close-btn" @click="closeShareModal">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>

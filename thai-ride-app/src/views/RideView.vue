@@ -246,7 +246,7 @@ const {
 const showRecurringSheet = ref(false);
 const showCreateRecurringModal = ref(false);
 const isRecurring = ref(false);
-void isRecurring; // Reserved for recurring ride feature
+void isRecurring.value; // Reserved for recurring ride feature
 const recurringName = ref("");
 const recurringScheduleType = ref<
   "daily" | "weekdays" | "weekends" | "weekly" | "custom"
@@ -1171,8 +1171,6 @@ watch(rideType, () => {
 </script>
 
 <!-- Import Native App Enhancements -->
-<style src="../styles/native-ride-enhancements.css"></style>
-
 <template>
   <div class="ride-page">
     <!-- Tracking Mode -->
@@ -1209,7 +1207,7 @@ watch(rideType, () => {
                 </svg>
               </div>
               <span class="tap-hint-text">แตะบนแผนที่เพื่อเลือกปลายทาง</span>
-              <button class="tap-cancel-btn" @click="cancelTapToSelect" type="button" aria-label="ยกเลิก">
+              <button class="tap-cancel-btn" type="button" aria-label="ยกเลิก" @click="cancelTapToSelect">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
@@ -1237,14 +1235,14 @@ watch(rideType, () => {
               </div>
             </div>
             <div class="tap-selected-actions">
-              <button class="tap-action-btn cancel" @click="cancelTapToSelect" type="button">
+              <button class="tap-action-btn cancel" type="button" @click="cancelTapToSelect">
                 เลือกใหม่
               </button>
               <button 
                 class="tap-action-btn confirm" 
-                @click="confirmTapSelectedDestination" 
-                type="button"
+                type="button" 
                 :disabled="isReverseGeocoding"
+                @click="confirmTapSelectedDestination"
               >
                 ยืนยันปลายทาง
               </button>
@@ -1352,13 +1350,13 @@ watch(rideType, () => {
         <!-- Step 1: เลือกที่ (Combined Pickup + Destination) -->
         <template v-if="step === 'location'">
           <div
+            :key="'step-location'"
             :class="[
               'step-content',
               stepDirection === 'forward'
                 ? 'animate-step'
                 : 'animate-step-back',
             ]"
-            :key="'step-location'"
           >
             <!-- Pickup Section (Collapsed when selected) -->
             <div class="location-section pickup-section" :class="{ 'is-selected': pickupLocation }">
@@ -1375,9 +1373,9 @@ watch(rideType, () => {
                 <button
                   v-if="pickupLocation"
                   class="edit-btn"
-                  @click="clearPickup(); triggerHaptic('light');"
                   type="button"
                   aria-label="เปลี่ยนจุดรับ"
+                  @click="clearPickup(); triggerHaptic('light');"
                 >
                   เปลี่ยน
                 </button>
@@ -1475,9 +1473,9 @@ watch(rideType, () => {
                 <button
                   v-if="destinationLocation"
                   class="edit-btn"
-                  @click="destinationLocation = null; destinationAddress = ''; triggerHaptic('light');"
                   type="button"
                   aria-label="เปลี่ยนปลายทาง"
+                  @click="destinationLocation = null; destinationAddress = ''; triggerHaptic('light');"
                 >
                   เปลี่ยน
                 </button>
@@ -1675,13 +1673,13 @@ watch(rideType, () => {
         <!-- Step 2: จองรถ (Combined Options + Confirm) -->
         <template v-else-if="step === 'book'">
           <div
+            :key="'step-book'"
             :class="[
               'step-content',
               stepDirection === 'forward'
                 ? 'animate-step'
                 : 'animate-step-back',
             ]"
-            :key="'step-book'"
           >
             <!-- Step Header Card -->
             <div class="step-header-card">
@@ -1830,7 +1828,6 @@ watch(rideType, () => {
               <button
                 v-for="(type, index) in rideTypes"
                 :key="type.value"
-                @click="selectRideTypeEnhanced(type.value)"
                 :class="[
                   'ride-option-enhanced',
                   {
@@ -1839,6 +1836,7 @@ watch(rideType, () => {
                   },
                 ]"
                 :style="{ animationDelay: `${index * 80}ms` }"
+                @click="selectRideTypeEnhanced(type.value)"
                 @mousedown="handleButtonPress(`ride-${type.value}`)"
                 @mouseup="handleButtonRelease"
                 @touchstart="handleButtonPress(`ride-${type.value}`)"
@@ -1857,8 +1855,8 @@ watch(rideType, () => {
                           type.value === 'premium'
                             ? '#1A1A1A'
                             : type.value === 'shared'
-                            ? '#6366F1'
-                            : '#00A86B'
+                              ? '#6366F1'
+                              : '#00A86B'
                         "
                       />
                       <rect
@@ -1871,8 +1869,8 @@ watch(rideType, () => {
                           type.value === 'premium'
                             ? '#1A1A1A'
                             : type.value === 'shared'
-                            ? '#6366F1'
-                            : '#00A86B'
+                              ? '#6366F1'
+                              : '#00A86B'
                         "
                       />
                       <rect
@@ -1885,8 +1883,8 @@ watch(rideType, () => {
                           type.value === 'premium'
                             ? '#4A4A4A'
                             : type.value === 'shared'
-                            ? '#A5B4FC'
-                            : '#E8F5EF'
+                              ? '#A5B4FC'
+                              : '#E8F5EF'
                         "
                       />
                       <rect
@@ -1899,8 +1897,8 @@ watch(rideType, () => {
                           type.value === 'premium'
                             ? '#4A4A4A'
                             : type.value === 'shared'
-                            ? '#A5B4FC'
-                            : '#E8F5EF'
+                              ? '#A5B4FC'
+                              : '#E8F5EF'
                         "
                       />
                       <circle cx="14" cy="36" r="5" fill="#333" />
@@ -1913,13 +1911,11 @@ watch(rideType, () => {
                       <span
                         v-if="type.value === 'shared'"
                         class="ride-badge eco"
-                        >ประหยัด</span
-                      >
+                      >ประหยัด</span>
                       <span
                         v-if="type.value === 'premium'"
                         class="ride-badge premium"
-                        >หรู</span
-                      >
+                      >หรู</span>
                     </div>
                     <div class="ride-option-meta">
                       <span class="eta-badge">
@@ -1951,11 +1947,9 @@ watch(rideType, () => {
                   </div>
                 </div>
                 <div class="ride-option-right">
-                  <span class="ride-option-price"
-                    >฿{{
-                      rideStore.calculateFare(estimatedDistance, type.value)
-                    }}</span
-                  >
+                  <span class="ride-option-price">฿{{
+                    rideStore.calculateFare(estimatedDistance, type.value)
+                  }}</span>
                   <Transition name="scale-fade">
                     <div
                       v-if="rideType === type.value"
@@ -1990,9 +1984,7 @@ watch(rideType, () => {
                 </div>
                 <div class="surge-text">
                   <span class="surge-title">ช่วงเวลาเร่งด่วน</span>
-                  <span class="surge-desc"
-                    >ค่าโดยสารเพิ่มขึ้น x{{ surgeMultiplier.toFixed(1) }}</span
-                  >
+                  <span class="surge-desc">ค่าโดยสารเพิ่มขึ้น x{{ surgeMultiplier.toFixed(1) }}</span>
                 </div>
               </div>
             </Transition>
@@ -2119,11 +2111,9 @@ watch(rideType, () => {
                 </svg>
                 <div class="warning-text">
                   <span class="warning-title">ยอดเงินไม่เพียงพอ</span>
-                  <span class="warning-detail"
-                    >คงเหลือ ฿{{ walletBalance.toLocaleString() }} / ต้องการ ฿{{
-                      finalFare.toLocaleString()
-                    }}</span
-                  >
+                  <span class="warning-detail">คงเหลือ ฿{{ walletBalance.toLocaleString() }} / ต้องการ ฿{{
+                    finalFare.toLocaleString()
+                  }}</span>
                 </div>
                 <button
                   class="topup-btn"
@@ -2136,7 +2126,6 @@ watch(rideType, () => {
 
             <!-- Book Button -->
             <button
-              @click="bookRide"
               :disabled="isBooking || hasInsufficientBalance"
               :class="[
                 'confirm-book-btn',
@@ -2145,6 +2134,7 @@ watch(rideType, () => {
                   'is-disabled': hasInsufficientBalance,
                 },
               ]"
+              @click="bookRide"
             >
               <template v-if="isBooking">
                 <div class="booking-spinner"></div>
@@ -2281,8 +2271,8 @@ watch(rideType, () => {
                 วันที่
               </label>
               <input
-                type="date"
                 v-model="scheduledDate"
+                type="date"
                 :min="getMinDate()"
                 :max="getMaxDate()"
                 class="datetime-input"
@@ -2302,8 +2292,8 @@ watch(rideType, () => {
                 เวลา
               </label>
               <input
-                type="time"
                 v-model="scheduledTime"
+                type="time"
                 :min="getMinTime()"
                 class="datetime-input"
               />
@@ -2350,7 +2340,7 @@ watch(rideType, () => {
             <path d="M21 11.8v2a4 4 0 01-4 4H4.2" />
           </svg>
           <span>จัดการการจองประจำ</span>
-          <span class="recurring-count" v-if="activeTemplates.length > 0">{{
+          <span v-if="activeTemplates.length > 0" class="recurring-count">{{
             activeTemplates.length
           }}</span>
         </button>
@@ -2358,8 +2348,8 @@ watch(rideType, () => {
         <!-- Confirm Button -->
         <button
           class="schedule-confirm-btn"
-          @click="confirmSchedule"
           :disabled="isScheduled && (!scheduledDate || !scheduledTime)"
+          @click="confirmSchedule"
         >
           <span>ยืนยัน</span>
         </button>
@@ -2420,14 +2410,12 @@ watch(rideType, () => {
                 <span class="recurring-item-name">{{
                   template.name || "การจองประจำ"
                 }}</span>
-                <span class="recurring-item-route"
-                  >{{ template.pickup_address }} →
-                  {{ template.destination_address }}</span
-                >
+                <span class="recurring-item-route">{{ template.pickup_address }} →
+                  {{ template.destination_address }}</span>
                 <span class="recurring-item-schedule">{{
                   formatSchedule(template)
                 }}</span>
-                <span class="recurring-item-next" v-if="template.is_active">
+                <span v-if="template.is_active" class="recurring-item-next">
                   ครั้งถัดไป: {{ getNextScheduleDisplay(template) }}
                 </span>
               </div>
@@ -2436,8 +2424,8 @@ watch(rideType, () => {
               <button
                 class="recurring-action-btn toggle"
                 :class="{ active: template.is_active }"
-                @click.stop="toggleTemplate(template.id)"
                 :title="template.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'"
+                @click.stop="toggleTemplate(template.id)"
               >
                 <svg
                   v-if="template.is_active"
@@ -2462,8 +2450,8 @@ watch(rideType, () => {
               </button>
               <button
                 class="recurring-action-btn delete"
-                @click.stop="deleteTemplate(template.id)"
                 title="ลบ"
+                @click.stop="deleteTemplate(template.id)"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -2482,11 +2470,11 @@ watch(rideType, () => {
         <!-- Create New Button -->
         <button
           class="create-recurring-btn"
+          :disabled="!pickupLocation || !destinationLocation"
           @click="
             showRecurringSheet = false;
             showCreateRecurringModal = true;
           "
-          :disabled="!pickupLocation || !destinationLocation"
         >
           <svg
             viewBox="0 0 24 24"
@@ -2525,8 +2513,8 @@ watch(rideType, () => {
         <div class="form-group">
           <label>ชื่อการจอง (ไม่บังคับ)</label>
           <input
-            type="text"
             v-model="recurringName"
+            type="text"
             placeholder="เช่น ไปทำงาน, กลับบ้าน"
             class="form-input"
           />
@@ -2553,7 +2541,7 @@ watch(rideType, () => {
           <div
             v-if="
               recurringScheduleType === 'weekly' ||
-              recurringScheduleType === 'custom'
+                recurringScheduleType === 'custom'
             "
             class="form-group"
           >
@@ -2589,8 +2577,8 @@ watch(rideType, () => {
         <div class="form-group">
           <label>เวลาออกเดินทาง</label>
           <input
-            type="time"
             v-model="recurringScheduleTime"
+            type="time"
             class="form-input time-input"
           />
         </div>
@@ -2598,12 +2586,12 @@ watch(rideType, () => {
         <!-- Save Button -->
         <button
           class="save-recurring-btn"
-          @click="saveAsRecurring"
           :disabled="
             recurringLoading ||
-            (recurringScheduleType === 'weekly' &&
-              recurringScheduleDays.length === 0)
+              (recurringScheduleType === 'weekly' &&
+                recurringScheduleDays.length === 0)
           "
+          @click="saveAsRecurring"
         >
           <span v-if="recurringLoading">กำลังบันทึก...</span>
           <span v-else>บันทึกการจองประจำ</span>
@@ -2617,14 +2605,14 @@ watch(rideType, () => {
         <button
           v-for="method in paymentMethods"
           :key="method.value"
-          @click="
-            paymentMethod = method.value;
-            showPaymentSheet = false;
-          "
           :class="[
             'payment-option',
             { active: paymentMethod === method.value },
           ]"
+          @click="
+            paymentMethod = method.value;
+            showPaymentSheet = false;
+          "
         >
           <span>{{ method.label }}</span>
           <div v-if="paymentMethod === method.value" class="check-mark">
@@ -2650,7 +2638,7 @@ watch(rideType, () => {
           placeholder="ใส่โค้ดส่วนลด"
           class="promo-input"
         />
-        <button @click="showPromoSheet = false" class="apply-btn">ใช้</button>
+        <button class="apply-btn" @click="showPromoSheet = false">ใช้</button>
       </div>
     </BottomSheet>
 
@@ -2732,6 +2720,8 @@ watch(rideType, () => {
     <!-- BottomNavigation ถูกซ่อนในหน้านี้เพื่อให้ผู้ใช้โฟกัสกับการจอง -->
   </div>
 </template>
+
+<style src="../styles/native-ride-enhancements.css"></style>
 
 <style scoped>
 /* ========================================

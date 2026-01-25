@@ -30,14 +30,14 @@ const handleVoice = (e: Event) => {
   <div 
     class="search-card"
     :class="{ pressed: isPressed }"
+    role="button"
+    tabindex="0"
     @mousedown="isPressed = true"
     @mouseup="isPressed = false"
     @mouseleave="isPressed = false"
     @touchstart="isPressed = true"
     @touchend="isPressed = false"
     @click="handleClick"
-    role="button"
-    tabindex="0"
   >
     <!-- Destination Icon -->
     <div class="search-icon">
@@ -55,7 +55,7 @@ const handleVoice = (e: Event) => {
     </div>
     
     <!-- Voice Search -->
-    <button class="voice-btn" @click="handleVoice" aria-label="ค้นหาด้วยเสียง">
+    <button class="voice-btn" aria-label="ค้นหาด้วยเสียง" @click="handleVoice">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
         <path d="M19 10v2a7 7 0 01-14 0v-2"/>

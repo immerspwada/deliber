@@ -22,8 +22,10 @@ const stars = props.max || 5
 
 <template>
   <div class="star-rating" :class="[size || 'md', { readonly }]">
-    <button v-for="i in stars" :key="i" type="button" class="star-btn" :disabled="readonly"
-      @mouseenter="hoverValue = i" @mouseleave="hoverValue = 0" @click="emit('update:modelValue', i)">
+    <button
+      v-for="i in stars" :key="i" type="button" class="star-btn" :disabled="readonly"
+      @mouseenter="hoverValue = i" @mouseleave="hoverValue = 0" @click="emit('update:modelValue', i)"
+    >
       <svg viewBox="0 0 24 24" :fill="i <= (hoverValue || modelValue) ? '#f59e0b' : '#e5e5e5'" stroke="none">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>

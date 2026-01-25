@@ -69,7 +69,7 @@ const getPlanIcon = (planType: string | null) => {
   <div class="subscription-page">
     <!-- Header -->
     <header class="page-header">
-      <button @click="router.back()" class="back-btn">
+      <button class="back-btn" @click="router.back()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
@@ -104,7 +104,7 @@ const getPlanIcon = (planType: string | null) => {
           <span class="benefit-label">นาทีรอฟรี</span>
         </div>
       </div>
-      <button @click="showCancelModal = true" class="cancel-sub-btn">
+      <button class="cancel-sub-btn" @click="showCancelModal = true">
         ยกเลิกแพ็คเกจ
       </button>
     </div>
@@ -174,9 +174,9 @@ const getPlanIcon = (planType: string | null) => {
 
         <button 
           v-if="userSubscription?.plan_id !== plan.id"
-          @click="handleSubscribe(plan.id)"
           :disabled="loading || processingPlanId === plan.id"
           :class="['subscribe-btn', plan.plan_type || 'basic']"
+          @click="handleSubscribe(plan.id)"
         >
           <span v-if="processingPlanId === plan.id">กำลังดำเนินการ...</span>
           <span v-else>{{ userSubscription ? 'เปลี่ยนแพ็คเกจ' : 'สมัครเลย' }}</span>
@@ -201,8 +201,8 @@ const getPlanIcon = (planType: string | null) => {
           class="cancel-reason"
         ></textarea>
         <div class="modal-actions">
-          <button @click="showCancelModal = false" class="btn-secondary">ยกเลิก</button>
-          <button @click="handleCancel" class="btn-danger">ยืนยันยกเลิก</button>
+          <button class="btn-secondary" @click="showCancelModal = false">ยกเลิก</button>
+          <button class="btn-danger" @click="handleCancel">ยืนยันยกเลิก</button>
         </div>
       </div>
     </div>

@@ -190,7 +190,7 @@ export function useProviderLocationTracking(options: UseProviderLocationTracking
 
     try {
       // Use type assertion since provider_location_history may not be in generated types yet
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { error: insertError } = await (supabase as any)
         .from('provider_location_history')
         .insert({

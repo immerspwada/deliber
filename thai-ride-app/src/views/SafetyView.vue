@@ -201,7 +201,7 @@ const callEmergency = (phone: string) => {
       <div class="add-modal">
         <div class="modal-header">
           <h3>เพิ่มผู้ติดต่อฉุกเฉิน</h3>
-          <button @click="showAddModal = false" class="close-btn">
+          <button class="close-btn" @click="showAddModal = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -219,7 +219,7 @@ const callEmergency = (phone: string) => {
           <label>ความสัมพันธ์ (ไม่บังคับ)</label>
           <input v-model="newContact.relationship" type="text" placeholder="เช่น พ่อ, แม่, เพื่อน" />
         </div>
-        <button @click="handleAddContact" :disabled="saving || !newContact.name || !newContact.phone" class="save-btn">
+        <button :disabled="saving || !newContact.name || !newContact.phone" class="save-btn" @click="handleAddContact">
           {{ saving ? 'กำลังบันทึก...' : 'บันทึก' }}
         </button>
       </div>

@@ -606,8 +606,8 @@ function getVisiblePages() {
         <div class="flex items-center gap-2">
           <button
             class="min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
-            @click="openAnalyticsModal"
             title="ดูสถิติ"
+            @click="openAnalyticsModal"
           >
             <svg
               class="w-5 h-5"
@@ -627,8 +627,8 @@ function getVisiblePages() {
 
           <button
             class="min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
-            @click="exportOrders"
             title="Export CSV"
+            @click="exportOrders"
           >
             <svg
               class="w-5 h-5"
@@ -653,8 +653,8 @@ function getVisiblePages() {
                 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
                 : 'bg-white border border-gray-300 hover:bg-gray-50'
             "
-            @click="toggleAutoRefresh"
             :title="autoRefresh ? 'ปิดรีเฟรชอัตโนมัติ' : 'เปิดรีเฟรชอัตโนมัติ'"
+            @click="toggleAutoRefresh"
           >
             <svg
               class="w-5 h-5"
@@ -673,8 +673,8 @@ function getVisiblePages() {
 
           <button
             class="min-h-[44px] px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
-            @click="loadOrders"
             :disabled="api.isLoading.value"
+            @click="loadOrders"
           >
             <svg
               class="w-5 h-5"
@@ -765,10 +765,10 @@ function getVisiblePages() {
           </select>
           <button
             class="sort-order-btn"
-            @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
             :title="
               sortOrder === 'asc' ? 'เรียงจากน้อยไปมาก' : 'เรียงจากมากไปน้อย'
             "
+            @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
           >
             <svg
               width="16"
@@ -808,8 +808,8 @@ function getVisiblePages() {
           <button
             class="view-btn"
             :class="{ active: viewMode === 'table' }"
-            @click="viewMode = 'table'"
             title="มุมมองตาราง"
+            @click="viewMode = 'table'"
           >
             <svg
               width="16"
@@ -825,8 +825,8 @@ function getVisiblePages() {
           <button
             class="view-btn"
             :class="{ active: viewMode === 'cards' }"
-            @click="viewMode = 'cards'"
             title="มุมมองการ์ด"
+            @click="viewMode = 'cards'"
           >
             <svg
               width="16"
@@ -901,7 +901,7 @@ function getVisiblePages() {
 
       <!-- Loading State -->
       <div v-else-if="api.isLoading.value" class="loading-state">
-        <div class="skeleton" v-for="i in 10" :key="i" />
+        <div v-for="i in 10" :key="i" class="skeleton" />
       </div>
 
       <!-- Table View -->
@@ -920,10 +920,10 @@ function getVisiblePages() {
                   "
                   :indeterminate="
                     selectedOrdersCount > 0 &&
-                    selectedOrdersCount < orders.length
+                      selectedOrdersCount < orders.length
                   "
-                  @change="selectAllOrders"
                   class="checkbox"
+                  @change="selectAllOrders"
                 />
               </th>
               <th>บริการ</th>
@@ -943,20 +943,20 @@ function getVisiblePages() {
             <tr
               v-for="order in orders"
               :key="order.id"
-              @click="viewOrder(order)"
               :class="{
                 selected: selectedOrders.has(order.id),
                 priority:
                   order.priority === 'urgent' ||
                   order.priority === 'high_value',
               }"
+              @click="viewOrder(order)"
             >
               <td class="checkbox-col" @click.stop>
                 <input
                   type="checkbox"
                   :checked="selectedOrders.has(order.id)"
-                  @change="toggleOrderSelection(order.id)"
                   class="checkbox"
+                  @change="toggleOrderSelection(order.id)"
                 />
               </td>
               <td>
@@ -1056,16 +1056,15 @@ function getVisiblePages() {
                   <span
                     v-if="!order.pickup_photo && !order.dropoff_photo"
                     class="no-evidence"
-                    >-</span
-                  >
+                  >-</span>
                 </div>
               </td>
               <td>
                 <div class="action-buttons">
                   <button
                     class="action-btn"
-                    @click.stop="viewOrder(order)"
                     title="ดูรายละเอียด"
+                    @click.stop="viewOrder(order)"
                   >
                     <svg
                       width="16"
@@ -1082,13 +1081,13 @@ function getVisiblePages() {
                   <button
                     v-if="
                       order.provider_id &&
-                      !['completed', 'cancelled', 'delivered'].includes(
-                        order.status,
-                      )
+                        !['completed', 'cancelled', 'delivered'].includes(
+                          order.status,
+                        )
                     "
                     class="action-btn reassign-btn"
-                    @click.stop="openReassignmentModal(order)"
                     title="ย้ายงานไปให้ไรเดอร์คนอื่น"
+                    @click.stop="openReassignmentModal(order)"
                   >
                     <svg
                       width="16"
@@ -1106,8 +1105,8 @@ function getVisiblePages() {
                   </button>
                   <button
                     class="action-btn"
-                    @click.stop="openStatusModal(order)"
                     title="เปลี่ยนสถานะ"
+                    @click.stop="openStatusModal(order)"
                   >
                     <svg
                       width="16"
@@ -1150,8 +1149,8 @@ function getVisiblePages() {
               <input
                 type="checkbox"
                 :checked="selectedOrders.has(order.id)"
-                @change="toggleOrderSelection(order.id)"
                 class="checkbox"
+                @change="toggleOrderSelection(order.id)"
               />
             </div>
             <div class="service-info">
@@ -1260,10 +1259,8 @@ function getVisiblePages() {
           <div class="modal-title-section">
             <h2>รายละเอียดออเดอร์</h2>
             <div class="order-meta">
-              <span class="service-type"
-                >{{ getServiceTypeIcon(selectedOrder.service_type) }}
-                {{ getServiceTypeLabel(selectedOrder.service_type) }}</span
-              >
+              <span class="service-type">{{ getServiceTypeIcon(selectedOrder.service_type) }}
+                {{ getServiceTypeLabel(selectedOrder.service_type) }}</span>
               <span
                 v-if="selectedOrder.priority !== 'normal'"
                 class="priority-badge"
@@ -1374,7 +1371,7 @@ function getVisiblePages() {
                     <div
                       v-if="
                         selectedOrder.estimated_amount &&
-                        selectedOrder.final_amount !==
+                          selectedOrder.final_amount !==
                           selectedOrder.estimated_amount
                       "
                       class="estimated"
@@ -1396,11 +1393,9 @@ function getVisiblePages() {
                     <span class="promo-code">{{
                       selectedOrder.promo_code
                     }}</span>
-                    <span class="discount"
-                      >-{{
-                        formatCurrency(selectedOrder.promo_discount || 0)
-                      }}</span
-                    >
+                    <span class="discount">-{{
+                      formatCurrency(selectedOrder.promo_discount || 0)
+                    }}</span>
                   </div>
                 </div>
                 <div class="detail-item">
@@ -1559,8 +1554,8 @@ function getVisiblePages() {
             </button>
             <button
               class="btn btn-primary"
-              @click="updateStatus"
               :disabled="api.isLoading.value"
+              @click="updateStatus"
             >
               {{ api.isLoading.value ? "กำลังบันทึก..." : "บันทึก" }}
             </button>
@@ -1628,8 +1623,8 @@ function getVisiblePages() {
             </button>
             <button
               class="btn btn-primary"
-              @click="bulkUpdateStatus"
               :disabled="api.isLoading.value"
+              @click="bulkUpdateStatus"
             >
               {{ api.isLoading.value ? "กำลังอัพเดท..." : "อัพเดท" }}
             </button>
@@ -1662,7 +1657,7 @@ function getVisiblePages() {
         </div>
         <div class="modal-body">
           <div v-if="isLoadingAnalytics" class="loading-state">
-            <div class="skeleton" v-for="i in 3" :key="i" />
+            <div v-for="i in 3" :key="i" class="skeleton" />
           </div>
           <div v-else-if="analytics" class="analytics-content">
             <!-- Summary Stats -->
@@ -1759,8 +1754,8 @@ function getVisiblePages() {
         <button
           class="page-btn"
           :disabled="currentPage === 1"
-          @click="currentPage = 1"
           title="หน้าแรก"
+          @click="currentPage = 1"
         >
           <svg
             width="16"
@@ -1776,8 +1771,8 @@ function getVisiblePages() {
         <button
           class="page-btn"
           :disabled="currentPage === 1"
-          @click="currentPage--"
           title="หน้าก่อนหน้า"
+          @click="currentPage--"
         >
           <svg
             width="16"
@@ -1807,8 +1802,8 @@ function getVisiblePages() {
         <button
           class="page-btn"
           :disabled="currentPage === totalPages"
-          @click="currentPage++"
           title="หน้าถัดไป"
+          @click="currentPage++"
         >
           <svg
             width="16"
@@ -1824,8 +1819,8 @@ function getVisiblePages() {
         <button
           class="page-btn"
           :disabled="currentPage === totalPages"
-          @click="currentPage = totalPages"
           title="หน้าสุดท้าย"
+          @click="currentPage = totalPages"
         >
           <svg
             width="16"

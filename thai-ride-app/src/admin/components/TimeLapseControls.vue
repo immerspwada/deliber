@@ -78,9 +78,9 @@ function formatTimestamp(date: Date): string {
         <button
           v-if="!isPlaying"
           type="button"
-          @click="$emit('start')"
           class="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           aria-label="Play"
+          @click="$emit('start')"
         >
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
@@ -90,9 +90,9 @@ function formatTimestamp(date: Date): string {
         <button
           v-else
           type="button"
-          @click="$emit('pause')"
           class="p-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
           aria-label="Pause"
+          @click="$emit('pause')"
         >
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75a.75.75 0 00-.75-.75h-1.5z"/>
@@ -101,9 +101,9 @@ function formatTimestamp(date: Date): string {
 
         <button
           type="button"
-          @click="$emit('stop')"
           class="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           aria-label="Stop"
+          @click="$emit('stop')"
         >
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M5.25 3A2.25 2.25 0 003 5.25v9.5A2.25 2.25 0 005.25 17h9.5A2.25 2.25 0 0017 14.75v-9.5A2.25 2.25 0 0014.75 3h-9.5z"/>
@@ -133,13 +133,13 @@ function formatTimestamp(date: Date): string {
             v-for="option in speedOptions"
             :key="option.value"
             type="button"
-            @click="handleSpeedChange(option.value)"
             :class="[
               'px-3 py-1 text-sm rounded-lg transition-colors',
               speed === option.value
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             ]"
+            @click="handleSpeedChange(option.value)"
           >
             {{ option.label }}
           </button>
@@ -151,8 +151,8 @@ function formatTimestamp(date: Date): string {
         <span class="text-sm text-gray-600">ช่วงเวลา:</span>
         <select
           :value="duration"
-          @change="handleDurationChange(($event.target as HTMLSelectElement).value as '1h' | '6h' | '24h')"
           class="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          @change="handleDurationChange(($event.target as HTMLSelectElement).value as '1h' | '6h' | '24h')"
         >
           <option v-for="option in durationOptions" :key="option.value" :value="option.value">
             {{ option.label }}

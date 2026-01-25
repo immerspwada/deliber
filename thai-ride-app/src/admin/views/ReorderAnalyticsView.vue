@@ -11,8 +11,8 @@
         <!-- Date Range Selector -->
         <select
           v-model="selectedDays"
-          @change="handleDaysChange"
           class="date-select"
+          @change="handleDaysChange"
         >
           <option :value="7">7 วันที่แล้ว</option>
           <option :value="30">30 วันที่แล้ว</option>
@@ -20,7 +20,7 @@
           <option :value="365">1 ปีที่แล้ว</option>
         </select>
 
-        <button @click="handleRefresh" class="btn-refresh" :disabled="loading">
+        <button class="btn-refresh" :disabled="loading" @click="handleRefresh">
           <svg
             class="icon"
             viewBox="0 0 24 24"
@@ -135,9 +135,7 @@
                 <span class="service-name">{{
                   getServiceLabel(service.service_type)
                 }}</span>
-                <span class="service-count"
-                  >{{ service.reorder_count }} ครั้ง</span
-                >
+                <span class="service-count">{{ service.reorder_count }} ครั้ง</span>
               </div>
               <div class="progress-bar">
                 <div

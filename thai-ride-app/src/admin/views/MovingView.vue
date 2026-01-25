@@ -136,8 +136,8 @@ onUnmounted(() => {
         }}</span>
         <button
           class="refresh-btn"
-          @click="loadData"
           :disabled="api.isLoading.value"
+          @click="loadData"
         >
           <svg
             width="18"
@@ -272,8 +272,8 @@ onUnmounted(() => {
           <tr
             v-for="item in items"
             :key="item.id"
-            @click="viewDetail(item)"
             class="clickable-row"
+            @click="viewDetail(item)"
           >
             <td>
               <code class="tracking-id">{{ item.tracking_id }}</code>
@@ -289,8 +289,7 @@ onUnmounted(() => {
                   color: getStatusColor(item.status),
                   background: getStatusColor(item.status) + '20',
                 }"
-                >{{ getStatusLabel(item.status, serviceType) }}</span
-              >
+              >{{ getStatusLabel(item.status, serviceType) }}</span>
             </td>
             <td class="amount">{{ formatCurrency(item.total_amount) }}</td>
             <td class="date">{{ formatDate(item.created_at) }}</td>

@@ -11,7 +11,7 @@
         <p class="text-gray-600 mt-2">เข้าสู่ระบบจัดการ</p>
       </div>
 
-      <form @submit.prevent="handleLogin" class="space-y-6">
+      <form class="space-y-6" @submit.prevent="handleLogin">
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
             อีเมล
@@ -66,8 +66,8 @@
       <div class="mt-4">
         <button
           type="button"
-          @click="fillAdminCredentials"
           class="w-full py-2.5 px-4 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-all flex items-center justify-center gap-2"
+          @click="fillAdminCredentials"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>

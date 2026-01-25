@@ -76,8 +76,8 @@
           <div class="modal-footer">
             <button 
               class="btn-cancel" 
-              @click="handleCancel"
               :disabled="isProcessing"
+              @click="handleCancel"
             >
               ยกเลิก
             </button>

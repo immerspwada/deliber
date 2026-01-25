@@ -275,7 +275,7 @@ onMounted(async () => {
       <div class="drawer-content">
         <!-- Header -->
         <div class="drawer-header">
-          <button class="back-btn" @click="emit('close')" type="button" aria-label="ปิด">
+          <button class="back-btn" type="button" aria-label="ปิด" @click="emit('close')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
           <div class="header-info">
@@ -339,8 +339,8 @@ onMounted(async () => {
           <div class="image-preview-content">
             <img :src="previewImage" alt="ตัวอย่างรูปภาพ" />
             <div class="image-preview-actions">
-              <button class="cancel-btn" @click="cancelImagePreview" type="button" :disabled="uploadingImage">ยกเลิก</button>
-              <button class="confirm-btn" @click="confirmSendImage" type="button" :disabled="uploadingImage">
+              <button class="cancel-btn" type="button" :disabled="uploadingImage" @click="cancelImagePreview">ยกเลิก</button>
+              <button class="confirm-btn" type="button" :disabled="uploadingImage" @click="confirmSendImage">
                 <span v-if="uploadingImage">กำลังส่ง...</span>
                 <span v-else>ส่งรูปภาพ</span>
               </button>
@@ -350,7 +350,7 @@ onMounted(async () => {
 
         <!-- Quick Messages -->
         <div v-if="canSendMessage" class="quick-messages">
-          <button v-for="qm in quickMessages" :key="qm" class="quick-msg-btn" @click="sendQuickMessage(qm)" type="button">{{ qm }}</button>
+          <button v-for="qm in quickMessages" :key="qm" class="quick-msg-btn" type="button" @click="sendQuickMessage(qm)">{{ qm }}</button>
         </div>
 
         <!-- Error -->
@@ -372,9 +372,9 @@ onMounted(async () => {
           <button 
             type="button"
             class="camera-btn" 
-            @click="openImagePicker" 
             aria-label="ถ่ายรูป/เลือกรูป" 
-            :disabled="uploadingImage || sendingLocation"
+            :disabled="uploadingImage || sendingLocation" 
+            @click="openImagePicker"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -385,9 +385,9 @@ onMounted(async () => {
           <button 
             type="button"
             class="location-btn" 
-            @click="shareCurrentLocation" 
             aria-label="แชร์ตำแหน่ง" 
-            :disabled="uploadingImage || sendingLocation"
+            :disabled="uploadingImage || sendingLocation" 
+            @click="shareCurrentLocation"
           >
             <svg v-if="!sendingLocation" viewBox="0 0 24 24" fill="white">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
@@ -399,17 +399,17 @@ onMounted(async () => {
             v-model="messageInput" 
             type="text" 
             placeholder="พิมพ์ข้อความ..." 
-            @keyup.enter="handleSend" 
             :disabled="sending || uploadingImage || sendingLocation" 
             maxlength="1000" 
+            @keyup.enter="handleSend" 
           />
           <!-- Send Button (Black) -->
           <button 
             class="send-btn" 
-            @click="handleSend" 
             :disabled="!messageInput.trim() || sending || uploadingImage || sendingLocation" 
             type="button" 
-            aria-label="ส่ง"
+            aria-label="ส่ง" 
+            @click="handleSend"
           >
             <svg v-if="!sending" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             <div v-else class="btn-loader"></div>

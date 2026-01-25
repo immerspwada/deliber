@@ -113,7 +113,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Messages -->
-    <div class="messages-container" ref="messagesContainer">
+    <div ref="messagesContainer" class="messages-container">
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
       </div>
@@ -144,8 +144,8 @@ onUnmounted(() => {
       <button 
         v-for="msg in quickMessages" 
         :key="msg" 
-        @click="sendQuickMessage(msg)"
         class="quick-btn"
+        @click="sendQuickMessage(msg)"
       >
         {{ msg }}
       </button>
@@ -160,7 +160,7 @@ onUnmounted(() => {
         placeholder="พิมพ์ข้อความ..."
         @keyup.enter="handleSend"
       />
-      <button class="send-btn" @click="handleSend" :disabled="!newMessage.trim()">
+      <button class="send-btn" :disabled="!newMessage.trim()" @click="handleSend">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
         </svg>

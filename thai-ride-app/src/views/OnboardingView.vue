@@ -52,11 +52,11 @@ const goToSlide = (index: number) => {
 
 <template>
   <div class="onboarding-page">
-    <button @click="skipOnboarding" class="skip-btn">ข้าม</button>
+    <button class="skip-btn" @click="skipOnboarding">ข้าม</button>
 
     <!-- Slides -->
     <div class="slides-container">
-      <div class="slide" v-for="(slide, index) in slides" :key="index" v-show="currentSlide === index">
+      <div v-for="(slide, index) in slides" v-show="currentSlide === index" :key="index" class="slide">
         <div class="slide-icon">
           <svg v-if="slide.icon === 'welcome'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
@@ -81,14 +81,14 @@ const goToSlide = (index: number) => {
       <button
         v-for="(_, index) in slides"
         :key="index"
-        @click="goToSlide(index)"
         :class="['dot', { active: currentSlide === index }]"
+        @click="goToSlide(index)"
       ></button>
     </div>
 
     <!-- Actions -->
     <div class="actions">
-      <button @click="nextSlide" class="btn-primary">
+      <button class="btn-primary" @click="nextSlide">
         {{ currentSlide === slides.length - 1 ? 'เริ่มต้นใช้งาน' : 'ถัดไป' }}
       </button>
     </div>

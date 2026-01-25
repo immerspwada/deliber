@@ -110,8 +110,8 @@ async function handleRequestPermission() {
               อนุญาตการแจ้งเตือนเพื่อรับข่าวสารงานใหม่
             </p>
             <button
-              @click="handleRequestPermission"
               class="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              @click="handleRequestPermission"
             >
               อนุญาตการแจ้งเตือน
             </button>
@@ -145,16 +145,16 @@ async function handleRequestPermission() {
       <!-- Quick Actions -->
       <div class="flex gap-2">
         <button
-          @click="enableAll"
           :disabled="loading"
           class="flex-1 px-4 py-2 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50"
+          @click="enableAll"
         >
           เปิดทั้งหมด
         </button>
         <button
-          @click="disableAll"
           :disabled="loading"
           class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+          @click="disableAll"
         >
           ปิดทั้งหมด
         </button>
@@ -180,21 +180,21 @@ async function handleRequestPermission() {
               <!-- Test Button -->
               <button
                 v-if="item.enabled && permission === 'granted'"
-                @click="sendTestNotification(item.category)"
                 :disabled="testingCategory === item.category"
                 class="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors disabled:opacity-50"
+                @click="sendTestNotification(item.category)"
               >
                 {{ testingCategory === item.category ? 'ส่งแล้ว' : 'ทดสอบ' }}
               </button>
               
               <!-- Toggle Switch -->
               <button
-                @click="handleToggle(item.category)"
                 :disabled="loading"
                 :class="[
                   'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
                   item.enabled ? 'bg-green-500' : 'bg-gray-300'
                 ]"
+                @click="handleToggle(item.category)"
               >
                 <span
                   :class="[

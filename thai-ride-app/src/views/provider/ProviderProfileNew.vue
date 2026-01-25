@@ -215,7 +215,7 @@ async function savePersonalInfo() {
   saveMessage.value = ''
   
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error } = await (supabase
       .from('providers_v2') as any)
       .update({
@@ -254,7 +254,7 @@ async function saveVehicleInfo() {
   saveMessage.value = ''
   
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error } = await (supabase
       .from('providers_v2') as any)
       .update({
@@ -303,7 +303,7 @@ async function saveBankInfo() {
   saveMessage.value = ''
   
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const { error } = await (supabase
       .from('providers_v2') as any)
       .update({
@@ -385,7 +385,7 @@ onMounted(loadData)
     <main v-else class="content">
       <!-- Profile Card -->
       <div class="profile-card">
-        <button class="avatar-btn" @click="openMediaUpload" aria-label="แก้ไขรูปโปรไฟล์">
+        <button class="avatar-btn" aria-label="แก้ไขรูปโปรไฟล์" @click="openMediaUpload">
           <div class="avatar" :class="{ 'has-image': avatarUrl }">
             <img v-if="avatarUrl" :src="avatarUrl" alt="Profile" />
             <span v-else>{{ initials }}</span>
@@ -508,7 +508,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>เปลี่ยนรูปโปรไฟล์</h3>
-            <button class="close-btn" @click="closeMediaUpload" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeMediaUpload">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -530,7 +530,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>ข้อมูลส่วนตัว</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -573,7 +573,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>รายละเอียดยานพาหนะ</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -623,7 +623,7 @@ onMounted(loadData)
         <div class="modal-content modal-large">
           <div class="modal-header">
             <h3>เอกสาร</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -643,7 +643,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>บัญชีธนาคาร</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -688,7 +688,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>การแจ้งเตือน</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -708,7 +708,7 @@ onMounted(loadData)
                   <span class="notification-label">การแจ้งเตือนงานใหม่</span>
                   <span class="notification-desc">
                     {{ pushPermission === 'denied' ? 'ถูกบล็อก - เปิดในการตั้งค่าเบราว์เซอร์' : 
-                       pushEnabled ? 'เปิดใช้งานอยู่' : 'ปิดอยู่' }}
+                      pushEnabled ? 'เปิดใช้งานอยู่' : 'ปิดอยู่' }}
                   </span>
                 </div>
               </div>
@@ -716,8 +716,8 @@ onMounted(loadData)
                 class="toggle-btn"
                 :class="{ active: pushEnabled, disabled: pushPermission === 'denied' }"
                 :disabled="pushLoading || pushPermission === 'denied'"
-                @click="togglePushNotification"
                 :aria-label="pushEnabled ? 'ปิดการแจ้งเตือน' : 'เปิดการแจ้งเตือน'"
+                @click="togglePushNotification"
               >
                 <span class="toggle-track">
                   <span class="toggle-thumb"></span>
@@ -742,7 +742,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>ตั้งค่า</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -785,7 +785,7 @@ onMounted(loadData)
         <div class="modal-content">
           <div class="modal-header">
             <h3>ช่วยเหลือและสนับสนุน</h3>
-            <button class="close-btn" @click="closeModal" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="closeModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />

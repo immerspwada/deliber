@@ -33,7 +33,7 @@ const statusSteps = [
 ]
 
 // Helper for step status - used in template
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const getStepStatus = (stepKey: string, currentStatus: string) => {
   const stepIndex = statusSteps.findIndex(s => s.key === stepKey)
   const currentIndex = statusSteps.findIndex(s => s.key === currentStatus)
@@ -51,6 +51,7 @@ void getStepStatus
       <h3 class="status-title">สถานะการซื้อของ</h3>
       <span class="store-badge">{{ storeName }}</span>
     </div>
+  </div>
 </template>
 
     <div v-if="status !== 'cancelled'" class="timeline">

@@ -64,6 +64,8 @@ const withdrawAmount = defineModel<number>('amount', { default: 0 })
           เพิ่มบัญชี
         </button>
       </div>
+    </div>
+  </div>
 </template>
 
       <div v-if="bankAccounts.length === 0" class="no-accounts">

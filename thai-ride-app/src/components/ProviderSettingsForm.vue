@@ -24,37 +24,37 @@ watch(() => props.settings, (v) => { localSettings.value = JSON.parse(JSON.strin
       <h3 class="section-title">การแจ้งเตือน</h3>
       <label class="setting-item">
         <span class="setting-label">งานใหม่</span>
-        <input type="checkbox" v-model="localSettings.notifications.newOrders" class="toggle" />
+        <input v-model="localSettings.notifications.newOrders" type="checkbox" class="toggle" />
       </label>
       <label class="setting-item">
         <span class="setting-label">การชำระเงิน</span>
-        <input type="checkbox" v-model="localSettings.notifications.payments" class="toggle" />
+        <input v-model="localSettings.notifications.payments" type="checkbox" class="toggle" />
       </label>
       <label class="setting-item">
         <span class="setting-label">โปรโมชั่น</span>
-        <input type="checkbox" v-model="localSettings.notifications.promotions" class="toggle" />
+        <input v-model="localSettings.notifications.promotions" type="checkbox" class="toggle" />
       </label>
     </div>
     <div class="settings-section">
       <h3 class="section-title">การตั้งค่า</h3>
       <label class="setting-item">
         <span class="setting-label">รับงานอัตโนมัติ</span>
-        <input type="checkbox" v-model="localSettings.preferences.autoAccept" class="toggle" />
+        <input v-model="localSettings.preferences.autoAccept" type="checkbox" class="toggle" />
       </label>
       <div class="setting-item">
         <span class="setting-label">ระยะทางสูงสุด (กม.)</span>
-        <input type="number" v-model="localSettings.preferences.maxDistance" class="number-input" min="1" max="50" />
+        <input v-model="localSettings.preferences.maxDistance" type="number" class="number-input" min="1" max="50" />
       </div>
     </div>
     <div class="settings-section">
       <h3 class="section-title">ความเป็นส่วนตัว</h3>
       <label class="setting-item">
         <span class="setting-label">แชร์ตำแหน่ง</span>
-        <input type="checkbox" v-model="localSettings.privacy.shareLocation" class="toggle" />
+        <input v-model="localSettings.privacy.shareLocation" type="checkbox" class="toggle" />
       </label>
       <label class="setting-item">
         <span class="setting-label">แสดงโปรไฟล์</span>
-        <input type="checkbox" v-model="localSettings.privacy.showProfile" class="toggle" />
+        <input v-model="localSettings.privacy.showProfile" type="checkbox" class="toggle" />
       </label>
     </div>
     <button type="button" class="save-btn" :disabled="loading" @click="emit('save', localSettings)">

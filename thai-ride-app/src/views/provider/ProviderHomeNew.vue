@@ -369,7 +369,7 @@ async function toggleOnline() {
 
     const newStatus = !isOnline.value
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     await (supabase.from('providers_v2') as any)
       .update({
         is_online: newStatus,
@@ -573,14 +573,14 @@ function setupRealtimeSubscription() {
           </div>
         </div>
         <div class="prompt-actions">
-          <button class="prompt-btn dismiss" @click="dismissNotificationPrompt" type="button">
+          <button class="prompt-btn dismiss" type="button" @click="dismissNotificationPrompt">
             ไว้ทีหลัง
           </button>
           <button 
             class="prompt-btn enable" 
-            @click="enableNotifications" 
-            :disabled="pushLoading"
+            :disabled="pushLoading" 
             type="button"
+            @click="enableNotifications"
           >
             {{ pushLoading ? 'กำลังเปิด...' : 'เปิดเลย' }}
           </button>
@@ -591,7 +591,7 @@ function setupRealtimeSubscription() {
     <!-- Green Header -->
     <header class="header">
       <!-- Menu Button -->
-      <button class="menu-btn" @click="openMenu" aria-label="เมนู">
+      <button class="menu-btn" aria-label="เมนู" @click="openMenu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
@@ -673,9 +673,9 @@ function setupRealtimeSubscription() {
         <button 
           class="toggle-btn"
           :class="{ active: isOnline }"
-          @click="toggleOnline"
           :disabled="isToggling"
           :aria-label="isOnline ? 'ปิดรับงาน' : 'เปิดรับงาน'"
+          @click="toggleOnline"
         >
           <span class="toggle-track">
             <span class="toggle-thumb"></span>
@@ -695,12 +695,12 @@ function setupRealtimeSubscription() {
           <button
             class="order-number-badge"
             :class="{ copied: isCopied }"
-            @click.stop="copyOrderNumber"
-            @keydown="handleOrderNumberKeydown"
             :aria-label="`หมายเลขออเดอร์ ${formatOrderNumber(activeJob.tracking_id)} แตะเพื่อคัดลอก`"
             role="button"
             tabindex="0"
             type="button"
+            @click.stop="copyOrderNumber"
+            @keydown="handleOrderNumberKeydown"
           >
             <span aria-hidden="true">{{ formatOrderNumber(activeJob.tracking_id) }}</span>
             <svg class="copy-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

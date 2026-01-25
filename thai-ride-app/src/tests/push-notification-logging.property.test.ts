@@ -56,8 +56,8 @@ interface PushLog {
 
 describe('Property 7: Push Logs Contain All Required Fields', () => {
   let supabase: SupabaseClient
-  let testLogIds: string[] = []
-  let testProviderIds: string[] = []
+  const testLogIds: string[] = []
+  const testProviderIds: string[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

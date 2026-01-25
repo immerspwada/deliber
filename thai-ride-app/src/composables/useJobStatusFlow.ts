@@ -101,7 +101,7 @@ export function useJobStatusFlow(jobStatus: Ref<string | undefined>) {
     const normalized = normalizeStatus(jobStatus.value)
 
     // Try exact match with normalized status
-    let index = STATUS_FLOW.findIndex(step => 
+    const index = STATUS_FLOW.findIndex(step => 
       step.dbStatus.some(s => s.toLowerCase() === normalized) || 
       step.key.toLowerCase() === normalized
     )

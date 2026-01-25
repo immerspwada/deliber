@@ -119,8 +119,8 @@ const handleRowClick = (row: Record<string, unknown>, index: number) => {
         </tr>
         
         <tr
-          v-else
           v-for="(row, index) in sortedData"
+          v-else
           :key="index"
           @click="handleRowClick(row, index)"
         >

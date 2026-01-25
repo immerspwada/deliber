@@ -32,7 +32,7 @@ export interface AdminProvider {
   last_name: string
   phone_number: string
   provider_type: 'ride' | 'delivery' | 'shopping' | 'all'
-  service_types: ('ride' | 'delivery' | 'shopping' | 'moving' | 'laundry' | 'queue')[]
+  service_types: readonly ('ride' | 'delivery' | 'shopping' | 'moving' | 'laundry' | 'queue')[]
   status: 'pending' | 'approved' | 'rejected' | 'suspended'
   is_online: boolean
   is_available: boolean
@@ -55,9 +55,9 @@ export interface AdminProvider {
   last_active_at: string | null
 }
 
-export interface ProviderFilters {
+export interface AdminProviderFilters {
   status?: 'pending' | 'approved' | 'rejected' | 'suspended' | null
-  providerType?: 'ride' | 'delivery' | 'shopping' | 'all' | null
+  providerType?: 'ride' | 'delivery' | 'shopping' | 'moving' | 'all' | null
   limit?: number
   offset?: number
 }
@@ -96,7 +96,7 @@ export function useAdminProviders() {
   /**
    * Fetch providers with filters and pagination
    */
-  async function fetchProviders(filters: ProviderFilters = {}): Promise<AdminProvider[]> {
+  async function fetchProviders(filters: AdminProviderFilters = {}): Promise<AdminProvider[]> {
     loading.value = true
     error.value = null
 
@@ -106,7 +106,7 @@ export function useAdminProviders() {
         p_provider_type: filters.providerType || null,
         p_limit: filters.limit || 20,
         p_offset: filters.offset || 0
-      })
+      }) as { data: AdminProvider[] | null; error: any }
 
       if (rpcError) throw rpcError
 
@@ -126,12 +126,12 @@ export function useAdminProviders() {
   /**
    * Fetch total count of providers for pagination
    */
-  async function fetchCount(filters: Omit<ProviderFilters, 'limit' | 'offset'> = {}): Promise<number> {
+  async function fetchCount(filters: Omit<AdminProviderFilters, 'limit' | 'offset'> = {}): Promise<number> {
     try {
       const { data, error: rpcError } = await supabase.rpc('count_admin_providers_v2', {
         p_status: filters.status || null,
         p_provider_type: filters.providerType || null
-      })
+      }) as { data: number | null; error: any }
 
       if (rpcError) throw rpcError
 
@@ -153,11 +153,14 @@ export function useAdminProviders() {
     loading.value = true
     error.value = null
 
+    console.log('[useAdminProviders] approveProvider called', { providerId, notes })
+
     try {
       // Validate input
       const validation = validateInput(ProviderApprovalSchema, { providerId, notes })
       if (!validation.success) {
-        const errorMessage = Object.values(validation.errors).join(', ')
+        const errorMessage = 'errors' in validation ? Object.values(validation.errors).join(', ') : 'Validation failed'
+        console.error('[useAdminProviders] Validation failed:', validation)
         toast.error(errorMessage)
         return { success: false, message: errorMessage }
       }
@@ -165,19 +168,26 @@ export function useAdminProviders() {
       const currentUser = await supabase.auth.getUser()
       const adminId = currentUser.data.user?.id
 
-      // Update provider status in providers_v2 table
-      const { error: updateError } = await supabase
-        .from('providers_v2')
-        .update({
-          status: 'approved',
-          documents_verified: true,
-          verification_notes: notes || null,
-          approved_at: new Date().toISOString(),
-          approved_by: adminId
-        })
-        .eq('id', providerId)
+      console.log('[useAdminProviders] Calling approve_provider_v2_enhanced...', { providerId, adminId })
 
-      if (updateError) throw updateError
+      // Call RPC function to approve provider
+      const { data, error: rpcError } = await supabase.rpc('approve_provider_v2_enhanced', {
+        p_provider_id: providerId,
+        p_admin_id: adminId,
+        p_service_types: null, // Keep existing service types
+        p_notes: notes || null
+      }) as { data: { success: boolean; error?: string } | null; error: any }
+
+      if (rpcError) {
+        console.error('[useAdminProviders] RPC error:', rpcError)
+        throw rpcError
+      }
+
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Failed to approve provider')
+      }
+
+      console.log('[useAdminProviders] Provider approved successfully')
 
       // Log audit trail
       await logProviderApproval(providerId, notes)
@@ -187,6 +197,7 @@ export function useAdminProviders() {
       // Update local state
       const index = providers.value.findIndex(p => p.id === providerId)
       if (index !== -1) {
+        console.log('[useAdminProviders] Updating local state at index:', index)
         providers.value[index] = {
           ...providers.value[index],
           status: 'approved',
@@ -201,11 +212,13 @@ export function useAdminProviders() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to approve provider'
       error.value = message
+      console.error('[useAdminProviders] approveProvider error:', err)
       handleError(err, 'useAdminProviders.approveProvider')
       toast.error('ไม่สามารถอนุมัติผู้ให้บริการได้')
       return { success: false, message }
     } finally {
       loading.value = false
+      console.log('[useAdminProviders] approveProvider completed')
     }
   }
 
@@ -227,11 +240,11 @@ export function useAdminProviders() {
       const { error: updateError } = await supabase
         .from('providers_v2')
         .update({
-          status: 'rejected',
+          status: 'rejected' as const,
           verification_notes: reason,
           approved_at: new Date().toISOString(),
           approved_by: adminId
-        })
+        } as any)
         .eq('id', providerId)
 
       if (updateError) throw updateError
@@ -281,11 +294,11 @@ export function useAdminProviders() {
         p_provider_id: providerId,
         p_admin_id: adminId,
         p_reason: reason
-      })
+      }) as { data: { success: boolean; error?: string } | null; error: any }
 
       if (rpcError) throw rpcError
 
-      if (!data?.success) {
+      if (!data || !data.success) {
         throw new Error(data?.error || 'Failed to suspend provider')
       }
 

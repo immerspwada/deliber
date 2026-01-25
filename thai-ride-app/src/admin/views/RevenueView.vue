@@ -166,7 +166,7 @@ onMounted(() => {
           <option value="month">30 วันที่ผ่านมา</option>
           <option value="year">ปีนี้</option>
         </select>
-        <button class="refresh-btn" @click="loadStats" :disabled="isLoading">
+        <button class="refresh-btn" :disabled="isLoading" @click="loadStats">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 4v6h-6M1 20v-6h6"/>
             <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
@@ -176,7 +176,7 @@ onMounted(() => {
     </div>
 
     <div v-if="isLoading" class="loading-grid">
-      <div class="skeleton-card" v-for="i in 4" :key="i" />
+      <div v-for="i in 4" :key="i" class="skeleton-card" />
     </div>
 
     <template v-else>

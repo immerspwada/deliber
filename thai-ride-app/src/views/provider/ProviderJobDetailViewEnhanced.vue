@@ -277,9 +277,9 @@ watch(() => route.params.id, (newId) => {
     <header class="detail-header">
       <button 
         class="back-btn" 
-        @click="goBack" 
         type="button" 
-        aria-label="กลับไปหน้ารายการงาน"
+        aria-label="กลับไปหน้ารายการงาน" 
+        @click="goBack"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M15 18l-6-6 6-6"/>
@@ -294,7 +294,7 @@ watch(() => route.params.id, (newId) => {
       <div class="error-icon" aria-hidden="true">🚫</div>
       <h2>ไม่สามารถเข้าถึงได้</h2>
       <p>คุณไม่มีสิทธิ์เข้าถึงหน้านี้ หรือไม่พบข้อมูลงาน</p>
-      <button class="retry-btn" @click="goBack" type="button">กลับหน้าหลัก</button>
+      <button class="retry-btn" type="button" @click="goBack">กลับหน้าหลัก</button>
     </div>
 
     <!-- Loading State -->
@@ -309,7 +309,7 @@ watch(() => route.params.id, (newId) => {
       <div class="error-icon" aria-hidden="true">⚠️</div>
       <h2>เกิดข้อผิดพลาด</h2>
       <p>{{ error }}</p>
-      <button class="retry-btn" @click="loadJob(jobId!)" type="button">ลองใหม่</button>
+      <button class="retry-btn" type="button" @click="loadJob(jobId!)">ลองใหม่</button>
     </div>
 
     <!-- Job Detail Content -->
@@ -377,9 +377,9 @@ watch(() => route.params.id, (newId) => {
           <button 
             v-if="job.customer?.phone"
             class="call-btn"
-            @click="callCustomer"
             type="button"
             :aria-label="`โทรหา ${job.customer.name}`"
+            @click="callCustomer"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
@@ -387,9 +387,9 @@ watch(() => route.params.id, (newId) => {
           </button>
           <button 
             class="chat-btn"
-            @click="openChat"
             type="button"
             :aria-label="`แชทกับ ${job.customer?.name || 'ลูกค้า'}`"
+            @click="openChat"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
@@ -512,9 +512,9 @@ watch(() => route.params.id, (newId) => {
         <!-- Navigation Button -->
         <button 
           class="nav-btn"
-          @click="openNavigation"
           type="button"
           aria-label="เปิดแผนที่นำทาง"
+          @click="openNavigation"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
@@ -527,11 +527,11 @@ watch(() => route.params.id, (newId) => {
           v-if="canUpdate"
           class="status-btn"
           :class="{ completing: nextStatus?.key === 'completed' }"
-          @click="handleUpdateStatus"
           :disabled="updating"
           type="button"
           :aria-busy="updating"
           :aria-label="updating ? 'กำลังดำเนินการ' : nextStatus?.action"
+          @click="handleUpdateStatus"
         >
           <span v-if="updating" class="btn-loader" aria-hidden="true"></span>
           <span v-if="updating" class="sr-only">กำลังดำเนินการ...</span>
@@ -543,10 +543,10 @@ watch(() => route.params.id, (newId) => {
       <button 
         v-if="!isJobCompleted && !isJobCancelled && currentStatusIndex < 3"
         class="cancel-btn"
-        @click="showCancelModal = true"
         type="button"
         aria-haspopup="dialog"
         aria-label="ยกเลิกงาน"
+        @click="showCancelModal = true"
       >
         ยกเลิกงาน
       </button>
@@ -557,8 +557,8 @@ watch(() => route.params.id, (newId) => {
       <div 
         v-if="showCancelModal" 
         class="modal-overlay" 
-        @click.self="showCancelModal = false"
         role="presentation"
+        @click.self="showCancelModal = false"
       >
         <div 
           class="modal-content" 
@@ -584,17 +584,17 @@ watch(() => route.params.id, (newId) => {
           <div class="modal-actions">
             <button 
               class="modal-cancel-btn"
-              @click="showCancelModal = false"
               type="button"
+              @click="showCancelModal = false"
             >
               ไม่ยกเลิก
             </button>
             <button 
               class="modal-confirm-btn"
-              @click="handleCancelJob"
               :disabled="updating"
               type="button"
               :aria-busy="updating"
+              @click="handleCancelJob"
             >
               <span v-if="updating" class="btn-loader" aria-hidden="true"></span>
               <span v-if="updating" class="sr-only">กำลังดำเนินการ...</span>

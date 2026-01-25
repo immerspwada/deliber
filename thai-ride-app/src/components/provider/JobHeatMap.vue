@@ -38,11 +38,11 @@ function navigateToZone(zone: HotZone) {
 
 // State
 const mapContainer = ref<HTMLElement | null>(null)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const map = ref<any>(null)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const markers = ref<any[]>([])
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const userMarker = ref<any>(null)
 
 // Mock hot zones if none provided
@@ -223,8 +223,8 @@ onUnmounted(() => {
       <button 
         v-if="userLocation" 
         class="locate-btn"
-        @click="centerOnUser"
         aria-label="ไปยังตำแหน่งของฉัน"
+        @click="centerOnUser"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -270,8 +270,8 @@ onUnmounted(() => {
         </div>
         <button 
           class="navigate-btn"
-          @click.stop="navigateToZone(zone)"
           aria-label="นำทางไปยัง {{ zone.name }}"
+          @click.stop="navigateToZone(zone)"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 11l19-9-9 19-2-8-8-2z"/>

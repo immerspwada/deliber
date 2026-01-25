@@ -28,7 +28,7 @@
     </div>
     
     <div v-if="availableJobs.length > 3" class="more-jobs">
-      <button @click="$emit('viewAllJobs')" class="view-all-btn">
+      <button class="view-all-btn" @click="$emit('viewAllJobs')">
         ดูงานทั้งหมด ({{ availableJobs.length }})
       </button>
     </div>

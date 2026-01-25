@@ -264,8 +264,8 @@ function formatDate(dateString: string): string {
         </div>
         <div v-if="selectedCount > 0" class="flex items-center gap-3">
           <span class="text-sm text-gray-600">เลือก {{ selectedCount }} รายการ</span>
-          <button type="button" @click="bulkApprove" :disabled="actionLoading === 'bulk'" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">อนุมัติทั้งหมด</button>
-          <button type="button" @click="bulkReject" :disabled="actionLoading === 'bulk'" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">ปฏิเสธทั้งหมด</button>
+          <button type="button" :disabled="actionLoading === 'bulk'" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50" @click="bulkApprove">อนุมัติทั้งหมด</button>
+          <button type="button" :disabled="actionLoading === 'bulk'" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50" @click="bulkReject">ปฏิเสธทั้งหมด</button>
         </div>
       </div>
     </div>
@@ -274,7 +274,7 @@ function formatDate(dateString: string): string {
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div class="flex items-center">
-          <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" class="w-5 h-5 text-blue-600 rounded border-gray-300" />
+          <input type="checkbox" :checked="allSelected" class="w-5 h-5 text-blue-600 rounded border-gray-300" @change="toggleSelectAll" />
           <label class="ml-2 text-sm text-gray-700">เลือกทั้งหมด</label>
         </div>
         <div>
@@ -313,7 +313,7 @@ function formatDate(dateString: string): string {
     <div v-else class="space-y-4">
       <div v-for="provider in filteredProviders" :key="provider.id" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
         <div class="flex items-start gap-4">
-          <input type="checkbox" :checked="selectedIds.has(provider.id)" @change="toggleSelect(provider.id)" class="mt-1 w-5 h-5 text-blue-600 rounded border-gray-300" />
+          <input type="checkbox" :checked="selectedIds.has(provider.id)" class="mt-1 w-5 h-5 text-blue-600 rounded border-gray-300" @change="toggleSelect(provider.id)" />
           <div class="flex-1">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center">
@@ -333,9 +333,9 @@ function formatDate(dateString: string): string {
               <span>เอกสาร: {{ provider.documents_verified ? 'ตรวจสอบแล้ว' : 'รอตรวจสอบ' }}</span>
             </div>
             <div class="flex gap-3">
-              <button type="button" @click="viewProviderDetails(provider)" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">ดูรายละเอียด</button>
-              <button type="button" @click="openApproveModal(provider.id)" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">{{ actionLoading === provider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}</button>
-              <button type="button" @click="openRejectModal(provider.id)" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">ปฏิเสธ</button>
+              <button type="button" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors" @click="viewProviderDetails(provider)">ดูรายละเอียด</button>
+              <button type="button" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors" @click="openApproveModal(provider.id)">{{ actionLoading === provider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}</button>
+              <button type="button" :disabled="actionLoading === provider.id" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors" @click="openRejectModal(provider.id)">ปฏิเสธ</button>
             </div>
           </div>
         </div>
@@ -348,7 +348,7 @@ function formatDate(dateString: string): string {
         <div class="p-6 border-b border-gray-200">
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold text-gray-900">รายละเอียดผู้ให้บริการ</h2>
-            <button type="button" @click="showDetailModal = false" class="p-2 hover:bg-gray-100 rounded-lg" aria-label="ปิด">
+            <button type="button" class="p-2 hover:bg-gray-100 rounded-lg" aria-label="ปิด" @click="showDetailModal = false">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -435,10 +435,10 @@ function formatDate(dateString: string): string {
           </div>
         </div>
         <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button type="button" @click="openApproveModal(selectedProvider.id)" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+          <button type="button" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50" @click="openApproveModal(selectedProvider.id)">
             {{ actionLoading === selectedProvider.id ? 'กำลังดำเนินการ...' : 'อนุมัติ' }}
           </button>
-          <button type="button" @click="openRejectModal(selectedProvider.id)" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">
+          <button type="button" :disabled="actionLoading === selectedProvider.id" class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50" @click="openRejectModal(selectedProvider.id)">
             ปฏิเสธ
           </button>
         </div>
@@ -461,10 +461,10 @@ function formatDate(dateString: string): string {
           ></textarea>
         </div>
         <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button type="button" @click="showApproveModal = false" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">
+          <button type="button" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200" @click="showApproveModal = false">
             ยกเลิก
           </button>
-          <button type="button" @click="confirmApprove" :disabled="actionLoading === actionProviderId" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+          <button type="button" :disabled="actionLoading === actionProviderId" class="flex-1 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50" @click="confirmApprove">
             {{ actionLoading === actionProviderId ? 'กำลังดำเนินการ...' : 'ยืนยันอนุมัติ' }}
           </button>
         </div>
@@ -491,14 +491,14 @@ function formatDate(dateString: string): string {
           </p>
         </div>
         <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button type="button" @click="showRejectModal = false" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">
+          <button type="button" class="flex-1 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200" @click="showRejectModal = false">
             ยกเลิก
           </button>
           <button 
             type="button" 
-            @click="confirmReject" 
             :disabled="actionLoading === actionProviderId || rejectionReason.trim().length < 10" 
-            class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+            class="flex-1 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50" 
+            @click="confirmReject"
           >
             {{ actionLoading === actionProviderId ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ' }}
           </button>

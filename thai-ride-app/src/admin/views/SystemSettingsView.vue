@@ -20,16 +20,16 @@
           <button
             type="button"
             class="btn-secondary"
-            @click="showAuditLog = true"
             title="ดูประวัติการเปลี่ยนแปลง"
+            @click="showAuditLog = true"
           >
             📋 ประวัติ
           </button>
           <button
             type="button"
             class="btn-secondary"
-            @click="exportSettings"
             title="ส่งออกการตั้งค่า"
+            @click="exportSettings"
           >
             📥 ส่งออก
           </button>

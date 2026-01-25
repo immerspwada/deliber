@@ -77,7 +77,7 @@ interface PushVolumeData {
 
 describe('Push Notification Analytics Properties', () => {
   let supabase: SupabaseClient
-  let testLogIds: string[] = []
+  const testLogIds: string[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

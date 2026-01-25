@@ -12,8 +12,8 @@
     
     <!-- Icon -->
     <component 
-      v-if="icon" 
       :is="icon" 
+      v-if="icon" 
       class="status-icon" 
     />
     

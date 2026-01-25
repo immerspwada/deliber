@@ -686,12 +686,12 @@ watch([currentPage], loadOrders)
       <div class="header-right">
         <button 
           v-if="selectedOrders.size > 0"
-          @click="openBulkModal" 
-          class="bulk-btn"
+          class="bulk-btn" 
+          @click="openBulkModal"
         >
           จัดการ {{ selectedOrders.size }} รายการ
         </button>
-        <button @click="loadOrders" class="refresh-btn" :disabled="loading">
+        <button class="refresh-btn" :disabled="loading" @click="loadOrders">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'spin': loading }">
             <path d="M23 4v6h-6M1 20v-6h6"/>
             <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
@@ -714,7 +714,7 @@ watch([currentPage], loadOrders)
           placeholder="ค้นหา Tracking ID, ชื่อลูกค้า, ผู้ให้บริการ..."
           class="search-input"
         />
-        <button v-if="searchQuery" @click="searchQuery = ''" class="clear-search">×</button>
+        <button v-if="searchQuery" class="clear-search" @click="searchQuery = ''">×</button>
       </div>
       
       <select v-model="serviceTypeFilter" class="filter-select">
@@ -735,8 +735,8 @@ watch([currentPage], loadOrders)
 
       <button 
         v-if="searchQuery || serviceTypeFilter || statusFilter" 
-        @click="searchQuery = ''; serviceTypeFilter = ''; statusFilter = ''"
         class="clear-filters-btn"
+        @click="searchQuery = ''; serviceTypeFilter = ''; statusFilter = ''"
       >
         ล้างตัวกรอง
       </button>
@@ -753,7 +753,7 @@ watch([currentPage], loadOrders)
       <div class="error-icon">!</div>
       <h3>เกิดข้อผิดพลาด</h3>
       <p class="error-message">{{ error }}</p>
-      <button @click="loadOrders" class="retry-btn">
+      <button class="retry-btn" @click="loadOrders">
         ลองใหม่อีกครั้ง
       </button>
     </div>
@@ -772,8 +772,8 @@ watch([currentPage], loadOrders)
               <input 
                 type="checkbox" 
                 :checked="allSelected"
-                @change="toggleSelectAll"
                 class="checkbox"
+                @change="toggleSelectAll"
               />
             </th>
             <th>บริการ</th>
@@ -792,15 +792,15 @@ watch([currentPage], loadOrders)
           <tr 
             v-for="order in filteredOrders" 
             :key="order.id" 
-            @click="viewOrder(order)"
             :class="{ 'selected-row': selectedOrders.has(order.id) }"
+            @click="viewOrder(order)"
           >
             <td class="checkbox-col" @click.stop>
               <input 
                 type="checkbox" 
                 :checked="selectedOrders.has(order.id)"
-                @change="toggleSelect(order.id)"
                 class="checkbox"
+                @change="toggleSelect(order.id)"
               />
             </td>
             <td>
@@ -815,9 +815,9 @@ watch([currentPage], loadOrders)
                 <div v-if="order.customer_phone" class="phone-with-action">
                   <span class="phone">{{ formatPhoneNumber(order.customer_phone) }}</span>
                   <button 
-                    @click.stop="callPhone(order.customer_phone, order.customer_name || 'ลูกค้า')"
                     class="call-btn"
                     title="โทรหาลูกค้า"
+                    @click.stop="callPhone(order.customer_phone, order.customer_name || 'ลูกค้า')"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -832,9 +832,9 @@ watch([currentPage], loadOrders)
                 <div v-if="order.provider_phone" class="phone-with-action">
                   <span class="phone">{{ formatPhoneNumber(order.provider_phone) }}</span>
                   <button 
-                    @click.stop="callPhone(order.provider_phone, order.provider_name || 'ไรเดอร์')"
                     class="call-btn"
                     title="โทรหาไรเดอร์"
+                    @click.stop="callPhone(order.provider_phone, order.provider_name || 'ไรเดอร์')"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -846,9 +846,9 @@ watch([currentPage], loadOrders)
             <td @click.stop>
               <select 
                 :value="order.status"
-                @change="updateOrderStatus(order, ($event.target as HTMLSelectElement).value)"
                 class="status-dropdown"
                 :class="`status-${order.status}`"
+                @change="updateOrderStatus(order, ($event.target as HTMLSelectElement).value)"
               >
                 <option value="pending">รอรับ</option>
                 <option value="matched">จับคู่แล้ว</option>
@@ -873,10 +873,10 @@ watch([currentPage], loadOrders)
             <td class="date">{{ formatDate(order.created_at) }}</td>
             <td>
               <button
-                @click.stop="openNotesModal(order)"
                 class="notes-indicator"
                 :class="{ 'has-notes': order.notes }"
                 :title="order.notes ? 'มีโน้ต - คลิกเพื่อดู/แก้ไข' : 'เพิ่มโน้ต'"
+                @click.stop="openNotesModal(order)"
               >
                 <svg v-if="order.notes" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -894,9 +894,9 @@ watch([currentPage], loadOrders)
             <td>
               <div class="actions">
                 <button
-                  @click.stop="openMapModal(order)"
                   class="action-btn view"
                   title="ดูแผนที่"
+                  @click.stop="openMapModal(order)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
@@ -905,9 +905,9 @@ watch([currentPage], loadOrders)
                   </svg>
                 </button>
                 <button
-                  @click.stop="viewOrder(order)"
                   class="action-btn view"
                   title="ดูรายละเอียด"
+                  @click.stop="viewOrder(order)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -916,9 +916,9 @@ watch([currentPage], loadOrders)
                 </button>
                 <button
                   v-if="order.status === 'pending' || order.status === 'matched'"
-                  @click.stop="openReassignModal(order)"
                   class="action-btn reassign"
                   title="ย้ายงาน"
+                  @click.stop="openReassignModal(order)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="23 4 23 10 17 10"/>
@@ -927,9 +927,9 @@ watch([currentPage], loadOrders)
                 </button>
                 <button
                   v-if="order.status !== 'completed' && order.status !== 'cancelled'"
-                  @click.stop="openCancelModal(order)"
                   class="action-btn cancel"
                   title="ยกเลิกออเดอร์"
+                  @click.stop="openCancelModal(order)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
@@ -960,7 +960,7 @@ watch([currentPage], loadOrders)
       <div class="modal modal-lg">
         <div class="modal-header">
           <h2>แผนที่ออเดอร์</h2>
-          <button @click="showMapModal = false" class="close-btn">×</button>
+          <button class="close-btn" @click="showMapModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info">
@@ -978,7 +978,7 @@ watch([currentPage], loadOrders)
       <div class="modal">
         <div class="modal-header">
           <h2>จัดการหลายรายการ</h2>
-          <button @click="showBulkModal = false" class="close-btn">×</button>
+          <button class="close-btn" @click="showBulkModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info">
@@ -994,13 +994,13 @@ watch([currentPage], loadOrders)
           </div>
 
           <div class="modal-actions">
-            <button @click="showBulkModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showBulkModal = false">
               ยกเลิก
             </button>
             <button
-              @click="executeBulkAction"
               :disabled="!bulkAction || loading"
               class="btn btn-danger"
+              @click="executeBulkAction"
             >
               {{ loading ? 'กำลังดำเนินการ...' : 'ยืนยัน' }}
             </button>
@@ -1012,9 +1012,9 @@ watch([currentPage], loadOrders)
     <!-- Pagination -->
     <div v-if="totalPages > 1" class="pagination">
       <button
-        @click="currentPage--"
         :disabled="currentPage === 1"
         class="page-btn"
+        @click="currentPage--"
       >
         ← ก่อนหน้า
       </button>
@@ -1022,9 +1022,9 @@ watch([currentPage], loadOrders)
         หน้า {{ currentPage }} / {{ totalPages }}
       </span>
       <button
-        @click="currentPage++"
         :disabled="currentPage === totalPages"
         class="page-btn"
+        @click="currentPage++"
       >
         ถัดไป →
       </button>
@@ -1035,7 +1035,7 @@ watch([currentPage], loadOrders)
       <div class="modal">
         <div class="modal-header">
           <h2>ย้ายงานไปให้ไรเดอร์คนอื่น</h2>
-          <button @click="showReassignModal = false" class="close-btn">×</button>
+          <button class="close-btn" @click="showReassignModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info">
@@ -1073,13 +1073,13 @@ watch([currentPage], loadOrders)
           </div>
 
           <div class="modal-actions">
-            <button @click="showReassignModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showReassignModal = false">
               ยกเลิก
             </button>
             <button
-              @click="reassignProvider"
               :disabled="!selectedProvider || loading"
               class="btn btn-primary"
+              @click="reassignProvider"
             >
               {{ loading ? 'กำลังบันทึก...' : 'ยืนยันย้ายงาน' }}
             </button>
@@ -1093,7 +1093,7 @@ watch([currentPage], loadOrders)
       <div class="modal modal-lg">
         <div class="modal-header">
           <h2>📋 รายละเอียดออเดอร์</h2>
-          <button @click="showDetailModal = false" class="close-btn">✕</button>
+          <button class="close-btn" @click="showDetailModal = false">✕</button>
         </div>
         <div class="modal-body">
           <div class="detail-grid">
@@ -1120,8 +1120,8 @@ watch([currentPage], loadOrders)
                 <div v-if="selectedOrder?.customer_phone" class="phone-with-action">
                   <span class="phone">{{ formatPhoneNumber(selectedOrder.customer_phone) }}</span>
                   <button 
-                    @click="callPhone(selectedOrder.customer_phone, selectedOrder.customer_name || 'ลูกค้า')"
                     class="call-btn-large"
+                    @click="callPhone(selectedOrder.customer_phone, selectedOrder.customer_name || 'ลูกค้า')"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -1138,8 +1138,8 @@ watch([currentPage], loadOrders)
                 <div v-if="selectedOrder?.provider_phone" class="phone-with-action">
                   <span class="phone">{{ formatPhoneNumber(selectedOrder.provider_phone) }}</span>
                   <button 
-                    @click="callPhone(selectedOrder.provider_phone, selectedOrder.provider_name || 'ไรเดอร์')"
                     class="call-btn-large"
+                    @click="callPhone(selectedOrder.provider_phone, selectedOrder.provider_name || 'ไรเดอร์')"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -1175,8 +1175,8 @@ watch([currentPage], loadOrders)
                 </div>
                 <div v-else class="no-notes">ไม่มีโน้ต</div>
                 <button 
-                  @click="showDetailModal = false; openNotesModal(selectedOrder!)"
                   class="edit-notes-btn"
+                  @click="showDetailModal = false; openNotesModal(selectedOrder!)"
                 >
                   {{ selectedOrder?.notes ? 'แก้ไขโน้ต' : 'เพิ่มโน้ต' }}
                 </button>
@@ -1185,20 +1185,20 @@ watch([currentPage], loadOrders)
           </div>
 
           <div class="modal-actions">
-            <button @click="showDetailModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showDetailModal = false">
               ปิด
             </button>
             <button
               v-if="selectedOrder && (selectedOrder.status === 'pending' || selectedOrder.status === 'matched')"
-              @click="showDetailModal = false; openReassignModal(selectedOrder)"
               class="btn btn-primary"
+              @click="showDetailModal = false; openReassignModal(selectedOrder)"
             >
               ย้ายงาน
             </button>
             <button
               v-if="selectedOrder && selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled'"
-              @click="showDetailModal = false; openCancelModal(selectedOrder)"
               class="btn btn-danger"
+              @click="showDetailModal = false; openCancelModal(selectedOrder)"
             >
               ยกเลิกออเดอร์
             </button>
@@ -1212,7 +1212,7 @@ watch([currentPage], loadOrders)
       <div class="modal">
         <div class="modal-header">
           <h2>ยกเลิกออเดอร์</h2>
-          <button @click="showCancelModal = false" class="close-btn">×</button>
+          <button class="close-btn" @click="showCancelModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info warning">
@@ -1233,13 +1233,13 @@ watch([currentPage], loadOrders)
           </div>
 
           <div class="modal-actions">
-            <button @click="showCancelModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showCancelModal = false">
               ยกเลิก
             </button>
             <button
-              @click="cancelOrder"
               :disabled="loading"
               class="btn btn-danger"
+              @click="cancelOrder"
             >
               {{ loading ? 'กำลังยกเลิก...' : '✓ ยืนยันยกเลิกออเดอร์' }}
             </button>
@@ -1253,7 +1253,7 @@ watch([currentPage], loadOrders)
       <div class="modal">
         <div class="modal-header">
           <h2>โน้ตออเดอร์</h2>
-          <button @click="showNotesModal = false" class="close-btn">×</button>
+          <button class="close-btn" @click="showNotesModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="order-info">
@@ -1277,13 +1277,13 @@ watch([currentPage], loadOrders)
           </div>
 
           <div class="modal-actions">
-            <button @click="showNotesModal = false" class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="showNotesModal = false">
               ยกเลิก
             </button>
             <button
-              @click="saveNotes"
               :disabled="loading"
               class="btn btn-primary"
+              @click="saveNotes"
             >
               {{ loading ? 'กำลังบันทึก...' : '✓ บันทึกโน้ต' }}
             </button>

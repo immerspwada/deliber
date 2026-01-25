@@ -19,8 +19,8 @@
         <button
           v-if="!minimized"
           class="action-btn"
-          @click.stop="clearLogs"
           title="Clear logs"
+          @click.stop="clearLogs"
         >
           <svg
             viewBox="0 0 24 24"
@@ -36,8 +36,8 @@
         <button
           v-if="!minimized"
           class="action-btn"
-          @click.stop="exportLogs"
           title="Export logs"
+          @click.stop="exportLogs"
         >
           <svg
             viewBox="0 0 24 24"
@@ -50,7 +50,7 @@
             />
           </svg>
         </button>
-        <button class="action-btn" @click.stop="close" title="Close">
+        <button class="action-btn" title="Close" @click.stop="close">
           <svg
             viewBox="0 0 24 24"
             fill="none"

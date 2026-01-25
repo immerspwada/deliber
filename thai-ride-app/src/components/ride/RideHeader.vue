@@ -54,8 +54,8 @@ function handleRefresh(): void {
       <button 
         class="back-btn" 
         :class="{ pressed: isBackPressed }"
-        @click="handleBack" 
-        aria-label="กลับ"
+        aria-label="กลับ" 
+        @click="handleBack"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -89,8 +89,8 @@ function handleRefresh(): void {
           v-else 
           class="refresh-btn" 
           :class="{ pressed: isRefreshPressed }"
-          @click="handleRefresh"
           aria-label="รีเฟรชตำแหน่ง"
+          @click="handleRefresh"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />

@@ -65,7 +65,7 @@ describe('Property Tests: Payment and Wallet System (Properties 30-34)', () => {
   let supabase: SupabaseClient
   let testUserId: string | null = null
   let testProviderId: string | null = null
-  let createdRecords: { table: string; id: string }[] = []
+  const createdRecords: { table: string; id: string }[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

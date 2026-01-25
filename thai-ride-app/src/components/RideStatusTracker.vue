@@ -33,8 +33,8 @@
       <!-- Step Content -->
       <div class="step-content">
         <div class="step-title">{{ step.label }}</div>
-        <div class="step-description" v-if="step.description">{{ step.description }}</div>
-        <div class="step-time" v-if="getStepTime(step.status)">
+        <div v-if="step.description" class="step-description">{{ step.description }}</div>
+        <div v-if="getStepTime(step.status)" class="step-time">
           {{ formatTime(getStepTime(step.status)!) }}
         </div>
       </div>

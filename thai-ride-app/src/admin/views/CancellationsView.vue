@@ -269,8 +269,7 @@ onMounted(async () => {
                   color: getServiceTypeColor(item.service_type),
                   background: getServiceTypeColor(item.service_type) + '20',
                 }"
-                >{{ getServiceTypeLabel(item.service_type) }}</span
-              >
+              >{{ getServiceTypeLabel(item.service_type) }}</span>
             </td>
             <td>{{ item.user_name || "-" }}</td>
             <td>{{ item.provider_name || "-" }}</td>
@@ -293,8 +292,7 @@ onMounted(async () => {
                     color: getRefundStatusColor(item.refund_status),
                     background: getRefundStatusColor(item.refund_status) + '20',
                   }"
-                  >{{ getRefundStatusLabel(item.refund_status) }}</span
-                >
+                >{{ getRefundStatusLabel(item.refund_status) }}</span>
               </div>
             </td>
             <td class="date">{{ formatDate(item.cancelled_at) }}</td>

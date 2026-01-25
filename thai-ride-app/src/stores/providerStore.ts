@@ -10,7 +10,7 @@ import { useProviderJobs } from '../composables/useProviderJobs'
 import { useProviderLocation } from '../composables/useProviderLocation'
 import type { Provider, Job, Earnings, PerformanceMetrics, Notification } from '../types/provider'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type AnySupabase = any
 
 const DEFAULT_EARNINGS: Earnings = {

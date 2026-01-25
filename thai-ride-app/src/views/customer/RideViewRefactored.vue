@@ -243,148 +243,148 @@ onMounted(() => {
 
     <!-- ✅ Main content (only for customers/admins/super_admins) -->
     <template v-else>
-    <!-- Pull-to-Refresh Indicator -->
-    <PullToRefreshIndicator
-      :pullDistance="pullDistance"
-      :isRefreshing="isRefreshing"
-      :canRelease="canRelease"
-      :progress="progress"
-    />
+      <!-- Pull-to-Refresh Indicator -->
+      <PullToRefreshIndicator
+        :pull-distance="pullDistance"
+        :is-refreshing="isRefreshing"
+        :can-release="canRelease"
+        :progress="progress"
+      />
 
-    <!-- STEP 1: SELECT DESTINATION -->
-    <Transition name="page-fade" mode="out-in">
-      <div v-if="currentStep === 'select'" key="select" class="select-view">
-        <!-- Header -->
-        <RideHeader
-          :pickup="pickup"
-          :isGettingLocation="isGettingLocation"
-          @back="goBack"
-          @refresh="getCurrentLocation"
-        />
-
-        <!-- Map Preview - Interactive -->
-        <div class="map-section">
-          <MapView
+      <!-- STEP 1: SELECT DESTINATION -->
+      <Transition name="page-fade" mode="out-in">
+        <div v-if="currentStep === 'select'" key="select" class="select-view">
+          <!-- Header -->
+          <RideHeader
             :pickup="pickup"
-            :destination="destination"
-            :showRoute="!!destination"
-            height="320px"
-            @routeCalculated="handleRouteCalculated"
-            @mapClick="handleMapClick"
+            :is-getting-location="isGettingLocation"
+            @back="goBack"
+            @refresh="getCurrentLocation"
           />
+
+          <!-- Map Preview - Interactive -->
+          <div class="map-section">
+            <MapView
+              :pickup="pickup"
+              :destination="destination"
+              :show-route="!!destination"
+              height="320px"
+              @route-calculated="handleRouteCalculated"
+              @map-click="handleMapClick"
+            />
           
-          <!-- Map hint -->
-          <div v-if="!destination && pickup" class="map-hint">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <span>แตะบนแผนที่เพื่อเลือกปลายทาง</span>
+            <!-- Map hint -->
+            <div v-if="!destination && pickup" class="map-hint">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              <span>แตะบนแผนที่เพื่อเลือกปลายทาง</span>
+            </div>
           </div>
+
+          <!-- Step Indicator -->
+          <RideStepIndicator :current-step="currentStep" />
+
+          <!-- Search Box -->
+          <RideSearchBox
+            v-model="searchQuery"
+            v-model:is-focused="isSearchFocused"
+            :results="searchResults"
+            :nearby-places="nearbyPlaces"
+            :is-loading-nearby="isLoadingNearby"
+            @search="searchPlaces"
+            @select="selectDestination"
+            @clear="searchResults = []"
+          />
+
+          <!-- Places List (when not searching and no destination) -->
+          <Transition name="fade-slide">
+            <RidePlacesList
+              v-if="!isSearchFocused && !destination"
+              :saved-places="savedPlaces || []"
+              :recent-places="recentPlaces || []"
+              :nearby-places="nearbyPlaces"
+              :is-loading-nearby="isLoadingNearby || isRefreshing"
+              @select="selectDestination"
+            />
+          </Transition>
+
+          <!-- Booking Panel (when destination selected) -->
+          <Transition name="slide-up">
+            <RideBookingPanel
+              v-if="destination"
+              v-model:selected-vehicle="selectedVehicle"
+              v-model:notes="rideNotes"
+              :pickup="pickup"
+              :destination="destination"
+              :vehicles="vehicles"
+              :estimated-fare="estimatedFare"
+              :estimated-distance="estimatedDistance"
+              :estimated-time="estimatedTime"
+              :final-fare="finalFare"
+              :current-balance="currentBalance"
+              :has-enough-balance="hasEnoughBalance"
+              :can-book="canBook"
+              :is-booking="isBooking"
+              :is-loading-vehicles="isLoadingVehicles"
+              @book="handleBook"
+              @topup="goToWallet"
+            />
+          </Transition>
         </div>
 
-        <!-- Step Indicator -->
-        <RideStepIndicator :currentStep="currentStep" />
+        <!-- STEP 2: SEARCHING FOR DRIVER - Lazy loaded -->
+        <div v-else-if="currentStep === 'searching'" key="searching" class="step-view">
+          <Suspense>
+            <RideSearchingView
+              :searching-seconds="searchingSeconds"
+              @cancel="cancelRide"
+            />
+            <template #fallback>
+              <div class="step-loading">
+                <div class="loading-spinner"></div>
+                <p>กำลังโหลด...</p>
+              </div>
+            </template>
+          </Suspense>
+        </div>
 
-        <!-- Search Box -->
-        <RideSearchBox
-          v-model="searchQuery"
-          v-model:isFocused="isSearchFocused"
-          :results="searchResults"
-          :nearbyPlaces="nearbyPlaces"
-          :isLoadingNearby="isLoadingNearby"
-          @search="searchPlaces"
-          @select="selectDestination"
-          @clear="searchResults = []"
-        />
-
-        <!-- Places List (when not searching and no destination) -->
-        <Transition name="fade-slide">
-          <RidePlacesList
-            v-if="!isSearchFocused && !destination"
-            :savedPlaces="savedPlaces || []"
-            :recentPlaces="recentPlaces || []"
-            :nearbyPlaces="nearbyPlaces"
-            :isLoadingNearby="isLoadingNearby || isRefreshing"
-            @select="selectDestination"
-          />
-        </Transition>
-
-        <!-- Booking Panel (when destination selected) -->
-        <Transition name="slide-up">
-          <RideBookingPanel
-            v-if="destination"
+        <!-- STEP 3: TRACKING RIDE -->
+        <div v-else-if="currentStep === 'tracking'" key="tracking" class="step-view">
+          <RideTrackingView
             :pickup="pickup"
             :destination="destination"
-            :vehicles="vehicles"
-            v-model:selectedVehicle="selectedVehicle"
-            v-model:notes="rideNotes"
-            :estimatedFare="estimatedFare"
-            :estimatedDistance="estimatedDistance"
-            :estimatedTime="estimatedTime"
-            :finalFare="finalFare"
-            :currentBalance="currentBalance"
-            :hasEnoughBalance="hasEnoughBalance"
-            :canBook="canBook"
-            :isBooking="isBooking"
-            :isLoadingVehicles="isLoadingVehicles"
-            @book="handleBook"
-            @topup="goToWallet"
-          />
-        </Transition>
-      </div>
-
-      <!-- STEP 2: SEARCHING FOR DRIVER - Lazy loaded -->
-      <div v-else-if="currentStep === 'searching'" key="searching" class="step-view">
-        <Suspense>
-          <RideSearchingView
-            :searchingSeconds="searchingSeconds"
+            :matched-driver="matchedDriver"
+            :status-text="statusText"
+            :ride-id="currentRideId"
+            :tracking-id="currentTrackingId"
+            @call-driver="callDriver"
+            @call-emergency="callEmergency"
             @cancel="cancelRide"
           />
-          <template #fallback>
-            <div class="step-loading">
-              <div class="loading-spinner"></div>
-              <p>กำลังโหลด...</p>
-            </div>
-          </template>
-        </Suspense>
-      </div>
+        </div>
 
-      <!-- STEP 3: TRACKING RIDE -->
-      <div v-else-if="currentStep === 'tracking'" key="tracking" class="step-view">
-        <RideTrackingView
-          :pickup="pickup"
-          :destination="destination"
-          :matchedDriver="matchedDriver"
-          :statusText="statusText"
-          :rideId="currentRideId"
-          :trackingId="currentTrackingId"
-          @callDriver="callDriver"
-          @callEmergency="callEmergency"
-          @cancel="cancelRide"
-        />
-      </div>
-
-      <!-- STEP 4: RATING - Lazy loaded -->
-      <div v-else-if="currentStep === 'rating'" key="rating" class="step-view">
-        <Suspense>
-          <RideRatingView
-            v-model:rating="userRating"
-            :isSubmitting="isSubmittingRating"
-            :rideId="activeRide?.id ? String(activeRide.id) : undefined"
-            :providerName="matchedDriver?.name"
-            @submit="submitRating"
-            @skip="skipRating"
-          />
-          <template #fallback>
-            <div class="step-loading">
-              <div class="loading-spinner"></div>
-              <p>กำลังโหลด...</p>
-            </div>
-          </template>
-        </Suspense>
-      </div>
-    </Transition>
+        <!-- STEP 4: RATING - Lazy loaded -->
+        <div v-else-if="currentStep === 'rating'" key="rating" class="step-view">
+          <Suspense>
+            <RideRatingView
+              v-model:rating="userRating"
+              :is-submitting="isSubmittingRating"
+              :ride-id="activeRide?.id ? String(activeRide.id) : undefined"
+              :provider-name="matchedDriver?.name"
+              @submit="submitRating"
+              @skip="skipRating"
+            />
+            <template #fallback>
+              <div class="step-loading">
+                <div class="loading-spinner"></div>
+                <p>กำลังโหลด...</p>
+              </div>
+            </template>
+          </Suspense>
+        </div>
+      </Transition>
     </template>
   </div>
 </template>

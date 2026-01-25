@@ -366,7 +366,7 @@ export function useLaundry() {
 
     try {
       // Recalculate price if weight changed
-      let updateData: any = { ...updates, updated_at: new Date().toISOString() }
+      const updateData: any = { ...updates, updated_at: new Date().toISOString() }
       
       if (updates.estimated_weight !== undefined && updates.estimated_weight !== null) {
         const request = requests.value.find(r => r.id === requestId)

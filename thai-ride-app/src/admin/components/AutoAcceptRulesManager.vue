@@ -6,8 +6,8 @@
         <p class="text-sm text-gray-500">จัดการกฎการรับงานอัตโนมัติของ Provider</p>
       </div>
       <button
-        @click="showCreateModal = true"
         class="btn-primary"
+        @click="showCreateModal = true"
       >
         <PlusIcon class="w-4 h-4 mr-2" />
         Create Rule
@@ -100,8 +100,8 @@
 
         <div class="flex items-end">
           <button
-            @click="clearFilters"
             class="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+            @click="clearFilters"
           >
             Clear Filters
           </button>
@@ -180,29 +180,29 @@
               
               <div class="flex items-center space-x-2 ml-4">
                 <button
-                  @click="editRule(rule)"
                   class="text-blue-600 hover:text-blue-800"
                   title="Edit"
+                  @click="editRule(rule)"
                 >
                   <PencilIcon class="w-4 h-4" />
                 </button>
                 
                 <button
-                  @click="toggleRuleStatus(rule)"
                   :class="[
                     rule.is_active
                       ? 'text-red-600 hover:text-red-800'
                       : 'text-green-600 hover:text-green-800'
                   ]"
                   :title="rule.is_active ? 'Deactivate' : 'Activate'"
+                  @click="toggleRuleStatus(rule)"
                 >
                   <component :is="rule.is_active ? XMarkIcon : CheckIcon" class="w-4 h-4" />
                 </button>
                 
                 <button
-                  @click="deleteRule(rule.id)"
                   class="text-red-600 hover:text-red-800"
                   title="Delete"
+                  @click="deleteRule(rule.id)"
                 >
                   <TrashIcon class="w-4 h-4" />
                 </button>

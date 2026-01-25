@@ -146,23 +146,27 @@ function moveStop(index: number, direction: 'up' | 'down'): void {
             <div class="stop-wait">
               <button 
                 class="wait-btn" 
-                @click="updateWaitTime(index, (stop.waitTime || 0) - 5)"
                 :disabled="(stop.waitTime || 0) <= 0"
-              >-</button>
+                @click="updateWaitTime(index, (stop.waitTime || 0) - 5)"
+              >
+                -
+              </button>
               <span>รอ {{ stop.waitTime || 0 }} นาที</span>
               <button 
                 class="wait-btn" 
-                @click="updateWaitTime(index, (stop.waitTime || 0) + 5)"
                 :disabled="(stop.waitTime || 0) >= 30"
-              >+</button>
+                @click="updateWaitTime(index, (stop.waitTime || 0) + 5)"
+              >
+                +
+              </button>
             </div>
           </div>
           <div class="stop-actions">
             <button 
               v-if="index > 0" 
               class="action-btn" 
-              @click="moveStop(index, 'up')"
               aria-label="เลื่อนขึ้น"
+              @click="moveStop(index, 'up')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 15l-6-6-6 6" />
@@ -171,14 +175,14 @@ function moveStop(index: number, direction: 'up' | 'down'): void {
             <button 
               v-if="index < stops.length - 1" 
               class="action-btn" 
-              @click="moveStop(index, 'down')"
               aria-label="เลื่อนลง"
+              @click="moveStop(index, 'down')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
-            <button class="action-btn remove" @click="removeStop(index)" aria-label="ลบจุดแวะ">
+            <button class="action-btn remove" aria-label="ลบจุดแวะ" @click="removeStop(index)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
@@ -208,7 +212,7 @@ function moveStop(index: number, direction: 'up' | 'down'): void {
           <div class="modal-content" @click.stop>
             <div class="modal-header">
               <h3>เพิ่มจุดแวะ</h3>
-              <button class="close-btn" @click="closeAddStop" aria-label="ปิด">
+              <button class="close-btn" aria-label="ปิด" @click="closeAddStop">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>

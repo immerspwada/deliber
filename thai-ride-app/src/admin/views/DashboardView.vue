@@ -264,12 +264,8 @@ const getServiceLabel = (service: string) => {
               <div class="stat-label">ออเดอร์วันนี้</div>
               <div class="stat-value">{{ realtimeStats.today_orders }}</div>
               <div class="stat-sub">
-                <span class="success"
-                  >{{ realtimeStats.today_completed }} สำเร็จ</span
-                >
-                <span class="danger"
-                  >{{ realtimeStats.today_cancelled }} ยกเลิก</span
-                >
+                <span class="success">{{ realtimeStats.today_completed }} สำเร็จ</span>
+                <span class="danger">{{ realtimeStats.today_cancelled }} ยกเลิก</span>
               </div>
             </div>
           </div>

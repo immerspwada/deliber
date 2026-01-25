@@ -576,12 +576,8 @@ const goBack = () => router.back();
                   <div class="promo-code">{{ promo.code }}</div>
                   <div class="promo-desc">{{ promo.description }}</div>
                   <div class="promo-meta">
-                    <span v-if="promo.min_order_amount"
-                      >ขั้นต่ำ ฿{{ promo.min_order_amount }}</span
-                    >
-                    <span v-if="promo.max_discount"
-                      >สูงสุด ฿{{ promo.max_discount }}</span
-                    >
+                    <span v-if="promo.min_order_amount">ขั้นต่ำ ฿{{ promo.min_order_amount }}</span>
+                    <span v-if="promo.max_discount">สูงสุด ฿{{ promo.max_discount }}</span>
                     <span
                       v-if="getUsageInfo(promo)"
                       class="usage-info"
@@ -590,8 +586,7 @@ const goBack = () => router.back();
                           promo.usage_limit &&
                           promo.usage_limit - (promo.used_count || 0) <= 10,
                       }"
-                      >{{ getUsageInfo(promo) }}</span
-                    >
+                    >{{ getUsageInfo(promo) }}</span>
                   </div>
                   <div class="promo-expiry urgent">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -719,12 +714,8 @@ const goBack = () => router.back();
                   <div class="promo-code">{{ promo.code }}</div>
                   <div class="promo-desc">{{ promo.description }}</div>
                   <div class="promo-meta">
-                    <span v-if="promo.min_order_amount"
-                      >ขั้นต่ำ ฿{{ promo.min_order_amount }}</span
-                    >
-                    <span v-if="promo.max_discount"
-                      >สูงสุด ฿{{ promo.max_discount }}</span
-                    >
+                    <span v-if="promo.min_order_amount">ขั้นต่ำ ฿{{ promo.min_order_amount }}</span>
+                    <span v-if="promo.max_discount">สูงสุด ฿{{ promo.max_discount }}</span>
                     <span
                       v-if="getUsageInfo(promo)"
                       class="usage-info"
@@ -733,8 +724,7 @@ const goBack = () => router.back();
                           promo.usage_limit &&
                           promo.usage_limit - (promo.used_count || 0) <= 10,
                       }"
-                      >{{ getUsageInfo(promo) }}</span
-                    >
+                    >{{ getUsageInfo(promo) }}</span>
                   </div>
                   <div class="promo-expiry">
                     หมดอายุ {{ formatDate(promo.valid_until) }}
@@ -875,11 +865,9 @@ const goBack = () => router.back();
                   {{ promo.promo_description || "ส่วนลด" }}
                 </div>
                 <div class="promo-used-info">
-                  <span class="discount-saved"
-                    >ประหยัด ฿{{
-                      promo.discount_amount?.toLocaleString() || 0
-                    }}</span
-                  >
+                  <span class="discount-saved">ประหยัด ฿{{
+                    promo.discount_amount?.toLocaleString() || 0
+                  }}</span>
                   <span class="used-date">{{
                     formatUsedDate(promo.used_at)
                   }}</span>
@@ -960,14 +948,12 @@ const goBack = () => router.back();
             <div class="new-promo-content">
               <span class="new-promo-label">โปรโมชั่นใหม่!</span>
               <span class="new-promo-code">{{ newPromoToast.code }}</span>
-              <span class="new-promo-desc"
-                >{{
-                  newPromoToast.discount_type === "fixed"
-                    ? "฿" + newPromoToast.discount_value
-                    : newPromoToast.discount_value + "%"
-                }}
-                ส่วนลด</span
-              >
+              <span class="new-promo-desc">{{
+                newPromoToast.discount_type === "fixed"
+                  ? "฿" + newPromoToast.discount_value
+                  : newPromoToast.discount_value + "%"
+              }}
+                ส่วนลด</span>
             </div>
             <button class="new-promo-close">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

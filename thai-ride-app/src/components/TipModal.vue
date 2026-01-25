@@ -23,13 +23,13 @@
           </div>
 
           <!-- Driver Info -->
-          <div class="driver-section" v-if="driverName">
+          <div v-if="driverName" class="driver-section">
             <div class="driver-avatar">
               {{ driverName.charAt(0) }}
             </div>
             <div class="driver-info">
               <div class="driver-name">{{ driverName }}</div>
-              <div class="driver-rating" v-if="driverRating">
+              <div v-if="driverRating" class="driver-rating">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffc043">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
@@ -71,18 +71,18 @@
             <div class="input-wrapper">
               <span class="currency">฿</span>
               <input
-                type="number"
+                ref="customInput"
                 v-model.number="customAmount"
+                type="number"
                 placeholder="0"
                 min="0"
                 max="10000"
-                ref="customInput"
               />
             </div>
           </div>
 
           <!-- Selected Amount Display -->
-          <div class="selected-display" v-if="finalAmount > 0">
+          <div v-if="finalAmount > 0" class="selected-display">
             <span class="label">ทิปที่จะให้</span>
             <span class="amount">฿{{ finalAmount }}</span>
           </div>

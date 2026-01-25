@@ -146,7 +146,7 @@ watch(providerId, (newId) => {
     <!-- Header -->
     <header class="header">
       <h1 class="title">กระเป๋าเงิน</h1>
-      <button class="refresh-btn" @click="loadData" :disabled="wallet.loading.value" aria-label="รีเฟรช">
+      <button class="refresh-btn" :disabled="wallet.loading.value" aria-label="รีเฟรช" @click="loadData">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M23 4v6h-6M1 20v-6h6" />
           <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
@@ -168,8 +168,8 @@ watch(providerId, (newId) => {
           <span class="balance-label">ยอดเงินที่ถอนได้</span>
           <button 
             class="withdraw-btn" 
-            @click="showWithdrawModal = true"
             :disabled="!wallet.hasBankAccount.value || wallet.availableBalance.value < 100"
+            @click="showWithdrawModal = true"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -275,7 +275,7 @@ watch(providerId, (newId) => {
                   height: `${Math.min((day.earnings / (Math.max(...wallet.weeklyStats.value.map(d => d.earnings)) || 1)) * 100, 100)}%` 
                 }"
               >
-                <span class="bar-value" v-if="day.earnings > 0">
+                <span v-if="day.earnings > 0" class="bar-value">
                   {{ Math.round(day.earnings) }}
                 </span>
               </div>
@@ -336,7 +336,7 @@ watch(providerId, (newId) => {
               <div class="withdrawal-icon">🏦</div>
               <div class="withdrawal-content">
                 <span class="withdrawal-amount">{{ wallet.formatCurrency(w.amount) }}</span>
-                <span class="withdrawal-bank" v-if="w.bank_account">
+                <span v-if="w.bank_account" class="withdrawal-bank">
                   {{ w.bank_account.bank_name }} - {{ w.bank_account.account_number }}
                 </span>
                 <span class="withdrawal-date">{{ formatDate(w.created_at) }}</span>
@@ -412,8 +412,8 @@ watch(providerId, (newId) => {
                 </button>
                 <button 
                   class="delete-btn"
-                  @click="handleDeleteBank(bank.id)"
                   aria-label="ลบบัญชี"
+                  @click="handleDeleteBank(bank.id)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
@@ -431,7 +431,7 @@ watch(providerId, (newId) => {
       <div class="modal" role="dialog" aria-labelledby="withdraw-title">
         <div class="modal-header">
           <h2 id="withdraw-title">ถอนเงิน</h2>
-          <button class="close-btn" @click="showWithdrawModal = false" aria-label="ปิด">
+          <button class="close-btn" aria-label="ปิด" @click="showWithdrawModal = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
@@ -506,7 +506,7 @@ watch(providerId, (newId) => {
       <div class="modal" role="dialog" aria-labelledby="add-bank-title">
         <div class="modal-header">
           <h2 id="add-bank-title">เพิ่มบัญชีธนาคาร</h2>
-          <button class="close-btn" @click="showAddBankModal = false" aria-label="ปิด">
+          <button class="close-btn" aria-label="ปิด" @click="showAddBankModal = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>

@@ -45,7 +45,7 @@ interface Provider {
 
 describe('Property 3: Disabled Categories Filter Notifications', () => {
   let supabase: SupabaseClient
-  let testPreferenceIds: string[] = []
+  const testPreferenceIds: string[] = []
 
   beforeAll(async () => {
     supabase = createClient(supabaseUrl, supabaseAnonKey)

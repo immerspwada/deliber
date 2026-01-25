@@ -64,6 +64,7 @@ const emit = defineEmits<{
       </div>
       <span class="fare-amount">฿{{ estimatedFare.toLocaleString() }}</span>
     </div>
+  </div>
 </template>
 
     <div class="options-section">

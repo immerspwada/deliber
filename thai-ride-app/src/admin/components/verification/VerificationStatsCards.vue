@@ -13,7 +13,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="stats-grid" v-if="stats">
+  <div v-if="stats" class="stats-grid">
     <div class="stat-card pending">
       <div class="stat-icon">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

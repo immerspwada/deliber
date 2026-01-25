@@ -180,9 +180,9 @@ onMounted(() => load());
 
         <!-- Action Button -->
         <button
-          @click="load"
           :disabled="loading"
           class="min-h-[44px] px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 disabled:opacity-50"
+          @click="load"
         >
           <svg
             class="w-5 h-5"
@@ -242,9 +242,7 @@ onMounted(() => load());
     <!-- Enhanced Filter -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
       <div class="flex items-center gap-4">
-        <label for="status-filter" class="text-sm font-medium text-gray-700"
-          >กรองตามสถานะ:</label
-        >
+        <label for="status-filter" class="text-sm font-medium text-gray-700">กรองตามสถานะ:</label>
         <select
           id="status-filter"
           v-model="activeFilter"
@@ -379,8 +377,8 @@ onMounted(() => load());
             </td>
           </tr>
           <tr
-            v-else
             v-for="w in filteredWithdrawals"
+            v-else
             :key="w.id"
             :class="getRowClass(w.status)"
             class="hover:bg-gray-50 transition-all duration-200"

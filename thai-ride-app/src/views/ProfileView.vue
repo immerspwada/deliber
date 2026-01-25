@@ -220,142 +220,142 @@ const logout = async () => {
           <path d="M12 8v4M12 16h.01"/>
         </svg>
         <p>ไม่สามารถโหลดข้อมูลได้</p>
-        <button @click="() => { loading = true; loadError = false; $router.go(0) }" class="retry-btn">
+        <button class="retry-btn" @click="() => { loading = true; loadError = false; $router.go(0) }">
           ลองใหม่
         </button>
       </div>
 
       <!-- Main Content -->
       <template v-else>
-      <div class="profile-card">
-        <div class="avatar">
-          <img v-if="user.profileImage" :src="user.profileImage" alt="Profile" />
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="8" r="4"/>
-            <path d="M20 21a8 8 0 10-16 0"/>
-          </svg>
-        </div>
-        <div class="profile-info">
-          <h2>{{ user.fullName }}</h2>
-          <p class="profile-phone">{{ user.phone || 'ไม่มีเบอร์โทรศัพท์' }}</p>
-          <p v-if="user.email" class="profile-email">{{ user.email }}</p>
-          <div v-if="user.memberUid" class="member-badge">
+        <div class="profile-card">
+          <div class="avatar">
+            <img v-if="user.profileImage" :src="user.profileImage" alt="Profile" />
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="8" r="4"/>
+              <path d="M20 21a8 8 0 10-16 0"/>
+            </svg>
+          </div>
+          <div class="profile-info">
+            <h2>{{ user.fullName }}</h2>
+            <p class="profile-phone">{{ user.phone || 'ไม่มีเบอร์โทรศัพท์' }}</p>
+            <p v-if="user.email" class="profile-email">{{ user.email }}</p>
+            <div v-if="user.memberUid" class="member-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <path d="M7 8h4M7 12h10M7 16h6"/>
+              </svg>
+              <span>{{ user.memberUid }}</span>
+            </div>
+          </div>
+          <button class="edit-btn" @click="openEditModal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="16" rx="2"/>
-              <path d="M7 8h4M7 12h10M7 16h6"/>
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
-            <span>{{ user.memberUid }}</span>
+          </button>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-item" @click="navigateToMenu('/customer/history')">
+            <span class="stat-value">{{ history.length || 0 }}</span>
+            <span class="stat-label">เที่ยว</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item" @click="navigateToMenu('/customer/wallet')">
+            <span class="stat-value">฿{{ (balance?.balance || 0).toLocaleString() }}</span>
+            <span class="stat-label">กระเป๋าเงิน</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item" @click="navigateToMenu('/customer/loyalty')">
+            <span class="stat-value">{{ (loyaltySummary?.current_points || 0).toLocaleString() }}</span>
+            <span class="stat-label">แต้ม</span>
           </div>
         </div>
-        <button class="edit-btn" @click="openEditModal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        </button>
-      </div>
 
-      <div class="stats-row">
-        <div class="stat-item" @click="navigateToMenu('/customer/history')">
-          <span class="stat-value">{{ history.length || 0 }}</span>
-          <span class="stat-label">เที่ยว</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item" @click="navigateToMenu('/customer/wallet')">
-          <span class="stat-value">฿{{ (balance?.balance || 0).toLocaleString() }}</span>
-          <span class="stat-label">กระเป๋าเงิน</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item" @click="navigateToMenu('/customer/loyalty')">
-          <span class="stat-value">{{ (loyaltySummary?.current_points || 0).toLocaleString() }}</span>
-          <span class="stat-label">แต้ม</span>
-        </div>
-      </div>
-
-      <div v-if="loyaltySummary?.tier" class="loyalty-tier-card" @click="navigateToMenu('/customer/loyalty')">
-        <div class="tier-icon">
-          <svg viewBox="0 0 24 24" fill="none">
-            <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="#FFD700"/>
-          </svg>
-        </div>
-        <div class="tier-info">
-          <span class="tier-label">ระดับสมาชิก</span>
-          <span class="tier-name">{{ loyaltySummary.tier.name_th }}</span>
-        </div>
-        <div class="tier-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: `${Math.min((loyaltySummary.current_points / (loyaltySummary.next_tier?.min_points || 1000)) * 100, 100)}%` }"></div>
-          </div>
-          <span class="progress-text">{{ loyaltySummary.current_points }}/{{ loyaltySummary.next_tier?.min_points || 1000 }}</span>
-        </div>
-        <svg class="tier-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 5l7 7-7 7"/>
-        </svg>
-      </div>
-
-      <div class="menu-section">
-        <button v-for="item in menuItems" :key="item.label" class="menu-item" @click="navigateToMenu(item.path)">
-          <div class="menu-icon">
-            <svg v-if="item.icon === 'history'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
-            </svg>
-            <svg v-else-if="item.icon === 'calendar'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
-            </svg>
-            <svg v-else-if="item.icon === 'location'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-            </svg>
-            <svg v-else-if="item.icon === 'heart'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-            </svg>
-            <svg v-else-if="item.icon === 'wallet'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
-            </svg>
-            <svg v-else-if="item.icon === 'card'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/>
-            </svg>
-            <svg v-else-if="item.icon === 'star'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-            </svg>
-            <svg v-else-if="item.icon === 'tag'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1"/>
-            </svg>
-            <svg v-else-if="item.icon === 'users'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-            </svg>
-            <svg v-else-if="item.icon === 'bell'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
-            </svg>
-            <svg v-else-if="item.icon === 'shield'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
-            </svg>
-            <svg v-else-if="item.icon === 'settings'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r="1"/>
+        <div v-if="loyaltySummary?.tier" class="loyalty-tier-card" @click="navigateToMenu('/customer/loyalty')">
+          <div class="tier-icon">
+            <svg viewBox="0 0 24 24" fill="none">
+              <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="#FFD700"/>
             </svg>
           </div>
-          <span class="menu-label">{{ item.label }}</span>
-          <svg class="menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="tier-info">
+            <span class="tier-label">ระดับสมาชิก</span>
+            <span class="tier-name">{{ loyaltySummary.tier.name_th }}</span>
+          </div>
+          <div class="tier-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${Math.min((loyaltySummary.current_points / (loyaltySummary.next_tier?.min_points || 1000)) * 100, 100)}%` }"></div>
+            </div>
+            <span class="progress-text">{{ loyaltySummary.current_points }}/{{ loyaltySummary.next_tier?.min_points || 1000 }}</span>
+          </div>
+          <svg class="tier-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 5l7 7-7 7"/>
           </svg>
+        </div>
+
+        <div class="menu-section">
+          <button v-for="item in menuItems" :key="item.label" class="menu-item" @click="navigateToMenu(item.path)">
+            <div class="menu-icon">
+              <svg v-if="item.icon === 'history'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+              </svg>
+              <svg v-else-if="item.icon === 'calendar'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+              </svg>
+              <svg v-else-if="item.icon === 'location'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <svg v-else-if="item.icon === 'heart'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+              </svg>
+              <svg v-else-if="item.icon === 'wallet'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+              </svg>
+              <svg v-else-if="item.icon === 'card'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/>
+              </svg>
+              <svg v-else-if="item.icon === 'star'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+              </svg>
+              <svg v-else-if="item.icon === 'tag'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1"/>
+              </svg>
+              <svg v-else-if="item.icon === 'users'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+              <svg v-else-if="item.icon === 'bell'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+              <svg v-else-if="item.icon === 'shield'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
+              </svg>
+              <svg v-else-if="item.icon === 'settings'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r="1"/>
+              </svg>
+            </div>
+            <span class="menu-label">{{ item.label }}</span>
+            <svg class="menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        <button v-if="isLoggedIn" class="logout-btn" :disabled="loggingOut" @click="logout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16,17 21,12 16,7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span>{{ loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ' }}</span>
         </button>
-      </div>
+        <button v-else class="login-btn" @click="goToLogin">
+          <span>เข้าสู่ระบบ</span>
+        </button>
 
-      <button v-if="isLoggedIn" @click="logout" class="logout-btn" :disabled="loggingOut">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-          <polyline points="16,17 21,12 16,7"/>
-          <line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
-        <span>{{ loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ' }}</span>
-      </button>
-      <button v-else @click="goToLogin" class="login-btn">
-        <span>เข้าสู่ระบบ</span>
-      </button>
-
-      <p class="version">GOBEAR v1.0.0</p>
+        <p class="version">GOBEAR v1.0.0</p>
       </template>
     </main>
 
@@ -363,7 +363,7 @@ const logout = async () => {
       <div class="edit-modal">
         <div class="modal-header">
           <h3>แก้ไขโปรไฟล์</h3>
-          <button @click="showEditModal = false" class="close-btn" :disabled="saving">
+          <button class="close-btn" :disabled="saving" @click="showEditModal = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -383,7 +383,7 @@ const logout = async () => {
         </div>
         <p v-if="saveError" class="error-text">{{ saveError }}</p>
         <p v-if="saveSuccess" class="success-text">บันทึกสำเร็จ!</p>
-        <button @click="saveProfile" :disabled="saving" class="save-btn">
+        <button :disabled="saving" class="save-btn" @click="saveProfile">
           <span v-if="saving" class="spinner"></span>
           <span>{{ saving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง' }}</span>
         </button>

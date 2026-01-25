@@ -70,7 +70,7 @@ setTimeout(setupCustomerAuthListener, 100)
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
   // Register service worker from vite-plugin-pwa
-  // @ts-ignore - virtual module from vite-plugin-pwa
+  // @ts-expect-error - virtual module from vite-plugin-pwa
   import('virtual:pwa-register').then(({ registerSW }: { registerSW: any }) => {
     const updateSW = registerSW({
       immediate: false,

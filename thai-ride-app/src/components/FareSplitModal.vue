@@ -91,7 +91,7 @@ const isValid = computed(() => {
     <div class="modal-content" @click.stop>
       <div class="modal-header">
         <h3>แบ่งค่าโดยสาร</h3>
-        <button @click="emit('close')" class="close-btn">
+        <button class="close-btn" @click="emit('close')">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -141,23 +141,23 @@ const isValid = computed(() => {
             <div class="participant-inputs">
               <input
                 :value="participant.phone"
-                @input="updatePhone(index, ($event.target as HTMLInputElement).value)"
                 type="tel"
                 placeholder="เบอร์โทรศัพท์"
                 class="phone-input"
+                @input="updatePhone(index, ($event.target as HTMLInputElement).value)"
               />
               <div v-if="splitType === 'custom'" class="amount-input-wrap">
                 <span class="currency">฿</span>
                 <input
                   :value="participant.amount"
-                  @input="updateAmount(index, Number(($event.target as HTMLInputElement).value))"
                   type="number"
                   class="amount-input"
+                  @input="updateAmount(index, Number(($event.target as HTMLInputElement).value))"
                 />
               </div>
               <span v-else class="fixed-amount">฿{{ perPersonAmount }}</span>
             </div>
-            <button @click="removeParticipant(index)" class="remove-btn">
+            <button class="remove-btn" @click="removeParticipant(index)">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
               </svg>
@@ -166,8 +166,8 @@ const isValid = computed(() => {
 
           <button
             v-if="participants.length < 4"
-            @click="addParticipant"
             class="add-participant-btn"
+            @click="addParticipant"
           >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -178,8 +178,8 @@ const isValid = computed(() => {
       </div>
 
       <div class="modal-footer">
-        <button @click="emit('close')" class="btn-secondary">ยกเลิก</button>
-        <button @click="handleSplit" :disabled="!isValid" class="btn-primary">
+        <button class="btn-secondary" @click="emit('close')">ยกเลิก</button>
+        <button :disabled="!isValid" class="btn-primary" @click="handleSplit">
           ส่งคำขอแบ่งจ่าย
         </button>
       </div>

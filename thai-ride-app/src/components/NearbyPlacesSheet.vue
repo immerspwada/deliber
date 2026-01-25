@@ -81,7 +81,7 @@ const ParkingIcon = () => h('svg', { fill: 'none', stroke: 'currentColor', viewB
   h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 17V7h4a3 3 0 010 6H9' })
 ])
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const getCategoryIcon = (id: string): any => {
   const icons: Record<string, any> = {
     restaurant: RestaurantIcon, cafe: CafeIcon, gas_station: GasIcon, atm: AtmIcon,

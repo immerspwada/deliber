@@ -147,7 +147,7 @@ onMounted(() => {
     <div class="header">
       <h2>📊 Share Link Analytics</h2>
       <div class="actions">
-        <button type="button" class="btn-refresh" @click="loadStats" :disabled="loading">
+        <button type="button" class="btn-refresh" :disabled="loading" @click="loadStats">
           🔄 รีเฟรช
         </button>
         <button type="button" class="btn-cleanup" @click="runCleanup">

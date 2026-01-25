@@ -153,11 +153,9 @@ watch(
           </svg>
           <code>{{ appliedPromo!.code }}</code>
         </div>
-        <span class="discount-amount"
-          >-฿{{ appliedPromo!.discountAmount.toLocaleString() }}</span
-        >
+        <span class="discount-amount">-฿{{ appliedPromo!.discountAmount.toLocaleString() }}</span>
       </div>
-      <button class="remove-btn" @click="removePromo" type="button">
+      <button class="remove-btn" type="button" @click="removePromo">
         <svg
           width="18"
           height="18"
@@ -199,8 +197,8 @@ watch(
         <button
           class="apply-btn"
           :disabled="!promoInput.trim() || isValidating"
-          @click="validateAndApply"
           type="button"
+          @click="validateAndApply"
         >
           <span v-if="isValidating" class="spinner"></span>
           <span v-else>ใช้</span>

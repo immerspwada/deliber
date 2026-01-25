@@ -106,7 +106,7 @@ onUnmounted(() => { cleanup() })
           <span class="suggestion-subtitle">{{ suggestion.subtitle }}</span>
         </div>
         <div class="confidence-bar" :style="{ width: `${suggestion.confidence * 100}%` }"></div>
-        <button class="dismiss-btn" @click="(e) => handleDismiss(e, suggestion.id)" aria-label="ปิด">
+        <button class="dismiss-btn" aria-label="ปิด" @click="(e) => handleDismiss(e, suggestion.id)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>
           </svg>

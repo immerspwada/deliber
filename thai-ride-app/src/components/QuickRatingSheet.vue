@@ -103,7 +103,7 @@ const handleClose = () => {
           </div>
 
           <!-- Tip section -->
-          <div class="tip-section" v-if="rating > 0">
+          <div v-if="rating > 0" class="tip-section">
             <p class="tip-prompt">ให้ทิปคนขับ?</p>
             <div class="tip-options">
               <button

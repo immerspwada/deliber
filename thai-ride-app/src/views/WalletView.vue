@@ -1,7 +1,7 @@
 <template>
   <div class="wallet-page">
     <header class="wallet-header">
-      <button class="back-btn" @click="goBack" type="button" aria-label="กลับ">
+      <button class="back-btn" type="button" aria-label="กลับ" @click="goBack">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </button>
       <h1>กระเป๋าเงิน</h1>
@@ -55,7 +55,7 @@
             <label>จำนวนเงิน (บาท)</label>
             <input v-model.number="topupAmount" type="number" min="20" placeholder="ระบุจำนวนเงิน"/>
             <div class="quick-amounts">
-              <button v-for="amt in [100, 200, 500, 1000]" :key="amt" @click="topupAmount = amt" type="button">฿{{ amt }}</button>
+              <button v-for="amt in [100, 200, 500, 1000]" :key="amt" type="button" @click="topupAmount = amt">฿{{ amt }}</button>
             </div>
           </div>
           <div class="form-group">
@@ -74,12 +74,12 @@
             </p>
           </div>
           <div class="modal-actions">
-            <button class="btn-secondary" @click="closeTopupModal" type="button">ยกเลิก</button>
+            <button class="btn-secondary" type="button" @click="closeTopupModal">ยกเลิก</button>
             <button 
               class="btn-primary" 
-              @click="goToPaymentStep" 
               :disabled="topupAmount < 20 || enabledPaymentMethods.length === 0" 
-              type="button"
+              type="button" 
+              @click="goToPaymentStep"
             >
               ถัดไป
             </button>
@@ -88,7 +88,7 @@
 
         <template v-else-if="topupStep === 'payment'">
           <div class="payment-header">
-            <button class="back-step-btn" @click="topupStep = 'amount'" type="button" aria-label="กลับ">
+            <button class="back-step-btn" type="button" aria-label="กลับ" @click="topupStep = 'amount'">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
             <h2>ข้อมูลการชำระเงิน</h2>
@@ -168,7 +168,7 @@
             <h4>แนบสลิปการโอนเงิน</h4>
             <div v-if="slipPreview" class="slip-preview">
               <img :src="slipPreview" alt="Payment Slip" />
-              <button class="remove-slip-btn" @click="removeSlip" type="button" aria-label="ลบสลิป">
+              <button class="remove-slip-btn" type="button" aria-label="ลบสลิป" @click="removeSlip">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
@@ -177,10 +177,10 @@
             </div>
             <label v-else class="slip-upload-area">
               <input 
+                ref="slipInput" 
                 type="file" 
-                accept="image/jpeg,image/png,image/webp" 
+                accept="image/jpeg,image/png,image/webp"
                 @change="handleSlipUpload"
-                ref="slipInput"
               />
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
@@ -202,8 +202,8 @@
           </div>
 
           <div class="modal-actions">
-            <button class="btn-secondary" @click="closeTopupModal" type="button">ยกเลิก</button>
-            <button class="btn-primary" @click="handleTopup" :disabled="topupLoading || !currentPaymentAccount || !slipFile" type="button">
+            <button class="btn-secondary" type="button" @click="closeTopupModal">ยกเลิก</button>
+            <button class="btn-primary" :disabled="topupLoading || !currentPaymentAccount || !slipFile" type="button" @click="handleTopup">
               {{ topupLoading ? 'กำลังดำเนินการ...' : 'ยืนยันการโอนเงิน' }}
             </button>
           </div>
@@ -221,7 +221,7 @@
           <label>บัญชีธนาคาร <span class="text-red-500">*</span></label>
           <div v-if="bankAccounts.length === 0" class="no-bank">
             <p>ยังไม่มีบัญชีธนาคาร</p>
-            <button class="btn-link" @click="showAddBankModal = true; showWithdrawModal = false" type="button">+ เพิ่มบัญชี</button>
+            <button class="btn-link" type="button" @click="showAddBankModal = true; showWithdrawModal = false">+ เพิ่มบัญชี</button>
           </div>
           <div v-else>
             <select 
@@ -258,12 +258,12 @@
         </div>
         
         <div class="modal-actions">
-          <button class="btn-secondary" @click="showWithdrawModal = false" type="button">ยกเลิก</button>
+          <button class="btn-secondary" type="button" @click="showWithdrawModal = false">ยกเลิก</button>
           <button 
             class="btn-primary" 
-            @click="handleWithdraw" 
             :disabled="withdrawLoading || withdrawAmount < 100 || !selectedBankAccountId || selectedBankAccountId === '' || withdrawAmount > availableForWithdrawal" 
-            type="button"
+            type="button" 
+            @click="handleWithdraw"
           >
             {{ withdrawLoading ? 'กำลังดำเนินการ...' : 'ยืนยันถอนเงิน' }}
           </button>
@@ -298,12 +298,12 @@
         </div>
         
         <div class="modal-actions">
-          <button class="btn-secondary" @click="showAddBankModal = false" type="button">ยกเลิก</button>
+          <button class="btn-secondary" type="button" @click="showAddBankModal = false">ยกเลิก</button>
           <button 
             class="btn-primary" 
-            @click="handleAddBank" 
             :disabled="isAddBankDisabled" 
-            type="button"
+            type="button" 
+            @click="handleAddBank"
           >
             {{ addBankLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
           </button>
@@ -489,7 +489,7 @@ const goToPaymentStep = async (): Promise<void> => {
 
 async function loadPaymentMethodsSettings() {
   try {
-    // @ts-ignore - Supabase RPC types not fully typed
+    // @ts-expect-error - Supabase RPC types not fully typed
     const { data, error } = await supabase.rpc(
       'get_system_settings',
       {

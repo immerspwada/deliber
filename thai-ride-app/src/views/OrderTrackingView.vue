@@ -445,8 +445,8 @@ const defaultMapCenter = { lat: 6.0296, lng: 101.9653 }
       <h2>{{ error }}</h2>
       <p>กรุณาตรวจสอบรหัสติดตามและลองใหม่อีกครั้ง</p>
       <div class="error-actions">
-        <button @click="router.push('/tracking')" class="btn-primary">ค้นหาใหม่</button>
-        <button @click="router.push('/')" class="btn-secondary">กลับหน้าหลัก</button>
+        <button class="btn-primary" @click="router.push('/tracking')">ค้นหาใหม่</button>
+        <button class="btn-secondary" @click="router.push('/')">กลับหน้าหลัก</button>
       </div>
     </div>
 
@@ -477,7 +477,7 @@ const defaultMapCenter = { lat: 6.0296, lng: 101.9653 }
           
           <div class="top-actions">
             <!-- Mute Button -->
-            <button class="icon-btn small" @click="toggleMute" :class="{ muted: isMuted }">
+            <button class="icon-btn small" :class="{ muted: isMuted }" @click="toggleMute">
               <svg v-if="!isMuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -611,7 +611,7 @@ const defaultMapCenter = { lat: 6.0296, lng: 101.9653 }
               </span>
             </div>
           </div>
-          <div class="driver-actions" v-if="isActive">
+          <div v-if="isActive" class="driver-actions">
             <!-- Chat Button -->
             <button class="action-btn chat-btn" @click="openChat">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -711,7 +711,7 @@ const defaultMapCenter = { lat: 6.0296, lng: 101.9653 }
           <div class="sheet-content">
             <div class="share-url-box">
               <input type="text" :value="shareUrl" readonly />
-              <button @click="copyTrackingLink" :class="{ 'copied': copied }">
+              <button :class="{ 'copied': copied }" @click="copyTrackingLink">
                 <svg v-if="!copied" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2"/>
                   <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>

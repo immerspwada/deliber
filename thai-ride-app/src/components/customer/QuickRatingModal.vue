@@ -199,7 +199,7 @@ const closeModal = () => {
           
           <!-- Actions -->
           <div class="modal-actions">
-            <button class="skip-btn" @click="skipRating" :disabled="isSubmitting">
+            <button class="skip-btn" :disabled="isSubmitting" @click="skipRating">
               ข้ามไปก่อน
             </button>
             <button 

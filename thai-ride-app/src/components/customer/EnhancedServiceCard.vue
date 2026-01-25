@@ -92,13 +92,13 @@ const handleClick = () => {
     class="service-card"
     :class="[variant, { pressed: isPressed, disabled, loading }]"
     :style="{ '--accent': color }"
+    :disabled="disabled || loading"
     @touchstart="handleTouchStart"
     @touchend="handleTouchEnd"
     @mousedown="handleTouchStart"
     @mouseup="handleTouchEnd"
     @mouseleave="handleTouchEnd"
     @click="handleClick"
-    :disabled="disabled || loading"
   >
     <!-- Ripple Effect -->
     <span v-if="showRipple" class="ripple" :style="rippleStyle"></span>

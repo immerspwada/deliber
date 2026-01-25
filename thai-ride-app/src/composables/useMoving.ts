@@ -362,7 +362,7 @@ export function useMoving() {
 
     try {
       // Recalculate price if helper_count changed
-      let updateData: any = { ...updates, updated_at: new Date().toISOString() }
+      const updateData: any = { ...updates, updated_at: new Date().toISOString() }
       
       if (updates.helper_count !== undefined) {
         const request = requests.value.find(r => r.id === requestId)

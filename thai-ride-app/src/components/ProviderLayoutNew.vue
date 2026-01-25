@@ -98,10 +98,10 @@ onMounted(async () => {
       <button
         v-for="item in navItems"
         :key="item.path"
-        @click="navigateTo(item.path)"
         :class="['nav-item', { active: isActive(item.path) }]"
         type="button"
         :aria-label="item.name"
+        @click="navigateTo(item.path)"
       >
         <!-- Home Icon -->
         <svg v-if="item.icon === 'home'" class="nav-icon" viewBox="0 0 24 24" fill="none">
@@ -183,7 +183,7 @@ onMounted(async () => {
         <div class="modal-content">
           <div class="modal-header">
             <h3>สลับโหมด</h3>
-            <button class="close-btn" @click="showRoleSwitcher = false" aria-label="ปิด">
+            <button class="close-btn" aria-label="ปิด" @click="showRoleSwitcher = false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 18L18 6M6 6l12 12" />
               </svg>

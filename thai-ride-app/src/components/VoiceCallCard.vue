@@ -58,7 +58,6 @@ const getInitials = (name: string) => {
       <span class="call-status">
         {{ callType === 'incoming' ? 'สายเรียกเข้า' : callType === 'outgoing' ? 'กำลังโทร...' : 'กำลังสนทนา' }}
       </span>
-
     </div>
     
     <div class="caller-info">

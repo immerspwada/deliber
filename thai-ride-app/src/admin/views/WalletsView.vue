@@ -390,7 +390,7 @@ onMounted(() => {
           <h1 class="page-title">Wallets</h1>
           <span class="total-count">{{ totalWallets }} บัญชี</span>
         </div>
-        <button class="refresh-btn" @click="loadWallets" :disabled="isLoading">
+        <button class="refresh-btn" :disabled="isLoading" @click="loadWallets">
           <svg
             width="18"
             height="18"
@@ -417,8 +417,7 @@ onMounted(() => {
             stroke-width="2"
           >
             <circle cx="11" cy="11" r="8" />
-            <path d="M21 21l-4.35-4.35" /></svg
-          ><input
+            <path d="M21 21l-4.35-4.35" /></svg><input
             v-model="searchQuery"
             type="text"
             placeholder="ค้นหา..."
@@ -428,7 +427,7 @@ onMounted(() => {
       </div>
       <div class="table-container">
         <div v-if="isLoading" class="loading-state">
-          <div class="skeleton" v-for="i in 10" :key="i" />
+          <div v-for="i in 10" :key="i" class="skeleton" />
         </div>
         <table v-else-if="wallets.length" class="data-table">
           <thead>
@@ -446,8 +445,7 @@ onMounted(() => {
                 <div class="cell">
                   <div class="avatar">{{ (w.name || "U").charAt(0) }}</div>
                   <div class="info">
-                    <span class="name">{{ w.name }}</span
-                    ><span class="phone">{{ w.phone || "-" }}</span>
+                    <span class="name">{{ w.name }}</span><span class="phone">{{ w.phone || "-" }}</span>
                   </div>
                 </div>
               </td>
@@ -493,9 +491,8 @@ onMounted(() => {
             stroke-width="2"
           >
             <path d="M15 18l-6-6 6-6" />
-          </svg></button
-        ><span class="page-info">{{ currentPage }} / {{ totalPages }}</span
-        ><button
+          </svg>
+        </button><span class="page-info">{{ currentPage }} / {{ totalPages }}</span><button
           class="page-btn"
           :disabled="currentPage === totalPages"
           @click="currentPage++"
@@ -548,7 +545,7 @@ onMounted(() => {
             </div>
             <h4 class="section-title">ประวัติธุรกรรม</h4>
             <div v-if="loadingTx" class="loading-tx">
-              <div class="skeleton sm" v-for="i in 5" :key="i" />
+              <div v-for="i in 5" :key="i" class="skeleton sm" />
             </div>
             <div v-else-if="transactions.length" class="tx-list">
               <div v-for="tx in transactions" :key="tx.id" class="tx-item">
@@ -556,8 +553,7 @@ onMounted(() => {
                   <span
                     class="tx-type"
                     :style="{ color: getTypeColor(tx.type) }"
-                    >{{ getTypeLabel(tx.type) }}</span
-                  ><span class="tx-desc">{{ tx.description || "-" }}</span>
+                  >{{ getTypeLabel(tx.type) }}</span><span class="tx-desc">{{ tx.description || "-" }}</span>
                 </div>
                 <div class="tx-meta">
                   <span
@@ -566,9 +562,8 @@ onMounted(() => {
                       positive: tx.amount > 0,
                       negative: tx.amount < 0,
                     }"
-                    >{{ tx.amount > 0 ? "+" : ""
-                    }}{{ formatCurrency(tx.amount) }}</span
-                  ><span class="tx-date">{{ formatDate(tx.created_at) }}</span>
+                  >{{ tx.amount > 0 ? "+" : ""
+                  }}{{ formatCurrency(tx.amount) }}</span><span class="tx-date">{{ formatDate(tx.created_at) }}</span>
                 </div>
               </div>
             </div>
@@ -583,14 +578,12 @@ onMounted(() => {
       <div class="page-header">
         <div class="header-left">
           <h1 class="page-title">Topup Requests</h1>
-          <span v-if="pendingCount > 0" class="total-count pending"
-            >{{ pendingCount }} รอดำเนินการ</span
-          >
+          <span v-if="pendingCount > 0" class="total-count pending">{{ pendingCount }} รอดำเนินการ</span>
         </div>
         <button
           class="refresh-btn"
-          @click="loadTopupRequests"
           :disabled="loadingTopup"
+          @click="loadTopupRequests"
         >
           <svg
             width="18"
@@ -646,7 +639,7 @@ onMounted(() => {
 
       <div class="table-container">
         <div v-if="loadingTopup" class="loading-state">
-          <div class="skeleton" v-for="i in 5" :key="i" />
+          <div v-for="i in 5" :key="i" class="skeleton" />
         </div>
         <table v-else-if="topupRequests.length" class="data-table">
           <thead>
@@ -695,8 +688,8 @@ onMounted(() => {
                   <button
                     v-if="req.slip_url"
                     class="action-btn"
-                    @click.stop="viewSlip(req)"
                     title="ดูสลิป"
+                    @click.stop="viewSlip(req)"
                   >
                     <svg
                       width="18"
@@ -772,11 +765,9 @@ onMounted(() => {
             </div>
             <div class="info-row">
               <span class="label">ลูกค้า:</span>
-              <span
-                >{{ selectedTopup.customer_name }} ({{
-                  selectedTopup.customer_uid
-                }})</span
-              >
+              <span>{{ selectedTopup.customer_name }} ({{
+                selectedTopup.customer_uid
+              }})</span>
             </div>
             <div class="info-row">
               <span class="label">จำนวนเงิน:</span>
@@ -839,8 +830,8 @@ onMounted(() => {
             <div class="action-buttons">
               <button
                 class="btn-approve"
-                @click="approveTopup"
                 :disabled="processingTopup"
+                @click="approveTopup"
               >
                 <svg
                   width="18"
@@ -856,8 +847,8 @@ onMounted(() => {
               </button>
               <button
                 class="btn-reject"
-                @click="rejectTopup"
                 :disabled="processingTopup"
+                @click="rejectTopup"
               >
                 <svg
                   width="18"

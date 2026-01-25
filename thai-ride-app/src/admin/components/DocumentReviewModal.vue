@@ -202,8 +202,8 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
               </p>
             </div>
             <button
-              @click="emit('close')"
               class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="emit('close')"
             >
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -224,8 +224,8 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
           <div v-else-if="error && !document" class="text-center py-12">
             <p class="text-red-600">{{ error }}</p>
             <button
-              @click="loadDocument"
               class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              @click="loadDocument"
             >
               ลองใหม่
             </button>
@@ -260,9 +260,9 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
               <div v-if="isImage" class="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200">
                 <div class="flex items-center space-x-2">
                   <button
-                    @click="zoomOut"
                     :disabled="zoomLevel <= 50"
                     class="p-2 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    @click="zoomOut"
                   >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
@@ -270,17 +270,17 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
                   </button>
                   <span class="text-sm font-medium text-gray-700">{{ zoomLevel }}%</span>
                   <button
-                    @click="zoomIn"
                     :disabled="zoomLevel >= 200"
                     class="p-2 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    @click="zoomIn"
                   >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                     </svg>
                   </button>
                   <button
-                    @click="resetZoom"
                     class="ml-2 px-3 py-1 text-sm text-gray-600 hover:bg-gray-200 rounded"
+                    @click="resetZoom"
                   >
                     รีเซ็ต
                   </button>
@@ -308,12 +308,12 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
               <p class="text-sm font-medium text-gray-700">การตัดสินใจ</p>
               <div class="grid grid-cols-2 gap-4">
                 <button
-                  @click="setAction('approve')"
                   :class="{
                     'ring-2 ring-green-500 bg-green-50': action === 'approve',
                     'border-2 border-gray-300': action !== 'approve',
                   }"
                   class="p-4 rounded-lg hover:bg-green-50 transition-colors"
+                  @click="setAction('approve')"
                 >
                   <div class="flex items-center justify-center">
                     <svg class="w-6 h-6 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,12 +324,12 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
                 </button>
 
                 <button
-                  @click="setAction('reject')"
                   :class="{
                     'ring-2 ring-red-500 bg-red-50': action === 'reject',
                     'border-2 border-gray-300': action !== 'reject',
                   }"
                   class="p-4 rounded-lg hover:bg-red-50 transition-colors"
+                  @click="setAction('reject')"
                 >
                   <div class="flex items-center justify-center">
                     <svg class="w-6 h-6 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,14 +370,13 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
         <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
           <div class="flex justify-end space-x-3">
             <button
-              @click="emit('close')"
               :disabled="isProcessing"
               class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="emit('close')"
             >
               ยกเลิก
             </button>
             <button
-              @click="submitDecision"
               :disabled="!canSubmit || isProcessing"
               class="px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               :class="{
@@ -385,6 +384,7 @@ function checkExpiryWarning(expiryDate: string | null): boolean {
                 'bg-red-600 hover:bg-red-700': action === 'reject',
                 'bg-gray-400': !action,
               }"
+              @click="submitDecision"
             >
               <span v-if="isProcessing">กำลังบันทึก...</span>
               <span v-else-if="action === 'approve'">อนุมัติเอกสาร</span>

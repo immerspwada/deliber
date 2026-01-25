@@ -9,25 +9,25 @@
         :id="inputId"
         type="text"
         :value="modelValue"
-        @input="handleInput"
         class="color-input"
         placeholder="#000000"
         maxlength="7"
+        @input="handleInput"
       />
       <input
         type="color"
         :value="modelValue"
-        @input="handleColorInput"
         class="color-picker"
         :aria-label="`เลือกสี ${label}`"
+        @input="handleColorInput"
       />
       <button
         v-if="modelValue !== defaultColor"
         type="button"
         class="reset-button"
-        @click="resetColor"
         :aria-label="`รีเซ็ตสี ${label}`"
         title="รีเซ็ตเป็นค่าเริ่มต้น"
+        @click="resetColor"
       >
         🔄
       </button>
