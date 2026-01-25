@@ -20,7 +20,8 @@ import type {
   WithdrawalSettings,
   TopupSettings,
   SettingsAuditLog,
-  CommissionImpact
+  CommissionImpact,
+  DistanceRates
 } from '@/types/financial-settings'
 
 export function useFinancialSettings() {
@@ -34,12 +35,16 @@ export function useFinancialSettings() {
   const commissionRates = ref<CommissionRates | null>(null)
   const withdrawalSettings = ref<WithdrawalSettings | null>(null)
   const topupSettings = ref<TopupSettings | null>(null)
+  const distanceRates = ref<DistanceRates | null>(null)
+  const vehicleMultipliers = ref<{ bike: number; car: number; premium: number } | null>(null)
   const auditLog = ref<SettingsAuditLog[]>([])
   
   // Computed
   const hasCommissionRates = computed(() => commissionRates.value !== null)
   const hasWithdrawalSettings = computed(() => withdrawalSettings.value !== null)
   const hasTopupSettings = computed(() => topupSettings.value !== null)
+  const hasDistanceRates = computed(() => distanceRates.value !== null)
+  const hasVehicleMultipliers = computed(() => vehicleMultipliers.value !== null)
   
   /**
    * Fetch all financial settings
@@ -64,6 +69,10 @@ export function useFinancialSettings() {
             withdrawalSettings.value = setting.value as WithdrawalSettings
           } else if (setting.category === 'topup' && setting.key === 'config') {
             topupSettings.value = setting.value as TopupSettings
+          } else if (setting.category === 'pricing' && setting.key === 'distance_rates') {
+            distanceRates.value = setting.value as DistanceRates
+          } else if (setting.category === 'pricing' && setting.key === 'vehicle_multipliers') {
+            vehicleMultipliers.value = setting.value as { bike: number; car: number; premium: number }
           }
         })
       }
@@ -148,6 +157,40 @@ export function useFinancialSettings() {
   }
   
   /**
+   * Update distance-based pricing rates
+   */
+  async function updateDistanceRates(rates: DistanceRates, reason?: string) {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { data, error: rpcError } = await (supabase.rpc as any)('update_financial_setting', {
+        p_category: 'pricing',
+        p_key: 'distance_rates',
+        p_value: rates,
+        p_reason: reason || 'อัพเดทราคาบริการตามระยะทาง'
+      })
+      
+      if (rpcError) throw rpcError
+      
+      if (data && data[0]?.success) {
+        distanceRates.value = rates
+        toast.success('อัพเดทราคาบริการสำเร็จ')
+        return { success: true, message: data[0].message }
+      }
+      
+      throw new Error('Failed to update distance rates')
+    } catch (e) {
+      const message = (e as Error).message
+      error.value = message
+      toast.error(message)
+      return { success: false, message }
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  /**
    * Update top-up settings
    */
   async function updateTopupSettings(settings: TopupSettings, reason?: string) {
@@ -171,6 +214,43 @@ export function useFinancialSettings() {
       }
       
       throw new Error('Failed to update top-up settings')
+    } catch (e) {
+      const message = (e as Error).message
+      error.value = message
+      toast.error(message)
+      return { success: false, message }
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  /**
+   * Update vehicle multipliers
+   */
+  async function updateVehicleMultipliers(
+    multipliers: { bike: number; car: number; premium: number },
+    reason?: string
+  ) {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const { data, error: rpcError } = await (supabase.rpc as any)('update_financial_setting', {
+        p_category: 'pricing',
+        p_key: 'vehicle_multipliers',
+        p_value: multipliers,
+        p_reason: reason || 'อัพเดทตัวคูณราคาตามประเภทรถ'
+      })
+      
+      if (rpcError) throw rpcError
+      
+      if (data && data[0]?.success) {
+        vehicleMultipliers.value = multipliers
+        toast.success('อัพเดทตัวคูณราคาตามประเภทรถสำเร็จ')
+        return { success: true, message: data[0].message }
+      }
+      
+      throw new Error('Failed to update vehicle multipliers')
     } catch (e) {
       const message = (e as Error).message
       error.value = message
@@ -309,16 +389,22 @@ export function useFinancialSettings() {
     commissionRates: readonly(commissionRates),
     withdrawalSettings: readonly(withdrawalSettings),
     topupSettings: readonly(topupSettings),
+    distanceRates: readonly(distanceRates),
+    vehicleMultipliers: readonly(vehicleMultipliers),
     auditLog: readonly(auditLog),
     // Computed
     hasCommissionRates,
     hasWithdrawalSettings,
     hasTopupSettings,
+    hasDistanceRates,
+    hasVehicleMultipliers,
     // Methods
     fetchSettings,
     updateCommissionRates,
     updateWithdrawalSettings,
     updateTopupSettings,
+    updateDistanceRates,
+    updateVehicleMultipliers,
     calculateCommissionImpact,
     fetchAuditLog,
     // Helpers

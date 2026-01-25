@@ -364,8 +364,8 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { module: 'settings' }
       },
       {
-        path: 'settings/financial',
-        name: 'AdminFinancialSettingsV2',
+        path: 'settings/financial/:tab?',
+        name: 'admin-financial-settings',
         component: AdminFinancialSettingsView,
         meta: { module: 'settings' }
       },

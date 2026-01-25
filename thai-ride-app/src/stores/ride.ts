@@ -66,8 +66,13 @@ export const useRideStore = defineStore('ride', () => {
     ['pending', 'matched', 'pickup', 'in_progress'].includes(currentRide.value.status || '')
   )
 
-  // Calculate fare based on distance
+  /**
+   * Calculate fare based on distance using database pricing
+   * @deprecated Use usePricingCalculator composable for async calculation
+   * This is a synchronous fallback for backward compatibility
+   */
   const calculateFare = (distanceKm: number, rideType: string): number => {
+    // Fallback pricing (will be replaced by database pricing in async calls)
     const baseFare = 35 // Thai Baht
     const perKmRate = rideType === 'premium' ? 15 : rideType === 'shared' ? 8 : 10
     const minimumFare = rideType === 'premium' ? 80 : rideType === 'shared' ? 40 : 50
@@ -75,6 +80,79 @@ export const useRideStore = defineStore('ride', () => {
     const calculatedFare = baseFare + (distanceKm * perKmRate)
     // ปัดเศษให้เป็นจำนวนเต็ม
     return Math.round(Math.max(calculatedFare, minimumFare))
+  }
+
+  /**
+   * Calculate fare from database pricing with vehicle multiplier
+   * Uses financial_settings table for dynamic pricing
+   */
+  const calculateFareFromDatabase = async (
+    distanceKm: number, 
+    serviceType: string = 'ride',
+    vehicleType?: 'bike' | 'car' | 'premium'
+  ): Promise<number> => {
+    try {
+      // Always get base 'ride' fare from database
+      const { data, error: rpcError } = await (supabase.rpc as any)('calculate_distance_fare', {
+        p_service_type: 'ride', // Always use 'ride' as base
+        p_distance_km: distanceKm
+      })
+      
+      if (rpcError) {
+        console.error('[calculateFareFromDatabase] RPC error:', rpcError)
+        // Fallback to hardcoded calculation with multiplier
+        return calculateFareWithMultiplier(distanceKm, vehicleType)
+      }
+      
+      if (data && Array.isArray(data) && data.length > 0) {
+        const baseFare = Number(data[0].final_fare)
+        
+        // Apply vehicle multiplier if provided
+        const multiplier = getVehicleMultiplier(vehicleType)
+        const finalFare = Math.round(baseFare * multiplier)
+        
+        console.log('[calculateFareFromDatabase] Success:', {
+          distance: distanceKm,
+          serviceType,
+          vehicleType,
+          baseFare,
+          multiplier,
+          finalFare,
+          breakdown: data[0]
+        })
+        
+        return finalFare
+      }
+      
+      // Fallback if no data
+      console.warn('[calculateFareFromDatabase] No data returned, using fallback')
+      return calculateFareWithMultiplier(distanceKm, vehicleType)
+    } catch (error) {
+      console.error('[calculateFareFromDatabase] Error:', error)
+      // Fallback to hardcoded calculation with multiplier
+      return calculateFareWithMultiplier(distanceKm, vehicleType)
+    }
+  }
+
+  /**
+   * Get vehicle multiplier
+   */
+  const getVehicleMultiplier = (vehicleType?: 'bike' | 'car' | 'premium'): number => {
+    const multipliers = {
+      bike: 0.7,      // มอเตอร์ไซค์ - ถูกกว่า 30%
+      car: 1.0,       // รถยนต์ - ราคาปกติ
+      premium: 1.5    // พรีเมียม - แพงกว่า 50%
+    }
+    return multipliers[vehicleType || 'car'] || 1.0
+  }
+
+  /**
+   * Calculate fare with multiplier (fallback)
+   */
+  const calculateFareWithMultiplier = (distanceKm: number, vehicleType?: 'bike' | 'car' | 'premium'): number => {
+    const baseFare = calculateFare(distanceKm, 'standard')
+    const multiplier = getVehicleMultiplier(vehicleType)
+    return Math.round(baseFare * multiplier)
   }
 
   // Helper function to calculate distance using Haversine formula
@@ -224,7 +302,9 @@ export const useRideStore = defineStore('ride', () => {
         pickup.lat, pickup.lng,
         destination.lat, destination.lng
       )
-      const estimatedFare = calculateFare(distanceKm, rideType)
+      
+      // Use database pricing for accurate fare calculation
+      const estimatedFare = await calculateFareFromDatabase(distanceKm, rideType)
       
       console.log('[createRideRequest] Starting...', {
         userId,
@@ -695,7 +775,8 @@ export const useRideStore = defineStore('ride', () => {
     loading,
     error,
     hasActiveRide,
-    calculateFare,
+    calculateFare, // Deprecated: Use calculateFareFromDatabase
+    calculateFareFromDatabase,
     calculateDistance,
     initialize,
     findNearbyDrivers,
