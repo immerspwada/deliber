@@ -14,9 +14,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProviderJobDetail } from '@/composables/useProviderJobDetail'
 
 // Lazy load step views
-const JobMatchedView = defineAsyncComponent(() => import('./JobMatchedView.vue'))
-const JobPickupView = defineAsyncComponent(() => import('./JobPickupView.vue'))
-const JobInProgressView = defineAsyncComponent(() => import('./JobInProgressView.vue'))
+const JobMatchedView = defineAsyncComponent(() => import('./JobMatchedViewClean.vue'))
+const JobPickupView = defineAsyncComponent(() => import('./JobPickupViewClean.vue'))
+const JobInProgressView = defineAsyncComponent(() => import('./JobInProgressViewClean.vue'))
 const JobCompletedView = defineAsyncComponent(() => import('./JobCompletedView.vue'))
 const ChatDrawer = defineAsyncComponent(() => import('@/components/ChatDrawer.vue'))
 

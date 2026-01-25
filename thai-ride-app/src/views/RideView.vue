@@ -1634,6 +1634,19 @@ watch(rideType, () => {
                     <span class="route-value">{{ destinationAddress }}</span>
                   </div>
                 </div>
+                <!-- Estimated Fare Preview -->
+                <div v-if="estimatedFare > 0" class="fare-preview-inline">
+                  <div class="fare-preview-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+                    </svg>
+                    <span>ค่าโดยสารโดยประมาณ</span>
+                  </div>
+                  <div class="fare-preview-amount">
+                    <span class="fare-currency">฿</span>
+                    <span class="fare-value">{{ Math.round(estimatedFare * (surgeMultiplier > 1 ? surgeMultiplier : 1)) }}</span>
+                  </div>
+                </div>
               </div>
             </Transition>
 
@@ -3354,6 +3367,51 @@ watch(rideType, () => {
   font-size: 14px;
   font-weight: 500;
   color: #1a1a1a;
+}
+
+/* Fare Preview Inline */
+.fare-preview-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #00a86b 0%, #00c878 100%);
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.fare-preview-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.fare-preview-label svg {
+  width: 14px;
+  height: 14px;
+  stroke: rgba(255, 255, 255, 0.9);
+}
+
+.fare-preview-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.fare-currency {
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+}
+
+.fare-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -0.5px;
 }
 
 /* Fare Summary Compact */
