@@ -280,6 +280,111 @@ export function useFinancialSystem() {
     return (amount / total) * 100
   }
 
+  /**
+   * Cancel order before service starts
+   */
+  const cancelOrderBeforeStart = async (
+    orderId: string,
+    serviceType: string,
+    cancellationReason: string,
+    cancelledByRole: 'customer' | 'provider' | 'admin' | 'system'
+  ): Promise<any | null> => {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc(
+        'cancel_order_before_start',
+        {
+          p_order_id: orderId,
+          p_service_type: serviceType,
+          p_cancellation_reason: cancellationReason,
+          p_cancelled_by_role: cancelledByRole
+        }
+      )
+
+      if (rpcError) throw rpcError
+
+      const result = data
+
+      // Show appropriate message
+      if (result.cancellation_details.cancellation_fee > 0) {
+        toast.warning(
+          `ยกเลิกสำเร็จ คืนเงิน ${result.cancellation_details.refund_amount.toFixed(2)} บาท (หักค่ายกเลิก ${result.cancellation_details.cancellation_fee.toFixed(2)} บาท)`
+        )
+      } else {
+        toast.success(
+          `ยกเลิกสำเร็จ คืนเงินเต็มจำนวน ${result.cancellation_details.refund_amount.toFixed(2)} บาท`
+        )
+      }
+
+      return result
+    } catch (err) {
+      console.error('Order cancellation failed:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to cancel order'
+      
+      if (error.value?.includes('cannot be cancelled')) {
+        toast.error('ไม่สามารถยกเลิกออเดอร์นี้ได้')
+      } else {
+        toast.error('ไม่สามารถยกเลิกออเดอร์ได้')
+      }
+      
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Process order refund (after completion)
+   */
+  const processOrderRefund = async (
+    orderId: string,
+    serviceType: string,
+    refundReason: string,
+    refundPercentage: number = 1.0 // 1.0 = 100%, 0.5 = 50%
+  ): Promise<any | null> => {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc(
+        'process_order_refund',
+        {
+          p_order_id: orderId,
+          p_service_type: serviceType,
+          p_refund_reason: refundReason,
+          p_refund_percentage: refundPercentage
+        }
+      )
+
+      if (rpcError) throw rpcError
+
+      const result = data
+
+      // Show success message
+      const refundPercent = (refundPercentage * 100).toFixed(0)
+      toast.success(
+        `คืนเงิน ${refundPercent}% สำเร็จ จำนวน ${result.refund_details.total_refund.toFixed(2)} บาท`
+      )
+
+      return result
+    } catch (err) {
+      console.error('Order refund failed:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to process refund'
+      
+      if (error.value?.includes('cannot be refunded')) {
+        toast.error('ไม่สามารถคืนเงินออเดอร์นี้ได้')
+      } else {
+        toast.error('ไม่สามารถคืนเงินได้')
+      }
+      
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // State
     loading: computed(() => loading.value),
@@ -291,6 +396,8 @@ export function useFinancialSystem() {
     deductCustomerWallet,
     creditProviderEarnings,
     getCommissionRate,
+    cancelOrderBeforeStart,
+    processOrderRefund,
 
     // Utilities
     formatCurrency,
