@@ -352,7 +352,7 @@ const currentStepIndex = computed(() => {
   return stepLabels.findIndex((s) => s.key === step.value);
 });
 
-// Ride types - MUNEEF Style
+// Ride types - MUNEEF Style (prices calculated dynamically from database)
 const rideTypes = [
   {
     value: "standard",
@@ -362,7 +362,6 @@ const rideTypes = [
     icon: "comfort",
     eta: "2 นาที",
     capacity: 4,
-    priceRange: "88 - 107",
   },
   {
     value: "premium",
@@ -372,7 +371,6 @@ const rideTypes = [
     icon: "premium",
     eta: "5 นาที",
     capacity: 4,
-    priceRange: "150 - 180",
   },
   {
     value: "shared",
@@ -382,7 +380,6 @@ const rideTypes = [
     icon: "share",
     eta: "5 นาที",
     capacity: 2,
-    priceRange: "60 - 75",
   },
 ] as const;
 
@@ -416,6 +413,61 @@ const finalFare = computed(() => {
   // Apply promo discount
   fare = fare - promoDiscount.value;
   return Math.max(0, Math.round(fare));
+});
+
+// Computed: Calculate fare for each ride type option
+const rideTypeFares = ref<Record<string, number>>({
+  standard: 0,
+  premium: 0,
+  shared: 0
+});
+
+// Update fares when distance changes
+watch(estimatedDistance, async (newDistance) => {
+  console.log('[watch estimatedDistance] Distance changed:', newDistance);
+  
+  if (newDistance > 0) {
+    try {
+      console.log('[watch estimatedDistance] Calculating fares for all vehicle types...');
+      
+      // Calculate for each vehicle type
+      const [carFare, bikeFare, premiumFare] = await Promise.all([
+        rideStore.calculateFareFromDatabase(newDistance, 'ride', 'car'),
+        rideStore.calculateFareFromDatabase(newDistance, 'ride', 'bike'),
+        rideStore.calculateFareFromDatabase(newDistance, 'ride', 'premium')
+      ]);
+      
+      console.log('[watch estimatedDistance] Fares calculated:', {
+        car: carFare,
+        bike: bikeFare,
+        premium: premiumFare
+      });
+      
+      rideTypeFares.value = {
+        standard: carFare || 0,
+        shared: bikeFare || 0,
+        premium: premiumFare || 0
+      };
+      
+      console.log('[watch estimatedDistance] rideTypeFares updated:', rideTypeFares.value);
+    } catch (error) {
+      console.error('[watch estimatedDistance] Error calculating fares:', error);
+      // Fallback to old calculation
+      rideTypeFares.value = {
+        standard: rideStore.calculateFare(newDistance, 'standard'),
+        shared: rideStore.calculateFare(newDistance, 'shared'),
+        premium: rideStore.calculateFare(newDistance, 'premium')
+      };
+      console.log('[watch estimatedDistance] Fallback fares:', rideTypeFares.value);
+    }
+  } else {
+    console.log('[watch estimatedDistance] Distance is 0, resetting fares');
+    rideTypeFares.value = {
+      standard: 0,
+      shared: 0,
+      premium: 0
+    };
+  }
 });
 
 // Wallet balance check
@@ -467,33 +519,65 @@ const calculateFare = async () => {
     return;
 
   isCalculating.value = true;
-  await new Promise((resolve) => setTimeout(resolve, 300));
 
-  if (estimatedDistance.value === 0) {
-    estimatedDistance.value = calculateDistance(
-      pickupLocation.value.lat,
-      pickupLocation.value.lng,
-      destinationLocation.value.lat,
-      destinationLocation.value.lng
+  try {
+    // Calculate distance if not already calculated
+    if (estimatedDistance.value === 0) {
+      estimatedDistance.value = calculateDistance(
+        pickupLocation.value.lat,
+        pickupLocation.value.lng,
+        destinationLocation.value.lat,
+        destinationLocation.value.lng
+      );
+      estimatedTime.value = calculateTravelTime(estimatedDistance.value);
+    }
+
+    // Use database pricing with vehicle type
+    const vehicleType = rideType.value === 'premium' ? 'premium' : 
+                       rideType.value === 'shared' ? 'bike' : 'car';
+    
+    const fare = await rideStore.calculateFareFromDatabase(
+      estimatedDistance.value,
+      'ride',
+      vehicleType
     );
-    estimatedTime.value = calculateTravelTime(estimatedDistance.value);
-  }
-
-  estimatedFare.value = rideStore.calculateFare(
-    estimatedDistance.value,
-    rideType.value
-  );
-  step.value = "book";
-  isCalculating.value = false;
-};
-
-const selectRideType = (type: "standard" | "premium" | "shared") => {
-  rideType.value = type;
-  if (estimatedDistance.value > 0) {
+    
+    estimatedFare.value = fare || 0;
+    step.value = "book";
+  } catch (error) {
+    console.error('[calculateFare] Error:', error);
+    // Fallback to old calculation if database fails
     estimatedFare.value = rideStore.calculateFare(
       estimatedDistance.value,
-      type
+      rideType.value
     );
+  } finally {
+    isCalculating.value = false;
+  }
+};
+
+const selectRideType = async (type: "standard" | "premium" | "shared") => {
+  rideType.value = type;
+  if (estimatedDistance.value > 0) {
+    try {
+      const vehicleType = type === 'premium' ? 'premium' : 
+                         type === 'shared' ? 'bike' : 'car';
+      
+      const fare = await rideStore.calculateFareFromDatabase(
+        estimatedDistance.value,
+        'ride',
+        vehicleType
+      );
+      
+      estimatedFare.value = fare || 0;
+    } catch (error) {
+      console.error('[selectRideType] Error:', error);
+      // Fallback
+      estimatedFare.value = rideStore.calculateFare(
+        estimatedDistance.value,
+        type
+      );
+    }
   }
 };
 void selectRideType; // Reserved for non-enhanced usage
@@ -1149,23 +1233,53 @@ const selectFavoritePlaceEnhanced = async (place: {
   await calculateFare();
 };
 
-const selectRideTypeEnhanced = (type: "standard" | "premium" | "shared") => {
+const selectRideTypeEnhanced = async (type: "standard" | "premium" | "shared") => {
   triggerHaptic("light");
   rideType.value = type;
   if (estimatedDistance.value > 0) {
-    estimatedFare.value = rideStore.calculateFare(
-      estimatedDistance.value,
-      type
-    );
+    try {
+      const vehicleType = type === 'premium' ? 'premium' : 
+                         type === 'shared' ? 'bike' : 'car';
+      
+      const fare = await rideStore.calculateFareFromDatabase(
+        estimatedDistance.value,
+        'ride',
+        vehicleType
+      );
+      
+      estimatedFare.value = fare || 0;
+    } catch (error) {
+      console.error('[selectRideTypeEnhanced] Error:', error);
+      // Fallback
+      estimatedFare.value = rideStore.calculateFare(
+        estimatedDistance.value,
+        type
+      );
+    }
   }
 };
 
-watch(rideType, () => {
+watch(rideType, async () => {
   if (estimatedDistance.value > 0) {
-    estimatedFare.value = rideStore.calculateFare(
-      estimatedDistance.value,
-      rideType.value
-    );
+    try {
+      const vehicleType = rideType.value === 'premium' ? 'premium' : 
+                         rideType.value === 'shared' ? 'bike' : 'car';
+      
+      const fare = await rideStore.calculateFareFromDatabase(
+        estimatedDistance.value,
+        'ride',
+        vehicleType
+      );
+      
+      estimatedFare.value = fare || 0;
+    } catch (error) {
+      console.error('[watch rideType] Error:', error);
+      // Fallback
+      estimatedFare.value = rideStore.calculateFare(
+        estimatedDistance.value,
+        rideType.value
+      );
+    }
   }
 });
 </script>
@@ -1960,9 +2074,18 @@ watch(rideType, () => {
                   </div>
                 </div>
                 <div class="ride-option-right">
-                  <span class="ride-option-price">฿{{
-                    rideStore.calculateFare(estimatedDistance, type.value)
-                  }}</span>
+                  <!-- Show loading state if no fare calculated yet -->
+                  <span v-if="estimatedDistance === 0" class="ride-option-price loading">
+                    <span class="loading-dots">เลือกปลายทาง</span>
+                  </span>
+                  <!-- Show calculated fare from database -->
+                  <span v-else-if="rideTypeFares[type.value] > 0" class="ride-option-price">
+                    ฿{{ Math.round(rideTypeFares[type.value]) }}
+                  </span>
+                  <!-- Fallback: calculating -->
+                  <span v-else class="ride-option-price calculating">
+                    <span class="loading-dots">คำนวณ...</span>
+                  </span>
                   <Transition name="scale-fade">
                     <div
                       v-if="rideType === type.value"
@@ -6075,6 +6198,23 @@ watch(rideType, () => {
   font-size: 18px;
   font-weight: 700;
   color: #1a1a1a;
+}
+
+.ride-option-price.loading,
+.ride-option-price.calculating {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+}
+
+.loading-dots {
+  display: inline-block;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 .ride-check-enhanced {
