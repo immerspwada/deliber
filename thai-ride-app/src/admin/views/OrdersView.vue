@@ -39,6 +39,9 @@ const loadError = ref<string | null>(null);
 const analytics = ref<any>(null);
 const isLoadingAnalytics = ref(false);
 
+// Realtime update tracking
+const realtimeUpdatedOrders = ref<Set<string>>(new Set());
+
 // Performance optimizations
 const isVirtualScrollEnabled = ref(false);
 const viewMode = ref<"table" | "cards">("table");
@@ -205,7 +208,32 @@ function openReassignmentModal(order: Order) {
 
 function handleReassignmentSuccess() {
   showReassignmentModal.value = false;
-  loadOrders();
+  
+  // Update order in local state immediately (Realtime update)
+  if (selectedOrder.value) {
+    const orderIndex = orders.value.findIndex((o) => o.id === selectedOrder.value!.id);
+    if (orderIndex !== -1) {
+      // Mark as realtime updated for highlight animation
+      realtimeUpdatedOrders.value.add(selectedOrder.value.id);
+      
+      // Reload only this specific order to get updated provider info
+      api.getOrdersEnhanced(
+        { search: selectedOrder.value.tracking_id },
+        { page: 1, limit: 1 }
+      ).then((result) => {
+        if (result.data.length > 0) {
+          // Update the order in the list with new provider info
+          orders.value[orderIndex] = result.data[0];
+          uiStore.showSuccess('ย้ายงานสำเร็จ - อัพเดทแบบ Realtime ⚡');
+          
+          // Remove highlight after animation completes
+          setTimeout(() => {
+            realtimeUpdatedOrders.value.delete(selectedOrder.value!.id);
+          }, 2000);
+        }
+      });
+    }
+  }
 }
 
 async function updateStatus() {
@@ -472,13 +500,60 @@ onMounted(() => {
   uiStore.setBreadcrumbs([{ label: "Orders" }, { label: "ออเดอร์ทั้งหมด" }]);
   loadOrders();
 
-  // Setup realtime subscriptions for all order tables
-  realtime.subscribeToOrders((table, eventType, _payload) => {
-    console.log(`[OrdersView] Realtime update: ${table} ${eventType}`);
-    loadOrders();
-    uiStore.showInfo(
-      `${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)}`,
-    );
+  // Setup realtime subscriptions for all order tables with smart updates
+  realtime.subscribeToOrders((table, eventType, payload) => {
+    console.log(`[OrdersView] Realtime update: ${table} ${eventType}`, payload);
+    
+    // Smart update: Only update the affected order instead of reloading everything
+    if (eventType === 'UPDATE' && payload.new) {
+      const updatedOrderId = payload.new.id;
+      const orderIndex = orders.value.findIndex((o) => o.id === updatedOrderId);
+      
+      if (orderIndex !== -1) {
+        // Mark as realtime updated for highlight animation
+        realtimeUpdatedOrders.value.add(updatedOrderId);
+        
+        // Fetch only the updated order
+        api.getOrdersEnhanced(
+          { search: orders.value[orderIndex].tracking_id },
+          { page: 1, limit: 1 }
+        ).then((result) => {
+          if (result.data.length > 0) {
+            // Update only this order in the list (Realtime!)
+            orders.value[orderIndex] = result.data[0];
+            uiStore.showInfo(
+              `⚡ ${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)} (Realtime)`,
+              { duration: 2000 }
+            );
+            
+            // Remove highlight after animation completes
+            setTimeout(() => {
+              realtimeUpdatedOrders.value.delete(updatedOrderId);
+            }, 2000);
+          }
+        });
+      } else {
+        // New order or order not in current view - reload all
+        loadOrders();
+      }
+    } else if (eventType === 'INSERT') {
+      // New order created - reload to show it
+      loadOrders();
+      uiStore.showInfo(
+        `✨ ${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)}`,
+      );
+    } else if (eventType === 'DELETE') {
+      // Order deleted - remove from list
+      const deletedOrderId = payload.old?.id;
+      if (deletedOrderId) {
+        const orderIndex = orders.value.findIndex((o) => o.id === deletedOrderId);
+        if (orderIndex !== -1) {
+          orders.value.splice(orderIndex, 1);
+          totalOrders.value--;
+          uiStore.showInfo('🗑️ ออเดอร์ถูกลบ (Realtime)');
+        }
+      }
+    }
   });
 });
 
@@ -948,6 +1023,7 @@ function getVisiblePages() {
                 priority:
                   order.priority === 'urgent' ||
                   order.priority === 'high_value',
+                'realtime-updated': realtimeUpdatedOrders.has(order.id),
               }"
               @click="viewOrder(order)"
             >
@@ -2290,6 +2366,25 @@ function getVisiblePages() {
 
 .data-table tbody tr.priority {
   border-left: 4px solid #ef4444;
+}
+
+/* Realtime update highlight animation */
+.data-table tbody tr.realtime-updated {
+  animation: highlight-row 2s ease-out;
+}
+
+@keyframes highlight-row {
+  0% {
+    background: #d1fae5;
+    transform: scale(1.01);
+  }
+  50% {
+    background: #a7f3d0;
+  }
+  100% {
+    background: transparent;
+    transform: scale(1);
+  }
 }
 
 .checkbox-col {
