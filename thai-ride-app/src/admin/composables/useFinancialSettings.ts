@@ -24,7 +24,7 @@ import type {
 } from '@/types/financial-settings'
 
 export function useFinancialSettings() {
-  const { showSuccess, showError } = useToast()
+  const toast = useToast()
   
   // State
   const loading = ref(false)
@@ -72,7 +72,7 @@ export function useFinancialSettings() {
     } catch (e) {
       const message = (e as Error).message
       error.value = message
-      showError(message)
+      toast.error(message)
       return null
     } finally {
       loading.value = false
@@ -98,7 +98,7 @@ export function useFinancialSettings() {
       
       if (data && data[0]?.success) {
         commissionRates.value = rates
-        showSuccess('อัพเดทอัตราคอมมิชชั่นสำเร็จ')
+        toast.success('อัพเดทอัตราคอมมิชชั่นสำเร็จ')
         return { success: true, message: data[0].message }
       }
       
@@ -106,7 +106,7 @@ export function useFinancialSettings() {
     } catch (e) {
       const message = (e as Error).message
       error.value = message
-      showError(message)
+      toast.error(message)
       return { success: false, message }
     } finally {
       loading.value = false
@@ -132,7 +132,7 @@ export function useFinancialSettings() {
       
       if (data && data[0]?.success) {
         withdrawalSettings.value = settings
-        showSuccess('อัพเดทการตั้งค่าการถอนเงินสำเร็จ')
+        toast.success('อัพเดทการตั้งค่าการถอนเงินสำเร็จ')
         return { success: true, message: data[0].message }
       }
       
@@ -140,7 +140,7 @@ export function useFinancialSettings() {
     } catch (e) {
       const message = (e as Error).message
       error.value = message
-      showError(message)
+      toast.error(message)
       return { success: false, message }
     } finally {
       loading.value = false
@@ -166,7 +166,7 @@ export function useFinancialSettings() {
       
       if (data && data[0]?.success) {
         topupSettings.value = settings
-        showSuccess('อัพเดทการตั้งค่าการเติมเงินสำเร็จ')
+        toast.success('อัพเดทการตั้งค่าการเติมเงินสำเร็จ')
         return { success: true, message: data[0].message }
       }
       
@@ -174,7 +174,7 @@ export function useFinancialSettings() {
     } catch (e) {
       const message = (e as Error).message
       error.value = message
-      showError(message)
+      toast.error(message)
       return { success: false, message }
     } finally {
       loading.value = false
@@ -208,7 +208,7 @@ export function useFinancialSettings() {
       
       return null
     } catch (e) {
-      console.error('Error calculating commission impact:', e)
+      // Error handled silently - return null for impact calculation
       return null
     }
   }
@@ -229,7 +229,8 @@ export function useFinancialSettings() {
       auditLog.value = data || []
       return data
     } catch (e) {
-      console.error('Error fetching audit log:', e)
+      // Error handled silently - return empty array
+      auditLog.value = []
       return []
     }
   }
