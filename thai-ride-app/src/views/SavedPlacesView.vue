@@ -12,7 +12,7 @@ import type { PlaceResult } from "../composables/usePlaceSearch";
 
 const router = useRouter();
 const route = useRoute();
-const { showSuccess, showError, showWarning, showInfo } = useToast();
+const { success: showSuccess, error: showError, warning: showWarning, info: showInfo } = useToast();
 const {
   savedPlaces,
   recentPlaces,
@@ -164,15 +164,108 @@ const modalTitle = computed(() => {
   return "เพิ่มสถานที่";
 });
 
-// Check if form is valid
-const isFormValid = computed(() => {
-  return (
-    newPlace.value.name.trim() &&
-    newPlace.value.address.trim() &&
-    newPlace.value.lat &&
-    newPlace.value.lng
-  );
+// Smart validation with helpful messages
+const validationErrors = computed(() => {
+  const errors: string[] = [];
+  
+  if (!newPlace.value.name.trim()) {
+    errors.push('กรุณาใส่ชื่อสถานที่');
+  }
+  
+  if (!newPlace.value.address.trim()) {
+    errors.push('กรุณาเลือกที่อยู่จากการค้นหา');
+  }
+  
+  if (!newPlace.value.lat || !newPlace.value.lng) {
+    errors.push('กรุณาเลือกตำแหน่งบนแผนที่');
+  }
+  
+  // Check for duplicate names (except when editing)
+  if (newPlace.value.name.trim() && !editingPlace.value) {
+    const isDuplicate = savedPlaces.value.some(
+      p => p.name.toLowerCase() === newPlace.value.name.toLowerCase().trim()
+    );
+    if (isDuplicate) {
+      errors.push('มีสถานที่ชื่อนี้อยู่แล้ว');
+    }
+  }
+  
+  return errors;
 });
+
+const isFormValid = computed(() => validationErrors.value.length === 0);
+
+// Smart name suggestions based on address
+const nameSuggestions = computed(() => {
+  if (!newPlace.value.address || newPlace.value.name.trim()) return [];
+  
+  const suggestions: string[] = [];
+  const address = newPlace.value.address.toLowerCase();
+  
+  // Extract potential names from address
+  const parts = newPlace.value.address.split(',').map(p => p.trim());
+  
+  // First part is usually the most specific
+  if (parts[0] && parts[0].length < 50) {
+    suggestions.push(parts[0]);
+  }
+  
+  // Check for common place types
+  const placeTypes = [
+    { keywords: ['ร้าน', 'shop', 'store'], prefix: 'ร้าน' },
+    { keywords: ['โรงแรม', 'hotel'], prefix: 'โรงแรม' },
+    { keywords: ['ห้าง', 'mall', 'plaza'], prefix: 'ห้าง' },
+    { keywords: ['โรงพยาบาล', 'hospital'], prefix: 'โรงพยาบาล' },
+    { keywords: ['สถานี', 'station'], prefix: 'สถานี' },
+    { keywords: ['สนามบิน', 'airport'], prefix: 'สนามบิน' },
+  ];
+  
+  for (const type of placeTypes) {
+    if (type.keywords.some(k => address.includes(k))) {
+      const match = parts.find(p => type.keywords.some(k => p.toLowerCase().includes(k)));
+      if (match) suggestions.push(match);
+    }
+  }
+  
+  return [...new Set(suggestions)].slice(0, 3);
+});
+
+// Auto-detect if address is near home/work
+const proximityWarning = computed(() => {
+  if (!newPlace.value.lat || !newPlace.value.lng) return null;
+  
+  const checkProximity = (place: any, label: string) => {
+    if (!place?.lat || !place?.lng) return null;
+    
+    const distance = calculateDistance(
+      newPlace.value.lat,
+      newPlace.value.lng,
+      place.lat,
+      place.lng
+    );
+    
+    if (distance < 0.1) { // Less than 100 meters
+      return `ใกล้กับ${label}มาก (${Math.round(distance * 1000)}m)`;
+    }
+    return null;
+  };
+  
+  return checkProximity(homePlace.value, 'บ้าน') || 
+         checkProximity(workPlace.value, 'ที่ทำงาน');
+});
+
+// Calculate distance between two points (in km)
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
 
 const placeTypes = [
   {
@@ -439,7 +532,15 @@ const savePlace = async () => {
         fetchSavedPlaces().catch(() => {}),
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ]);
+      
+      // Close modal BEFORE showing success message to prevent cleanup errors
       showAddModal.value = false;
+      
+      // Wait for modal to close completely
+      await nextTick();
+      
+      // Small delay to ensure cleanup is done
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const typeLabel =
         newPlace.value.type === "home"
@@ -477,24 +578,45 @@ const savePlace = async () => {
     showError(errorMsg);
   } finally {
     saving.value = false;
+    // Clear timeout if it exists
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 };
 
 // Handle search result selection in modal
 const handleSearchSelect = (place: PlaceResult) => {
-  // Keep existing name if it's a default (home/work), otherwise use place name
-  if (
-    !newPlace.value.name ||
-    newPlace.value.name === "บ้าน" ||
-    newPlace.value.name === "ที่ทำงาน"
-  ) {
-    // Keep the default name for home/work
-  } else {
-    newPlace.value.name = place.name;
-  }
+  // Auto-fill address and coordinates
   newPlace.value.address = place.address;
   newPlace.value.lat = place.lat;
   newPlace.value.lng = place.lng;
+  
+  // Smart name handling
+  if (newPlace.value.type === 'home' || newPlace.value.type === 'work') {
+    // Keep default name for home/work unless user changed it
+    if (!newPlace.value.name || 
+        newPlace.value.name === 'บ้าน' || 
+        newPlace.value.name === 'ที่ทำงาน') {
+      // Keep the default
+    } else {
+      // User typed something, use place name
+      newPlace.value.name = place.name;
+    }
+  } else {
+    // For "other" type, use place name
+    newPlace.value.name = place.name;
+  }
+  
+  // Auto-detect category from address
+  const detectedCategory = autoDetectCategory(place.name, place.address);
+  newPlace.value.category = detectedCategory;
+  
+  // Trigger haptic feedback
+  triggerHaptic('medium');
+  
+  // Show success toast
+  showInfo('เลือกสถานที่แล้ว');
 };
 
 const deletePlace = async (id: string) => {
@@ -1955,7 +2077,21 @@ const copyPlaceLink = async () => {
             v-model="newPlace.name"
             type="text"
             placeholder="เช่น บ้านแม่, ออฟฟิศ"
+            :class="{ 'input-error': validationErrors.some(e => e.includes('ชื่อ')) }"
           />
+          
+          <!-- Name Suggestions -->
+          <div v-if="nameSuggestions.length > 0 && !newPlace.name.trim()" class="name-suggestions">
+            <span class="suggestion-label">แนะนำ:</span>
+            <button
+              v-for="(suggestion, index) in nameSuggestions"
+              :key="index"
+              class="suggestion-chip"
+              @click="newPlace.name = suggestion"
+            >
+              {{ suggestion }}
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
@@ -1968,6 +2104,24 @@ const copyPlaceLink = async () => {
             :current-lng="currentLocation?.lng"
             @select="handleSearchSelect"
           />
+          
+          <!-- Proximity Warning -->
+          <div v-if="proximityWarning" class="proximity-warning">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>{{ proximityWarning }}</span>
+          </div>
+        </div>
+
+        <!-- Validation Errors -->
+        <div v-if="validationErrors.length > 0" class="validation-errors">
+          <div v-for="(error, index) in validationErrors" :key="index" class="error-item">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+          </div>
         </div>
 
         <!-- Map Preview -->
@@ -3931,3 +4085,333 @@ const copyPlaceLink = async () => {
   background: #fef2f2;
 }
 </style>
+
+/* ============================================ */
+/* Smart Modal Enhancements */
+/* ============================================ */
+
+/* Name Suggestions */
+.name-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 8px 0;
+}
+
+.suggestion-label {
+  font-size: 12px;
+  color: #999999;
+  font-weight: 500;
+}
+
+.suggestion-chip {
+  padding: 6px 12px;
+  background: #e8f5ef;
+  border: 1px solid #d4ede3;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #00a86b;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+
+.suggestion-chip:hover {
+  background: #d4ede3;
+  border-color: #00a86b;
+}
+
+.suggestion-chip:active {
+  transform: scale(0.95);
+  background: #00a86b;
+  color: #fff;
+}
+
+/* Proximity Warning */
+.proximity-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #fff3e0;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #e65100;
+}
+
+.proximity-warning svg {
+  flex-shrink: 0;
+  color: #ff9800;
+}
+
+/* Validation Errors */
+.validation-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background: #ffebee;
+  border-radius: 10px;
+  border-left: 3px solid #f44336;
+}
+
+.error-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #c62828;
+  margin-bottom: 6px;
+}
+
+.error-item:last-child {
+  margin-bottom: 0;
+}
+
+.error-item svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Input Error State */
+.input-error {
+  border-color: #f44336 !important;
+  background: #ffebee !important;
+}
+
+.input-error:focus {
+  border-color: #f44336 !important;
+  box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.1) !important;
+}
+
+/* Enhanced Form Group */
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666666;
+  margin-bottom: 8px;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: all 0.15s;
+  background: #fff;
+}
+
+.form-group input[type="text"]:focus {
+  outline: none;
+  border-color: #00a86b;
+  background: #f8fbf9;
+  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+}
+
+.form-group input[type="text"]::placeholder {
+  color: #cccccc;
+}
+
+/* Enhanced Modal Actions */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.btn-primary {
+  flex: 1;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.2);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 168, 107, 0.2);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #cccccc;
+  box-shadow: none;
+}
+
+.btn-delete {
+  padding: 14px 20px;
+  background: #fff;
+  border: 2px solid #f44336;
+  border-radius: 12px;
+  color: #f44336;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #ffebee;
+}
+
+.btn-delete:active:not(:disabled) {
+  transform: scale(0.98);
+  background: #f44336;
+  color: #fff;
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Enhanced Type Options */
+.type-options {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.type-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background: #f5f5f5;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.type-btn:active {
+  transform: scale(0.95);
+}
+
+.type-btn.active {
+  background: #e8f5ef;
+  border-color: #00a86b;
+}
+
+.type-btn svg {
+  width: 24px;
+  height: 24px;
+  color: #666666;
+  transition: color 0.15s;
+}
+
+.type-btn.active svg {
+  color: #00a86b;
+}
+
+.type-btn span {
+  font-size: 12px;
+  color: #666666;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.type-btn.active span {
+  color: #00a86b;
+  font-weight: 600;
+}
+
+/* Map Preview Enhancements */
+.map-preview {
+  margin-top: 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid #e8e8e8;
+  background: #f8f9fa;
+}
+
+.map-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  font-size: 13px;
+  color: #666666;
+  font-weight: 500;
+}
+
+.map-preview-header svg {
+  color: #00a86b;
+}
+
+.map-preview-container {
+  height: 180px;
+  background: #e8e8e8;
+}
+
+.map-preview-address {
+  padding: 10px 12px;
+  background: #fff;
+  font-size: 12px;
+  color: #666666;
+  line-height: 1.4;
+  border-top: 1px solid #e8e8e8;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 380px) {
+  .category-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .type-options {
+    flex-direction: column;
+  }
+  
+  .type-btn {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 12px 14px;
+  }
+}
+
+/* Loading State for Save Button */
+.btn-primary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary:disabled span::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

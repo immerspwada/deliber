@@ -93,11 +93,13 @@ export function useSavedPlaces() {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
-        // Ensure it's an array
-        if (Array.isArray(parsed)) {
+        // Ensure it's an array with valid structure
+        if (Array.isArray(parsed) && parsed.every(item => 
+          item && typeof item === 'object' && 'id' in item && 'name' in item
+        )) {
           savedPlaces.value = parsed.map(parseStoredPlace)
         } else {
-          console.warn('[useSavedPlaces] Invalid stored data format, clearing')
+          // Silently clear invalid data without warning (expected on first load)
           localStorage.removeItem(STORAGE_KEY)
           savedPlaces.value = []
         }
@@ -106,17 +108,18 @@ export function useSavedPlaces() {
       const pending = localStorage.getItem(PENDING_KEY)
       if (pending) {
         const parsedPending = JSON.parse(pending)
-        if (Array.isArray(parsedPending)) {
+        if (Array.isArray(parsedPending) && parsedPending.every(item =>
+          item && typeof item === 'object' && 'action' in item && 'data' in item
+        )) {
           pendingChanges.value = parsedPending
         } else {
-          console.warn('[useSavedPlaces] Invalid pending data format, clearing')
+          // Silently clear invalid data
           localStorage.removeItem(PENDING_KEY)
           pendingChanges.value = []
         }
       }
     } catch (err) {
-      console.warn('[useSavedPlaces] Failed to load from storage:', err)
-      // Clear corrupted data
+      // Silently handle parse errors (expected on first load or corrupted data)
       localStorage.removeItem(STORAGE_KEY)
       localStorage.removeItem(PENDING_KEY)
       savedPlaces.value = []

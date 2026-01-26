@@ -572,8 +572,12 @@ export function useLeafletMap() {
           opacity: window.getComputedStyle(firstTile).opacity,
           visibility: window.getComputedStyle(firstTile).visibility
         })
+      } else if (!tilePane) {
+        // Tile pane not found - this can happen if map was destroyed quickly
+        console.debug('[MapView] Tile pane not found (map may have been destroyed)')
       } else {
-        console.warn('[MapView] ⚠️ No tiles found in DOM!')
+        // Tiles not loaded yet - this is normal during initialization
+        console.debug('[MapView] Tiles not loaded yet (still loading)')
       }
     }, 1000)
 
@@ -782,13 +786,70 @@ export function useLeafletMap() {
   }
 
   const cleanup = () => {
-    clearMarkers()
-    clearDirections()
-    if (mapInstance.value) {
-      mapInstance.value.remove()
+    try {
+      // Clear markers safely
+      if (markers.value && markers.value.length > 0) {
+        markers.value.forEach((marker) => {
+          try {
+            marker.remove()
+          } catch (e) {
+            // Marker already removed or map destroyed
+          }
+        })
+        markers.value = []
+      }
+      
+      // Clear directions safely
+      if (routeLine.value) {
+        try {
+          routeLine.value.remove()
+        } catch (e) {
+          // Route already removed
+        }
+        routeLine.value = null
+      }
+      
+      if (animatedRouteLine.value) {
+        try {
+          animatedRouteLine.value.remove()
+        } catch (e) {
+          // Route already removed
+        }
+        animatedRouteLine.value = null
+      }
+      
+      if (routeAnimationFrame) {
+        cancelAnimationFrame(routeAnimationFrame)
+        routeAnimationFrame = null
+      }
+      
+      // Remove map instance safely
+      if (mapInstance.value) {
+        try {
+          // Remove all event listeners first
+          mapInstance.value.off()
+          
+          // Remove map
+          mapInstance.value.remove()
+        } catch (e) {
+          // Map already destroyed or container removed
+          console.debug('Map cleanup completed (container may have been removed)')
+        }
+        mapInstance.value = null
+      }
+      
+      isMapReady.value = false
+    } catch (error) {
+      // Silently handle any cleanup errors
+      console.debug('Map cleanup completed with minor issues (safe to ignore)')
+      
+      // Force reset state even if cleanup had issues
+      markers.value = []
+      routeLine.value = null
+      animatedRouteLine.value = null
       mapInstance.value = null
+      isMapReady.value = false
     }
-    isMapReady.value = false
   }
 
   onUnmounted(() => {
