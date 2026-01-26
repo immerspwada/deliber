@@ -28,6 +28,7 @@ const props = defineProps<{
   canBook: boolean
   isBooking: boolean
   isLoadingVehicles: boolean
+  isCalculatingFare?: boolean // ✅ NEW: Loading state for fare calculation
   notes?: string
 }>()
 
@@ -265,7 +266,16 @@ function getVehicleIcon(icon: string): string {
             </Transition>
           </div>
           <span class="vehicle-name">{{ v.name }}</span>
-          <span class="vehicle-price">฿{{ Math.round(estimatedFare * v.multiplier) }}</span>
+          
+          <!-- ✅ NEW: Show loading spinner or price -->
+          <span v-if="isCalculatingFare" class="vehicle-price calculating">
+            <svg class="price-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 11-6.219-8.56" />
+            </svg>
+            คำนวน...
+          </span>
+          <span v-else class="vehicle-price">฿{{ Math.round(estimatedFare * v.multiplier) }}</span>
+          
           <span class="vehicle-eta">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10" />
@@ -631,6 +641,29 @@ function getVehicleIcon(icon: string): string {
   font-size: 17px;
   font-weight: 700;
   color: #00a86b;
+}
+
+/* ✅ NEW: Loading state for price calculation */
+.vehicle-price.calculating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #999;
+  font-weight: 500;
+}
+
+.price-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .vehicle-eta {
