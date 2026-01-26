@@ -36,14 +36,10 @@ export function useAdminAPI() {
     isLoading.value = true
     error.value = null
     
-    console.log('[Admin API] getCustomers called with:', { filters, pagination })
-    
     try {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      console.log('[Admin API] Building query for users table...')
-      
       // Build query directly on users table
       let query = supabase
         .from('users')
@@ -66,13 +62,6 @@ export function useAdminAPI() {
         .range(offset, offset + limit - 1)
 
       const { data, error: queryError, count } = await query
-
-      console.log('[Admin API] Query result:', { 
-        dataLength: data?.length, 
-        count, 
-        error: queryError,
-        firstItem: data?.[0]
-      })
 
       if (queryError) {
         console.error('[Admin API] Query error:', queryError)
@@ -193,8 +182,6 @@ export function useAdminAPI() {
     isLoading.value = true
     error.value = null
 
-    console.log('[Admin API] getProviders called with:', { filters, pagination })
-
     try {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
@@ -240,13 +227,6 @@ export function useAdminAPI() {
         .range(offset, offset + limit - 1)
 
       const { data, error: queryError, count } = await query
-
-      console.log('[Admin API] getProviders result:', { 
-        dataLength: data?.length, 
-        count, 
-        error: queryError,
-        firstItem: data?.[0]
-      })
 
       if (queryError) {
         console.error('[Admin API] getProviders error:', queryError)
@@ -323,8 +303,6 @@ export function useAdminAPI() {
   }
 
   async function getVerificationQueue(): Promise<Provider[]> {
-    console.log('[Admin API] getVerificationQueue called')
-    
     try {
       // Query directly from providers_v2 table with pending status
       const { data, error: queryError } = await supabase
@@ -345,11 +323,6 @@ export function useAdminAPI() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(50)
-
-      console.log('[Admin API] getVerificationQueue result:', { 
-        dataLength: data?.length, 
-        error: queryError 
-      })
 
       if (queryError) throw queryError
 
@@ -386,8 +359,6 @@ export function useAdminAPI() {
   ): Promise<PaginatedResult<Order>> {
     isLoading.value = true
     error.value = null
-
-    console.log('[Admin API] getOrdersEnhanced called with:', { filters, pagination })
 
     try {
       const { page, limit } = pagination
@@ -542,21 +513,20 @@ export function useAdminAPI() {
       }
     ): Promise<boolean> {
       try {
-        console.log('[Admin API] updateOrderStatus called:', { orderId, status, options })
-        
-        const tableName = options?.serviceType ? `${options.serviceType}_requests` : 'ride_requests'
-        
-        // Verify authentication first
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('[Admin API] Current session:', { 
-          hasSession: !!session, 
-          userId: session?.user?.id,
-          expiresAt: session?.expires_at 
-        })
-        
-        if (!session) {
-          throw new Error('No active session - please login again')
+        // Map service types to correct table names
+        // Note: 'queue' service type uses ride_requests table
+        const tableNameMap: Record<string, string> = {
+          ride: 'ride_requests',
+          queue: 'ride_requests', // Queue bookings are stored in ride_requests
+          delivery: 'delivery_requests',
+          shopping: 'shopping_requests',
+          moving: 'moving_requests',
+          laundry: 'laundry_requests',
         }
+        
+        const tableName = options?.serviceType 
+          ? tableNameMap[options.serviceType] || 'ride_requests'
+          : 'ride_requests'
         
         // Build update object
         const updateData: Record<string, any> = { status }
@@ -569,71 +539,26 @@ export function useAdminAPI() {
             throw new Error('Not authenticated')
           }
           
-          console.log('[Admin API] Cancelling as admin:', user.id)
-          
           updateData.cancelled_at = new Date().toISOString()
           updateData.cancelled_by = user.id // Use admin's user ID (UUID)
           updateData.cancelled_by_role = 'admin' // Store role separately
           updateData.cancel_reason = options?.cancelReason || 'ยกเลิกโดย Admin'
         }
         
-        console.log('[Admin API] Updating table:', tableName, 'with data:', updateData)
-        
-        const { data, error: updateError } = await supabase
+        const { error: updateError } = await supabase
           .from(tableName as any)
           .update(updateData)
           .eq('id', orderId)
-          .select()
-
-        console.log('[Admin API] Update result:', { data, error: updateError })
 
         if (updateError) {
-          console.error('[Admin API] Update error details:', {
-            message: updateError.message,
-            code: updateError.code,
-            details: updateError.details,
-            hint: updateError.hint
-          })
+          console.error('[Admin API] Update error:', updateError.message)
           throw updateError
-        }
-        
-        // Send notification to customer about status change
-        try {
-          // Get order details to find user_id
-          const { data: orderData } = await supabase
-            .from(tableName as any)
-            .select('user_id, tracking_id')
-            .eq('id', orderId)
-            .single()
-          
-          if (orderData?.user_id) {
-            const statusMessages: Record<string, string> = {
-              cancelled: `คำสั่ง ${orderData.tracking_id} ถูกยกเลิกแล้ว`,
-              completed: `คำสั่ง ${orderData.tracking_id} เสร็จสิ้นแล้ว`,
-              in_progress: `คำสั่ง ${orderData.tracking_id} กำลังดำเนินการ`,
-            }
-            
-            const message = statusMessages[status] || `สถานะคำสั่ง ${orderData.tracking_id} เปลี่ยนเป็น ${status}`
-            
-            // Map service type to notification type
-            const notificationType = options?.serviceType || 'ride'
-            
-            await supabase.from('user_notifications' as any).insert({
-              user_id: orderData.user_id,
-              type: notificationType,
-              title: status === 'cancelled' ? 'คำสั่งถูกยกเลิก' : 'อัพเดทสถานะคำสั่ง',
-              message,
-              data: { order_id: orderId, tracking_id: orderData.tracking_id, status }
-            })
-          }
-        } catch (notifyError) {
-          console.error('Failed to send notification:', notifyError)
-          // Don't fail the whole operation if notification fails
         }
         
         return true
       } catch (e) {
         error.value = e instanceof Error ? e.message : 'Failed to update order'
+        console.error('[Admin API] updateOrderStatus error:', e)
         return false
       }
     }
@@ -1081,8 +1006,6 @@ export function useAdminAPI() {
       // Use RPC function to bypass RLS (works with demo mode)
       const { data, error: queryError } = await (supabase.rpc as any)('get_admin_dashboard_stats') as RpcResponse<any>
 
-      console.log('[Admin API] getDashboardStats result:', { data, error: queryError })
-
       if (queryError) throw queryError
 
       if (data) {
@@ -1335,8 +1258,6 @@ export function useAdminAPI() {
       const { page, limit } = pagination
       const offset = (page - 1) * limit
 
-      console.log('[Admin API] getProvidersV2Enhanced called with:', { filters, pagination, sorting })
-
       const { data, error: queryError } = await (supabase.rpc as any)('get_all_providers_v2_for_admin', {
         p_status: filters.status || null,
         p_service_type: filters.serviceType || null,
@@ -1368,13 +1289,6 @@ export function useAdminAPI() {
 
       const total = countData || 0
 
-      console.log('[Admin API] Enhanced providers result:', { 
-        dataLength: data?.length, 
-        total, 
-        totalPages: Math.ceil(total / limit),
-        firstItem: data?.[0]
-      })
-
       return {
         data: data || [],
         total,
@@ -1393,16 +1307,12 @@ export function useAdminAPI() {
 
   async function getProvidersV2Analytics(): Promise<any> {
     try {
-      console.log('[Admin API] getProvidersV2Analytics called')
-
       const { data, error: queryError } = await (supabase.rpc as any)('get_providers_v2_analytics_for_admin') as RpcResponse<any>
 
       if (queryError) {
         console.error('[Admin API] Analytics RPC error:', queryError)
         throw queryError
       }
-
-      console.log('[Admin API] Analytics result:', data)
 
       return data || {
         overview: {
@@ -1451,8 +1361,6 @@ export function useAdminAPI() {
     notes?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('[Admin API] approveProviderV2Enhanced called with:', { providerId, adminId, serviceTypes, notes })
-
       const { data, error: queryError } = await (supabase.rpc as any)('approve_provider_v2_enhanced', {
         p_provider_id: providerId,
         p_admin_id: adminId || null,
@@ -1464,8 +1372,6 @@ export function useAdminAPI() {
         console.error('[Admin API] Approve RPC error:', queryError)
         throw queryError
       }
-
-      console.log('[Admin API] Approve result:', data)
 
       return data || { success: false, error: 'No response data' }
     } catch (e) {
@@ -1481,8 +1387,6 @@ export function useAdminAPI() {
     reason?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('[Admin API] rejectProviderV2Enhanced called with:', { providerId, adminId, reason })
-
       const { data, error: queryError } = await (supabase.rpc as any)('reject_provider_v2_enhanced', {
         p_provider_id: providerId,
         p_admin_id: adminId || null,
@@ -1493,8 +1397,6 @@ export function useAdminAPI() {
         console.error('[Admin API] Reject RPC error:', queryError)
         throw queryError
       }
-
-      console.log('[Admin API] Reject result:', data)
 
       return data || { success: false, error: 'No response data' }
     } catch (e) {
@@ -1510,8 +1412,6 @@ export function useAdminAPI() {
     reason?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('[Admin API] suspendProviderV2Enhanced called with:', { providerId, adminId, reason })
-
       const { data, error: queryError } = await (supabase.rpc as any)('suspend_provider_v2_enhanced', {
         p_provider_id: providerId,
         p_admin_id: adminId || null,
@@ -1522,8 +1422,6 @@ export function useAdminAPI() {
         console.error('[Admin API] Suspend RPC error:', queryError)
         throw queryError
       }
-
-      console.log('[Admin API] Suspend result:', data)
 
       return data || { success: false, error: 'No response data' }
     } catch (e) {

@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useAdminAPI } from "../composables/useAdminAPI";
 import { useAdminUIStore } from "../stores/adminUI.store";
 import { useAdminRealtime } from "../composables/useAdminRealtime";
+import { useRealtimeOrder } from "@/composables/useRealtimeOrder";
+import { useRealtimeNotifications } from "@/composables/useRealtimeNotifications";
 import { useDebounceFn } from "@vueuse/core";
 import type { Order, OrderFilters, OrderStatus } from "../types";
 import StatusDropdown from "../components/StatusDropdown.vue";
@@ -11,6 +13,8 @@ import OrderReassignmentModal from "../components/OrderReassignmentModal.vue";
 const api = useAdminAPI();
 const uiStore = useAdminUIStore();
 const realtime = useAdminRealtime();
+const realtimeOrder = useRealtimeOrder();
+const realtimeNotifications = useRealtimeNotifications();
 
 // Enhanced state management
 const orders = ref<Order[]>([]);
@@ -108,12 +112,6 @@ const sortOptions = [
 
 // Enhanced API functions
 async function loadOrders() {
-  console.log("[OrdersView] loadOrders called with filters:", filters.value);
-  console.log("[OrdersView] pagination:", {
-    page: currentPage.value,
-    limit: pageSize.value,
-  });
-
   loadError.value = null;
 
   try {
@@ -122,28 +120,6 @@ async function loadOrders() {
       page: currentPage.value,
       limit: pageSize.value,
     });
-
-    console.log("[OrdersView] API result:", {
-      dataLength: result.data.length,
-      total: result.total,
-      totalPages: result.totalPages,
-      firstItem: result.data[0],
-    });
-
-    // Debug evidence fields
-    const ordersWithEvidence = result.data.filter(
-      (o: any) => o.pickup_photo || o.dropoff_photo,
-    );
-    console.log(
-      "[OrdersView] Orders with evidence:",
-      ordersWithEvidence.length,
-      ordersWithEvidence.map((o: any) => ({
-        tracking_id: o.tracking_id,
-        pickup_photo: o.pickup_photo,
-        dropoff_photo: o.dropoff_photo,
-        arrived_at: o.arrived_at,
-      })),
-    );
 
     if (api.error.value) {
       loadError.value = api.error.value;
@@ -256,11 +232,11 @@ async function updateStatus() {
 
 // Inline status update (for dropdown)
 async function updateStatusInline(order: Order, newStatus: OrderStatus) {
-  console.log("[OrdersView] updateStatusInline:", {
-    orderId: order.id,
-    oldStatus: order.status,
-    newStatus,
-  });
+  // Optimistic update - update UI immediately
+  const orderIndex = orders.value.findIndex((o) => o.id === order.id);
+  if (orderIndex !== -1) {
+    orders.value[orderIndex].status = newStatus;
+  }
 
   const success = await api.updateOrderStatus(order.id, newStatus, {
     serviceType: order.service_type as any,
@@ -270,14 +246,16 @@ async function updateStatusInline(order: Order, newStatus: OrderStatus) {
     uiStore.showSuccess(
       `เปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}" เรียบร้อย`,
     );
-    // Update local state immediately for better UX
-    const orderIndex = orders.value.findIndex((o) => o.id === order.id);
-    if (orderIndex !== -1) {
-      orders.value[orderIndex].status = newStatus;
-    }
-    // Reload to get fresh data
-    loadOrders();
+    
+    // Wait a bit for database to commit, then reload
+    setTimeout(() => {
+      loadOrders();
+    }, 500);
   } else {
+    // Revert optimistic update on failure
+    if (orderIndex !== -1) {
+      orders.value[orderIndex].status = order.status;
+    }
     uiStore.showError(api.error.value || "เกิดข้อผิดพลาดในการเปลี่ยนสถานะ");
   }
 }
@@ -500,20 +478,25 @@ onMounted(() => {
   uiStore.setBreadcrumbs([{ label: "Orders" }, { label: "ออเดอร์ทั้งหมด" }]);
   loadOrders();
 
-  // Setup realtime subscriptions for all order tables with smart updates
-  realtime.subscribeToOrders((table, eventType, payload) => {
-    console.log(`[OrdersView] Realtime update: ${table} ${eventType}`, payload);
+  // Setup NEW realtime subscriptions with smart updates
+  realtimeOrder.subscribe({
+    onOrderCreated: (order) => {
+      // Show notification
+      realtimeNotifications.showOrderCreated(order.tracking_id || 'ใหม่');
+      
+      // Reload to show new order
+      loadOrders();
+    },
     
-    // Smart update: Only update the affected order instead of reloading everything
-    if (eventType === 'UPDATE' && payload.new) {
-      const updatedOrderId = payload.new.id;
-      const orderIndex = orders.value.findIndex((o) => o.id === updatedOrderId);
+    onOrderUpdated: (order) => {
+      // Find order in current list
+      const orderIndex = orders.value.findIndex((o) => o.id === order.id);
       
       if (orderIndex !== -1) {
         // Mark as realtime updated for highlight animation
-        realtimeUpdatedOrders.value.add(updatedOrderId);
+        realtimeUpdatedOrders.value.add(order.id);
         
-        // Fetch only the updated order
+        // Fetch only the updated order with full details
         api.getOrdersEnhanced(
           { search: orders.value[orderIndex].tracking_id },
           { page: 1, limit: 1 }
@@ -521,44 +504,100 @@ onMounted(() => {
           if (result.data.length > 0) {
             // Update only this order in the list (Realtime!)
             orders.value[orderIndex] = result.data[0];
-            uiStore.showInfo(
-              `⚡ ${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)} (Realtime)`,
-              { duration: 2000 }
+            
+            // Show notification
+            realtimeNotifications.showOrderUpdated(
+              result.data[0].tracking_id || 'ออเดอร์',
+              result.data[0].status
             );
             
             // Remove highlight after animation completes
             setTimeout(() => {
-              realtimeUpdatedOrders.value.delete(updatedOrderId);
+              realtimeUpdatedOrders.value.delete(order.id);
             }, 2000);
           }
         });
       } else {
-        // New order or order not in current view - reload all
+        // Order not in current view - might need to reload if filters match
         loadOrders();
       }
-    } else if (eventType === 'INSERT') {
-      // New order created - reload to show it
-      loadOrders();
-      uiStore.showInfo(
-        `✨ ${realtime.getEventLabel(eventType)} - ${realtime.getTableLabel(table)}`,
-      );
-    } else if (eventType === 'DELETE') {
-      // Order deleted - remove from list
-      const deletedOrderId = payload.old?.id;
-      if (deletedOrderId) {
-        const orderIndex = orders.value.findIndex((o) => o.id === deletedOrderId);
-        if (orderIndex !== -1) {
-          orders.value.splice(orderIndex, 1);
-          totalOrders.value--;
-          uiStore.showInfo('🗑️ ออเดอร์ถูกลบ (Realtime)');
-        }
+    },
+    
+    onOrderStatusChanged: (orderId, newStatus, oldStatus) => {
+      // Find order in current list
+      const orderIndex = orders.value.findIndex((o) => o.id === orderId);
+      
+      if (orderIndex !== -1) {
+        // Mark as realtime updated
+        realtimeUpdatedOrders.value.add(orderId);
+        
+        // Update status immediately for instant feedback
+        orders.value[orderIndex].status = newStatus;
+        
+        // Show notification
+        realtimeNotifications.showStatusChanged(
+          orders.value[orderIndex].tracking_id || 'ออเดอร์',
+          newStatus
+        );
+        
+        // Fetch full updated order data
+        api.getOrdersEnhanced(
+          { search: orders.value[orderIndex].tracking_id },
+          { page: 1, limit: 1 }
+        ).then((result) => {
+          if (result.data.length > 0) {
+            orders.value[orderIndex] = result.data[0];
+          }
+        });
+        
+        // Remove highlight after animation
+        setTimeout(() => {
+          realtimeUpdatedOrders.value.delete(orderId);
+        }, 2000);
+      }
+    },
+    
+    onProviderAssigned: (orderId, providerId) => {
+      // Find order in current list
+      const orderIndex = orders.value.findIndex((o) => o.id === orderId);
+      
+      if (orderIndex !== -1) {
+        // Mark as realtime updated
+        realtimeUpdatedOrders.value.add(orderId);
+        
+        // Fetch updated order with provider info
+        api.getOrdersEnhanced(
+          { search: orders.value[orderIndex].tracking_id },
+          { page: 1, limit: 1 }
+        ).then((result) => {
+          if (result.data.length > 0) {
+            orders.value[orderIndex] = result.data[0];
+            
+            // Show notification
+            realtimeNotifications.showProviderAssigned(
+              result.data[0].tracking_id || 'ออเดอร์',
+              result.data[0].provider_name || 'ผู้ให้บริการ'
+            );
+          }
+        });
+        
+        // Remove highlight after animation
+        setTimeout(() => {
+          realtimeUpdatedOrders.value.delete(orderId);
+        }, 2000);
       }
     }
+  });
+
+  // Keep old realtime for backward compatibility (will be removed later)
+  realtime.subscribeToOrders((table, eventType, payload) => {
+    // Legacy realtime handler - will be removed after migration
   });
 });
 
 onUnmounted(() => {
   realtime.unsubscribe();
+  realtimeOrder.unsubscribe();
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value);
   }
@@ -648,12 +687,12 @@ function getVisiblePages() {
             <span
               class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all"
               :class="
-                realtime.isConnected.value
+                realtimeOrder.isConnected.value
                   ? 'bg-green-100 text-green-700'
                   : 'bg-gray-100 text-gray-600'
               "
               :title="
-                realtime.isConnected.value
+                realtimeOrder.isConnected.value
                   ? 'Realtime เชื่อมต่อแล้ว'
                   : 'กำลังเชื่อมต่อ...'
               "
@@ -661,18 +700,18 @@ function getVisiblePages() {
               <span
                 class="w-2 h-2 rounded-full"
                 :class="
-                  realtime.isConnected.value
+                  realtimeOrder.isConnected.value
                     ? 'bg-green-500 animate-pulse'
                     : 'bg-gray-400'
                 "
               ></span>
-              {{ realtime.isConnected.value ? "Live" : "..." }}
+              {{ realtimeOrder.isConnected.value ? "Live" : "..." }}
             </span>
             <span
-              v-if="realtime.lastUpdate.value"
+              v-if="realtimeOrder.lastUpdate.value"
               class="text-xs text-gray-500"
             >
-              อัพเดท: {{ formatTime(realtime.lastUpdate.value) }}
+              อัพเดท: {{ formatTime(realtimeOrder.lastUpdate.value) }}
             </span>
           </p>
         </div>
