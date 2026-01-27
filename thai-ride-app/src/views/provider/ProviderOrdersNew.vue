@@ -52,9 +52,10 @@ const showMapPreview = ref(false)
 const realtimeChannel = ref<any>(null)
 const selectedOrderForMap = ref<Order | null>(null)
 const orders = ref<Order[]>([])
-const selectedOrders = ref<Set<string>>(new Set())
+const selectedOrderId = ref<string | null>(null) // เปลี่ยนเป็น single selection
 const alwaysBestRoute = ref(true)
 const serviceFilter = ref<ServiceFilter>('all')
+const hasActiveJob = ref(false) // เช็คว่ามีงานที่กำลังทำอยู่หรือไม่
 
 // Computed - Filtered orders
 const filteredOrders = computed(() => {
@@ -74,59 +75,91 @@ const queueOrders = computed(() =>
 // Computed - Counts
 const rideCount = computed(() => rideOrders.value.length)
 const queueCount = computed(() => queueOrders.value.length)
-const selectedRideCount = computed(() => 
-  rideOrders.value.filter(o => selectedOrders.value.has(o.id)).length
-)
-const selectedQueueCount = computed(() => 
-  queueOrders.value.filter(o => selectedOrders.value.has(o.id)).length
-)
 
-// Computed - Earnings
+// Computed - Selected order
+const selectedOrder = computed(() => {
+  if (!selectedOrderId.value) return null
+  return orders.value.find(o => o.id === selectedOrderId.value) || null
+})
+
+const selectedServiceType = computed(() => selectedOrder.value?.service_type)
+
+// Computed - Earnings (single order)
 const totalEarnings = computed(() => {
-  return orders.value
-    .filter(o => selectedOrders.value.has(o.id))
-    .reduce((sum, o) => {
-      const fare = (o.paid_amount && o.paid_amount > 0 ? o.paid_amount : null) 
-        ?? (o.final_fare && o.final_fare > 0 ? o.final_fare : null)
-        ?? (o.actual_fare && o.actual_fare > 0 ? o.actual_fare : null)
-        ?? o.estimated_fare 
-        ?? 0
-      return sum + fare
-    }, 0)
+  if (!selectedOrder.value) return 0
+  const order = selectedOrder.value
+  const fare = (order.paid_amount && order.paid_amount > 0 ? order.paid_amount : null) 
+    ?? (order.final_fare && order.final_fare > 0 ? order.final_fare : null)
+    ?? (order.actual_fare && order.actual_fare > 0 ? order.actual_fare : null)
+    ?? order.estimated_fare 
+    ?? 0
+  return fare
 })
 
 const totalDiscount = computed(() => {
-  return orders.value
-    .filter(o => selectedOrders.value.has(o.id))
-    .reduce((sum, o) => sum + (o.promo_discount_amount || 0), 0)
+  return selectedOrder.value?.promo_discount_amount || 0
 })
 
 const totalTips = computed(() => {
-  return orders.value
-    .filter(o => selectedOrders.value.has(o.id))
-    .reduce((sum, o) => sum + (o.tip_amount || 0), 0)
+  return selectedOrder.value?.tip_amount || 0
 })
 
 const totalDistance = computed(() => {
-  return orders.value
-    .filter(o => selectedOrders.value.has(o.id))
-    .reduce((sum, o) => sum + (o.distance || 0), 0)
+  return selectedOrder.value?.distance || 0
 })
 
 const totalEstEarnings = computed(() => {
   return totalEarnings.value + totalTips.value
 })
 
-const dropPointsCount = computed(() => selectedOrders.value.size)
-
 // Computed - Has orders
 const hasOrders = computed(() => orders.value.length > 0)
-const hasSelectedOrders = computed(() => selectedOrders.value.size > 0)
+const hasSelectedOrder = computed(() => selectedOrderId.value !== null)
+const canAcceptJobs = computed(() => !hasActiveJob.value)
 
 // Methods
+async function checkActiveJob() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Get provider ID
+    const { data: provider } = await (supabase
+      .from('providers_v2')
+      .select('id')
+      .eq('user_id', user.id)
+      .single() as any)
+
+    if (!provider) return
+
+    // Check for active ride requests
+    const { data: activeRides } = await (supabase
+      .from('ride_requests')
+      .select('id, status')
+      .eq('provider_id', provider.id)
+      .in('status', ['matched', 'pickup', 'in_progress'])
+      .limit(1) as any)
+
+    // Check for active queue bookings
+    const { data: activeQueues } = await ((supabase as any)
+      .from('queue_bookings')
+      .select('id, status')
+      .eq('provider_id', provider.id)
+      .in('status', ['confirmed', 'in_progress'])
+      .limit(1))
+
+    hasActiveJob.value = (activeRides && activeRides.length > 0) || (activeQueues && activeQueues.length > 0)
+  } catch (err) {
+    console.error('[Orders] Check active job error:', err)
+  }
+}
+
 async function loadOrders() {
   loading.value = true
   try {
+    // Check for active jobs first
+    await checkActiveJob()
+
     // Load both ride requests and queue bookings
     const [ridesResult, queueResult] = await Promise.all([
       supabase
@@ -189,10 +222,10 @@ async function loadOrders() {
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
     
-    // Select all by default
-    const newSelection = new Set<string>()
-    orders.value.forEach(o => newSelection.add(o.id))
-    selectedOrders.value = newSelection
+    // Auto-select first order only if no active job
+    if (!hasActiveJob.value && orders.value.length > 0) {
+      selectedOrderId.value = orders.value[0].id
+    }
   } catch (err) {
     console.error('[Orders] Error:', err)
   } finally {
@@ -222,22 +255,12 @@ function getFareDisplay(order: typeof orders.value[0]): string {
 }
 
 function toggleOrder(orderId: string) {
-  if (selectedOrders.value.has(orderId)) {
-    selectedOrders.value.delete(orderId)
+  // Radio button behavior - select only one
+  if (selectedOrderId.value === orderId) {
+    selectedOrderId.value = null // Deselect if clicking same order
   } else {
-    selectedOrders.value.add(orderId)
+    selectedOrderId.value = orderId // Select new order
   }
-  selectedOrders.value = new Set(selectedOrders.value)
-}
-
-function selectAll() {
-  filteredOrders.value.forEach(o => selectedOrders.value.add(o.id))
-  selectedOrders.value = new Set(selectedOrders.value)
-}
-
-function deselectAll() {
-  selectedOrders.value.clear()
-  selectedOrders.value = new Set(selectedOrders.value)
 }
 
 function setServiceFilter(filter: ServiceFilter) {
@@ -269,8 +292,12 @@ function closeMapPreview() {
   selectedOrderForMap.value = null
 }
 
-async function acceptOrders() {
-  if (selectedOrders.value.size === 0) return
+async function acceptOrder() {
+  if (!selectedOrderId.value) return
+  if (hasActiveJob.value) {
+    alert('คุณมีงานที่กำลังทำอยู่ กรุณาทำงานเดิมให้เสร็จก่อน')
+    return
+  }
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
@@ -292,17 +319,11 @@ async function acceptOrders() {
       return
     }
 
-    // Separate ride requests and queue bookings
-    const selectedOrdersList = Array.from(selectedOrders.value)
-    const rideOrders = orders.value.filter(o => 
-      selectedOrdersList.includes(o.id) && o.service_type === 'ride'
-    )
-    const queueOrders = orders.value.filter(o => 
-      selectedOrdersList.includes(o.id) && o.service_type === 'queue'
-    )
+    const order = selectedOrder.value
+    if (!order) return
 
-    // Accept ride requests
-    for (const order of rideOrders) {
+    // Accept based on service type
+    if (order.service_type === 'ride') {
       const { error: updateError } = await (supabase
         .from('ride_requests') as any)
         .update({
@@ -319,10 +340,7 @@ async function acceptOrders() {
         alert(`ไม่สามารถรับงานได้: ${updateError.message}`)
         return
       }
-    }
-
-    // Accept queue bookings
-    for (const order of queueOrders) {
+    } else if (order.service_type === 'queue') {
       const { error: updateError } = await ((supabase as any)
         .from('queue_bookings')
         .update({
@@ -340,19 +358,11 @@ async function acceptOrders() {
       }
     }
 
-    // Navigate to first job detail (prefer ride over queue)
-    const firstOrderId = rideOrders[0]?.id || queueOrders[0]?.id
-    if (firstOrderId) {
-      router.push(`/provider/job/${firstOrderId}`)
-    }
+    // Navigate to job detail
+    router.push(`/provider/job/${order.id}`)
   } catch (err) {
     console.error('[Orders] Accept error:', err)
   }
-}
-
-function customSelect() {
-  // Clear selection and let user pick
-  selectedOrders.value = new Set()
 }
 
 function goBack() {
@@ -417,9 +427,10 @@ function setupRealtimeSubscription() {
         // Add to beginning of list
         orders.value = [jobWithDistance, ...orders.value]
         
-        // Auto-select new job
-        selectedOrders.value.add(newJob.id)
-        selectedOrders.value = new Set(selectedOrders.value)
+        // Auto-select new job only if no active job and no current selection
+        if (!hasActiveJob.value && !selectedOrderId.value) {
+          selectedOrderId.value = newJob.id
+        }
       }
     )
     .on(
@@ -462,9 +473,10 @@ function setupRealtimeSubscription() {
         // Add to beginning of list
         orders.value = [queueOrder, ...orders.value]
         
-        // Auto-select new job
-        selectedOrders.value.add(newQueue.id)
-        selectedOrders.value = new Set(selectedOrders.value)
+        // Auto-select new job only if no active job and no current selection
+        if (!hasActiveJob.value && !selectedOrderId.value) {
+          selectedOrderId.value = newQueue.id
+        }
       }
     )
     .on(
@@ -481,8 +493,9 @@ function setupRealtimeSubscription() {
         // Remove job if it's no longer pending (someone else took it)
         if (updated.status !== 'pending') {
           orders.value = orders.value.filter(o => o.id !== updated.id)
-          selectedOrders.value.delete(updated.id)
-          selectedOrders.value = new Set(selectedOrders.value)
+          if (selectedOrderId.value === updated.id) {
+            selectedOrderId.value = null
+          }
         }
       }
     )
@@ -500,8 +513,9 @@ function setupRealtimeSubscription() {
         // Remove job if it's no longer pending
         if (updated.status !== 'pending') {
           orders.value = orders.value.filter(o => o.id !== updated.id)
-          selectedOrders.value.delete(updated.id)
-          selectedOrders.value = new Set(selectedOrders.value)
+          if (selectedOrderId.value === updated.id) {
+            selectedOrderId.value = null
+          }
         }
       }
     )
@@ -516,8 +530,9 @@ function setupRealtimeSubscription() {
         console.log('[Orders] Job deleted:', payload.old)
         const deleted = payload.old as { id: string }
         orders.value = orders.value.filter(o => o.id !== deleted.id)
-        selectedOrders.value.delete(deleted.id)
-        selectedOrders.value = new Set(selectedOrders.value)
+        if (selectedOrderId.value === deleted.id) {
+          selectedOrderId.value = null
+        }
       }
     )
     .subscribe((status) => {
@@ -591,19 +606,28 @@ function setupRealtimeSubscription() {
         </button>
       </div>
 
+      <!-- Active Job Warning -->
+      <div v-if="hasActiveJob" class="warning-card">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+          <h3 class="warning-title">คุณมีงานที่กำลังทำอยู่</h3>
+          <p class="warning-text">กรุณาทำงานเดิมให้เสร็จก่อน จึงจะสามารถรับงานใหม่ได้</p>
+        </div>
+      </div>
+
       <!-- Earnings Summary Card -->
-      <div v-if="hasSelectedOrders" class="earnings-card">
+      <div v-if="hasSelectedOrder" class="earnings-card">
         <div class="earnings-header">
           <h2 class="earnings-title">รายได้โดยประมาณ</h2>
           <div class="earnings-count">
-            <span v-if="selectedRideCount > 0">🚗 {{ selectedRideCount }}</span>
-            <span v-if="selectedQueueCount > 0">📅 {{ selectedQueueCount }}</span>
+            <span v-if="selectedServiceType === 'ride'">🚗 เรียกรถ</span>
+            <span v-else-if="selectedServiceType === 'queue'">📅 จองคิว</span>
           </div>
         </div>
         
         <div class="earnings-main">
           <span class="earnings-amount">฿{{ totalEstEarnings.toFixed(0) }}</span>
-          <span class="earnings-label">จาก {{ dropPointsCount }} งาน</span>
+          <span class="earnings-label">จาก 1 งาน</span>
         </div>
 
         <div class="earnings-breakdown">
@@ -626,31 +650,6 @@ function setupRealtimeSubscription() {
         </div>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="quick-actions">
-        <button 
-          class="quick-action-btn"
-          :class="{ active: selectedOrders.size === filteredOrders.length }"
-          @click="selectAll"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-          </svg>
-          เลือกทั้งหมด
-        </button>
-        <button 
-          class="quick-action-btn"
-          :disabled="!hasSelectedOrders"
-          @click="deselectAll"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-          </svg>
-          ยกเลิกทั้งหมด
-        </button>
-      </div>
-
       <!-- Orders List -->
       <div class="orders-section">
         <div class="section-header">
@@ -669,13 +668,11 @@ function setupRealtimeSubscription() {
             v-for="order in rideOrders" 
             :key="order.id"
             class="order-card"
-            :class="{ selected: selectedOrders.has(order.id) }"
-            @click="toggleOrder(order.id)"
+            :class="{ selected: selectedOrderId === order.id, disabled: hasActiveJob }"
+            @click="!hasActiveJob && toggleOrder(order.id)"
           >
-            <div class="order-checkbox">
-              <svg v-if="selectedOrders.has(order.id)" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-              </svg>
+            <div class="order-radio">
+              <div v-if="selectedOrderId === order.id" class="radio-dot"></div>
             </div>
 
             <div class="order-content">
@@ -730,13 +727,11 @@ function setupRealtimeSubscription() {
             v-for="order in queueOrders" 
             :key="order.id"
             class="order-card"
-            :class="{ selected: selectedOrders.has(order.id) }"
-            @click="toggleOrder(order.id)"
+            :class="{ selected: selectedOrderId === order.id, disabled: hasActiveJob }"
+            @click="!hasActiveJob && toggleOrder(order.id)"
           >
-            <div class="order-checkbox">
-              <svg v-if="selectedOrders.has(order.id)" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-              </svg>
+            <div class="order-radio">
+              <div v-if="selectedOrderId === order.id" class="radio-dot"></div>
             </div>
 
             <div class="order-content">
@@ -777,14 +772,17 @@ function setupRealtimeSubscription() {
     <footer v-if="!loading" class="actions">
       <button 
         class="accept-btn" 
-        :disabled="!hasSelectedOrders" 
-        @click="acceptOrders"
+        :disabled="!hasSelectedOrder || hasActiveJob" 
+        @click="acceptOrder"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 13l4 4L19 7" />
         </svg>
-        <span v-if="hasSelectedOrders">
-          รับ {{ selectedOrders.size }} งาน (฿{{ totalEstEarnings.toFixed(0) }})
+        <span v-if="hasActiveJob">
+          มีงานที่กำลังทำอยู่
+        </span>
+        <span v-else-if="hasSelectedOrder">
+          รับงาน (฿{{ totalEstEarnings.toFixed(0) }})
         </span>
         <span v-else>เลือกงานที่ต้องการรับ</span>
       </button>
@@ -976,6 +974,40 @@ function setupRealtimeSubscription() {
   padding-bottom: 100px;
 }
 
+/* ===== Warning Card ===== */
+.warning-card {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #FEF3C7;
+  border: 2px solid #F59E0B;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.warning-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.warning-content {
+  flex: 1;
+}
+
+.warning-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #92400E;
+  margin: 0 0 4px 0;
+}
+
+.warning-text {
+  font-size: 13px;
+  color: #92400E;
+  margin: 0;
+  line-height: 1.4;
+}
+
 /* ===== Filter Tabs ===== */
 .filter-tabs {
   display: flex;
@@ -1125,52 +1157,6 @@ function setupRealtimeSubscription() {
   color: #FCA5A5;
 }
 
-/* ===== Quick Actions ===== */
-.quick-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.quick-action-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: #FFFFFF;
-  border: 2px solid #E5E7EB;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #6B7280;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 48px;
-}
-
-.quick-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.quick-action-btn:not(:disabled):active {
-  transform: scale(0.98);
-  background: #F9FAFB;
-}
-
-.quick-action-btn.active {
-  border-color: #00A86B;
-  color: #00A86B;
-  background: #E8F5EF;
-}
-
-.quick-action-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
 /* ===== Orders Section ===== */
 .orders-section {
   margin-bottom: 16px;
@@ -1245,27 +1231,37 @@ function setupRealtimeSubscription() {
   box-shadow: 0 2px 8px rgba(0, 168, 107, 0.15);
 }
 
-.order-checkbox {
+.order-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.order-card.disabled:active {
+  transform: none;
+}
+
+.order-radio {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
   border: 2px solid #D1D5DB;
-  border-radius: 8px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
 }
 
-.order-card.selected .order-checkbox {
-  background: #00A86B;
+.order-card.selected .order-radio {
   border-color: #00A86B;
-  color: #FFFFFF;
+  background: #FFFFFF;
 }
 
-.order-checkbox svg {
-  width: 18px;
-  height: 18px;
+.radio-dot {
+  width: 14px;
+  height: 14px;
+  background: #00A86B;
+  border-radius: 50%;
 }
 
 .order-content {
