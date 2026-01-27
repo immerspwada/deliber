@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
- * ProviderOrdersNew - หน้ารายละเอียด Orders
- * Design: ตาม reference UI (หน้าขวา)
+ * ProviderOrdersNew - หน้ารายละเอียด Orders (Enhanced UX/UI)
  * 
- * Features:
- * - Route display (Your location -> Drop points)
- * - Earnings breakdown
- * - Accept/Decline buttons
- * - Realtime updates for new jobs
- * - Preview map for selected orders
+ * Improvements:
+ * - Service type badges and grouping
+ * - Better visual hierarchy
+ * - Smart filtering by service type
+ * - Enhanced earnings display
+ * - Empty states
+ * - Larger touch targets
+ * - Cleaner layout with better spacing
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -37,11 +38,13 @@ interface Order {
   tip_amount: number | null
   distance: number
   created_at: string
-  service_type?: 'ride' | 'queue' // เพิ่ม service type
-  scheduled_date?: string // สำหรับ queue booking
-  scheduled_time?: string // สำหรับ queue booking
-  place_name?: string // สำหรับ queue booking
+  service_type?: 'ride' | 'queue'
+  scheduled_date?: string
+  scheduled_time?: string
+  place_name?: string
 }
+
+type ServiceFilter = 'all' | 'ride' | 'queue'
 
 // State
 const loading = ref(true)
@@ -51,14 +54,38 @@ const selectedOrderForMap = ref<Order | null>(null)
 const orders = ref<Order[]>([])
 const selectedOrders = ref<Set<string>>(new Set())
 const alwaysBestRoute = ref(true)
+const serviceFilter = ref<ServiceFilter>('all')
 
-// Computed - ใช้ราคาที่ลูกค้าจ่ายจริง (ข้าม 0 หรือ null)
+// Computed - Filtered orders
+const filteredOrders = computed(() => {
+  if (serviceFilter.value === 'all') return orders.value
+  return orders.value.filter(o => o.service_type === serviceFilter.value)
+})
+
+// Computed - Grouped orders
+const rideOrders = computed(() => 
+  filteredOrders.value.filter(o => o.service_type === 'ride')
+)
+
+const queueOrders = computed(() => 
+  filteredOrders.value.filter(o => o.service_type === 'queue')
+)
+
+// Computed - Counts
+const rideCount = computed(() => rideOrders.value.length)
+const queueCount = computed(() => queueOrders.value.length)
+const selectedRideCount = computed(() => 
+  rideOrders.value.filter(o => selectedOrders.value.has(o.id)).length
+)
+const selectedQueueCount = computed(() => 
+  queueOrders.value.filter(o => selectedOrders.value.has(o.id)).length
+)
+
+// Computed - Earnings
 const totalEarnings = computed(() => {
   return orders.value
     .filter(o => selectedOrders.value.has(o.id))
     .reduce((sum, o) => {
-      // ใช้ราคาตามลำดับ: paid_amount > final_fare > actual_fare > estimated_fare
-      // ข้าม 0 เพราะอาจยังไม่ได้ set
       const fare = (o.paid_amount && o.paid_amount > 0 ? o.paid_amount : null) 
         ?? (o.final_fare && o.final_fare > 0 ? o.final_fare : null)
         ?? (o.actual_fare && o.actual_fare > 0 ? o.actual_fare : null)
@@ -92,6 +119,10 @@ const totalEstEarnings = computed(() => {
 
 const dropPointsCount = computed(() => selectedOrders.value.size)
 
+// Computed - Has orders
+const hasOrders = computed(() => orders.value.length > 0)
+const hasSelectedOrders = computed(() => selectedOrders.value.size > 0)
+
 // Methods
 async function loadOrders() {
   loading.value = true
@@ -104,7 +135,7 @@ async function loadOrders() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(10),
-      supabase
+      (supabase as any)
         .from('queue_bookings')
         .select('id, tracking_id, place_name, place_address, scheduled_date, scheduled_time, service_fee, created_at')
         .eq('status', 'pending')
@@ -194,7 +225,36 @@ function toggleOrder(orderId: string) {
   } else {
     selectedOrders.value.add(orderId)
   }
-  selectedOrders.value = new Set(selectedOrders.value) // Trigger reactivity
+  selectedOrders.value = new Set(selectedOrders.value)
+}
+
+function selectAll() {
+  filteredOrders.value.forEach(o => selectedOrders.value.add(o.id))
+  selectedOrders.value = new Set(selectedOrders.value)
+}
+
+function deselectAll() {
+  selectedOrders.value.clear()
+  selectedOrders.value = new Set(selectedOrders.value)
+}
+
+function setServiceFilter(filter: ServiceFilter) {
+  serviceFilter.value = filter
+}
+
+function getServiceIcon(serviceType: 'ride' | 'queue' | undefined): string {
+  if (serviceType === 'queue') return '📅'
+  return '🚗'
+}
+
+function getServiceLabel(serviceType: 'ride' | 'queue' | undefined): string {
+  if (serviceType === 'queue') return 'จองคิว'
+  return 'เรียกรถ'
+}
+
+function getServiceColor(serviceType: 'ride' | 'queue' | undefined): string {
+  if (serviceType === 'queue') return 'queue'
+  return 'ride'
 }
 
 function openMapPreview(order: typeof orders.value[0]) {
@@ -261,15 +321,15 @@ async function acceptOrders() {
 
     // Accept queue bookings
     for (const order of queueOrders) {
-      const { error: updateError } = await (supabase
-        .from('queue_bookings') as any)
+      const { error: updateError } = await ((supabase as any)
+        .from('queue_bookings')
         .update({
           provider_id: provider.id,
           status: 'confirmed',
           confirmed_at: new Date().toISOString()
         })
         .eq('id', order.id)
-        .eq('status', 'pending')
+        .eq('status', 'pending'))
 
       if (updateError) {
         console.error('[Orders] Accept queue error:', updateError)
@@ -473,122 +533,140 @@ function setupRealtimeSubscription() {
           <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
-      <h1 class="title">งาน</h1>
+      <h1 class="title">งานที่พร้อมรับ</h1>
       <div class="header-spacer"></div>
     </header>
 
     <!-- Loading -->
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
+      <p class="loading-text">กำลังโหลดงาน...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else-if="!hasOrders" class="empty-state">
+      <div class="empty-icon">📭</div>
+      <h2 class="empty-title">ยังไม่มีงานใหม่</h2>
+      <p class="empty-description">เมื่อมีงานใหม่เข้ามา จะแสดงที่นี่ทันที</p>
+      <button class="refresh-btn" @click="loadOrders">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 4v6h6M23 20v-6h-6" />
+          <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+        </svg>
+        รีเฟรช
+      </button>
     </div>
 
     <!-- Content -->
     <main v-else class="content">
-      <!-- Route Display -->
-      <div class="route-card">
-        <div class="route-item">
-          <div class="route-dot green"></div>
-          <div class="route-line"></div>
-          <span class="route-label">ตำแหน่งของคุณ</span>
+      <!-- Service Type Filter -->
+      <div class="filter-tabs">
+        <button 
+          class="filter-tab"
+          :class="{ active: serviceFilter === 'all' }"
+          @click="setServiceFilter('all')"
+        >
+          <span class="tab-label">ทั้งหมด</span>
+          <span class="tab-badge">{{ orders.length }}</span>
+        </button>
+        <button 
+          class="filter-tab"
+          :class="{ active: serviceFilter === 'ride' }"
+          @click="setServiceFilter('ride')"
+        >
+          <span class="tab-icon">🚗</span>
+          <span class="tab-label">เรียกรถ</span>
+          <span class="tab-badge">{{ rideCount }}</span>
+        </button>
+        <button 
+          class="filter-tab"
+          :class="{ active: serviceFilter === 'queue' }"
+          @click="setServiceFilter('queue')"
+        >
+          <span class="tab-icon">📅</span>
+          <span class="tab-label">จองคิว</span>
+          <span class="tab-badge">{{ queueCount }}</span>
+        </button>
+      </div>
+
+      <!-- Earnings Summary Card -->
+      <div v-if="hasSelectedOrders" class="earnings-card">
+        <div class="earnings-header">
+          <h2 class="earnings-title">รายได้โดยประมาณ</h2>
+          <div class="earnings-count">
+            <span v-if="selectedRideCount > 0">🚗 {{ selectedRideCount }}</span>
+            <span v-if="selectedQueueCount > 0">📅 {{ selectedQueueCount }}</span>
+          </div>
         </div>
         
-        <div class="route-item destination">
-          <div class="route-dot red"></div>
-          <div class="route-info">
-            <span class="route-address">
-              {{ orders.length > 0 ? orders[0].destination_address : 'ไม่มีจุดหมาย' }}
-            </span>
+        <div class="earnings-main">
+          <span class="earnings-amount">฿{{ totalEstEarnings.toFixed(0) }}</span>
+          <span class="earnings-label">จาก {{ dropPointsCount }} งาน</span>
+        </div>
+
+        <div class="earnings-breakdown">
+          <div class="breakdown-item">
+            <span class="breakdown-label">ค่าบริการ</span>
+            <span class="breakdown-value">฿{{ totalEarnings.toFixed(0) }}</span>
           </div>
-          <button 
-            v-if="orders.length > 0"
-            class="drop-points-btn"
-            type="button"
-            aria-label="ดูแผนที่"
-            @click="openMapPreview(orders[0])"
-          >
-            {{ dropPointsCount }} จุดส่ง
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <button 
-            v-else
-            class="drop-points-btn"
-            disabled
-            type="button"
-          >
-            0 จุดส่ง
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
+          <div v-if="totalTips > 0" class="breakdown-item">
+            <span class="breakdown-label">ทิป</span>
+            <span class="breakdown-value tip">+฿{{ totalTips.toFixed(0) }}</span>
+          </div>
+          <div v-if="totalDiscount > 0" class="breakdown-item">
+            <span class="breakdown-label">ส่วนลด</span>
+            <span class="breakdown-value discount">-฿{{ totalDiscount.toFixed(0) }}</span>
+          </div>
+          <div v-if="totalDistance > 0" class="breakdown-item">
+            <span class="breakdown-label">ระยะทาง</span>
+            <span class="breakdown-value">{{ totalDistance.toFixed(1) }} กม.</span>
+          </div>
         </div>
       </div>
 
-      <!-- Earnings Summary -->
-      <div class="earnings-card">
-        <div class="earnings-row main">
-          <span class="earnings-label">ราคาที่ลูกค้าจ่าย</span>
-          <span class="earnings-value">฿{{ totalEarnings.toFixed(2) }}</span>
-        </div>
-        
-        <div class="earnings-grid">
-          <div v-if="totalDiscount > 0" class="earnings-item">
-            <span class="item-label">ส่วนลดโปรโม</span>
-            <span class="item-value discount">-฿{{ totalDiscount.toFixed(2) }}</span>
-          </div>
-          <div class="earnings-item">
-            <span class="item-label">ทิปรวม</span>
-            <span class="item-value">฿{{ totalTips.toFixed(2) }}</span>
-          </div>
-          <div class="earnings-item">
-            <span class="item-label">ระยะทางรวม</span>
-            <span class="item-value">{{ totalDistance.toFixed(1) }} กม.</span>
-          </div>
-        </div>
-
-        <div class="earnings-row total">
-          <span class="earnings-label">รายได้โดยประมาณ</span>
-          <span class="earnings-value">฿{{ totalEstEarnings.toFixed(2) }}</span>
-        </div>
-
-        <!-- Best Route Toggle -->
-        <div class="route-toggle">
-          <div class="toggle-info">
-            <span class="toggle-label">เลือกเส้นทางที่ดีที่สุดเสมอ ไม่สนใจการจราจร</span>
-          </div>
-          <button 
-            class="toggle-btn"
-            :class="{ active: alwaysBestRoute }"
-            aria-label="สลับเส้นทางที่ดีที่สุด"
-            @click="alwaysBestRoute = !alwaysBestRoute"
-          >
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
-          </button>
-          <button class="info-btn" aria-label="ข้อมูลเพิ่มเติม">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4M12 8h.01" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Orders List (Collapsible) -->
-      <details class="orders-list">
-        <summary class="orders-summary">
-          <span>{{ orders.length }} งานที่พร้อมรับ</span>
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <button 
+          class="quick-action-btn"
+          :class="{ active: selectedOrders.size === filteredOrders.length }"
+          @click="selectAll"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M6 9l6 6 6-6" />
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
           </svg>
-        </summary>
-        <div class="orders-content">
+          เลือกทั้งหมด
+        </button>
+        <button 
+          class="quick-action-btn"
+          :disabled="!hasSelectedOrders"
+          @click="deselectAll"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+          ยกเลิกทั้งหมด
+        </button>
+      </div>
+
+      <!-- Orders List -->
+      <div class="orders-section">
+        <div class="section-header">
+          <h3 class="section-title">รายการงาน</h3>
+          <span class="section-count">{{ filteredOrders.length }} งาน</span>
+        </div>
+
+        <!-- Ride Orders -->
+        <div v-if="rideOrders.length > 0 && (serviceFilter === 'all' || serviceFilter === 'ride')" class="orders-group">
+          <div v-if="serviceFilter === 'all'" class="group-label">
+            <span class="group-icon">🚗</span>
+            <span class="group-text">เรียกรถ ({{ rideOrders.length }})</span>
+          </div>
+          
           <div 
-            v-for="order in orders" 
+            v-for="order in rideOrders" 
             :key="order.id"
-            class="order-item"
+            class="order-card"
             :class="{ selected: selectedOrders.has(order.id) }"
             @click="toggleOrder(order.id)"
           >
@@ -597,40 +675,116 @@ function setupRealtimeSubscription() {
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
               </svg>
             </div>
-            <div class="order-info">
-              <span class="order-address">{{ order.destination_address }}</span>
-              <div class="order-meta">
-                <span>{{ order.distance.toFixed(1) }} กม.</span>
-                <span class="order-fare">
-                  ฿{{ getFareDisplay(order) }}</span>
-                <span v-if="order.promo_code" class="order-promo">
-                  🎫 {{ order.promo_code }}
+
+            <div class="order-content">
+              <div class="order-header">
+                <span class="service-badge ride">
+                  <span class="badge-icon">🚗</span>
+                  <span class="badge-text">เรียกรถ</span>
                 </span>
+                <span class="order-fare">฿{{ getFareDisplay(order) }}</span>
               </div>
-              <div v-if="order.promo_discount_amount && order.promo_discount_amount > 0" class="order-discount">
-                ส่วนลด -฿{{ order.promo_discount_amount.toFixed(0) }}
+
+              <div class="order-route">
+                <div class="route-point pickup">
+                  <div class="route-dot"></div>
+                  <span class="route-text">{{ order.pickup_address }}</span>
+                </div>
+                <div class="route-line"></div>
+                <div class="route-point dropoff">
+                  <div class="route-dot"></div>
+                  <span class="route-text">{{ order.destination_address }}</span>
+                </div>
               </div>
-            </div>
-            <div class="order-payment">
-              <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
-              <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
-              <span v-else class="payment-badge">{{ order.payment_method || 'N/A' }}</span>
+
+              <div class="order-footer">
+                <span class="order-distance">{{ order.distance.toFixed(1) }} กม.</span>
+                <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+                <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                <span v-if="order.promo_code" class="promo-badge">🎫 {{ order.promo_code }}</span>
+                <button 
+                  class="map-btn"
+                  @click.stop="openMapPreview(order)"
+                  aria-label="ดูแผนที่"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </details>
+
+        <!-- Queue Orders -->
+        <div v-if="queueOrders.length > 0 && (serviceFilter === 'all' || serviceFilter === 'queue')" class="orders-group">
+          <div v-if="serviceFilter === 'all'" class="group-label">
+            <span class="group-icon">📅</span>
+            <span class="group-text">จองคิว ({{ queueOrders.length }})</span>
+          </div>
+          
+          <div 
+            v-for="order in queueOrders" 
+            :key="order.id"
+            class="order-card"
+            :class="{ selected: selectedOrders.has(order.id) }"
+            @click="toggleOrder(order.id)"
+          >
+            <div class="order-checkbox">
+              <svg v-if="selectedOrders.has(order.id)" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+              </svg>
+            </div>
+
+            <div class="order-content">
+              <div class="order-header">
+                <span class="service-badge queue">
+                  <span class="badge-icon">📅</span>
+                  <span class="badge-text">จองคิว</span>
+                </span>
+                <span class="order-fare">฿{{ getFareDisplay(order) }}</span>
+              </div>
+
+              <div class="queue-info">
+                <div class="info-row">
+                  <span class="info-label">สถานที่:</span>
+                  <span class="info-value">{{ order.place_name || order.pickup_address }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">วันที่:</span>
+                  <span class="info-value">{{ order.scheduled_date }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">เวลา:</span>
+                  <span class="info-value">{{ order.scheduled_time }}</span>
+                </div>
+              </div>
+
+              <div class="order-footer">
+                <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+                <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Bottom Actions -->
-    <footer class="actions">
-      <button class="accept-btn" :disabled="selectedOrders.size === 0" @click="acceptOrders">
+    <footer v-if="hasOrders" class="actions">
+      <button 
+        class="accept-btn" 
+        :disabled="!hasSelectedOrders" 
+        @click="acceptOrders"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 13l4 4L19 7" />
         </svg>
-        รับ {{ selectedOrders.size }} งาน
-      </button>
-      <button class="custom-btn" @click="customSelect">
-        ไม่ ฉันจะเลือกเอง
+        <span v-if="hasSelectedOrders">
+          รับ {{ selectedOrders.size }} งาน (฿{{ totalEstEarnings.toFixed(0) }})
+        </span>
+        <span v-else>เลือกงานที่ต้องการรับ</span>
       </button>
     </footer>
 
@@ -645,6 +799,14 @@ function setupRealtimeSubscription() {
           class="map-modal-content"
           @click.stop
         >
+          <div class="modal-header">
+            <h3 class="modal-title">แผนที่เส้นทาง</h3>
+            <button class="modal-close" @click="closeMapPreview" aria-label="ปิด">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
           <JobPreviewMap
             v-if="selectedOrderForMap"
             :pickup-lat="selectedOrderForMap.pickup_lat"
@@ -663,29 +825,31 @@ function setupRealtimeSubscription() {
 </template>
 
 <style scoped>
+/* ===== Base ===== */
 .orders-page {
   min-height: 100vh;
-  background: #FFFFFF;
+  background: #F9FAFB;
   display: flex;
   flex-direction: column;
 }
 
-/* Header */
+/* ===== Header ===== */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #E5E5E5;
+  padding: 16px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
   position: sticky;
   top: 0;
-  background: #FFFFFF;
   z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
+  min-width: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -693,6 +857,12 @@ function setupRealtimeSubscription() {
   border: none;
   cursor: pointer;
   color: #111827;
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+
+.back-btn:active {
+  background: #F3F4F6;
 }
 
 .back-btn svg {
@@ -701,409 +871,552 @@ function setupRealtimeSubscription() {
 }
 
 .title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   color: #111827;
   margin: 0;
 }
 
 .header-spacer {
-  width: 40px;
+  width: 44px;
 }
 
-/* Loading */
+/* ===== Loading ===== */
 .loading-state {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 16px;
+  padding: 40px 20px;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #E5E7EB;
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E5E7EB;
   border-top-color: #00A86B;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+  font-size: 15px;
+  color: #6B7280;
+  margin: 0;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-/* Content */
-.content {
+/* ===== Empty State ===== */
+.empty-state {
   flex: 1;
-  padding: 20px 16px;
-  padding-bottom: 160px;
-}
-
-/* Route Card */
-.route-card {
-  margin-bottom: 24px;
-}
-
-.route-item {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  position: relative;
-  padding-left: 4px;
-}
-
-.route-item.destination {
-  margin-top: 16px;
-}
-
-.route-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-
-.route-dot.green {
-  background: #00A86B;
-}
-
-.route-dot.red {
-  background: #EF4444;
-}
-
-.route-line {
-  position: absolute;
-  left: 9px;
-  top: 20px;
-  width: 2px;
-  height: 24px;
-  background: repeating-linear-gradient(
-    to bottom,
-    #D1D5DB 0px,
-    #D1D5DB 4px,
-    transparent 4px,
-    transparent 8px
-  );
-}
-
-.route-label {
-  font-size: 15px;
-  color: #6B7280;
-}
-
-.route-info {
-  flex: 1;
-}
-
-.route-address {
-  font-size: 15px;
-  color: #111827;
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.drop-points-btn {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #00A86B;
-  cursor: pointer;
-  margin-left: auto;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
 }
 
-.drop-points-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Earnings Card */
-.earnings-card {
-  background: #F9FAFB;
-  border-radius: 16px;
-  padding: 20px;
+.empty-icon {
+  font-size: 64px;
   margin-bottom: 16px;
 }
 
-.earnings-row {
+.empty-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.empty-description {
+  font-size: 15px;
+  color: #6B7280;
+  margin: 0 0 24px 0;
+  max-width: 300px;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #00A86B;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 48px;
+}
+
+.refresh-btn:active {
+  transform: scale(0.98);
+  background: #008F5B;
+}
+
+.refresh-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ===== Content ===== */
+.content {
+  flex: 1;
+  padding: 16px;
+  padding-bottom: 100px;
+}
+
+/* ===== Filter Tabs ===== */
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  background: #FFFFFF;
+  padding: 8px;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.filter-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 48px;
+}
+
+.filter-tab.active {
+  background: #00A86B;
+  color: #FFFFFF;
+}
+
+.filter-tab:not(.active):active {
+  background: #F3F4F6;
+}
+
+.tab-icon {
+  font-size: 18px;
+}
+
+.tab-label {
+  font-size: 14px;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filter-tab.active .tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ===== Earnings Card ===== */
+.earnings-card {
+  background: linear-gradient(135deg, #00A86B 0%, #008F5B 100%);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2);
+}
+
+.earnings-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 16px;
 }
 
-.earnings-row.main {
+.earnings-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.earnings-count {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.earnings-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin-bottom: 20px;
 }
 
-.earnings-row.total {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #E5E7EB;
+.earnings-amount {
+  font-size: 40px;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1;
 }
 
 .earnings-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #6B7280;
-  letter-spacing: 0.5px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.earnings-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.earnings-row.total .earnings-value {
-  font-size: 24px;
-}
-
-.earnings-grid {
+.earnings-breakdown {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.earnings-item {
+.breakdown-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.item-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: #9CA3AF;
-  letter-spacing: 0.5px;
+.breakdown-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.item-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: #111827;
+.breakdown-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFFFFF;
 }
 
-.item-value.discount {
-  color: #DC2626;
+.breakdown-value.tip {
+  color: #FCD34D;
 }
 
-/* Route Toggle */
-.route-toggle {
+.breakdown-value.discount {
+  color: #FCA5A5;
+}
+
+/* ===== Quick Actions ===== */
+.quick-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #E5E7EB;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-.toggle-info {
+.quick-action-btn {
   flex: 1;
-}
-
-.toggle-label {
-  font-size: 13px;
-  color: #6B7280;
-}
-
-.toggle-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-
-.toggle-track {
-  display: block;
-  width: 44px;
-  height: 24px;
-  background: #E5E7EB;
-  border-radius: 12px;
-  position: relative;
-  transition: background 0.3s;
-}
-
-.toggle-btn.active .toggle-track {
-  background: #00A86B;
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: #FFFFFF;
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: transform 0.3s;
-}
-
-.toggle-btn.active .toggle-thumb {
-  transform: translateX(20px);
-}
-
-.info-btn {
-  width: 32px;
-  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #9CA3AF;
-}
-
-.info-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-/* Orders List */
-.orders-list {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.orders-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: #111827;
-  list-style: none;
-}
-
-.orders-summary::-webkit-details-marker {
-  display: none;
-}
-
-.orders-summary svg {
-  width: 20px;
-  height: 20px;
-  color: #6B7280;
-  transition: transform 0.2s;
-}
-
-.orders-list[open] .orders-summary svg {
-  transform: rotate(180deg);
-}
-
-.orders-content {
-  border-top: 1px solid #E5E7EB;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.order-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid #F3F4F6;
+  background: #FFFFFF;
+  border: 2px solid #E5E7EB;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6B7280;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  min-height: 48px;
 }
 
-.order-item:last-child {
-  border-bottom: none;
+.quick-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.order-item:active {
+.quick-action-btn:not(:disabled):active {
+  transform: scale(0.98);
   background: #F9FAFB;
 }
 
-.order-item.selected {
+.quick-action-btn.active {
+  border-color: #00A86B;
+  color: #00A86B;
   background: #E8F5EF;
 }
 
-.order-checkbox {
-  width: 24px;
-  height: 24px;
-  border: 2px solid #D1D5DB;
-  border-radius: 6px;
+.quick-action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== Orders Section ===== */
+.orders-section {
+  margin-bottom: 16px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.section-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+/* ===== Orders Group ===== */
+.orders-group {
+  margin-bottom: 20px;
+}
+
+.group-label {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #F3F4F6;
+  border-radius: 8px;
+}
+
+.group-icon {
+  font-size: 16px;
+}
+
+.group-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+/* ===== Order Card ===== */
+.order-card {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #FFFFFF;
+  border: 2px solid #E5E7EB;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
   transition: all 0.2s;
 }
 
-.order-item.selected .order-checkbox {
+.order-card:active {
+  transform: scale(0.99);
+}
+
+.order-card.selected {
+  border-color: #00A86B;
+  background: #E8F5EF;
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.15);
+}
+
+.order-checkbox {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #D1D5DB;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.order-card.selected .order-checkbox {
   background: #00A86B;
   border-color: #00A86B;
   color: #FFFFFF;
 }
 
 .order-checkbox svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
-.order-info {
+.order-content {
   flex: 1;
   min-width: 0;
 }
 
-.order-address {
-  display: block;
-  font-size: 14px;
-  color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
-.order-meta {
-  display: flex;
+.service-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
   font-size: 12px;
-  color: #6B7280;
-  margin-top: 2px;
+  font-weight: 700;
+}
+
+.service-badge.ride {
+  background: #DBEAFE;
+  color: #1E40AF;
+}
+
+.service-badge.queue {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.badge-icon {
+  font-size: 14px;
+}
+
+.badge-text {
+  font-size: 12px;
 }
 
 .order-fare {
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 800;
   color: #00A86B;
 }
 
-.order-promo {
-  font-size: 11px;
-  color: #7C3AED;
-  background: #F3E8FF;
-  padding: 1px 6px;
-  border-radius: 4px;
+/* ===== Order Route ===== */
+.order-route {
+  margin-bottom: 12px;
 }
 
-.order-discount {
-  font-size: 11px;
-  color: #DC2626;
-  margin-top: 2px;
+.route-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
 }
 
-.order-payment {
+.route-point.dropoff {
+  margin-top: 8px;
+}
+
+.route-dot {
   flex-shrink: 0;
-  margin-left: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+
+.route-point.pickup .route-dot {
+  background: #00A86B;
+}
+
+.route-point.dropoff .route-dot {
+  background: #EF4444;
+}
+
+.route-line {
+  position: absolute;
+  left: 4px;
+  top: 18px;
+  width: 2px;
+  height: 16px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #D1D5DB 0px,
+    #D1D5DB 3px,
+    transparent 3px,
+    transparent 6px
+  );
+}
+
+.route-text {
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ===== Queue Info ===== */
+.queue-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #F9FAFB;
+  border-radius: 12px;
+}
+
+.info-row {
+  display: flex;
+  gap: 8px;
+}
+
+.info-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+  min-width: 60px;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #111827;
+  flex: 1;
+}
+
+/* ===== Order Footer ===== */
+.order-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.order-distance {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
 }
 
 .payment-badge {
-  font-size: 10px;
-  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
   border-radius: 6px;
   background: #F3F4F6;
   color: #6B7280;
@@ -1120,7 +1433,41 @@ function setupRealtimeSubscription() {
   color: #1E40AF;
 }
 
-/* Actions */
+.promo-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #F3E8FF;
+  color: #7C3AED;
+}
+
+.map-btn {
+  margin-left: auto;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F3F4F6;
+  border: none;
+  border-radius: 8px;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.map-btn:active {
+  background: #E5E7EB;
+  transform: scale(0.95);
+}
+
+.map-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== Actions ===== */
 .actions {
   position: fixed;
   bottom: 0;
@@ -1129,33 +1476,34 @@ function setupRealtimeSubscription() {
   padding: 16px;
   padding-bottom: max(16px, env(safe-area-inset-bottom));
   background: #FFFFFF;
-  border-top: 1px solid #E5E5E5;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  border-top: 1px solid #E5E7EB;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .accept-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 16px;
+  padding: 16px 24px;
   background: #00A86B;
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: #FFFFFF;
   cursor: pointer;
   transition: all 0.2s;
   min-height: 56px;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
 }
 
 .accept-btn:disabled {
   background: #D1D5DB;
+  color: #9CA3AF;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .accept-btn:not(:disabled):active {
@@ -1164,45 +1512,71 @@ function setupRealtimeSubscription() {
 }
 
 .accept-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
-.custom-btn {
-  width: 100%;
-  padding: 14px;
-  background: none;
-  border: none;
-  font-size: 15px;
-  font-weight: 500;
-  color: #6B7280;
-  cursor: pointer;
-  min-height: 48px;
-}
-
-.custom-btn:active {
-  color: #111827;
-}
-
-/* Map Modal */
+/* ===== Map Modal ===== */
 .map-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: flex-end;
   z-index: 1000;
   animation: fadeIn 0.2s ease;
+  backdrop-filter: blur(4px);
 }
 
 .map-modal-content {
   width: 100%;
-  max-height: 90vh;
+  max-height: 85vh;
   background: #FFFFFF;
-  border-radius: 20px 20px 0 0;
-  overflow-y: auto;
+  border-radius: 24px 24px 0 0;
+  overflow: hidden;
   animation: slideUp 0.3s ease;
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #E5E7EB;
+  background: #FFFFFF;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.modal-close {
+  min-width: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F3F4F6;
+  border: none;
+  border-radius: 12px;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-close:active {
+  background: #E5E7EB;
+  transform: scale(0.95);
+}
+
+.modal-close svg {
+  width: 20px;
+  height: 20px;
 }
 
 @keyframes fadeIn {
@@ -1221,6 +1595,7 @@ function setupRealtimeSubscription() {
   }
 }
 
+/* ===== Responsive ===== */
 @media (min-width: 768px) {
   .map-modal-overlay {
     align-items: center;
@@ -1229,9 +1604,14 @@ function setupRealtimeSubscription() {
 
   .map-modal-content {
     width: 90%;
-    max-width: 600px;
+    max-width: 700px;
     max-height: 80vh;
-    border-radius: 20px;
+    border-radius: 24px;
+  }
+
+  .content {
+    max-width: 800px;
+    margin: 0 auto;
   }
 }
 </style>
