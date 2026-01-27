@@ -146,14 +146,44 @@ async function initMap() {
       iconAnchor: [16, 32]
     })
     
-    // Add markers
+    // Add markers with enhanced tooltips
     pickupMarker = L.marker([props.pickupLat, props.pickupLng], { icon: pickupIcon })
       .addTo(map)
-      .bindPopup(`<strong>จุดรับ</strong><br>${props.pickupAddress || 'ไม่ระบุ'}`)
+      .bindTooltip('จุดรับ', {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -35],
+        className: 'pickup-tooltip'
+      })
+      .bindPopup(`
+        <div style="min-width: 200px;">
+          <div style="font-weight: 600; color: #10b981; margin-bottom: 6px; font-size: 14px;">
+            📍 จุดรับผู้โดยสาร
+          </div>
+          <div style="color: #374151; font-size: 13px; line-height: 1.5;">
+            ${props.pickupAddress || 'ไม่ระบุที่อยู่'}
+          </div>
+        </div>
+      `)
     
     dropoffMarker = L.marker([props.dropoffLat, props.dropoffLng], { icon: dropoffIcon })
       .addTo(map)
-      .bindPopup(`<strong>จุดส่ง</strong><br>${props.dropoffAddress || 'ไม่ระบุ'}`)
+      .bindTooltip('จุดส่ง', {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -35],
+        className: 'dropoff-tooltip'
+      })
+      .bindPopup(`
+        <div style="min-width: 200px;">
+          <div style="font-weight: 600; color: #ef4444; margin-bottom: 6px; font-size: 14px;">
+            🏁 จุดส่งผู้โดยสาร
+          </div>
+          <div style="color: #374151; font-size: 13px; line-height: 1.5;">
+            ${props.dropoffAddress || 'ไม่ระบุที่อยู่'}
+          </div>
+        </div>
+      `)
     
     // Draw route line
     routeLine = L.polyline([
@@ -250,24 +280,28 @@ onUnmounted(() => {
       <div ref="mapContainer" class="map-container"></div>
     </div>
     
-    <!-- Route Info -->
+    <!-- Route Info - Enhanced -->
     <div class="route-info">
       <div class="route-stat">
-        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-          <circle cx="12" cy="10" r="3"/>
-        </svg>
+        <div class="stat-icon-wrapper distance">
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
         <div class="stat-content">
-          <span class="stat-label">ระยะทาง</span>
+          <span class="stat-label">ระยะทางรวม</span>
           <span class="stat-value">{{ formattedDistance }}</span>
         </div>
       </div>
       <div class="route-divider"></div>
       <div class="route-stat">
-        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
+        <div class="stat-icon-wrapper time">
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
         <div class="stat-content">
           <span class="stat-label">เวลาโดยประมาณ</span>
           <span class="stat-value">{{ estimatedTime }}</span>
@@ -275,20 +309,38 @@ onUnmounted(() => {
       </div>
     </div>
     
-    <!-- Route Points -->
+    <!-- Route Points - Enhanced -->
     <div class="route-points">
       <div class="route-point">
-        <span class="point-marker pickup"></span>
+        <div class="point-marker-wrapper pickup">
+          <span class="point-marker pickup"></span>
+          <span class="point-number">1</span>
+        </div>
         <div class="point-content">
-          <span class="point-label">จุดรับ</span>
+          <div class="point-header">
+            <span class="point-label">📍 จุดรับผู้โดยสาร</span>
+            <span class="point-badge pickup">เริ่มต้น</span>
+          </div>
           <span class="point-address">{{ pickupAddress || 'ไม่ระบุที่อยู่' }}</span>
         </div>
       </div>
-      <div class="route-line-vertical"></div>
+      <div class="route-line-vertical">
+        <div class="route-line-arrow">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+          </svg>
+        </div>
+      </div>
       <div class="route-point">
-        <span class="point-marker dropoff"></span>
+        <div class="point-marker-wrapper dropoff">
+          <span class="point-marker dropoff"></span>
+          <span class="point-number">2</span>
+        </div>
         <div class="point-content">
-          <span class="point-label">จุดส่ง</span>
+          <div class="point-header">
+            <span class="point-label">🏁 จุดส่งผู้โดยสาร</span>
+            <span class="point-badge dropoff">ปลายทาง</span>
+          </div>
           <span class="point-address">{{ dropoffAddress || 'ไม่ระบุที่อยู่' }}</span>
         </div>
       </div>
@@ -393,8 +445,8 @@ onUnmounted(() => {
 .route-info {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  background: #f9fafb;
+  padding: 14px 16px;
+  background: linear-gradient(to bottom, #f9fafb, #fff);
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -402,77 +454,165 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.stat-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon-wrapper.distance {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+}
+
+.stat-icon-wrapper.time {
+  background: linear-gradient(135deg, #fce7f3, #fbcfe8);
 }
 
 .stat-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-  color: #6b7280;
+}
+
+.stat-icon-wrapper.distance .stat-icon {
+  color: #2563eb;
+}
+
+.stat-icon-wrapper.time .stat-icon {
+  color: #db2777;
 }
 
 .stat-content {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .stat-label {
   font-size: 11px;
-  color: #9ca3af;
+  color: #6b7280;
+  font-weight: 500;
 }
 
 .stat-value {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: #111;
+  letter-spacing: -0.02em;
 }
 
 .route-divider {
   width: 1px;
-  height: 32px;
-  background: #e5e7eb;
-  margin: 0 12px;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, #e5e7eb, transparent);
+  margin: 0 8px;
 }
 
 .route-points {
-  padding: 14px 16px;
+  padding: 16px;
   position: relative;
+  background: #fff;
 }
 
 .route-point {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
   position: relative;
   z-index: 1;
+  background: #fff;
 }
 
 .route-point + .route-point {
-  margin-top: 16px;
+  margin-top: 20px;
+}
+
+.point-marker-wrapper {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .point-marker {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   flex-shrink: 0;
-  margin-top: 4px;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  display: block;
 }
 
-.point-marker.pickup { background: #10b981; }
-.point-marker.dropoff { background: #ef4444; }
+.point-marker.pickup { 
+  background: #10b981;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+
+.point-marker.dropoff { 
+  background: #ef4444;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+.point-number {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.point-marker-wrapper.pickup .point-number {
+  color: #10b981;
+}
+
+.point-marker-wrapper.dropoff .point-number {
+  color: #ef4444;
+}
 
 .route-line-vertical {
   position: absolute;
-  left: 21px;
-  top: 28px;
-  bottom: 28px;
-  width: 2px;
-  background: linear-gradient(to bottom, #10b981, #ef4444);
+  left: 23px;
+  top: 36px;
+  bottom: 36px;
+  width: 3px;
+  background: linear-gradient(to bottom, #10b981, #3b82f6, #ef4444);
   z-index: 0;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.route-line-arrow {
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.route-line-arrow svg {
+  width: 14px;
+  height: 14px;
+  color: #3b82f6;
 }
 
 .point-content {
@@ -480,22 +620,52 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+.point-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .point-label {
-  display: block;
-  font-size: 11px;
-  color: #9ca3af;
-  margin-bottom: 2px;
+  font-size: 13px;
+  color: #111;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.point-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.point-badge.pickup {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.point-badge.dropoff {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .point-address {
   font-size: 13px;
-  color: #374151;
-  line-height: 1.4;
+  color: #6b7280;
+  line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  word-break: break-word;
 }
 
 .map-actions {
@@ -508,25 +678,68 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px;
-  background: #4285f4;
+  padding: 14px;
+  background: linear-gradient(135deg, #4285f4, #3367d6);
   color: #fff;
   border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
-  min-height: 44px;
+  min-height: 48px;
   transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
 }
 
 .google-maps-btn:active {
-  background: #3367d6;
+  background: linear-gradient(135deg, #3367d6, #2851a3);
   transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(66, 133, 244, 0.3);
 }
 
 .maps-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+}
+
+/* Leaflet tooltip styles */
+:deep(.pickup-tooltip) {
+  background: #10b981 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4) !important;
+}
+
+:deep(.pickup-tooltip::before) {
+  border-top-color: #10b981 !important;
+}
+
+:deep(.dropoff-tooltip) {
+  background: #ef4444 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4) !important;
+}
+
+:deep(.dropoff-tooltip::before) {
+  border-top-color: #ef4444 !important;
+}
+
+/* Leaflet popup styles */
+:deep(.leaflet-popup-content-wrapper) {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+:deep(.leaflet-popup-content) {
+  margin: 12px !important;
 }
 </style>
