@@ -190,7 +190,9 @@ async function loadOrders() {
     )
     
     // Select all by default
-    orders.value.forEach(o => selectedOrders.value.add(o.id))
+    const newSelection = new Set<string>()
+    orders.value.forEach(o => newSelection.add(o.id))
+    selectedOrders.value = newSelection
   } catch (err) {
     console.error('[Orders] Error:', err)
   } finally {
