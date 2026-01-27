@@ -226,23 +226,52 @@ async function loadProviderData() {
 }
 
 async function loadActiveJob(provId: string) {
-  const { data } = await supabase
-    .from('ride_requests')
-    .select(`
-      id,
-      tracking_id,
-      status,
-      pickup_address,
-      destination_address,
-      estimated_fare,
-      created_at,
-      user_id
-    `)
-    .eq('provider_id', provId)
-    .in('status', ['matched', 'pickup', 'in_progress'])
-    .order('accepted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle() as { data: RideRequestRow | null }
+  // Check both ride_requests and queue_bookings for active jobs
+  const [rideResult, queueResult] = await Promise.all([
+    // Check ride_requests
+    supabase
+      .from('ride_requests')
+      .select(`
+        id,
+        tracking_id,
+        status,
+        pickup_address,
+        destination_address,
+        estimated_fare,
+        created_at,
+        user_id
+      `)
+      .eq('provider_id', provId)
+      .in('status', ['matched', 'pickup', 'in_progress'])
+      .order('accepted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as { data: RideRequestRow | null },
+    
+    // Check queue_bookings (uses 'confirmed' status instead of 'matched')
+    supabase
+      .from('queue_bookings')
+      .select(`
+        id,
+        tracking_id,
+        status,
+        place_name,
+        place_address,
+        service_fee,
+        created_at,
+        user_id,
+        scheduled_date,
+        scheduled_time
+      `)
+      .eq('provider_id', provId)
+      .in('status', ['confirmed', 'in_progress'])
+      .order('confirmed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as { data: any | null }
+  ])
+
+  // Prioritize ride_requests, then queue_bookings
+  const data = rideResult.data || queueResult.data
+  const isQueue = !rideResult.data && !!queueResult.data
 
   if (data) {
     // Get customer name from users table (production uses 'users' not 'profiles')
@@ -252,15 +281,30 @@ async function loadActiveJob(provId: string) {
       .eq('id', data.user_id)
       .maybeSingle() as { data: ProfileRow | null }
 
-    activeJob.value = {
-      id: data.id,
-      tracking_id: data.tracking_id,
-      status: data.status as RideStatus,
-      pickup_address: data.pickup_address,
-      destination_address: data.destination_address,
-      estimated_fare: data.estimated_fare,
-      customer_name: profile?.name || 'ลูกค้า',
-      created_at: data.created_at
+    if (isQueue) {
+      // Queue booking format
+      activeJob.value = {
+        id: data.id,
+        tracking_id: data.tracking_id,
+        status: data.status as RideStatus,
+        pickup_address: data.place_name || data.place_address || 'จองคิว',
+        destination_address: `${data.scheduled_date} ${data.scheduled_time}`,
+        estimated_fare: data.service_fee,
+        customer_name: profile?.name || 'ลูกค้า',
+        created_at: data.created_at
+      }
+    } else {
+      // Ride request format
+      activeJob.value = {
+        id: data.id,
+        tracking_id: data.tracking_id,
+        status: data.status as RideStatus,
+        pickup_address: data.pickup_address,
+        destination_address: data.destination_address,
+        estimated_fare: data.estimated_fare,
+        customer_name: profile?.name || 'ลูกค้า',
+        created_at: data.created_at
+      }
     }
   } else {
     activeJob.value = null
@@ -593,6 +637,14 @@ function setupRealtimeSubscription() {
         console.log('[ProviderHome] Queue booking updated:', payload.eventType, payload.new)
         // Reload count when queue booking status changes
         loadAvailableOrders()
+        
+        // Reload active job if it's ours
+        if (providerId.value) {
+          const updated = payload.new as any
+          if (updated.provider_id === providerId.value) {
+            loadActiveJob(providerId.value)
+          }
+        }
       }
     )
     .on(

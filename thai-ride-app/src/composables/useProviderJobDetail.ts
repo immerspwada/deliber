@@ -175,10 +175,12 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
       const result = await measureAsync('LoadProviderJob', async () => {
         console.log('[JobDetail] Loading job:', jobId, 'Provider ID:', currentProviderId)
         
-        // Load ride request data - use any to bypass strict typing issues with generated types
-        // Query base columns first (columns that exist in production)
-         
-        const { data: rideData, error: rideError } = await (supabase
+        // 🔍 Auto-detect job type: Try ride_requests first, then queue_bookings
+        let rideData: any = null
+        let jobType: 'ride' | 'queue' = 'ride'
+        
+        // Try ride_requests first
+        const { data: rideResult, error: rideError } = await (supabase
           .from('ride_requests') as any)
           .select(`
             id, status, ride_type, pickup_address, destination_address,
@@ -187,17 +189,37 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             pickup_photo, dropoff_photo
           `)
           .eq('id', jobId)
-          .single()
+          .maybeSingle()  // ✅ Use maybeSingle() instead of single()
 
-        console.log('[JobDetail] Query result:', { data: rideData, error: rideError })
+        if (rideResult) {
+          console.log('[JobDetail] Found as ride_request')
+          rideData = rideResult
+          jobType = 'ride'
+        } else {
+          // Try queue_bookings
+          console.log('[JobDetail] Not found in ride_requests, trying queue_bookings...')
+          const { data: queueResult, error: queueError } = await (supabase
+            .from('queue_bookings') as any)
+            .select(`
+              id, tracking_id, status, category, place_name, place_address,
+              place_lat, place_lng, details, scheduled_date, scheduled_time,
+              service_fee, final_fee, created_at, user_id, provider_id,
+              service_name, location_name
+            `)
+            .eq('id', jobId)
+            .maybeSingle()
 
-        if (rideError) {
-          throw handleSupabaseError(rideError, 'LoadRideRequest')
+          if (queueResult) {
+            console.log('[JobDetail] Found as queue_booking')
+            rideData = queueResult
+            jobType = 'queue'
+          } else {
+            console.error('[JobDetail] Job not found in any table:', { jobId, rideError, queueError })
+            throw createAppError(ErrorCode.NOT_FOUND, 'Job not found', { jobId })
+          }
         }
 
-        if (!rideData) {
-          throw createAppError(ErrorCode.NOT_FOUND, 'Job not found', { jobId })
-        }
+        console.log('[JobDetail] Query result:', { data: rideData, jobType })
 
         // Verify provider ownership (only if provider_id is set on the job)
         // Note: For 'matched' status, provider_id might not be set yet
@@ -227,39 +249,77 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
           }
         }
 
-        // Transform to JobDetail format
-        // Note: promo_code, promo_discount, tip_amount, tip_message columns 
-        // may not exist in production yet - use optional chaining
-        const jobDetail: JobDetail = {
-          id: rideData.id,
-          type: 'ride',
-          status: rideData.status as RideStatus,
-          service_type: rideData.ride_type || 'standard',
-          pickup_address: rideData.pickup_address || '',
-          pickup_lat: rideData.pickup_lat || 0,
-          pickup_lng: rideData.pickup_lng || 0,
-          dropoff_address: rideData.destination_address || '',
-          dropoff_lat: rideData.destination_lat || 0,
-          dropoff_lng: rideData.destination_lng || 0,
-          fare: rideData.final_fare || rideData.estimated_fare || 0,
-          notes: rideData.notes || undefined,
-          created_at: rideData.created_at,
-          pickup_photo: rideData.pickup_photo,
-          dropoff_photo: rideData.dropoff_photo,
-          customer: customerProfile ? {
-            id: customerProfile.id,
-            name: customerProfile.name || 'ลูกค้า',
-            phone: customerProfile.phone || '',
-            avatar_url: customerProfile.avatar_url || undefined
-          } : null,
-          // Promo & Pricing (columns may not exist yet)
-          estimated_fare: rideData.estimated_fare || 0,
-          final_fare: rideData.final_fare,
-          promo_code: rideData.promo_code ?? null,
-          promo_discount: rideData.promo_discount ?? null,
-          // Tip (columns may not exist yet)
-          tip_amount: rideData.tip_amount ?? null,
-          tip_message: rideData.tip_message ?? null
+        // Transform to JobDetail format based on job type
+        let jobDetail: JobDetail
+        
+        if (jobType === 'queue') {
+          // Transform queue_booking to JobDetail format
+          jobDetail = {
+            id: rideData.id,
+            type: 'queue',
+            status: rideData.status as RideStatus,
+            service_type: rideData.category || 'queue',
+            pickup_address: rideData.place_address || rideData.place_name || '',
+            pickup_lat: rideData.place_lat || 0,
+            pickup_lng: rideData.place_lng || 0,
+            dropoff_address: '', // Queue bookings don't have dropoff
+            dropoff_lat: 0,
+            dropoff_lng: 0,
+            fare: rideData.final_fee || rideData.service_fee || 0,
+            notes: rideData.details || undefined,
+            created_at: rideData.created_at,
+            pickup_photo: undefined,
+            dropoff_photo: undefined,
+            customer: customerProfile ? {
+              id: customerProfile.id,
+              name: customerProfile.name || 'ลูกค้า',
+              phone: customerProfile.phone || '',
+              avatar_url: customerProfile.avatar_url || undefined
+            } : null,
+            estimated_fare: rideData.service_fee || 0,
+            final_fare: rideData.final_fee,
+            // Queue-specific fields
+            tracking_id: rideData.tracking_id,
+            scheduled_date: rideData.scheduled_date,
+            scheduled_time: rideData.scheduled_time,
+            service_name: rideData.service_name,
+            location_name: rideData.location_name,
+            promo_code: null,
+            promo_discount: null,
+            tip_amount: null,
+            tip_message: null
+          }
+        } else {
+          // Transform ride_request to JobDetail format
+          jobDetail = {
+            id: rideData.id,
+            type: 'ride',
+            status: rideData.status as RideStatus,
+            service_type: rideData.ride_type || 'standard',
+            pickup_address: rideData.pickup_address || '',
+            pickup_lat: rideData.pickup_lat || 0,
+            pickup_lng: rideData.pickup_lng || 0,
+            dropoff_address: rideData.destination_address || '',
+            dropoff_lat: rideData.destination_lat || 0,
+            dropoff_lng: rideData.destination_lng || 0,
+            fare: rideData.final_fare || rideData.estimated_fare || 0,
+            notes: rideData.notes || undefined,
+            created_at: rideData.created_at,
+            pickup_photo: rideData.pickup_photo,
+            dropoff_photo: rideData.dropoff_photo,
+            customer: customerProfile ? {
+              id: customerProfile.id,
+              name: customerProfile.name || 'ลูกค้า',
+              phone: customerProfile.phone || '',
+              avatar_url: customerProfile.avatar_url || undefined
+            } : null,
+            estimated_fare: rideData.estimated_fare || 0,
+            final_fare: rideData.final_fare,
+            promo_code: rideData.promo_code ?? null,
+            promo_discount: rideData.promo_discount ?? null,
+            tip_amount: rideData.tip_amount ?? null,
+            tip_message: rideData.tip_message ?? null
+          }
         }
 
         return jobDetail
@@ -316,32 +376,52 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
       const result = await measureAsync('UpdateJobStatus', async () => {
         const newStatus = nextStatus.value!.key
         
-        // Build update object with appropriate timestamps
-        const updateData: Partial<RideRequestRow> = { 
+        // Determine which table to update based on job type
+        const tableName = job.value!.type === 'queue' ? 'queue_bookings' : 'ride_requests'
+        
+        // Build update object with appropriate timestamps based on table
+        const updateData: Record<string, any> = { 
           status: newStatus,
           updated_at: new Date().toISOString()
         }
         
-        // Add status-specific timestamps
-        switch (newStatus) {
-          case 'pickup':
-            updateData.arrived_at = new Date().toISOString()
-            break
-          case 'in_progress':
-            updateData.started_at = new Date().toISOString()
-            break
-          case 'completed':
+        // Add status-specific timestamps (only for ride_requests)
+        // queue_bookings doesn't have arrived_at/started_at columns
+        if (tableName === 'ride_requests') {
+          switch (newStatus) {
+            case 'pickup':
+              updateData.arrived_at = new Date().toISOString()
+              break
+            case 'in_progress':
+              updateData.started_at = new Date().toISOString()
+              break
+            case 'completed':
+              updateData.completed_at = new Date().toISOString()
+              break
+          }
+        } else {
+          // For queue_bookings, only set completed_at
+          if (newStatus === 'completed') {
             updateData.completed_at = new Date().toISOString()
-            break
+          }
         }
         
+        console.log('[JobDetail] Updating status:', {
+          table: tableName,
+          jobId: job.value!.id,
+          jobType: job.value!.type,
+          from: job.value!.status,
+          to: newStatus,
+          updateData
+        })
          
         const { error: updateError } = await (supabase
-          .from('ride_requests') as any)
+          .from(tableName) as any)
           .update(updateData)
           .eq('id', job.value!.id)
 
         if (updateError) {
+          console.error('[JobDetail] Update error:', updateError)
           throw handleSupabaseError(updateError, 'UpdateJobStatus')
         }
 
@@ -400,19 +480,29 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
 
     try {
       await measureAsync('CancelJob', async () => {
+        // Determine which table to update based on job type
+        const tableName = job.value!.type === 'queue' ? 'queue_bookings' : 'ride_requests'
+        
+        console.log('[JobDetail] Cancelling job:', {
+          table: tableName,
+          jobId: job.value!.id,
+          jobType: job.value!.type,
+          reason
+        })
          
         const { error: updateError } = await (supabase
-          .from('ride_requests') as any)
+          .from(tableName) as any)
           .update({ 
             status: 'cancelled',
-            cancellation_reason: reason || 'ยกเลิกโดยคนขับ',
-            cancelled_by: 'provider',
+            cancel_reason: reason || 'ยกเลิกโดยคนขับ',
+            cancelled_by_role: 'provider',
             cancelled_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('id', job.value!.id)
 
         if (updateError) {
+          console.error('[JobDetail] Cancel error:', updateError)
           throw handleSupabaseError(updateError, 'CancelJob')
         }
       })

@@ -682,18 +682,7 @@ function setupRealtimeSubscription() {
                 <div class="order-info-row">
                   <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
                   <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
-                  <button 
-                    v-if="order.place_name"
-                    class="map-btn-inline"
-                    @click.stop="openMapPreview(order)"
-                    aria-label="ดูแผนที่"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    <span>ดูแผนที่</span>
-                  </button>
+                  <!-- ซ่อนปุ่มแผนที่สำหรับ queue bookings เพราะไม่มี coordinates -->
                 </div>
                 
                 <button 

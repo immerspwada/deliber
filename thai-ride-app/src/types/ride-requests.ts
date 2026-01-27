@@ -54,6 +54,7 @@ export interface UserProfile {
 export type RideStatus = 
   | 'pending'
   | 'matched'
+  | 'confirmed'  // Queue booking status
   | 'pickup'
   | 'in_progress'
   | 'completed'
@@ -65,7 +66,7 @@ export type RideStatus =
 
 export interface JobDetail {
   id: string
-  type: 'ride' | 'delivery' | 'shopping'
+  type: 'ride' | 'delivery' | 'shopping' | 'queue'  // Added 'queue' type
   status: RideStatus
   service_type: string
   pickup_address: string
@@ -156,6 +157,7 @@ export interface CancelJobResponse {
 
 export const STATUS_FLOW: StatusStep[] = [
   { key: 'matched', label: 'รับงานแล้ว', icon: '✅', action: 'กำลังไปรับ' },
+  { key: 'confirmed', label: 'รับงานแล้ว', icon: '✅', action: 'กำลังไปรับ' }, // Queue booking status
   { key: 'pickup', label: 'ถึงจุดรับแล้ว', icon: '📍', action: 'ถึงจุดรับแล้ว' },
   { key: 'in_progress', label: 'กำลังเดินทาง', icon: '🛣️', action: 'รับลูกค้าแล้ว' },
   { key: 'completed', label: 'เสร็จสิ้น', icon: '🎉', action: 'ส่งลูกค้าสำเร็จ' }
@@ -166,7 +168,7 @@ export const STATUS_FLOW: StatusStep[] = [
 // =====================================================
 
 export function isValidRideStatus(status: string): status is RideStatus {
-  return ['pending', 'matched', 'pickup', 'in_progress', 'completed', 'cancelled'].includes(status)
+  return ['pending', 'matched', 'confirmed', 'pickup', 'in_progress', 'completed', 'cancelled'].includes(status)
 }
 
 export function isJobDetail(obj: unknown): obj is JobDetail {

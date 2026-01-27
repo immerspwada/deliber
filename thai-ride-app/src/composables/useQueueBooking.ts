@@ -32,10 +32,26 @@ export interface QueueBooking {
   completed_at: string | null
 }
 
+export interface ProviderInfo {
+  id: string
+  user_id: string
+  phone_number: string
+  vehicle_type: string | null
+  vehicle_plate: string | null
+  status: string
+  // User info from join
+  name?: string
+  avatar_url?: string
+  rating?: number
+  total_trips?: number
+}
+
 export interface CreateQueueBookingInput {
   category: QueueBooking['category']
   place_name?: string
   place_address?: string
+  place_lat?: number
+  place_lng?: number
   details?: string
   scheduled_date: string
   scheduled_time: string
@@ -64,7 +80,9 @@ export function useQueueBooking() {
   // State
   const bookings = ref<QueueBooking[]>([])
   const currentBooking = ref<QueueBooking | null>(null)
+  const providerInfo = ref<ProviderInfo | null>(null)
   const loading = ref(false)
+  const loadingProvider = ref(false)
   const error = ref<string | null>(null)
   
   let realtimeChannel: RealtimeChannel | null = null
@@ -145,12 +163,14 @@ export function useQueueBooking() {
       const { data: result, error: rpcError } = await supabase.rpc('create_queue_atomic', {
         p_user_id: userId,
         p_category: input.category,
-        p_place_name: input.place_name || null,
-        p_place_address: input.place_address || null,
-        p_details: input.details || null,
         p_scheduled_date: input.scheduled_date,
         p_scheduled_time: input.scheduled_time,
-        p_service_fee: serviceFee
+        p_service_fee: serviceFee,
+        p_place_name: input.place_name || null,
+        p_place_address: input.place_address || null,
+        p_place_lat: input.place_lat || null,
+        p_place_lng: input.place_lng || null,
+        p_details: input.details || null
       })
 
       if (rpcError) {
@@ -264,12 +284,76 @@ export function useQueueBooking() {
       if (fetchError) throw fetchError
 
       currentBooking.value = data
+      
+      // Fetch provider info if provider is assigned
+      if (data.provider_id) {
+        await fetchProviderInfo(data.provider_id)
+      }
+      
       return data
     } catch (err: any) {
       error.value = err.message || 'ไม่พบข้อมูลการจอง'
       return null
     } finally {
       loading.value = false
+    }
+  }
+
+  // Fetch Provider Information
+  async function fetchProviderInfo(providerId: string): Promise<ProviderInfo | null> {
+    loadingProvider.value = true
+
+    try {
+      // First, fetch provider data
+      const { data: providerData, error: providerError } = await supabase
+        .from('providers_v2')
+        .select('id, user_id, phone_number, vehicle_type, vehicle_plate, status')
+        .eq('id', providerId)
+        .single()
+
+      if (providerError) {
+        console.error('Error fetching provider:', providerError)
+        return null
+      }
+
+      if (!providerData) {
+        console.error('Provider not found')
+        return null
+      }
+
+      // Then, fetch user info using the user_id
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('full_name, avatar_url')
+        .eq('id', providerData.user_id)
+        .single()
+
+      if (userError) {
+        console.error('Error fetching user info:', userError)
+        // Continue with provider data even if user fetch fails
+      }
+
+      // Transform data to ProviderInfo format
+      const provider: ProviderInfo = {
+        id: providerData.id,
+        user_id: providerData.user_id,
+        phone_number: providerData.phone_number,
+        vehicle_type: providerData.vehicle_type,
+        vehicle_plate: providerData.vehicle_plate,
+        status: providerData.status,
+        name: userData?.full_name || 'ผู้ให้บริการ',
+        avatar_url: userData?.avatar_url || null,
+        // Note: rating and total_trips would need to be calculated from ratings/bookings tables
+        // For now, we'll leave them undefined
+      }
+
+      providerInfo.value = provider
+      return provider
+    } catch (err: any) {
+      console.error('Error fetching provider info:', err)
+      return null
+    } finally {
+      loadingProvider.value = false
     }
   }
 
@@ -360,6 +444,11 @@ export function useQueueBooking() {
             const index = bookings.value.findIndex(b => b.id === bookingId)
             if (index !== -1) {
               bookings.value[index] = updated
+            }
+            
+            // Fetch provider info if provider was just assigned
+            if (updated.provider_id && !providerInfo.value) {
+              fetchProviderInfo(updated.provider_id)
             }
           }
         }
@@ -539,7 +628,9 @@ export function useQueueBooking() {
     // State
     bookings,
     currentBooking,
+    providerInfo,
     loading,
+    loadingProvider,
     error,
     
     // Wallet - Return entire composable to maintain reactivity
@@ -554,6 +645,7 @@ export function useQueueBooking() {
     fetchUserBookings,
     fetchBooking,
     fetchByTrackingId,
+    fetchProviderInfo,
     cancelBooking,
     updateBooking,
     subscribeToBooking,

@@ -48,6 +48,8 @@ const currentStep = computed(() => route.params.step as string | undefined)
 
 // Status to URL step mapping
 const STATUS_TO_STEP: Record<string, string> = {
+  'pending': 'pending',
+  'confirmed': 'matched',
   'matched': 'matched',
   'pickup': 'pickup',
   'in_progress': 'in-progress',
@@ -188,9 +190,23 @@ onMounted(async () => {
 
     <!-- Job Content -->
     <template v-else-if="job">
+      <!-- Pending State (Queue Booking) -->
+      <div v-if="job.status === 'pending'" class="pending-state">
+        <div class="pending-icon">⏳</div>
+        <h2>รอรับงาน</h2>
+        <p>งานนี้ยังไม่ได้รับ กรุณารับงานก่อน</p>
+        <div class="job-info">
+          <p><strong>ประเภท:</strong> {{ job.type === 'queue' ? 'จองคิว' : job.type }}</p>
+          <p v-if="job.tracking_id"><strong>หมายเลข:</strong> {{ job.tracking_id }}</p>
+        </div>
+        <button class="btn-back" type="button" @click="router.push('/provider/orders')">
+          กลับหน้างาน
+        </button>
+      </div>
+
       <!-- Step Views -->
       <JobMatchedView
-        v-if="job.status === 'matched'"
+        v-else-if="job.status === 'matched' || job.status === 'confirmed'"
         :job="job"
         :updating="updating"
         @update-status="handleUpdateStatus"
@@ -278,6 +294,7 @@ onMounted(async () => {
     <ChatDrawer
       v-if="showChatDrawer && job"
       :ride-id="job.id"
+      :booking-type="job.type === 'queue' ? 'queue' : 'ride'"
       :other-user-name="job.customer?.name || 'ลูกค้า'"
       :is-open="showChatDrawer"
       @close="showChatDrawer = false"
@@ -325,7 +342,7 @@ onMounted(async () => {
 }
 
 /* Loading & Error States */
-.loading-state, .error-state, .cancelled-state {
+.loading-state, .error-state, .cancelled-state, .pending-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -347,14 +364,36 @@ onMounted(async () => {
 
 .loading-state p { margin-top: 16px; font-size: 15px; color: #6B7280; font-weight: 500; }
 
-.error-icon, .cancelled-icon { font-size: 72px; margin-bottom: 16px; }
+.error-icon, .cancelled-icon, .pending-icon { font-size: 72px; margin-bottom: 16px; }
 
-.error-state h2, .cancelled-state h2 {
+.error-state h2, .cancelled-state h2, .pending-state h2 {
   font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 8px 0;
 }
 
-.error-state p, .cancelled-state p {
+.error-state p, .cancelled-state p, .pending-state p {
   font-size: 15px; color: #6B7280; margin: 0 0 24px 0; max-width: 300px; line-height: 1.5;
+}
+
+.pending-state .job-info {
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  text-align: left;
+  max-width: 300px;
+  width: 100%;
+}
+
+.pending-state .job-info p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.pending-state .job-info strong {
+  color: #111827;
+  font-weight: 600;
 }
 
 .btn-retry, .btn-back-home {

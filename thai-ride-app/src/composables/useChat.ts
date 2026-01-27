@@ -3,20 +3,24 @@
  * ระบบแชท 1-1 ระหว่างลูกค้าและ Provider
  * 
  * Features:
- * - แชทได้เฉพาะระหว่าง ride ที่ active
+ * - แชทได้เฉพาะระหว่าง ride/queue booking ที่ active
  * - เมื่อจบงาน (completed/cancelled) ไม่สามารถส่งข้อความได้
  * - ตรวจสอบ role อัตโนมัติ
  * - รองรับ 100+ concurrent chats
  * - ส่งรูปภาพได้
  * - Push notification เมื่อมีข้อความใหม่
+ * - รองรับทั้ง ride และ queue booking
  */
 import { ref, shallowRef, computed, onUnmounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { resizeImage, validateImageFile, RESIZE_PRESETS, createOptimizedFilename } from '../utils/imageResize'
 
+export type BookingType = 'ride' | 'queue'
+
 export interface ChatMessage {
   id: string
-  ride_id: string
+  ride_id?: string | null
+  queue_booking_id?: string | null
   sender_id: string
   sender_type: 'customer' | 'provider' | 'system'
   message: string
@@ -35,6 +39,9 @@ export interface ChatState {
 // Active ride statuses that allow chat
 const CHAT_ALLOWED_STATUSES = ['pending', 'matched', 'arriving', 'arrived', 'pickup', 'in_progress']
 
+// Queue booking statuses that allow chat
+const QUEUE_CHAT_ALLOWED_STATUSES = ['confirmed', 'in_progress', 'completed']
+
 // Debug logger with timestamps
 const chatLog = (level: 'info' | 'warn' | 'error' | 'debug', ...args: unknown[]) => {
   const timestamp = new Date().toISOString().split('T')[1].slice(0, 12)
@@ -47,15 +54,19 @@ const chatLog = (level: 'info' | 'warn' | 'error' | 'debug', ...args: unknown[])
   }
 }
 
-export function useChat(rideIdInput: string | (() => string)) {
-  // Support both static string and getter function for reactive rideId
-  const getRideId = typeof rideIdInput === 'function' ? rideIdInput : () => rideIdInput
+export function useChat(
+  bookingIdInput: string | (() => string),
+  bookingType: BookingType = 'ride'
+) {
+  // Support both static string and getter function for reactive bookingId
+  const getBookingId = typeof bookingIdInput === 'function' ? bookingIdInput : () => bookingIdInput
   
-  // Debug: Log rideId on creation
+  // Debug: Log bookingId on creation
   chatLog('info', '🚀 useChat CREATED', {
-    inputType: typeof rideIdInput,
-    currentRideId: getRideId(),
-    isFunction: typeof rideIdInput === 'function'
+    inputType: typeof bookingIdInput,
+    currentBookingId: getBookingId(),
+    bookingType,
+    isFunction: typeof bookingIdInput === 'function'
   })
   
   // State
@@ -82,36 +93,43 @@ export function useChat(rideIdInput: string | (() => string)) {
     !uploadingImage.value
   )
 
-  const isChatClosed = computed(() => 
-    chatState.value.rideStatus !== null && 
-    !CHAT_ALLOWED_STATUSES.includes(chatState.value.rideStatus)
-  )
+  const isChatClosed = computed(() => {
+    if (chatState.value.rideStatus === null) return false
+    
+    // Check based on booking type
+    const allowedStatuses = bookingType === 'ride' 
+      ? CHAT_ALLOWED_STATUSES 
+      : QUEUE_CHAT_ALLOWED_STATUSES
+    
+    return !allowedStatuses.includes(chatState.value.rideStatus)
+  })
 
   // Initialize chat - check permissions and load messages
   async function initialize(): Promise<boolean> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     
     // FORCE LOG - bypass chatLog function
-    console.log('%c[CHAT INIT] 🚀 STARTING', 'background: #222; color: #bada55; font-size: 14px;', { rideId })
-    chatLog('info', '📋 INITIALIZE START', { rideId })
+    console.log('%c[CHAT INIT] 🚀 STARTING', 'background: #222; color: #bada55; font-size: 14px;', { bookingId, bookingType })
+    chatLog('info', '📋 INITIALIZE START', { bookingId, bookingType })
     
-    // Validate rideId - must be valid UUID
+    // Validate bookingId - must be valid UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!rideId || !uuidRegex.test(rideId)) {
-      chatLog('error', '❌ INVALID RIDE_ID', { 
-        rideId, 
-        isNull: rideId === null,
-        isUndefined: rideId === undefined,
-        isEmpty: rideId === '',
-        type: typeof rideId,
-        matchesUUID: rideId ? uuidRegex.test(rideId) : false
+    if (!bookingId || !uuidRegex.test(bookingId)) {
+      chatLog('error', '❌ INVALID BOOKING_ID', { 
+        bookingId, 
+        bookingType,
+        isNull: bookingId === null,
+        isUndefined: bookingId === undefined,
+        isEmpty: bookingId === '',
+        type: typeof bookingId,
+        matchesUUID: bookingId ? uuidRegex.test(bookingId) : false
       })
-      error.value = 'รหัสการเดินทางไม่ถูกต้อง'
+      error.value = bookingType === 'ride' ? 'รหัสการเดินทางไม่ถูกต้อง' : 'รหัสการจองไม่ถูกต้อง'
       loading.value = false
       return false
     }
     
-    chatLog('info', '✅ RIDE_ID VALID', { rideId })
+    chatLog('info', '✅ BOOKING_ID VALID', { bookingId, bookingType })
     
     loading.value = true
     error.value = null
@@ -137,24 +155,29 @@ export function useChat(rideIdInput: string | (() => string)) {
       currentUserId.value = user.id
       chatLog('info', '✅ USER AUTHENTICATED', { userId: user.id, email: user.email })
 
-      // Step 1: Call get_user_ride_role RPC
-      chatLog('debug', '📡 RPC: get_user_ride_role', { p_ride_id: rideId, p_user_id: user.id })
+      // Step 1: Call get_user_role RPC (different for ride vs queue)
+      const roleRpcName = bookingType === 'ride' ? 'get_user_ride_role' : 'get_user_queue_booking_role'
+      const roleParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      // Queue booking function uses auth.uid() internally, doesn't need p_user_id
+      const roleParams = bookingType === 'ride' 
+        ? { [roleParam]: bookingId, p_user_id: user.id }
+        : { [roleParam]: bookingId }
+      
+      chatLog('debug', `📡 RPC: ${roleRpcName}`, roleParams)
       const roleStartTime = performance.now()
       
-      const { data: roleData, error: roleError } = await supabase.rpc('get_user_ride_role', {
-        p_ride_id: rideId,
-        p_user_id: user.id
-      })
+      const { data: roleData, error: roleError } = await supabase.rpc(roleRpcName, roleParams)
       
       const roleEndTime = performance.now()
-      chatLog('info', '📡 RPC RESULT: get_user_ride_role', { 
+      chatLog('info', `📡 RPC RESULT: ${roleRpcName}`, { 
         roleData, 
         roleError,
         duration: `${(roleEndTime - roleStartTime).toFixed(2)}ms`
       })
       
       if (roleError) {
-        chatLog('error', '❌ RPC ERROR: get_user_ride_role', { 
+        chatLog('error', `❌ RPC ERROR: ${roleRpcName}`, { 
           code: roleError.code,
           message: roleError.message,
           details: roleError.details,
@@ -162,23 +185,26 @@ export function useChat(rideIdInput: string | (() => string)) {
         })
       }
 
-      // Step 2: Call is_ride_chat_allowed RPC
-      chatLog('debug', '📡 RPC: is_ride_chat_allowed', { p_ride_id: rideId })
+      // Step 2: Call is_chat_allowed RPC (different for ride vs queue)
+      const allowedRpcName = bookingType === 'ride' ? 'is_ride_chat_allowed' : 'is_queue_booking_chat_allowed'
+      const allowedParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      chatLog('debug', `📡 RPC: ${allowedRpcName}`, { [allowedParam]: bookingId })
       const allowedStartTime = performance.now()
       
-      const { data: allowedData, error: allowedError } = await supabase.rpc('is_ride_chat_allowed', {
-        p_ride_id: rideId
+      const { data: allowedData, error: allowedError } = await supabase.rpc(allowedRpcName, {
+        [allowedParam]: bookingId
       })
       
       const allowedEndTime = performance.now()
-      chatLog('info', '📡 RPC RESULT: is_ride_chat_allowed', { 
+      chatLog('info', `📡 RPC RESULT: ${allowedRpcName}`, { 
         allowedData, 
         allowedError,
         duration: `${(allowedEndTime - allowedStartTime).toFixed(2)}ms`
       })
       
       if (allowedError) {
-        chatLog('error', '❌ RPC ERROR: is_ride_chat_allowed', { 
+        chatLog('error', `❌ RPC ERROR: ${allowedRpcName}`, { 
           code: allowedError.code,
           message: allowedError.message,
           details: allowedError.details,
@@ -186,50 +212,63 @@ export function useChat(rideIdInput: string | (() => string)) {
         })
       }
 
-      // Step 3: Get ride status
-      chatLog('debug', '📡 QUERY: ride_requests.status', { rideId })
+      // Step 3: Get booking status (different table for ride vs queue)
+      const tableName = bookingType === 'ride' ? 'ride_requests' : 'queue_bookings'
+      chatLog('debug', `📡 QUERY: ${tableName}.status`, { bookingId })
       const statusStartTime = performance.now()
       
-      const { data: rideData, error: rideError } = await supabase
-        .from('ride_requests')
+      const { data: bookingData, error: bookingError } = await supabase
+        .from(tableName)
         .select('status')
-        .eq('id', rideId)
+        .eq('id', bookingId)
         .single()
       
       const statusEndTime = performance.now()
-      chatLog('info', '📡 QUERY RESULT: ride_requests.status', { 
-        rideData, 
-        rideError,
+      chatLog('info', `📡 QUERY RESULT: ${tableName}.status`, { 
+        bookingData, 
+        bookingError,
         duration: `${(statusEndTime - statusStartTime).toFixed(2)}ms`
       })
       
-      if (rideError) {
-        chatLog('error', '❌ QUERY ERROR: ride_requests', { 
-          code: rideError.code,
-          message: rideError.message,
-          details: rideError.details,
-          hint: rideError.hint
+      if (bookingError) {
+        chatLog('error', `❌ QUERY ERROR: ${tableName}`, { 
+          code: bookingError.code,
+          message: bookingError.message,
+          details: bookingError.details,
+          hint: bookingError.hint
         })
       }
 
       // Step 4: Set chat state
+      // CRITICAL: Validate roleData before setting
+      const validatedRole = (roleData === 'customer' || roleData === 'provider') ? roleData : null
+      
+      chatLog('info', '🔍 ROLE VALIDATION', {
+        rawRoleData: roleData,
+        typeOfRoleData: typeof roleData,
+        validatedRole,
+        isCustomer: roleData === 'customer',
+        isProvider: roleData === 'provider'
+      })
+      
       chatState.value = {
         isAllowed: allowedData === true,
-        userRole: roleData as 'customer' | 'provider' | null,
-        rideStatus: rideData?.status || null
+        userRole: validatedRole,
+        rideStatus: bookingData?.status || null
       }
 
       // Final summary log
       const canSend = chatState.value.isAllowed && chatState.value.userRole !== null
       chatLog('info', '📊 INITIALIZE COMPLETE', {
         userId: user.id,
-        rideId,
+        bookingId,
+        bookingType,
         chatState: chatState.value,
         canSendMessage: canSend,
         summary: {
           userRole: chatState.value.userRole || '❌ NULL',
           isAllowed: chatState.value.isAllowed ? '✅' : '❌',
-          rideStatus: chatState.value.rideStatus || '❌ NULL',
+          bookingStatus: chatState.value.rideStatus || '❌ NULL',
           canSend: canSend ? '✅ YES' : '❌ NO'
         }
       })
@@ -264,8 +303,8 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Load messages using RPC for better security
   async function loadMessages(): Promise<void> {
-    const rideId = getRideId()
-    chatLog('debug', '📥 LOAD_MESSAGES START', { rideId })
+    const bookingId = getBookingId()
+    chatLog('debug', '📥 LOAD_MESSAGES START', { bookingId, bookingType })
     
     // AUTO-INITIALIZE: If not initialized yet, do it now
     if (!chatState.value.userRole) {
@@ -279,13 +318,17 @@ export function useChat(rideIdInput: string | (() => string)) {
     
     try {
       const startTime = performance.now()
-      const { data, error: rpcError } = await supabase.rpc('get_chat_history', {
-        p_ride_id: rideId,
+      const rpcName = bookingType === 'ride' ? 'get_chat_history' : 'get_queue_booking_chat_history'
+      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      const { data, error: rpcError } = await supabase.rpc(rpcName, {
+        [rpcParam]: bookingId,
         p_limit: 100
       })
       const endTime = performance.now()
       
       chatLog('info', '📥 LOAD_MESSAGES RPC RESULT', {
+        rpcName,
         hasData: !!data,
         error: rpcError,
         duration: `${(endTime - startTime).toFixed(2)}ms`
@@ -309,7 +352,8 @@ export function useChat(rideIdInput: string | (() => string)) {
       if (response?.success && response.messages) {
         messages.value = response.messages.map(msg => ({
           id: msg.id as string,
-          ride_id: msg.ride_id as string,
+          ride_id: msg.ride_id as string | null | undefined,
+          queue_booking_id: msg.queue_booking_id as string | null | undefined,
           sender_id: msg.sender_id as string,
           sender_type: (msg.sender_type as ChatMessage['sender_type']) || 'customer',
           message: msg.message as string,
@@ -335,13 +379,14 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Fallback direct query
   async function loadMessagesDirect(): Promise<void> {
-    const rideId = getRideId()
-    chatLog('debug', '📥 LOAD_MESSAGES_DIRECT START', { rideId })
+    const bookingId = getBookingId()
+    chatLog('debug', '📥 LOAD_MESSAGES_DIRECT START', { bookingId, bookingType })
     
+    const filterColumn = bookingType === 'ride' ? 'ride_id' : 'queue_booking_id'
     const { data, error: dbError } = await supabase
       .from('chat_messages')
       .select('*')
-      .eq('ride_id', rideId)
+      .eq(filterColumn, bookingId)
       .order('created_at', { ascending: true })
       .limit(100)
 
@@ -361,10 +406,11 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Send message using RPC for validation
   async function sendMessage(text: string, type: 'text' | 'image' | 'location' = 'text'): Promise<boolean> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     
     chatLog('info', '📤 SEND_MESSAGE START', {
-      rideId,
+      bookingId,
+      bookingType,
       textLength: text.length,
       type,
       canSendMessage: canSendMessage.value,
@@ -399,17 +445,20 @@ export function useChat(rideIdInput: string | (() => string)) {
 
     try {
       // Use RPC for server-side validation
-      chatLog('debug', '📡 RPC: send_chat_message', { p_ride_id: rideId, p_message_type: type })
+      const rpcName = bookingType === 'ride' ? 'send_chat_message' : 'send_queue_booking_chat_message'
+      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      chatLog('debug', `📡 RPC: ${rpcName}`, { [rpcParam]: bookingId, p_message_type: type })
       const startTime = performance.now()
       
-      const { data, error: rpcError } = await supabase.rpc('send_chat_message', {
-        p_ride_id: rideId,
+      const { data, error: rpcError } = await supabase.rpc(rpcName, {
+        [rpcParam]: bookingId,
         p_message: text.trim(),
         p_message_type: type
       })
       
       const endTime = performance.now()
-      chatLog('info', '📡 RPC RESULT: send_chat_message', {
+      chatLog('info', `📡 RPC RESULT: ${rpcName}`, {
         hasData: !!data,
         error: rpcError,
         duration: `${(endTime - startTime).toFixed(2)}ms`
@@ -449,7 +498,8 @@ export function useChat(rideIdInput: string | (() => string)) {
         const msgData = response.message
         const newMsg: ChatMessage = {
           id: msgData.id as string,
-          ride_id: msgData.ride_id as string,
+          ride_id: msgData.ride_id as string | null | undefined,
+          queue_booking_id: msgData.queue_booking_id as string | null | undefined,
           sender_id: msgData.sender_id as string,
           sender_type: (msgData.sender_type as ChatMessage['sender_type']) || 'customer',
           message: msgData.message as string,
@@ -480,18 +530,26 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Fallback direct insert
   async function sendMessageDirect(text: string, type: 'text' | 'image' | 'location'): Promise<boolean> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     if (!currentUserId.value || !chatState.value.userRole) return false
+
+    const insertData: Record<string, unknown> = {
+      sender_id: currentUserId.value,
+      sender_type: chatState.value.userRole,
+      message: text.trim(),
+      message_type: type
+    }
+    
+    // Add either ride_id or queue_booking_id
+    if (bookingType === 'ride') {
+      insertData.ride_id = bookingId
+    } else {
+      insertData.queue_booking_id = bookingId
+    }
 
     const { data, error: dbError } = await supabase
       .from('chat_messages')
-      .insert({
-        ride_id: rideId,
-        sender_id: currentUserId.value,
-        sender_type: chatState.value.userRole,
-        message: text.trim(),
-        message_type: type
-      })
+      .insert(insertData)
       .select()
       .single()
 
@@ -511,7 +569,8 @@ export function useChat(rideIdInput: string | (() => string)) {
     // Add to local messages
     const newMessage: ChatMessage = {
       id: data.id,
-      ride_id: getRideId(),
+      ride_id: bookingType === 'ride' ? bookingId : null,
+      queue_booking_id: bookingType === 'queue' ? bookingId : null,
       sender_id: currentUserId.value,
       sender_type: chatState.value.userRole,
       message: text.trim(),
@@ -532,7 +591,7 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Send image message
   async function sendImage(file: File): Promise<boolean> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     if (!canSendMessage.value || uploadingImage.value) {
       if (isChatClosed.value) {
         error.value = 'การสนทนาปิดแล้ว เนื่องจากงานเสร็จสิ้น'
@@ -556,7 +615,7 @@ export function useChat(rideIdInput: string | (() => string)) {
       
       // Generate filename
       const filename = createOptimizedFilename(file.name, 'jpeg')
-      const filePath = `${rideId}/${filename}`
+      const filePath = `${bookingId}/${filename}`
 
       // Upload to chat-images bucket
       const { error: uploadError } = await supabase.storage
@@ -585,8 +644,11 @@ export function useChat(rideIdInput: string | (() => string)) {
       }
 
       // Send message with image URL using RPC
-      const { data, error: rpcError } = await supabase.rpc('send_chat_message', {
-        p_ride_id: rideId,
+      const rpcName = bookingType === 'ride' ? 'send_chat_message' : 'send_queue_booking_chat_message'
+      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      const { data, error: rpcError } = await supabase.rpc(rpcName, {
+        [rpcParam]: bookingId,
         p_message: '📷 รูปภาพ',
         p_message_type: 'image',
         p_image_url: imageUrl
@@ -606,7 +668,8 @@ export function useChat(rideIdInput: string | (() => string)) {
         const msgData = response.message
         const newMsg: ChatMessage = {
           id: msgData.id as string,
-          ride_id: msgData.ride_id as string,
+          ride_id: msgData.ride_id as string | null | undefined,
+          queue_booking_id: msgData.queue_booking_id as string | null | undefined,
           sender_id: msgData.sender_id as string,
           sender_type: (msgData.sender_type as ChatMessage['sender_type']) || 'customer',
           message: msgData.message as string,
@@ -633,12 +696,15 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Mark messages as read
   async function markAsRead(): Promise<void> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     if (!currentUserId.value) return
 
     try {
-      await supabase.rpc('mark_messages_read', {
-        p_ride_id: rideId,
+      const rpcName = bookingType === 'ride' ? 'mark_messages_read' : 'mark_queue_booking_messages_read'
+      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      await supabase.rpc(rpcName, {
+        [rpcParam]: bookingId,
         p_user_id: currentUserId.value
       })
       unreadCount.value = 0
@@ -649,12 +715,15 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Get unread count
   async function getUnreadCount(): Promise<number> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     if (!currentUserId.value) return 0
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('get_unread_message_count', {
-        p_ride_id: rideId,
+      const rpcName = bookingType === 'ride' ? 'get_unread_message_count' : 'get_queue_booking_unread_count'
+      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      const { data, error: rpcError } = await supabase.rpc(rpcName, {
+        [rpcParam]: bookingId,
         p_user_id: currentUserId.value
       })
 
@@ -673,11 +742,12 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Setup realtime subscription using Postgres Changes (not broadcast)
   function setupRealtimeSubscription(): void {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     cleanupRealtimeSubscription()
 
-    const channelName = `chat:${rideId}`
-    chatLog('debug', '📡 REALTIME SETUP', { channelName, rideId })
+    const channelName = `chat:${bookingType}:${bookingId}`
+    const filterColumn = bookingType === 'ride' ? 'ride_id' : 'queue_booking_id'
+    chatLog('debug', '📡 REALTIME SETUP', { channelName, bookingId, bookingType, filterColumn })
     
     realtimeChannel = supabase
       .channel(channelName)
@@ -687,7 +757,7 @@ export function useChat(rideIdInput: string | (() => string)) {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `ride_id=eq.${rideId}`
+          filter: `${filterColumn}=eq.${bookingId}`
         },
         (payload) => {
           chatLog('info', '📨 REALTIME MESSAGE RECEIVED', { payload })
@@ -697,7 +767,8 @@ export function useChat(rideIdInput: string | (() => string)) {
           // Map to ChatMessage type
           const newMessage: ChatMessage = {
             id: newRecord.id as string,
-            ride_id: newRecord.ride_id as string,
+            ride_id: newRecord.ride_id as string | null | undefined,
+            queue_booking_id: newRecord.queue_booking_id as string | null | undefined,
             sender_id: newRecord.sender_id as string,
             sender_type: (newRecord.sender_type as ChatMessage['sender_type']) || 'customer',
             message: newRecord.message as string,
@@ -742,7 +813,7 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Show local notification for new chat message
   function showChatNotification(message: ChatMessage): void {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     // Only show if permission granted and not from self
     if (Notification.permission !== 'granted') return
     if (message.sender_id === currentUserId.value) return
@@ -756,8 +827,8 @@ export function useChat(rideIdInput: string | (() => string)) {
         body: body.substring(0, 100),
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
-        tag: `chat-${rideId}`,
-        data: { rideId, messageId: message.id },
+        tag: `chat-${bookingType}-${bookingId}`,
+        data: { bookingId, bookingType, messageId: message.id },
         requireInteraction: false,
         silent: false
       })
@@ -776,22 +847,26 @@ export function useChat(rideIdInput: string | (() => string)) {
 
   // Refresh chat state (check if still allowed)
   async function refreshChatState(): Promise<void> {
-    const rideId = getRideId()
+    const bookingId = getBookingId()
     if (!currentUserId.value) return
 
     try {
-      const { data: allowedData } = await supabase.rpc('is_ride_chat_allowed', {
-        p_ride_id: rideId
+      const allowedRpcName = bookingType === 'ride' ? 'is_ride_chat_allowed' : 'is_queue_booking_chat_allowed'
+      const allowedParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      
+      const { data: allowedData } = await supabase.rpc(allowedRpcName, {
+        [allowedParam]: bookingId
       })
 
-      const { data: rideData } = await supabase
-        .from('ride_requests')
+      const tableName = bookingType === 'ride' ? 'ride_requests' : 'queue_bookings'
+      const { data: bookingData } = await supabase
+        .from(tableName)
         .select('status')
-        .eq('id', rideId)
+        .eq('id', bookingId)
         .single()
 
       chatState.value.isAllowed = allowedData === true
-      chatState.value.rideStatus = rideData?.status || null
+      chatState.value.rideStatus = bookingData?.status || null
     } catch (err) {
       console.error('[Chat] Refresh state error:', err)
     }

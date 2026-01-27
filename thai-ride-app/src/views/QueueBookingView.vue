@@ -4,7 +4,7 @@
  * MUNEEF Style UI - Clean, Modern, and Efficient
  * UX Flow: 1.ประเภท → 2.สถานที่ → 3.วันเวลา → 4.ยืนยัน
  */
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQueueBooking, type CreateQueueBookingInput } from '../composables/useQueueBooking';
 import { useToast } from '../composables/useToast';
@@ -14,14 +14,41 @@ const {
   createQueueBooking, 
   loading, 
   error: bookingError,
-  walletBalance
+  walletBalance,
+  subscribeToBooking,  // ✅ Added for realtime updates
+  unsubscribe,         // ✅ Added for cleanup
+  currentBooking       // ✅ Added to watch status changes
 } = useQueueBooking();
 
 // Debug: Log balance changes
 watch(() => walletBalance.balance.value, (newBalance) => {
   console.log('💰 Balance changed in QueueBookingView:', newBalance);
 }, { immediate: true });
+
 const { success: showSuccess, error: showError } = useToast();
+
+// ✅ Watch for realtime status updates
+watch(() => currentBooking.value?.status, (newStatus, oldStatus) => {
+  if (newStatus && newStatus !== oldStatus) {
+    console.log('📡 Queue booking status updated:', oldStatus, '→', newStatus);
+    
+    // Show user-friendly notifications
+    switch (newStatus) {
+      case 'confirmed':
+        showSuccess('✅ ไรเดอร์รับงานแล้ว! กำลังเดินทางมา');
+        break;
+      case 'in_progress':
+        showSuccess('🚗 ไรเดอร์กำลังดำเนินการ');
+        break;
+      case 'completed':
+        showSuccess('🎉 งานเสร็จสิ้นแล้ว!');
+        break;
+      case 'cancelled':
+        showError('❌ งานถูกยกเลิก');
+        break;
+    }
+  }
+});
 
 // Step Flow
 type Step = 'category' | 'place' | 'datetime' | 'confirm';
@@ -241,6 +268,11 @@ const handleSubmit = async () => {
     if (result) {
       showSuccess('จองคิวสำเร็จ!');
       triggerHaptic('heavy');
+      
+      // ✅ Subscribe to realtime updates for this booking
+      subscribeToBooking(result.id);
+      console.log('📡 Subscribed to queue booking updates:', result.id);
+      
       router.push(`/customer/queue-booking/${result.id}`);
     } else if (bookingError.value) {
       showError(bookingError.value);
@@ -256,6 +288,12 @@ const handleSubmit = async () => {
 // Set default date to today
 onMounted(() => {
   selectedDate.value = minDate.value;
+});
+
+// ✅ Cleanup realtime subscription on unmount
+onUnmounted(() => {
+  unsubscribe();
+  console.log('🔌 Unsubscribed from queue booking updates');
 });
 </script>
 

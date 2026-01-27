@@ -11,9 +11,12 @@ interface Props {
   rideId: string
   otherUserName: string
   isOpen: boolean
+  bookingType?: 'ride' | 'queue'
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  bookingType: 'ride'
+})
 
 const emit = defineEmits<{
   close: []
@@ -36,7 +39,7 @@ const {
   sendLocation,
   markAsRead,
   refreshChatState
-} = useChat(() => props.rideId)
+} = useChat(() => props.rideId, props.bookingType)
 
 const messageInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
