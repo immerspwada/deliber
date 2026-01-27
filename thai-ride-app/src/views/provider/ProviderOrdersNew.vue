@@ -605,7 +605,7 @@ function setupRealtimeSubscription() {
 
               <div class="order-footer">
                 <div class="order-info-row">
-                  <span class="order-distance">{{ order.distance.toFixed(1) }} กม.</span>
+                  <span class="order-distance">{{ order.distance.toFixed(1) }} กิโลเมตร</span>
                   <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
                   <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
                   <span v-if="order.promo_code" class="promo-badge">🎫 {{ order.promo_code }}</span>
