@@ -308,12 +308,21 @@ async function loadTodayEarnings(provId: string) {
 }
 
 async function loadAvailableOrders() {
-  const { count } = await supabase
-    .from('ride_requests')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'pending')
+  // Count both ride_requests and queue_bookings
+  const [ridesResult, queueResult] = await Promise.all([
+    supabase
+      .from('ride_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+    supabase
+      .from('queue_bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+  ])
 
-  availableOrders.value = count || 0
+  const ridesCount = ridesResult.count || 0
+  const queueCount = queueResult.count || 0
+  availableOrders.value = ridesCount + queueCount
 }
 
 async function loadRecentTransactions(provId: string) {
@@ -499,7 +508,7 @@ function setupRealtimeSubscription() {
         filter: 'status=eq.pending'
       },
       (payload) => {
-        console.log('[ProviderHome] New job received:', payload.new)
+        console.log('[ProviderHome] New ride job received:', payload.new)
         // Reload available orders count when new job comes in
         loadAvailableOrders()
         
@@ -524,12 +533,43 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'queue_bookings',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[ProviderHome] New queue booking received:', payload.new)
+        // Reload available orders count when new queue booking comes in
+        loadAvailableOrders()
+        
+        // Send push notification if online and subscribed
+        if (isOnline.value && pushSubscribed.value) {
+          const newQueue = payload.new as any
+          notifyNewJob({
+            id: newQueue.id,
+            service_type: 'queue',
+            status: 'pending',
+            customer_id: newQueue.user_id,
+            pickup_location: { lat: 0, lng: 0 }, // Queue bookings don't have coordinates
+            pickup_address: newQueue.place_name || newQueue.place_address || 'จองคิว',
+            dropoff_location: { lat: 0, lng: 0 },
+            dropoff_address: `${newQueue.scheduled_date} ${newQueue.scheduled_time}`,
+            estimated_earnings: newQueue.service_fee,
+            created_at: newQueue.created_at
+          })
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'UPDATE',
         schema: 'public',
         table: 'ride_requests'
       },
       (payload) => {
-        console.log('[ProviderHome] Job updated:', payload.eventType, payload.new)
+        console.log('[ProviderHome] Ride job updated:', payload.eventType, payload.new)
         // Reload count when job status changes
         loadAvailableOrders()
         
@@ -545,12 +585,37 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'queue_bookings'
+      },
+      (payload) => {
+        console.log('[ProviderHome] Queue booking updated:', payload.eventType, payload.new)
+        // Reload count when queue booking status changes
+        loadAvailableOrders()
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'DELETE',
         schema: 'public',
         table: 'ride_requests'
       },
       () => {
-        console.log('[ProviderHome] Job deleted')
+        console.log('[ProviderHome] Ride job deleted')
+        loadAvailableOrders()
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'queue_bookings'
+      },
+      () => {
+        console.log('[ProviderHome] Queue booking deleted')
         loadAvailableOrders()
       }
     )
