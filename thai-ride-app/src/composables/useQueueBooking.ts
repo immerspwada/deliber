@@ -167,14 +167,17 @@ export function useQueueBooking() {
       }
 
       console.log('✅ RPC Result:', result)
+      console.log('✅ Result type:', typeof result)
+      console.log('✅ Result keys:', result ? Object.keys(result) : 'null')
 
       // Check result - function returns JSON object directly, not array
       if (!result) {
+        console.error('❌ No result returned from RPC')
         error.value = 'ไม่สามารถจองคิวได้'
         return null
       }
 
-      // Result is already the JSON object (not an array)
+      // Result is the JSON object directly (not wrapped in array)
       if (!result.success) {
         console.error('❌ Booking failed:', result.message)
         error.value = result.message || 'ไม่สามารถจองคิวได้'
