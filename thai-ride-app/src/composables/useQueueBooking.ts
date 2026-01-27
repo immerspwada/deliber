@@ -168,27 +168,26 @@ export function useQueueBooking() {
 
       console.log('✅ RPC Result:', result)
 
-      // Check result
-      if (!result || result.length === 0) {
+      // Check result - function returns JSON object directly, not array
+      if (!result) {
         error.value = 'ไม่สามารถจองคิวได้'
         return null
       }
 
-      const atomicResult = result[0]
-      
-      if (!atomicResult.success) {
-        console.error('❌ Booking failed:', atomicResult.message)
-        error.value = atomicResult.message || 'ไม่สามารถจองคิวได้'
+      // Result is already the JSON object (not an array)
+      if (!result.success) {
+        console.error('❌ Booking failed:', result.message)
+        error.value = result.message || 'ไม่สามารถจองคิวได้'
         return null
       }
 
-      console.log('✅ Booking created successfully:', atomicResult.booking_id)
+      console.log('✅ Booking created successfully:', result.booking_id)
 
       // Fetch the created booking
       const { data: queueData, error: fetchError } = await supabase
         .from('queue_bookings')
         .select('*')
-        .eq('id', atomicResult.booking_id)
+        .eq('id', result.booking_id)
         .single()
 
       if (fetchError || !queueData) {
