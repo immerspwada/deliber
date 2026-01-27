@@ -52,10 +52,10 @@ const showMapPreview = ref(false)
 const realtimeChannel = ref<any>(null)
 const selectedOrderForMap = ref<Order | null>(null)
 const orders = ref<Order[]>([])
-const selectedOrderId = ref<string | null>(null) // เปลี่ยนเป็น single selection
 const alwaysBestRoute = ref(true)
 const serviceFilter = ref<ServiceFilter>('all')
 const hasActiveJob = ref(false) // เช็คว่ามีงานที่กำลังทำอยู่หรือไม่
+const acceptingOrderId = ref<string | null>(null) // Track which order is being accepted
 
 // Computed - Filtered orders
 const filteredOrders = computed(() => {
@@ -76,45 +76,8 @@ const queueOrders = computed(() =>
 const rideCount = computed(() => rideOrders.value.length)
 const queueCount = computed(() => queueOrders.value.length)
 
-// Computed - Selected order
-const selectedOrder = computed(() => {
-  if (!selectedOrderId.value) return null
-  return orders.value.find(o => o.id === selectedOrderId.value) || null
-})
-
-const selectedServiceType = computed(() => selectedOrder.value?.service_type)
-
-// Computed - Earnings (single order)
-const totalEarnings = computed(() => {
-  if (!selectedOrder.value) return 0
-  const order = selectedOrder.value
-  const fare = (order.paid_amount && order.paid_amount > 0 ? order.paid_amount : null) 
-    ?? (order.final_fare && order.final_fare > 0 ? order.final_fare : null)
-    ?? (order.actual_fare && order.actual_fare > 0 ? order.actual_fare : null)
-    ?? order.estimated_fare 
-    ?? 0
-  return fare
-})
-
-const totalDiscount = computed(() => {
-  return selectedOrder.value?.promo_discount_amount || 0
-})
-
-const totalTips = computed(() => {
-  return selectedOrder.value?.tip_amount || 0
-})
-
-const totalDistance = computed(() => {
-  return selectedOrder.value?.distance || 0
-})
-
-const totalEstEarnings = computed(() => {
-  return totalEarnings.value + totalTips.value
-})
-
 // Computed - Has orders
 const hasOrders = computed(() => orders.value.length > 0)
-const hasSelectedOrder = computed(() => selectedOrderId.value !== null)
 const canAcceptJobs = computed(() => !hasActiveJob.value)
 
 // Methods
@@ -221,11 +184,6 @@ async function loadOrders() {
     orders.value = allOrders.sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
-    
-    // Auto-select first order only if no active job
-    if (!hasActiveJob.value && orders.value.length > 0) {
-      selectedOrderId.value = orders.value[0].id
-    }
   } catch (err) {
     console.error('[Orders] Error:', err)
   } finally {
@@ -254,13 +212,14 @@ function getFareDisplay(order: typeof orders.value[0]): string {
   return fare.toFixed(0)
 }
 
-function toggleOrder(orderId: string) {
-  // Radio button behavior - select only one
-  if (selectedOrderId.value === orderId) {
-    selectedOrderId.value = null // Deselect if clicking same order
-  } else {
-    selectedOrderId.value = orderId // Select new order
-  }
+// Get fare for display
+function getOrderFare(order: Order): number {
+  const fare = (order.paid_amount && order.paid_amount > 0 ? order.paid_amount : null) 
+    ?? (order.final_fare && order.final_fare > 0 ? order.final_fare : null)
+    ?? (order.actual_fare && order.actual_fare > 0 ? order.actual_fare : null)
+    ?? order.estimated_fare 
+    ?? 0
+  return fare
 }
 
 function setServiceFilter(filter: ServiceFilter) {
@@ -292,17 +251,23 @@ function closeMapPreview() {
   selectedOrderForMap.value = null
 }
 
-async function acceptOrder() {
-  if (!selectedOrderId.value) return
+async function acceptOrder(order: Order) {
   if (hasActiveJob.value) {
     alert('คุณมีงานที่กำลังทำอยู่ กรุณาทำงานเดิมให้เสร็จก่อน')
     return
   }
 
+  if (acceptingOrderId.value) {
+    return // Already accepting another order
+  }
+
+  acceptingOrderId.value = order.id
+
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       console.error('[Orders] No user found')
+      acceptingOrderId.value = null
       return
     }
 
@@ -316,11 +281,9 @@ async function acceptOrder() {
     if (providerError || !provider) {
       console.error('[Orders] Provider not found:', providerError)
       alert('ไม่พบข้อมูลผู้ให้บริการ')
+      acceptingOrderId.value = null
       return
     }
-
-    const order = selectedOrder.value
-    if (!order) return
 
     // Accept based on service type
     if (order.service_type === 'ride') {
@@ -338,6 +301,7 @@ async function acceptOrder() {
       if (updateError) {
         console.error('[Orders] Accept ride error:', updateError)
         alert(`ไม่สามารถรับงานได้: ${updateError.message}`)
+        acceptingOrderId.value = null
         return
       }
     } else if (order.service_type === 'queue') {
@@ -354,6 +318,7 @@ async function acceptOrder() {
       if (updateError) {
         console.error('[Orders] Accept queue error:', updateError)
         alert(`ไม่สามารถรับงานจองคิวได้: ${updateError.message}`)
+        acceptingOrderId.value = null
         return
       }
     }
@@ -362,6 +327,7 @@ async function acceptOrder() {
     router.push(`/provider/job/${order.id}`)
   } catch (err) {
     console.error('[Orders] Accept error:', err)
+    acceptingOrderId.value = null
   }
 }
 
@@ -426,11 +392,6 @@ function setupRealtimeSubscription() {
         
         // Add to beginning of list
         orders.value = [jobWithDistance, ...orders.value]
-        
-        // Auto-select new job only if no active job and no current selection
-        if (!hasActiveJob.value && !selectedOrderId.value) {
-          selectedOrderId.value = newJob.id
-        }
       }
     )
     .on(
@@ -472,11 +433,6 @@ function setupRealtimeSubscription() {
         
         // Add to beginning of list
         orders.value = [queueOrder, ...orders.value]
-        
-        // Auto-select new job only if no active job and no current selection
-        if (!hasActiveJob.value && !selectedOrderId.value) {
-          selectedOrderId.value = newQueue.id
-        }
       }
     )
     .on(
@@ -493,9 +449,6 @@ function setupRealtimeSubscription() {
         // Remove job if it's no longer pending (someone else took it)
         if (updated.status !== 'pending') {
           orders.value = orders.value.filter(o => o.id !== updated.id)
-          if (selectedOrderId.value === updated.id) {
-            selectedOrderId.value = null
-          }
         }
       }
     )
@@ -513,9 +466,6 @@ function setupRealtimeSubscription() {
         // Remove job if it's no longer pending
         if (updated.status !== 'pending') {
           orders.value = orders.value.filter(o => o.id !== updated.id)
-          if (selectedOrderId.value === updated.id) {
-            selectedOrderId.value = null
-          }
         }
       }
     )
@@ -530,9 +480,6 @@ function setupRealtimeSubscription() {
         console.log('[Orders] Job deleted:', payload.old)
         const deleted = payload.old as { id: string }
         orders.value = orders.value.filter(o => o.id !== deleted.id)
-        if (selectedOrderId.value === deleted.id) {
-          selectedOrderId.value = null
-        }
       }
     )
     .subscribe((status) => {
@@ -615,41 +562,6 @@ function setupRealtimeSubscription() {
         </div>
       </div>
 
-      <!-- Earnings Summary Card -->
-      <div v-if="hasSelectedOrder" class="earnings-card">
-        <div class="earnings-header">
-          <h2 class="earnings-title">รายได้โดยประมาณ</h2>
-          <div class="earnings-count">
-            <span v-if="selectedServiceType === 'ride'">🚗 เรียกรถ</span>
-            <span v-else-if="selectedServiceType === 'queue'">📅 จองคิว</span>
-          </div>
-        </div>
-        
-        <div class="earnings-main">
-          <span class="earnings-amount">฿{{ totalEstEarnings.toFixed(0) }}</span>
-          <span class="earnings-label">จาก 1 งาน</span>
-        </div>
-
-        <div class="earnings-breakdown">
-          <div class="breakdown-item">
-            <span class="breakdown-label">ค่าบริการ</span>
-            <span class="breakdown-value">฿{{ totalEarnings.toFixed(0) }}</span>
-          </div>
-          <div v-if="totalTips > 0" class="breakdown-item">
-            <span class="breakdown-label">ทิป</span>
-            <span class="breakdown-value tip">+฿{{ totalTips.toFixed(0) }}</span>
-          </div>
-          <div v-if="totalDiscount > 0" class="breakdown-item">
-            <span class="breakdown-label">ส่วนลด</span>
-            <span class="breakdown-value discount">-฿{{ totalDiscount.toFixed(0) }}</span>
-          </div>
-          <div v-if="totalDistance > 0" class="breakdown-item">
-            <span class="breakdown-label">ระยะทาง</span>
-            <span class="breakdown-value">{{ totalDistance.toFixed(1) }} กม.</span>
-          </div>
-        </div>
-      </div>
-
       <!-- Orders List -->
       <div class="orders-section">
         <div class="section-header">
@@ -668,13 +580,8 @@ function setupRealtimeSubscription() {
             v-for="order in rideOrders" 
             :key="order.id"
             class="order-card"
-            :class="{ selected: selectedOrderId === order.id, disabled: hasActiveJob }"
-            @click="!hasActiveJob && toggleOrder(order.id)"
+            :class="{ disabled: hasActiveJob }"
           >
-            <div class="order-radio">
-              <div v-if="selectedOrderId === order.id" class="radio-dot"></div>
-            </div>
-
             <div class="order-content">
               <div class="order-header">
                 <span class="service-badge ride">
@@ -697,19 +604,37 @@ function setupRealtimeSubscription() {
               </div>
 
               <div class="order-footer">
-                <span class="order-distance">{{ order.distance.toFixed(1) }} กม.</span>
-                <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
-                <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
-                <span v-if="order.promo_code" class="promo-badge">🎫 {{ order.promo_code }}</span>
+                <div class="order-info-row">
+                  <span class="order-distance">{{ order.distance.toFixed(1) }} กม.</span>
+                  <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+                  <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                  <span v-if="order.promo_code" class="promo-badge">🎫 {{ order.promo_code }}</span>
+                  <button 
+                    class="map-btn"
+                    @click.stop="openMapPreview(order)"
+                    aria-label="ดูแผนที่"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </button>
+                </div>
+                
                 <button 
-                  class="map-btn"
-                  @click.stop="openMapPreview(order)"
-                  aria-label="ดูแผนที่"
+                  class="accept-order-btn"
+                  :disabled="hasActiveJob || acceptingOrderId === order.id"
+                  @click.stop="acceptOrder(order)"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
+                  <svg v-if="acceptingOrderId === order.id" class="spinner-icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
                   </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span v-if="acceptingOrderId === order.id">กำลังรับงาน...</span>
+                  <span v-else>รับงาน ฿{{ getOrderFare(order).toFixed(0) }}</span>
                 </button>
               </div>
             </div>
@@ -727,13 +652,8 @@ function setupRealtimeSubscription() {
             v-for="order in queueOrders" 
             :key="order.id"
             class="order-card"
-            :class="{ selected: selectedOrderId === order.id, disabled: hasActiveJob }"
-            @click="!hasActiveJob && toggleOrder(order.id)"
+            :class="{ disabled: hasActiveJob }"
           >
-            <div class="order-radio">
-              <div v-if="selectedOrderId === order.id" class="radio-dot"></div>
-            </div>
-
             <div class="order-content">
               <div class="order-header">
                 <span class="service-badge queue">
@@ -759,34 +679,32 @@ function setupRealtimeSubscription() {
               </div>
 
               <div class="order-footer">
-                <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
-                <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                <div class="order-info-row">
+                  <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+                  <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                </div>
+                
+                <button 
+                  class="accept-order-btn"
+                  :disabled="hasActiveJob || acceptingOrderId === order.id"
+                  @click.stop="acceptOrder(order)"
+                >
+                  <svg v-if="acceptingOrderId === order.id" class="spinner-icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span v-if="acceptingOrderId === order.id">กำลังรับงาน...</span>
+                  <span v-else>รับงาน ฿{{ getOrderFare(order).toFixed(0) }}</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
     </main>
-
-    <!-- Bottom Actions -->
-    <footer v-if="!loading" class="actions">
-      <button 
-        class="accept-btn" 
-        :disabled="!hasSelectedOrder || hasActiveJob" 
-        @click="acceptOrder"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 13l4 4L19 7" />
-        </svg>
-        <span v-if="hasActiveJob">
-          มีงานที่กำลังทำอยู่
-        </span>
-        <span v-else-if="hasSelectedOrder">
-          รับงาน (฿{{ totalEstEarnings.toFixed(0) }})
-        </span>
-        <span v-else>เลือกงานที่ต้องการรับ</span>
-      </button>
-    </footer>
 
     <!-- Map Preview Modal -->
     <Teleport to="body">
@@ -971,7 +889,7 @@ function setupRealtimeSubscription() {
 .content {
   flex: 1;
   padding: 16px;
-  padding-bottom: 100px;
+  padding-bottom: 16px; /* No need for extra padding since no bottom bar */
 }
 
 /* ===== Warning Card ===== */
@@ -1211,57 +1129,18 @@ function setupRealtimeSubscription() {
 /* ===== Order Card ===== */
 .order-card {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
   padding: 16px;
   background: #FFFFFF;
   border: 2px solid #E5E7EB;
   border-radius: 16px;
   margin-bottom: 12px;
-  cursor: pointer;
   transition: all 0.2s;
-}
-
-.order-card:active {
-  transform: scale(0.99);
-}
-
-.order-card.selected {
-  border-color: #00A86B;
-  background: #E8F5EF;
-  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.15);
 }
 
 .order-card.disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.order-card.disabled:active {
-  transform: none;
-}
-
-.order-radio {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border: 2px solid #D1D5DB;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.order-card.selected .order-radio {
-  border-color: #00A86B;
-  background: #FFFFFF;
-}
-
-.radio-dot {
-  width: 14px;
-  height: 14px;
-  background: #00A86B;
-  border-radius: 50%;
 }
 
 .order-content {
@@ -1400,6 +1279,13 @@ function setupRealtimeSubscription() {
 /* ===== Order Footer ===== */
 .order-footer {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.order-info-row {
+  display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
@@ -1465,6 +1351,51 @@ function setupRealtimeSubscription() {
   height: 18px;
 }
 
+/* Accept Order Button */
+.accept-order-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 20px;
+  background: #00A86B;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 52px;
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.25);
+}
+
+.accept-order-btn:disabled {
+  background: #D1D5DB;
+  color: #9CA3AF;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.accept-order-btn:not(:disabled):active {
+  transform: scale(0.98);
+  background: #008F5B;
+}
+
+.accept-order-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.spinner-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ===== Actions ===== */
 .actions {
   position: fixed;
@@ -1476,6 +1407,7 @@ function setupRealtimeSubscription() {
   background: #FFFFFF;
   border-top: 1px solid #E5E7EB;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  display: none; /* Hidden since we have buttons in cards */
 }
 
 .accept-btn {
