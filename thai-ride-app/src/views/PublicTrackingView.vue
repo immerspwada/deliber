@@ -8,6 +8,21 @@ import { useToast } from '../composables/useToast'
 // Import tracking-specific CSS
 import '../styles/tracking.css'
 
+// SVG Icons as components
+const ClockIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+const CheckCircleIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+const TruckIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" /></svg>`
+const UserIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>`
+const XCircleIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+const BanIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>`
+const MapPinIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>`
+const ShoppingBagIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>`
+const BuildingStorefrontIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" /></svg>`
+const HomeIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>`
+const DocumentTextIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>`
+const InboxStackIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.875 14.25l1.214 1.942a2.25 2.25 0 001.908 1.058h2.006c.776 0 1.497-.4 1.908-1.058l1.214-1.942M2.41 9h4.636a2.25 2.25 0 011.872 1.002l.164.246a2.25 2.25 0 001.872 1.002h2.092a2.25 2.25 0 001.872-1.002l.164-.246A2.25 2.25 0 0116.954 9h4.636M2.41 9a2.25 2.25 0 00-.16.832V12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 12V9.832c0-.287-.055-.57-.16-.832M2.41 9a2.25 2.25 0 01.382-.632l3.285-3.832a2.25 2.25 0 011.708-.786h8.43c.657 0 1.281.287 1.709.786l3.284 3.832c.163.19.291.404.382.632M4.5 20.25h15A2.25 2.25 0 0021.75 18v-2.625c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125V18a2.25 2.25 0 002.25 2.25z" /></svg>`
+const LightBulbIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>`
+
 // Provider details from database query
 interface ProviderDetails {
   id: string
@@ -42,14 +57,14 @@ const displayTrackingId = computed(() => {
 let subscription: { unsubscribe: () => void } | null = null
 
 // Status configuration
-const statusConfig: Record<string, { label: string; icon: string }> = {
-  pending: { label: 'รอคนขับรับงาน', icon: '⏳' },
-  matched: { label: 'คนขับรับงานแล้ว', icon: '👤' },
-  pickup: { label: 'กำลังไปรับพัสดุ', icon: '🚗' },
-  in_transit: { label: 'กำลังจัดส่ง', icon: '📦' },
-  delivered: { label: 'ส่งสำเร็จ', icon: '✅' },
-  failed: { label: 'ส่งไม่สำเร็จ', icon: '❌' },
-  cancelled: { label: 'ยกเลิก', icon: '🚫' }
+const statusConfig: Record<string, { label: string; icon: string; color: string }> = {
+  pending: { label: 'รอคนขับรับงาน', icon: ClockIcon, color: 'text-amber-600' },
+  matched: { label: 'คนขับรับงานแล้ว', icon: UserIcon, color: 'text-blue-600' },
+  pickup: { label: 'กำลังไปรับพัสดุ', icon: TruckIcon, color: 'text-indigo-600' },
+  in_transit: { label: 'กำลังจัดส่ง', icon: TruckIcon, color: 'text-purple-600' },
+  delivered: { label: 'ส่งสำเร็จ', icon: CheckCircleIcon, color: 'text-green-600' },
+  failed: { label: 'ส่งไม่สำเร็จ', icon: XCircleIcon, color: 'text-red-600' },
+  cancelled: { label: 'ยกเลิก', icon: BanIcon, color: 'text-gray-600' }
 }
 
 const currentStatus = computed(() => {
@@ -381,7 +396,7 @@ onUnmounted(() => {
       <div v-else-if="delivery" class="tracking-content">
         <!-- Status -->
         <div class="tracking-status">
-          <div class="tracking-status-icon">{{ currentStatus?.icon }}</div>
+          <div class="tracking-status-icon" :class="currentStatus?.color" v-html="currentStatus?.icon"></div>
           <h1 class="tracking-status-title">{{ currentStatus?.label }}</h1>
         </div>
 
@@ -424,8 +439,40 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Location Card -->
-        <div class="tracking-card">
+        <!-- Location Card - Shopping Order -->
+        <div v-if="delivery.tracking_id?.startsWith('SHP-')" class="tracking-card">
+          <h2 class="tracking-card-title">สถานที่</h2>
+          <div class="tracking-location">
+            <!-- Store Location -->
+            <div class="tracking-location-item">
+              <div class="tracking-location-header">
+                <div class="tracking-icon-badge tracking-badge-primary">
+                  <div class="tracking-icon" v-html="BuildingStorefrontIcon"></div>
+                </div>
+                <span class="tracking-location-label">ร้านค้า / จุดซื้อของ</span>
+              </div>
+              <p v-if="delivery.store_name" class="tracking-location-name">{{ delivery.store_name }}</p>
+              <p v-else class="tracking-location-name text-gray-500">ยังไม่ระบุชื่อร้าน</p>
+              <p class="tracking-location-detail">{{ delivery.store_address || delivery.sender_address || 'ยังไม่ระบุที่อยู่' }}</p>
+            </div>
+
+            <!-- Delivery Location -->
+            <div class="tracking-location-item">
+              <div class="tracking-location-header">
+                <div class="tracking-icon-badge tracking-badge-success">
+                  <div class="tracking-icon" v-html="HomeIcon"></div>
+                </div>
+                <span class="tracking-location-label">จุดส่งของ</span>
+              </div>
+              <p class="tracking-location-name">{{ delivery.recipient_name || 'ผู้รับ' }}</p>
+              <p v-if="delivery.recipient_phone" class="tracking-location-detail">{{ delivery.recipient_phone }}</p>
+              <p class="tracking-location-detail">{{ delivery.delivery_address || delivery.recipient_address || 'ยังไม่ระบุที่อยู่' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location Card - Delivery Order -->
+        <div v-else class="tracking-card">
           <h2 class="tracking-card-title">สถานที่</h2>
           <div class="tracking-location">
             <!-- Pickup Location -->
@@ -452,12 +499,47 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Details Card -->
-        <div class="tracking-card">
+        <!-- Details Card - Shopping Order -->
+        <div v-if="delivery.tracking_id?.startsWith('SHP-')" class="tracking-card">
+          <h2 class="tracking-card-title">รายละเอียดค่าบริการ</h2>
+          <div class="tracking-details">
+            <div class="tracking-detail-row">
+              <span class="tracking-detail-label">
+                <span class="tracking-detail-icon" v-html="ShoppingBagIcon"></span>
+                ประเภทบริการ
+              </span>
+              <span class="tracking-detail-value">ซื้อของ</span>
+            </div>
+            <div v-if="delivery.distance_km" class="tracking-detail-row">
+              <span class="tracking-detail-label">
+                <span class="tracking-detail-icon" v-html="MapPinIcon"></span>
+                ระยะทาง
+              </span>
+              <span class="tracking-detail-value">{{ delivery.distance_km }} กม.</span>
+            </div>
+            <div class="tracking-detail-divider"></div>
+            <div class="tracking-detail-row tracking-detail-total">
+              <span class="tracking-detail-label">ค่าบริการ</span>
+              <span class="tracking-detail-value">{{ formatCurrency(delivery.service_fee || delivery.estimated_fee) }}</span>
+            </div>
+          </div>
+          
+          <!-- Shopping Notes -->
+          <div v-if="delivery.shopping_notes || delivery.package_description" class="tracking-notes">
+            <p class="tracking-notes-label">หมายเหตุ</p>
+            <p class="tracking-notes-text">{{ delivery.shopping_notes || delivery.package_description }}</p>
+          </div>
+        </div>
+
+        <!-- Details Card - Delivery Order -->
+        <div v-else class="tracking-card">
           <h2 class="tracking-card-title">รายละเอียดพัสดุ</h2>
           <div class="tracking-details">
             <div class="tracking-detail-row">
-              <span class="tracking-detail-label">ประเภท</span>
+              <span class="tracking-detail-label">
+                <span class="tracking-detail-icon" v-html="InboxStackIcon"></span>
+                ประเภท
+              </span>
               <span class="tracking-detail-value">{{ delivery.package_type }}</span>
             </div>
             <div class="tracking-detail-row">
@@ -465,7 +547,10 @@ onUnmounted(() => {
               <span class="tracking-detail-value">{{ delivery.package_weight }} กก.</span>
             </div>
             <div class="tracking-detail-row">
-              <span class="tracking-detail-label">ระยะทาง</span>
+              <span class="tracking-detail-label">
+                <span class="tracking-detail-icon" v-html="MapPinIcon"></span>
+                ระยะทาง
+              </span>
               <span class="tracking-detail-value">{{ delivery.distance_km }} กม.</span>
             </div>
             <div class="tracking-detail-divider"></div>
@@ -485,15 +570,6 @@ onUnmounted(() => {
         <!-- Shopping Items Card (for shopping orders) -->
         <div v-if="delivery.tracking_id?.startsWith('SHP-')" class="tracking-card">
           <h2 class="tracking-card-title">รายการสินค้า</h2>
-          
-          <!-- Store Name -->
-          <div v-if="delivery.store_name" class="tracking-store">
-            <div class="tracking-store-icon">🏪</div>
-            <div class="tracking-store-info">
-              <p class="tracking-store-label">ร้านค้า</p>
-              <p class="tracking-store-name">{{ delivery.store_name }}</p>
-            </div>
-          </div>
           
           <!-- Shopping Items List -->
           <div v-if="delivery.items && delivery.items.length > 0" class="tracking-shopping-items">
@@ -520,19 +596,35 @@ onUnmounted(() => {
             </div>
           </div>
           
-          <!-- Empty State -->
+          <!-- Empty State with Helpful Message -->
           <div v-else class="tracking-shopping-empty">
-            <div class="tracking-shopping-empty-icon">📦</div>
-            <p class="tracking-shopping-empty-text">ไม่มีรายการสินค้า</p>
+            <div class="tracking-shopping-empty-icon" v-html="DocumentTextIcon"></div>
+            <p class="tracking-shopping-empty-text">ยังไม่มีรายการสินค้า</p>
             <p class="tracking-shopping-empty-subtext">
-              ลูกค้าอาจยังไม่ได้เพิ่มรายการสินค้า
+              ลูกค้ายังไม่ได้เพิ่มรายการสินค้าที่ต้องการซื้อ
             </p>
-          </div>
-          
-          <!-- Shopping Notes -->
-          <div v-if="delivery.shopping_notes" class="tracking-notes">
-            <p class="tracking-notes-label">หมายเหตุการซื้อของ</p>
-            <p class="tracking-notes-text">{{ delivery.shopping_notes }}</p>
+            
+            <!-- Helpful Actions for Different Roles -->
+            <div class="tracking-shopping-empty-actions">
+              <div v-if="isProvider && delivery?.provider_id === providerId" class="tracking-shopping-empty-action">
+                <div class="tracking-shopping-empty-action-icon" v-html="LightBulbIcon"></div>
+                <div>
+                  <p class="tracking-shopping-empty-action-title">สำหรับคนขับ:</p>
+                  <p class="tracking-shopping-empty-action-text">
+                    กรุณาติดต่อลูกค้าเพื่อสอบถามรายการสินค้าที่ต้องการซื้อ
+                  </p>
+                </div>
+              </div>
+              <div v-else class="tracking-shopping-empty-action">
+                <div class="tracking-shopping-empty-action-icon" v-html="LightBulbIcon"></div>
+                <div>
+                  <p class="tracking-shopping-empty-action-title">คำแนะนำ:</p>
+                  <p class="tracking-shopping-empty-action-text">
+                    หากคุณเป็นลูกค้า กรุณาเพิ่มรายการสินค้าในหน้าออเดอร์
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -540,7 +632,9 @@ onUnmounted(() => {
         <div v-if="delivery.provider && 'first_name' in delivery.provider" class="tracking-card">
           <h2 class="tracking-card-title">ข้อมูลคนขับ</h2>
           <div class="tracking-driver">
-            <div class="tracking-driver-avatar">👤</div>
+            <div class="tracking-driver-avatar">
+              <div class="tracking-driver-avatar-icon" v-html="UserIcon"></div>
+            </div>
             <div class="tracking-driver-info">
               <p class="tracking-driver-name">
                 {{ delivery.provider.first_name }} {{ delivery.provider.last_name }}
@@ -584,7 +678,10 @@ onUnmounted(() => {
             :disabled="cancelling"
             @click="openCancelModal"
           >
-            🚫 ยกเลิกการจัดส่ง
+            <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            ยกเลิกการจัดส่ง
           </button>
           <p class="tracking-actions-note">
             * ต้องเข้าสู่ระบบเพื่อยกเลิก
@@ -598,8 +695,10 @@ onUnmounted(() => {
       <div class="tracking-modal" @click.stop>
         <div class="tracking-modal-header">
           <h3 class="tracking-modal-title">ยืนยันการยกเลิก</h3>
-          <button class="tracking-modal-close" type="button" @click="closeCancelModal">
-            ✕
+          <button class="tracking-modal-close" type="button" @click="closeCancelModal" aria-label="ปิด">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
         
