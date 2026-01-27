@@ -772,7 +772,7 @@ function setupRealtimeSubscription() {
     </main>
 
     <!-- Bottom Actions -->
-    <footer v-if="hasOrders" class="actions">
+    <footer v-if="!loading" class="actions">
       <button 
         class="accept-btn" 
         :disabled="!hasSelectedOrders" 
