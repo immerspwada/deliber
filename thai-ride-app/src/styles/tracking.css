@@ -691,3 +691,157 @@
     page-break-inside: avoid;
   }
 }
+
+/* Provider access button */
+.tracking-provider-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.tracking-provider-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.tracking-provider-btn:active {
+  transform: translateY(0);
+}
+
+.tracking-provider-note {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Shopping Items Styles */
+.tracking-store {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.tracking-store-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.tracking-store-info {
+  flex: 1;
+}
+
+.tracking-store-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.tracking-store-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.tracking-shopping-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tracking-shopping-item {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.tracking-shopping-item-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tracking-shopping-item-content {
+  flex: 1;
+}
+
+.tracking-shopping-item-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.tracking-shopping-item-details {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.tracking-shopping-item-quantity,
+.tracking-shopping-item-price {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.tracking-shopping-item-price {
+  font-weight: 600;
+  color: #059669;
+}
+
+.tracking-shopping-item-notes {
+  font-size: 14px;
+  color: #6b7280;
+  font-style: italic;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.tracking-shopping-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.tracking-shopping-empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.tracking-shopping-empty-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.tracking-shopping-empty-subtext {
+  font-size: 14px;
+  color: #6b7280;
+}

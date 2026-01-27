@@ -226,8 +226,10 @@ async function loadProviderData() {
 }
 
 async function loadActiveJob(provId: string) {
-  // Check both ride_requests and queue_bookings for active jobs
-  const [rideResult, queueResult] = await Promise.all([
+  console.log('[ProviderHome] Loading active job for provider:', provId)
+  
+  // Check all request types for active jobs
+  const [rideResult, queueResult, shoppingResult, deliveryResult] = await Promise.all([
     // Check ride_requests
     supabase
       .from('ride_requests')
@@ -266,12 +268,80 @@ async function loadActiveJob(provId: string) {
       .in('status', ['confirmed', 'in_progress'])
       .order('confirmed_at', { ascending: false })
       .limit(1)
+      .maybeSingle() as { data: any | null },
+    
+    // Check shopping_requests
+    supabase
+      .from('shopping_requests')
+      .select(`
+        id,
+        tracking_id,
+        status,
+        store_name,
+        store_address,
+        delivery_address,
+        service_fee,
+        created_at,
+        user_id
+      `)
+      .eq('provider_id', provId)
+      .in('status', ['matched', 'shopping', 'delivering'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as { data: any | null },
+    
+    // Check delivery_requests
+    supabase
+      .from('delivery_requests')
+      .select(`
+        id,
+        tracking_id,
+        status,
+        sender_address,
+        recipient_address,
+        estimated_fee,
+        created_at,
+        user_id
+      `)
+      .eq('provider_id', provId)
+      .in('status', ['matched', 'pickup', 'in_transit'])
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle() as { data: any | null }
   ])
 
-  // Prioritize ride_requests, then queue_bookings
-  const data = rideResult.data || queueResult.data
-  const isQueue = !rideResult.data && !!queueResult.data
+  console.log('[ProviderHome] Active job results:', {
+    ride: rideResult.data ? 'found' : 'none',
+    queue: queueResult.data ? 'found' : 'none',
+    shopping: shoppingResult.data ? 'found' : 'none',
+    delivery: deliveryResult.data ? 'found' : 'none'
+  })
+
+  // Prioritize by most recent
+  const results = [
+    { data: rideResult.data, type: 'ride' },
+    { data: queueResult.data, type: 'queue' },
+    { data: shoppingResult.data, type: 'shopping' },
+    { data: deliveryResult.data, type: 'delivery' }
+  ].filter(r => r.data !== null)
+  
+  if (results.length === 0) {
+    console.log('[ProviderHome] No active jobs found')
+    activeJob.value = null
+    return
+  }
+  
+  // Get the most recent one
+  const mostRecent = results.reduce((prev, curr) => {
+    const prevTime = new Date(prev.data.created_at).getTime()
+    const currTime = new Date(curr.data.created_at).getTime()
+    return currTime > prevTime ? curr : prev
+  })
+  
+  console.log('[ProviderHome] Most recent active job:', mostRecent.type, mostRecent.data.tracking_id)
+  
+  const data = mostRecent.data
+  const jobType = mostRecent.type
 
   if (data) {
     // Get customer name from users table (production uses 'users' not 'profiles')
@@ -281,7 +351,8 @@ async function loadActiveJob(provId: string) {
       .eq('id', data.user_id)
       .maybeSingle() as { data: ProfileRow | null }
 
-    if (isQueue) {
+    // Format based on job type
+    if (jobType === 'queue') {
       // Queue booking format
       activeJob.value = {
         id: data.id,
@@ -290,6 +361,30 @@ async function loadActiveJob(provId: string) {
         pickup_address: data.place_name || data.place_address || 'จองคิว',
         destination_address: `${data.scheduled_date} ${data.scheduled_time}`,
         estimated_fare: data.service_fee,
+        customer_name: profile?.name || 'ลูกค้า',
+        created_at: data.created_at
+      }
+    } else if (jobType === 'shopping') {
+      // Shopping request format
+      activeJob.value = {
+        id: data.id,
+        tracking_id: data.tracking_id,
+        status: data.status as RideStatus,
+        pickup_address: data.store_name || data.store_address || 'ร้านค้า',
+        destination_address: data.delivery_address || 'ที่อยู่จัดส่ง',
+        estimated_fare: data.service_fee,
+        customer_name: profile?.name || 'ลูกค้า',
+        created_at: data.created_at
+      }
+    } else if (jobType === 'delivery') {
+      // Delivery request format
+      activeJob.value = {
+        id: data.id,
+        tracking_id: data.tracking_id,
+        status: data.status as RideStatus,
+        pickup_address: data.sender_address || 'ที่อยู่ผู้ส่ง',
+        destination_address: data.recipient_address || 'ที่อยู่ผู้รับ',
+        estimated_fare: data.estimated_fee,
         customer_name: profile?.name || 'ลูกค้า',
         created_at: data.created_at
       }
@@ -306,6 +401,8 @@ async function loadActiveJob(provId: string) {
         created_at: data.created_at
       }
     }
+    
+    console.log('[ProviderHome] Active job set:', activeJob.value.tracking_id)
   } else {
     activeJob.value = null
   }
@@ -352,8 +449,10 @@ async function loadTodayEarnings(provId: string) {
 }
 
 async function loadAvailableOrders() {
-  // Count both ride_requests and queue_bookings
-  const [ridesResult, queueResult] = await Promise.all([
+  console.log('[ProviderHome] 🔍 Loading available orders...')
+  
+  // Count all request types
+  const [ridesResult, queueResult, shoppingResult, deliveryResult] = await Promise.all([
     supabase
       .from('ride_requests')
       .select('id', { count: 'exact', head: true })
@@ -361,12 +460,36 @@ async function loadAvailableOrders() {
     supabase
       .from('queue_bookings')
       .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+    supabase
+      .from('shopping_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+    supabase
+      .from('delivery_requests')
+      .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
   ])
 
   const ridesCount = ridesResult.count || 0
   const queueCount = queueResult.count || 0
-  availableOrders.value = ridesCount + queueCount
+  const shoppingCount = shoppingResult.count || 0
+  const deliveryCount = deliveryResult.count || 0
+  const total = ridesCount + queueCount + shoppingCount + deliveryCount
+  
+  console.log('[ProviderHome] 📊 Available orders:', {
+    rides: ridesCount,
+    queue: queueCount,
+    shopping: shoppingCount,
+    delivery: deliveryCount,
+    total
+  })
+  
+  console.log('[ProviderHome] ✅ Setting availableOrders.value =', total)
+  
+  availableOrders.value = total
+  
+  console.log('[ProviderHome] ✅ availableOrders.value is now:', availableOrders.value)
 }
 
 async function loadRecentTransactions(provId: string) {
@@ -608,6 +731,68 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'shopping_requests',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[ProviderHome] 🛒 New shopping order received:', payload.new)
+        // Reload available orders count when new shopping order comes in
+        loadAvailableOrders()
+        
+        // Send push notification if online and subscribed
+        if (isOnline.value && pushSubscribed.value) {
+          const newShopping = payload.new as any
+          notifyNewJob({
+            id: newShopping.id,
+            service_type: 'shopping',
+            status: 'pending',
+            customer_id: newShopping.user_id,
+            pickup_location: { lat: 0, lng: 0 },
+            pickup_address: newShopping.store_name || newShopping.store_address || 'ร้านค้า',
+            dropoff_location: { lat: 0, lng: 0 },
+            dropoff_address: newShopping.delivery_address || 'ที่อยู่จัดส่ง',
+            estimated_earnings: newShopping.service_fee,
+            created_at: newShopping.created_at
+          })
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'delivery_requests',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[ProviderHome] 📦 New delivery order received:', payload.new)
+        // Reload available orders count when new delivery order comes in
+        loadAvailableOrders()
+        
+        // Send push notification if online and subscribed
+        if (isOnline.value && pushSubscribed.value) {
+          const newDelivery = payload.new as any
+          notifyNewJob({
+            id: newDelivery.id,
+            service_type: 'delivery',
+            status: 'pending',
+            customer_id: newDelivery.user_id,
+            pickup_location: { lat: 0, lng: 0 },
+            pickup_address: newDelivery.sender_address || 'ผู้ส่ง',
+            dropoff_location: { lat: 0, lng: 0 },
+            dropoff_address: newDelivery.recipient_address || 'ผู้รับ',
+            estimated_earnings: newDelivery.estimated_fee,
+            created_at: newDelivery.created_at
+          })
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'UPDATE',
         schema: 'public',
         table: 'ride_requests'
@@ -650,6 +835,48 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'shopping_requests'
+      },
+      (payload) => {
+        console.log('[ProviderHome] 🛒 Shopping order updated:', payload.eventType, payload.new)
+        // Reload count when shopping order status changes
+        loadAvailableOrders()
+        
+        // Reload active job if it's ours
+        if (providerId.value) {
+          const updated = payload.new as any
+          if (updated.provider_id === providerId.value) {
+            loadActiveJob(providerId.value)
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'delivery_requests'
+      },
+      (payload) => {
+        console.log('[ProviderHome] 📦 Delivery order updated:', payload.eventType, payload.new)
+        // Reload count when delivery order status changes
+        loadAvailableOrders()
+        
+        // Reload active job if it's ours
+        if (providerId.value) {
+          const updated = payload.new as any
+          if (updated.provider_id === providerId.value) {
+            loadActiveJob(providerId.value)
+          }
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'DELETE',
         schema: 'public',
         table: 'ride_requests'
@@ -668,6 +895,30 @@ function setupRealtimeSubscription() {
       },
       () => {
         console.log('[ProviderHome] Queue booking deleted')
+        loadAvailableOrders()
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'shopping_requests'
+      },
+      () => {
+        console.log('[ProviderHome] 🛒 Shopping order deleted')
+        loadAvailableOrders()
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'delivery_requests'
+      },
+      () => {
+        console.log('[ProviderHome] 📦 Delivery order deleted')
         loadAvailableOrders()
       }
     )

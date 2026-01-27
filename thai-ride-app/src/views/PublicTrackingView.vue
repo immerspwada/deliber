@@ -73,6 +73,41 @@ const formatCurrency = (amount: number | null) => {
   return `฿${amount.toFixed(2)}`
 }
 
+// Provider access
+const isProvider = ref(false)
+const providerId = ref<string | null>(null)
+
+const checkProviderAccess = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      isProvider.value = false
+      return
+    }
+
+    // Check if user is a provider
+    const { data: providerData } = await supabase
+      .from('providers_v2')
+      .select('id, status')
+      .eq('user_id', session.user.id)
+      .maybeSingle()
+
+    if (providerData && (providerData.status === 'approved' || providerData.status === 'active')) {
+      isProvider.value = true
+      providerId.value = providerData.id
+    }
+  } catch (err) {
+    console.error('Error checking provider access:', err)
+  }
+}
+
+const goToProviderJob = () => {
+  if (!delivery.value?.id) return
+  
+  // Navigate to provider job detail
+  router.push(`/provider/job/${delivery.value.id}`)
+}
+
 const loadDelivery = async () => {
   console.log('🔍 [Tracking] Loading delivery for:', trackingId.value)
   loading.value = true
@@ -86,11 +121,13 @@ const loadDelivery = async () => {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)
     
     if (isUUID) {
-      const { data: result, error: queryError } = await supabase
+      // Determine table based on UUID (try both tables)
+      // Try delivery_requests first
+      const { data: deliveryResult, error: deliveryError } = await supabase
         .from('delivery_requests')
         .select(`
           *,
-          provider:providers_v2!delivery_requests_provider_id_fkey (
+          provider:providers_v2 (
             id,
             first_name,
             last_name,
@@ -101,15 +138,66 @@ const loadDelivery = async () => {
           )
         `)
         .eq('id', identifier)
-        .single()
+        .maybeSingle()
+      
+      if (deliveryResult) {
+        data = deliveryResult
+      } else {
+        // Try shopping_requests
+        const { data: shoppingResult, error: shoppingError } = await supabase
+          .from('shopping_requests')
+          .select(`
+            *,
+            provider:providers_v2 (
+              id,
+              first_name,
+              last_name,
+              phone_number,
+              rating,
+              vehicle_type,
+              vehicle_plate
+            )
+          `)
+          .eq('id', identifier)
+          .maybeSingle()
+        
+        if (shoppingResult) {
+          data = shoppingResult
+        } else {
+          console.error('❌ [Tracking] Not found in either table:', { deliveryError, shoppingError })
+          error.value = 'ไม่พบข้อมูลการจัดส่ง'
+          return
+        }
+      }
+    } else {
+      // Determine table based on tracking ID prefix
+      const tableName = identifier.startsWith('SHP-') ? 'shopping_requests' : 'delivery_requests'
+      console.log('🔍 [Tracking] Using table:', tableName)
+      
+      const { data: result, error: queryError } = await supabase
+        .from(tableName)
+        .select(`
+          *,
+          provider:providers_v2 (
+            id,
+            first_name,
+            last_name,
+            phone_number,
+            rating,
+            vehicle_type,
+            vehicle_plate
+          )
+        `)
+        .eq('tracking_id', identifier)
+        .maybeSingle()
       
       if (queryError) {
+        console.error('❌ [Tracking] Query error:', queryError)
         error.value = 'ไม่พบข้อมูลการจัดส่ง'
         return
       }
+      
       data = result
-    } else {
-      data = await getDeliveryByTrackingId(identifier)
     }
     
     if (!data) {
@@ -121,7 +209,8 @@ const loadDelivery = async () => {
     console.log('✅ [Tracking] Data loaded:', data)
     delivery.value = data
     
-    if (data.id) {
+    // Subscribe to updates (only for delivery_requests, not shopping_requests yet)
+    if (data.id && !identifier.startsWith('SHP-')) {
       subscription = subscribeToDelivery(data.id, (updated) => {
         delivery.value = updated
       })
@@ -213,9 +302,12 @@ const confirmCancel = async () => {
   
   cancelling.value = true
   try {
+    // Determine request type based on tracking ID prefix
+    const requestType = delivery.value.tracking_id?.startsWith('SHP-') ? 'shopping' : 'delivery'
+    
     const { data, error: cancelError } = await supabase.rpc('cancel_request_with_pending_refund', {
       p_request_id: delivery.value.id,
-      p_request_type: 'delivery',
+      p_request_type: requestType,
       p_cancelled_by: session.user.id, // Use authenticated user ID
       p_cancelled_by_role: 'customer',
       p_cancel_reason: cancelReason.value || 'ลูกค้ายกเลิก'
@@ -249,7 +341,11 @@ const confirmCancel = async () => {
   }
 }
 
-onMounted(() => loadDelivery())
+onMounted(async () => {
+  await checkProviderAccess()
+  await loadDelivery()
+})
+
 onUnmounted(() => {
   if (subscription) subscription.unsubscribe()
 })
@@ -386,6 +482,60 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <!-- Shopping Items Card (for shopping orders) -->
+        <div v-if="delivery.tracking_id?.startsWith('SHP-')" class="tracking-card">
+          <h2 class="tracking-card-title">รายการสินค้า</h2>
+          
+          <!-- Store Name -->
+          <div v-if="delivery.store_name" class="tracking-store">
+            <div class="tracking-store-icon">🏪</div>
+            <div class="tracking-store-info">
+              <p class="tracking-store-label">ร้านค้า</p>
+              <p class="tracking-store-name">{{ delivery.store_name }}</p>
+            </div>
+          </div>
+          
+          <!-- Shopping Items List -->
+          <div v-if="delivery.items && delivery.items.length > 0" class="tracking-shopping-items">
+            <div 
+              v-for="(item, index) in delivery.items" 
+              :key="index"
+              class="tracking-shopping-item"
+            >
+              <div class="tracking-shopping-item-number">{{ index + 1 }}</div>
+              <div class="tracking-shopping-item-content">
+                <p class="tracking-shopping-item-name">{{ item.name || 'ไม่ระบุชื่อสินค้า' }}</p>
+                <div class="tracking-shopping-item-details">
+                  <span v-if="item.quantity" class="tracking-shopping-item-quantity">
+                    จำนวน: {{ item.quantity }} {{ item.unit || 'ชิ้น' }}
+                  </span>
+                  <span v-if="item.price" class="tracking-shopping-item-price">
+                    ราคา: {{ formatCurrency(item.price) }}
+                  </span>
+                </div>
+                <p v-if="item.notes" class="tracking-shopping-item-notes">
+                  หมายเหตุ: {{ item.notes }}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Empty State -->
+          <div v-else class="tracking-shopping-empty">
+            <div class="tracking-shopping-empty-icon">📦</div>
+            <p class="tracking-shopping-empty-text">ไม่มีรายการสินค้า</p>
+            <p class="tracking-shopping-empty-subtext">
+              ลูกค้าอาจยังไม่ได้เพิ่มรายการสินค้า
+            </p>
+          </div>
+          
+          <!-- Shopping Notes -->
+          <div v-if="delivery.shopping_notes" class="tracking-notes">
+            <p class="tracking-notes-label">หมายเหตุการซื้อของ</p>
+            <p class="tracking-notes-text">{{ delivery.shopping_notes }}</p>
+          </div>
+        </div>
+
         <!-- Driver Card -->
         <div v-if="delivery.provider && 'first_name' in delivery.provider" class="tracking-card">
           <h2 class="tracking-card-title">ข้อมูลคนขับ</h2>
@@ -403,6 +553,21 @@ onUnmounted(() => {
               </p>
             </div>
           </div>
+        </div>
+
+        <!-- Provider Access Button -->
+        <div v-if="isProvider && delivery?.provider_id === providerId" class="tracking-card">
+          <h2 class="tracking-card-title">สำหรับคนขับ</h2>
+          <button 
+            class="tracking-provider-btn" 
+            type="button"
+            @click="goToProviderJob"
+          >
+            🚗 เข้าสู่หน้างาน Provider
+          </button>
+          <p class="tracking-provider-note">
+            คุณเป็นคนขับที่รับงานนี้ คลิกเพื่อดูรายละเอียดและจัดการงาน
+          </p>
         </div>
 
         <!-- Help Section -->

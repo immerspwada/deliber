@@ -38,13 +38,13 @@ interface Order {
   tip_amount: number | null
   distance: number
   created_at: string
-  service_type?: 'ride' | 'queue'
+  service_type?: 'ride' | 'queue' | 'shopping' | 'delivery'
   scheduled_date?: string
   scheduled_time?: string
   place_name?: string
 }
 
-type ServiceFilter = 'all' | 'ride' | 'queue'
+type ServiceFilter = 'all' | 'ride' | 'queue' | 'shopping' | 'delivery'
 
 // State
 const loading = ref(true)
@@ -72,9 +72,19 @@ const queueOrders = computed(() =>
   filteredOrders.value.filter(o => o.service_type === 'queue')
 )
 
+const shoppingOrders = computed(() => 
+  filteredOrders.value.filter(o => o.service_type === 'shopping')
+)
+
+const deliveryOrders = computed(() => 
+  filteredOrders.value.filter(o => o.service_type === 'delivery')
+)
+
 // Computed - Counts
 const rideCount = computed(() => rideOrders.value.length)
 const queueCount = computed(() => queueOrders.value.length)
+const shoppingCount = computed(() => shoppingOrders.value.length)
+const deliveryCount = computed(() => deliveryOrders.value.length)
 
 // Computed - Has orders
 const hasOrders = computed(() => orders.value.length > 0)
@@ -123,8 +133,8 @@ async function loadOrders() {
     // Check for active jobs first
     await checkActiveJob()
 
-    // Load both ride requests and queue bookings
-    const [ridesResult, queueResult] = await Promise.all([
+    // Load all order types: rides, queue bookings, shopping, delivery
+    const [ridesResult, queueResult, shoppingResult, deliveryResult] = await Promise.all([
       supabase
         .from('ride_requests')
         .select('id, tracking_id, pickup_address, destination_address, pickup_lat, pickup_lng, destination_lat, destination_lng, estimated_fare, final_fare, actual_fare, paid_amount, promo_discount_amount, promo_code, payment_method, tip_amount, created_at')
@@ -134,6 +144,18 @@ async function loadOrders() {
       (supabase as any)
         .from('queue_bookings')
         .select('id, tracking_id, place_name, place_address, scheduled_date, scheduled_time, service_fee, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('shopping_requests')
+        .select('id, tracking_id, store_name, store_address, store_lat, store_lng, delivery_address, delivery_lat, delivery_lng, service_fee, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('delivery_requests')
+        .select('id, tracking_id, sender_address, sender_lat, sender_lng, recipient_address, recipient_lat, recipient_lng, estimated_fee, created_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(10)
@@ -178,6 +200,58 @@ async function loadOrders() {
         place_name: q.place_name
       }))
       allOrders.push(...queueOrders)
+    }
+
+    // Process shopping requests
+    if (shoppingResult.data) {
+      const shoppingOrders = shoppingResult.data.map((s: any) => ({
+        id: s.id,
+        tracking_id: s.tracking_id,
+        pickup_address: s.store_name || s.store_address || 'ร้านค้า',
+        destination_address: s.delivery_address || 'ที่อยู่จัดส่ง',
+        pickup_lat: s.store_lat || 0,
+        pickup_lng: s.store_lng || 0,
+        destination_lat: s.delivery_lat || 0,
+        destination_lng: s.delivery_lng || 0,
+        estimated_fare: s.service_fee || 0,
+        final_fare: null,
+        actual_fare: null,
+        paid_amount: null,
+        promo_discount_amount: null,
+        promo_code: null,
+        payment_method: null,
+        tip_amount: null,
+        distance: calculateDistance(s.store_lat || 0, s.store_lng || 0, s.delivery_lat || 0, s.delivery_lng || 0),
+        created_at: s.created_at,
+        service_type: 'shopping' as const
+      }))
+      allOrders.push(...shoppingOrders)
+    }
+
+    // Process delivery requests
+    if (deliveryResult.data) {
+      const deliveryOrders = deliveryResult.data.map((d: any) => ({
+        id: d.id,
+        tracking_id: d.tracking_id,
+        pickup_address: d.sender_address || 'ที่อยู่ผู้ส่ง',
+        destination_address: d.recipient_address || 'ที่อยู่ผู้รับ',
+        pickup_lat: d.sender_lat || 0,
+        pickup_lng: d.sender_lng || 0,
+        destination_lat: d.recipient_lat || 0,
+        destination_lng: d.recipient_lng || 0,
+        estimated_fare: d.estimated_fee || 0,
+        final_fare: null,
+        actual_fare: null,
+        paid_amount: null,
+        promo_discount_amount: null,
+        promo_code: null,
+        payment_method: null,
+        tip_amount: null,
+        distance: calculateDistance(d.sender_lat || 0, d.sender_lng || 0, d.recipient_lat || 0, d.recipient_lng || 0),
+        created_at: d.created_at,
+        service_type: 'delivery' as const
+      }))
+      allOrders.push(...deliveryOrders)
     }
 
     // Sort by created_at (newest first)
@@ -226,18 +300,24 @@ function setServiceFilter(filter: ServiceFilter) {
   serviceFilter.value = filter
 }
 
-function getServiceIcon(serviceType: 'ride' | 'queue' | undefined): string {
+function getServiceIcon(serviceType: 'ride' | 'queue' | 'shopping' | 'delivery' | undefined): string {
   if (serviceType === 'queue') return '📅'
+  if (serviceType === 'shopping') return '🛒'
+  if (serviceType === 'delivery') return '📦'
   return '🚗'
 }
 
-function getServiceLabel(serviceType: 'ride' | 'queue' | undefined): string {
+function getServiceLabel(serviceType: 'ride' | 'queue' | 'shopping' | 'delivery' | undefined): string {
   if (serviceType === 'queue') return 'จองคิว'
+  if (serviceType === 'shopping') return 'สั่งซื้อของ'
+  if (serviceType === 'delivery') return 'ส่งของ'
   return 'เรียกรถ'
 }
 
-function getServiceColor(serviceType: 'ride' | 'queue' | undefined): string {
+function getServiceColor(serviceType: 'ride' | 'queue' | 'shopping' | 'delivery' | undefined): string {
   if (serviceType === 'queue') return 'queue'
+  if (serviceType === 'shopping') return 'shopping'
+  if (serviceType === 'delivery') return 'delivery'
   return 'ride'
 }
 
@@ -318,6 +398,40 @@ async function acceptOrder(order: Order) {
       if (updateError) {
         console.error('[Orders] Accept queue error:', updateError)
         alert(`ไม่สามารถรับงานจองคิวได้: ${updateError.message}`)
+        acceptingOrderId.value = null
+        return
+      }
+    } else if (order.service_type === 'shopping') {
+      const { error: updateError } = await (supabase
+        .from('shopping_requests') as any)
+        .update({
+          provider_id: provider.id,
+          status: 'matched',
+          matched_at: new Date().toISOString()
+        })
+        .eq('id', order.id)
+        .eq('status', 'pending')
+
+      if (updateError) {
+        console.error('[Orders] Accept shopping error:', updateError)
+        alert(`ไม่สามารถรับงานซื้อของได้: ${updateError.message}`)
+        acceptingOrderId.value = null
+        return
+      }
+    } else if (order.service_type === 'delivery') {
+      const { error: updateError } = await (supabase
+        .from('delivery_requests') as any)
+        .update({
+          provider_id: provider.id,
+          status: 'matched',
+          matched_at: new Date().toISOString()
+        })
+        .eq('id', order.id)
+        .eq('status', 'pending')
+
+      if (updateError) {
+        console.error('[Orders] Accept delivery error:', updateError)
+        alert(`ไม่สามารถรับงานส่งของได้: ${updateError.message}`)
         acceptingOrderId.value = null
         return
       }
@@ -438,6 +552,82 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'shopping_requests',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[Orders] 🛒 New shopping order received:', payload.new)
+        const newShopping = payload.new as any
+        
+        const shoppingOrder: Order = {
+          id: newShopping.id,
+          tracking_id: newShopping.tracking_id,
+          pickup_address: newShopping.store_name || newShopping.store_address || 'ร้านค้า',
+          destination_address: newShopping.delivery_address || 'ที่อยู่จัดส่ง',
+          pickup_lat: newShopping.store_lat || 0,
+          pickup_lng: newShopping.store_lng || 0,
+          destination_lat: newShopping.delivery_lat || 0,
+          destination_lng: newShopping.delivery_lng || 0,
+          estimated_fare: newShopping.service_fee || 0,
+          final_fare: null,
+          actual_fare: null,
+          paid_amount: null,
+          promo_discount_amount: null,
+          promo_code: null,
+          payment_method: null,
+          tip_amount: null,
+          distance: calculateDistance(newShopping.store_lat || 0, newShopping.store_lng || 0, newShopping.delivery_lat || 0, newShopping.delivery_lng || 0),
+          created_at: newShopping.created_at,
+          service_type: 'shopping'
+        }
+        
+        // Add to beginning of list
+        orders.value = [shoppingOrder, ...orders.value]
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'delivery_requests',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[Orders] 📦 New delivery order received:', payload.new)
+        const newDelivery = payload.new as any
+        
+        const deliveryOrder: Order = {
+          id: newDelivery.id,
+          tracking_id: newDelivery.tracking_id,
+          pickup_address: newDelivery.sender_address || 'ที่อยู่ผู้ส่ง',
+          destination_address: newDelivery.recipient_address || 'ที่อยู่ผู้รับ',
+          pickup_lat: newDelivery.sender_lat || 0,
+          pickup_lng: newDelivery.sender_lng || 0,
+          destination_lat: newDelivery.recipient_lat || 0,
+          destination_lng: newDelivery.recipient_lng || 0,
+          estimated_fare: newDelivery.estimated_fee || 0,
+          final_fare: null,
+          actual_fare: null,
+          paid_amount: null,
+          promo_discount_amount: null,
+          promo_code: null,
+          payment_method: null,
+          tip_amount: null,
+          distance: calculateDistance(newDelivery.sender_lat || 0, newDelivery.sender_lng || 0, newDelivery.recipient_lat || 0, newDelivery.recipient_lng || 0),
+          created_at: newDelivery.created_at,
+          service_type: 'delivery'
+        }
+        
+        // Add to beginning of list
+        orders.value = [deliveryOrder, ...orders.value]
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'UPDATE',
         schema: 'public',
         table: 'ride_requests'
@@ -472,12 +662,85 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'shopping_requests'
+      },
+      (payload) => {
+        console.log('[Orders] 🛒 Shopping order updated:', payload.new)
+        const updated = payload.new as { id: string; status: string }
+        
+        // Remove job if it's no longer pending
+        if (updated.status !== 'pending') {
+          orders.value = orders.value.filter(o => o.id !== updated.id)
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'delivery_requests'
+      },
+      (payload) => {
+        console.log('[Orders] 📦 Delivery order updated:', payload.new)
+        const updated = payload.new as { id: string; status: string }
+        
+        // Remove job if it's no longer pending
+        if (updated.status !== 'pending') {
+          orders.value = orders.value.filter(o => o.id !== updated.id)
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'DELETE',
         schema: 'public',
         table: 'ride_requests'
       },
       (payload) => {
         console.log('[Orders] Job deleted:', payload.old)
+        const deleted = payload.old as { id: string }
+        orders.value = orders.value.filter(o => o.id !== deleted.id)
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'queue_bookings'
+      },
+      (payload) => {
+        console.log('[Orders] Queue booking deleted:', payload.old)
+        const deleted = payload.old as { id: string }
+        orders.value = orders.value.filter(o => o.id !== deleted.id)
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'shopping_requests'
+      },
+      (payload) => {
+        console.log('[Orders] 🛒 Shopping order deleted:', payload.old)
+        const deleted = payload.old as { id: string }
+        orders.value = orders.value.filter(o => o.id !== deleted.id)
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'delivery_requests'
+      },
+      (payload) => {
+        console.log('[Orders] 📦 Delivery order deleted:', payload.old)
         const deleted = payload.old as { id: string }
         orders.value = orders.value.filter(o => o.id !== deleted.id)
       }
@@ -529,27 +792,74 @@ function setupRealtimeSubscription() {
           class="filter-tab"
           :class="{ active: serviceFilter === 'all' }"
           @click="setServiceFilter('all')"
+          aria-label="ทั้งหมด"
         >
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+          </svg>
           <span class="tab-label">ทั้งหมด</span>
-          <span class="tab-badge">{{ orders.length }}</span>
+          <span v-if="orders.length > 0" class="tab-badge">{{ orders.length }}</span>
         </button>
         <button 
           class="filter-tab"
           :class="{ active: serviceFilter === 'ride' }"
           @click="setServiceFilter('ride')"
+          aria-label="เรียกรถ"
         >
-          <span class="tab-icon">🚗</span>
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 17h14v-5H5v5z" />
+            <path d="M5 12l2-5h10l2 5" />
+            <circle cx="7" cy="17" r="2" />
+            <circle cx="17" cy="17" r="2" />
+          </svg>
           <span class="tab-label">เรียกรถ</span>
-          <span class="tab-badge">{{ rideCount }}</span>
+          <span v-if="rideCount > 0" class="tab-badge">{{ rideCount }}</span>
         </button>
         <button 
           class="filter-tab"
           :class="{ active: serviceFilter === 'queue' }"
           @click="setServiceFilter('queue')"
+          aria-label="จองคิว"
         >
-          <span class="tab-icon">📅</span>
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
           <span class="tab-label">จองคิว</span>
-          <span class="tab-badge">{{ queueCount }}</span>
+          <span v-if="queueCount > 0" class="tab-badge">{{ queueCount }}</span>
+        </button>
+        <button 
+          class="filter-tab"
+          :class="{ active: serviceFilter === 'shopping' }"
+          @click="setServiceFilter('shopping')"
+          aria-label="ซื้อของ"
+        >
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="21" r="1" />
+            <circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+          </svg>
+          <span class="tab-label">ซื้อของ</span>
+          <span v-if="shoppingCount > 0" class="tab-badge">{{ shoppingCount }}</span>
+        </button>
+        <button 
+          class="filter-tab"
+          :class="{ active: serviceFilter === 'delivery' }"
+          @click="setServiceFilter('delivery')"
+          aria-label="ส่งของ"
+        >
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+            <line x1="12" y1="22.08" x2="12" y2="12" />
+          </svg>
+          <span class="tab-label">ส่งของ</span>
+          <span v-if="deliveryCount > 0" class="tab-badge">{{ deliveryCount }}</span>
         </button>
       </div>
 
@@ -589,6 +899,12 @@ function setupRealtimeSubscription() {
                   <span class="badge-text">เรียกรถ</span>
                 </span>
                 <span class="order-fare">฿{{ getFareDisplay(order) }}</span>
+              </div>
+
+              <!-- Tracking ID -->
+              <div v-if="order.tracking_id" class="tracking-id">
+                <span class="tracking-label">รหัสงาน:</span>
+                <span class="tracking-value">{{ order.tracking_id }}</span>
               </div>
 
               <div class="order-route">
@@ -663,6 +979,12 @@ function setupRealtimeSubscription() {
                 <span class="order-fare">฿{{ getFareDisplay(order) }}</span>
               </div>
 
+              <!-- Tracking ID -->
+              <div v-if="order.tracking_id" class="tracking-id">
+                <span class="tracking-label">รหัสงาน:</span>
+                <span class="tracking-value">{{ order.tracking_id }}</span>
+              </div>
+
               <div class="queue-info">
                 <div class="info-row">
                   <span class="info-label">สถานที่:</span>
@@ -683,6 +1005,162 @@ function setupRealtimeSubscription() {
                   <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
                   <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
                   <!-- ซ่อนปุ่มแผนที่สำหรับ queue bookings เพราะไม่มี coordinates -->
+                </div>
+                
+                <button 
+                  class="accept-order-btn"
+                  :disabled="hasActiveJob || acceptingOrderId === order.id"
+                  @click.stop="acceptOrder(order)"
+                >
+                  <svg v-if="acceptingOrderId === order.id" class="spinner-icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span v-if="acceptingOrderId === order.id">กำลังรับงาน...</span>
+                  <span v-else>รับงาน ฿{{ getOrderFare(order).toFixed(0) }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shopping Orders -->
+        <div v-if="shoppingOrders.length > 0 && (serviceFilter === 'all' || serviceFilter === 'shopping')" class="orders-group">
+          <div v-if="serviceFilter === 'all'" class="group-label">
+            <span class="group-icon">🛒</span>
+            <span class="group-text">ซื้อของ ({{ shoppingOrders.length }})</span>
+          </div>
+          
+          <div 
+            v-for="order in shoppingOrders" 
+            :key="order.id"
+            class="order-card"
+            :class="{ disabled: hasActiveJob }"
+          >
+            <div class="order-content">
+              <div class="order-header">
+                <span class="service-badge shopping">
+                  <span class="badge-icon">🛒</span>
+                  <span class="badge-text">ซื้อของ</span>
+                </span>
+                <span class="order-fare">฿{{ getFareDisplay(order) }}</span>
+              </div>
+
+              <!-- Tracking ID -->
+              <div v-if="order.tracking_id" class="tracking-id">
+                <span class="tracking-label">รหัสงาน:</span>
+                <span class="tracking-value">{{ order.tracking_id }}</span>
+              </div>
+
+              <div class="order-route">
+                <div class="route-point pickup">
+                  <div class="route-dot"></div>
+                  <span class="route-text">{{ order.pickup_address }}</span>
+                </div>
+                <div class="route-line"></div>
+                <div class="route-point dropoff">
+                  <div class="route-dot"></div>
+                  <span class="route-text">{{ order.destination_address }}</span>
+                </div>
+              </div>
+
+              <div class="order-footer">
+                <div class="order-info-row">
+                  <span class="order-distance">{{ order.distance.toFixed(1) }} กิโลเมตร</span>
+                  <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+                  <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                  <button 
+                    v-if="order.pickup_lat && order.destination_lat"
+                    class="map-btn"
+                    @click.stop="openMapPreview(order)"
+                    aria-label="ดูแผนที่"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <button 
+                  class="accept-order-btn"
+                  :disabled="hasActiveJob || acceptingOrderId === order.id"
+                  @click.stop="acceptOrder(order)"
+                >
+                  <svg v-if="acceptingOrderId === order.id" class="spinner-icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span v-if="acceptingOrderId === order.id">กำลังรับงาน...</span>
+                  <span v-else>รับงาน ฿{{ getOrderFare(order).toFixed(0) }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delivery Orders -->
+        <div v-if="deliveryOrders.length > 0 && (serviceFilter === 'all' || serviceFilter === 'delivery')" class="orders-group">
+          <div v-if="serviceFilter === 'all'" class="group-label">
+            <span class="group-icon">📦</span>
+            <span class="group-text">ส่งของ ({{ deliveryOrders.length }})</span>
+          </div>
+          
+          <div 
+            v-for="order in deliveryOrders" 
+            :key="order.id"
+            class="order-card"
+            :class="{ disabled: hasActiveJob }"
+          >
+            <div class="order-content">
+              <div class="order-header">
+                <span class="service-badge delivery">
+                  <span class="badge-icon">📦</span>
+                  <span class="badge-text">ส่งของ</span>
+                </span>
+                <span class="order-fare">฿{{ getFareDisplay(order) }}</span>
+              </div>
+
+              <!-- Tracking ID -->
+              <div v-if="order.tracking_id" class="tracking-id">
+                <span class="tracking-label">รหัสงาน:</span>
+                <span class="tracking-value">{{ order.tracking_id }}</span>
+              </div>
+
+              <div class="order-route">
+                <div class="route-point pickup">
+                  <div class="route-dot"></div>
+                  <span class="route-text">{{ order.pickup_address }}</span>
+                </div>
+                <div class="route-line"></div>
+                <div class="route-point dropoff">
+                  <div class="route-dot"></div>
+                  <span class="route-text">{{ order.destination_address }}</span>
+                </div>
+              </div>
+
+              <div class="order-footer">
+                <div class="order-info-row">
+                  <span class="order-distance">{{ order.distance.toFixed(1) }} กิโลเมตร</span>
+                  <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
+                  <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                  <button 
+                    v-if="order.pickup_lat && order.destination_lat"
+                    class="map-btn"
+                    @click.stop="openMapPreview(order)"
+                    aria-label="ดูแผนที่"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </button>
                 </div>
                 
                 <button 
@@ -930,30 +1408,40 @@ function setupRealtimeSubscription() {
 /* ===== Filter Tabs ===== */
 .filter-tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 16px;
   background: #FFFFFF;
-  padding: 8px;
+  padding: 6px;
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.filter-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .filter-tab {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px 16px;
+  gap: 4px;
+  padding: 10px 12px;
   background: transparent;
   border: none;
   border-radius: 12px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #6B7280;
   cursor: pointer;
   transition: all 0.2s;
-  min-height: 48px;
+  min-height: 64px;
+  min-width: 70px;
+  position: relative;
 }
 
 .filter-tab.active {
@@ -966,28 +1454,43 @@ function setupRealtimeSubscription() {
 }
 
 .tab-icon {
-  font-size: 18px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.filter-tab.active .tab-icon {
+  stroke: #FFFFFF;
 }
 
 .tab-label {
-  font-size: 14px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .tab-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 8px;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  font-size: 12px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #EF4444;
+  border-radius: 9px;
+  font-size: 10px;
   font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1;
 }
 
 .filter-tab.active .tab-badge {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.3);
+  color: #FFFFFF;
 }
 
 /* ===== Earnings Card ===== */
@@ -1176,6 +1679,16 @@ function setupRealtimeSubscription() {
   color: #92400E;
 }
 
+.service-badge.shopping {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.service-badge.delivery {
+  background: #FCE7F3;
+  color: #9F1239;
+}
+
 .badge-icon {
   font-size: 14px;
 }
@@ -1188,6 +1701,32 @@ function setupRealtimeSubscription() {
   font-size: 20px;
   font-weight: 800;
   color: #00A86B;
+}
+
+/* ===== Tracking ID ===== */
+.tracking-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #F9FAFB;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+}
+
+.tracking-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+.tracking-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
 }
 
 /* ===== Order Route ===== */
@@ -1569,6 +2108,37 @@ function setupRealtimeSubscription() {
   .content {
     max-width: 800px;
     margin: 0 auto;
+  }
+
+  /* Larger screens: horizontal layout with icons and labels */
+  .filter-tabs {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .filter-tab {
+    flex-direction: row;
+    gap: 8px;
+    padding: 12px 16px;
+    min-height: 48px;
+    min-width: auto;
+  }
+
+  .tab-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .tab-label {
+    font-size: 13px;
+  }
+
+  .tab-badge {
+    position: static;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    font-size: 11px;
   }
 }
 </style>

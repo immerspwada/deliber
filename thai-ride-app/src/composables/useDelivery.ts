@@ -436,14 +436,19 @@ export function useDelivery() {
     }
   }
 
-  // Get delivery by tracking ID
+  // Get delivery by tracking ID (supports both delivery_requests and shopping_requests)
   const getDeliveryByTrackingId = async (trackingId: string) => {
     try {
+      // Determine table based on tracking ID prefix
+      const tableName = trackingId.startsWith('SHP-') ? 'shopping_requests' : 'delivery_requests'
+      console.log('[useDelivery.getDeliveryByTrackingId] Using table:', tableName, 'for:', trackingId)
+      
+      // Use LEFT JOIN to handle NULL provider_id (Shopping orders)
       const { data, error } = await (supabase
-        .from('delivery_requests') as any)
+        .from(tableName) as any)
         .select(`
           *,
-          provider:providers_v2!delivery_requests_provider_id_fkey (
+          provider:providers_v2 (
             id,
             first_name,
             last_name,
@@ -454,13 +459,19 @@ export function useDelivery() {
           )
         `)
         .eq('tracking_id', trackingId)
-        .single()
+        .maybeSingle()
 
       if (!error && data) {
         return data as DeliveryRequest
       }
+      
+      if (error) {
+        console.error('[useDelivery.getDeliveryByTrackingId] Error:', error)
+      }
+      
       return null
-    } catch {
+    } catch (err) {
+      console.error('[useDelivery.getDeliveryByTrackingId] Exception:', err)
       return null
     }
   }
