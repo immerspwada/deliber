@@ -140,7 +140,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'ProviderHome',
-        component: () => import('../views/provider/ProviderHomeNew.vue'),
+        component: () => import('../views/provider/ProviderHome.vue'),
         meta: { requiresAuth: true, requiresProviderAccess: true }
       },
       {
