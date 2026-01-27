@@ -69,7 +69,7 @@ const SmartSuggestionsCard = defineAsyncComponent(
 const router = useRouter();
 const authStore = useAuthStore();
 const rideStore = useRideStore();
-const { showSuccess, showError, showWarning, showInfo } = useToast();
+const { success: showSuccess, error: showError, warning: showWarning, info: showInfo } = useToast();
 const { unreadCount, fetchNotifications } = useNotifications();
 const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } =
   useLoyalty();

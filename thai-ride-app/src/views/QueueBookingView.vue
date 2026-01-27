@@ -4,7 +4,7 @@
  * MUNEEF Style UI - Clean, Modern, and Efficient
  * UX Flow: 1.ประเภท → 2.สถานที่ → 3.วันเวลา → 4.ยืนยัน
  */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQueueBooking, type CreateQueueBookingInput } from '../composables/useQueueBooking';
 import { useToast } from '../composables/useToast';
@@ -13,8 +13,14 @@ const router = useRouter();
 const { 
   createQueueBooking, 
   loading, 
-  error: bookingError
+  error: bookingError,
+  walletBalance
 } = useQueueBooking();
+
+// Debug: Log balance changes
+watch(() => walletBalance.balance.value, (newBalance) => {
+  console.log('💰 Balance changed in QueueBookingView:', newBalance);
+}, { immediate: true });
 const { success: showSuccess, error: showError } = useToast();
 
 // Step Flow
@@ -641,15 +647,48 @@ onMounted(() => {
             </div>
           </div>
 
+          <!-- Wallet Balance Info -->
+          <div :class="['wallet-card', { 'insufficient': walletBalance.balance.value < 50 }]">
+            <div class="wallet-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12V7H5a2 2 0 01-2-2V4a2 2 0 012-2h14v5" />
+                <path d="M3 5v14a2 2 0 002 2h16v-5" />
+                <path d="M18 12a2 2 0 100 4 2 2 0 000-4z" />
+              </svg>
+            </div>
+            <div class="wallet-content">
+              <div class="wallet-row">
+                <span class="wallet-label">ยอดเงินในกระเป๋า</span>
+                <span class="wallet-value">{{ walletBalance.formattedBalance.value }}</span>
+              </div>
+              <p class="wallet-note">
+                <template v-if="walletBalance.balance.value >= 50">
+                  ยอดเงินเพียงพอสำหรับการจองคิว
+                </template>
+                <template v-else>
+                  ยอดเงินไม่เพียงพอ กรุณาเติมเงินก่อนจองคิว
+                </template>
+              </p>
+            </div>
+          </div>
+
           <!-- Submit Button -->
           <button
-            :disabled="loading || !canSubmit"
+            :disabled="loading || !canSubmit || walletBalance.balance.value < 50"
             class="submit-btn"
             @click="handleSubmit"
           >
             <template v-if="loading">
               <div class="btn-spinner"></div>
               <span>กำลังจองคิว...</span>
+            </template>
+            <template v-else-if="walletBalance.balance.value < 50">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12V7H5a2 2 0 01-2-2V4a2 2 0 012-2h14v5" />
+                <path d="M3 5v14a2 2 0 002 2h16v-5" />
+                <path d="M18 12a2 2 0 100 4 2 2 0 000-4z" />
+              </svg>
+              <span>ยอดเงินไม่เพียงพอ</span>
             </template>
             <template v-else>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1346,6 +1385,106 @@ onMounted(() => {
   border-radius: 50%;
   background: #FF9500;
   flex-shrink: 0;
+}
+
+/* Wallet Card */
+.wallet-card {
+  background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 100%);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border: 1px solid rgba(76, 175, 80, 0.2);
+  transition: all 0.3s ease;
+}
+
+.wallet-card.insufficient {
+  background: linear-gradient(135deg, #FFEBEE 0%, #FCE4EC 100%);
+  border-color: rgba(244, 67, 54, 0.2);
+}
+
+.wallet-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.wallet-card.insufficient .wallet-icon {
+  background: rgba(244, 67, 54, 0.15);
+  color: #F44336;
+}
+
+.wallet-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.wallet-content {
+  flex: 1;
+}
+
+.wallet-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.wallet-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000000;
+  letter-spacing: -0.3px;
+}
+
+.wallet-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4CAF50;
+  letter-spacing: -0.5px;
+  transition: color 0.3s ease;
+}
+
+.wallet-card.insufficient .wallet-value {
+  color: #F44336;
+}
+
+.wallet-note {
+  font-size: 13px;
+  color: #558B2F;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.wallet-card.insufficient .wallet-note {
+  color: #C62828;
+}
+
+.wallet-note::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #4CAF50;
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.wallet-card.insufficient .wallet-note::before {
+  background: #F44336;
 }
 
 /* Buttons */

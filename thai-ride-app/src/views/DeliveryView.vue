@@ -155,7 +155,7 @@ const hasInsufficientBalance = computed(() => {
 });
 
 // Auto calculate when both locations set
-const autoCalculate = () => {
+const autoCalculate = async () => {
   if (senderLocation.value && recipientLocation.value) {
     estimatedDistance.value = calculateDistance(
       senderLocation.value.lat,
@@ -165,7 +165,7 @@ const autoCalculate = () => {
     );
     estimatedTime.value = Math.ceil((estimatedDistance.value / 25) * 60);
     estimatedTimeRange.value = calculateTimeRange(estimatedDistance.value);
-    deliveryFee.value = calculateFee(
+    deliveryFee.value = await calculateFee(
       estimatedDistance.value,
       packageType.value
     );
@@ -349,13 +349,13 @@ const handleMapPickerConfirm = (
   }
 };
 
-const handleRouteCalculated = (data: {
+const handleRouteCalculated = async (data: {
   distance: number;
   duration: number;
 }) => {
   estimatedDistance.value = data.distance;
   estimatedTime.value = data.duration;
-  deliveryFee.value = calculateFee(data.distance, packageType.value);
+  deliveryFee.value = await calculateFee(data.distance, packageType.value);
 };
 
 const handlePromoDiscount = (amount: number) => {

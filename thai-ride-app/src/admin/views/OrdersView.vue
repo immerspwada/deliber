@@ -36,6 +36,9 @@ const showStatusModal = ref(false);
 const showBulkModal = ref(false);
 const showAnalyticsModal = ref(false);
 const showReassignmentModal = ref(false);
+const showCancelModal = ref(false);
+const cancelReason = ref("");
+const orderToCancel = ref<Order | null>(null);
 const newStatus = ref<OrderStatus>("pending");
 const bulkStatus = ref<OrderStatus>("pending");
 const bulkReason = ref("");
@@ -232,6 +235,14 @@ async function updateStatus() {
 
 // Inline status update (for dropdown)
 async function updateStatusInline(order: Order, newStatus: OrderStatus) {
+  // If changing to cancelled, show modal to get reason
+  if (newStatus === 'cancelled') {
+    orderToCancel.value = order;
+    cancelReason.value = '';
+    showCancelModal.value = true;
+    return;
+  }
+  
   // Optimistic update - update UI immediately
   const orderIndex = orders.value.findIndex((o) => o.id === order.id);
   if (orderIndex !== -1) {
@@ -257,6 +268,47 @@ async function updateStatusInline(order: Order, newStatus: OrderStatus) {
       orders.value[orderIndex].status = order.status;
     }
     uiStore.showError(api.error.value || "เกิดข้อผิดพลาดในการเปลี่ยนสถานะ");
+  }
+}
+
+// Confirm cancellation with reason
+async function confirmCancellation() {
+  if (!orderToCancel.value) return;
+  
+  if (!cancelReason.value.trim()) {
+    uiStore.showError("กรุณาระบุเหตุผลในการยกเลิก");
+    return;
+  }
+  
+  const order = orderToCancel.value;
+  
+  // Optimistic update
+  const orderIndex = orders.value.findIndex((o) => o.id === order.id);
+  if (orderIndex !== -1) {
+    orders.value[orderIndex].status = 'cancelled';
+  }
+  
+  const success = await api.updateOrderStatus(order.id, 'cancelled', {
+    serviceType: order.service_type as any,
+    cancelReason: cancelReason.value.trim(),
+  });
+  
+  if (success) {
+    uiStore.showSuccess("ยกเลิกออเดอร์เรียบร้อย");
+    showCancelModal.value = false;
+    orderToCancel.value = null;
+    cancelReason.value = '';
+    
+    // Reload to get updated data
+    setTimeout(() => {
+      loadOrders();
+    }, 500);
+  } else {
+    // Revert optimistic update on failure
+    if (orderIndex !== -1) {
+      orders.value[orderIndex].status = order.status;
+    }
+    uiStore.showError(api.error.value || "เกิดข้อผิดพลาดในการยกเลิก");
   }
 }
 
@@ -1748,6 +1800,63 @@ function getVisiblePages() {
       </div>
     </div>
 
+    <!-- Cancel Order Modal -->
+    <div
+      v-if="showCancelModal"
+      class="modal-overlay"
+      @click.self="showCancelModal = false"
+    >
+      <div class="modal modal-sm">
+        <div class="modal-header">
+          <h2>ยกเลิกออเดอร์</h2>
+          <button class="close-btn" @click="showCancelModal = false">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="cancel-info">
+            <p>
+              คุณต้องการยกเลิกออเดอร์
+              <strong>{{ orderToCancel?.tracking_id }}</strong> ใช่หรือไม่?
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label>เหตุผลในการยกเลิก <span class="required">*</span></label>
+            <textarea
+              v-model="cancelReason"
+              class="form-textarea"
+              placeholder="ระบุเหตุผลในการยกเลิก..."
+              rows="3"
+              autofocus
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="showCancelModal = false">
+              ปิด
+            </button>
+            <button
+              class="btn btn-danger"
+              :disabled="api.isLoading.value || !cancelReason.trim()"
+              @click="confirmCancellation"
+            >
+              {{ api.isLoading.value ? "กำลังยกเลิก..." : "ยืนยันยกเลิก" }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Analytics Modal -->
     <div
       v-if="showAnalyticsModal"
@@ -3149,6 +3258,41 @@ function getVisiblePages() {
   background: #eff6ff;
   border-radius: 8px;
   color: #1e40af;
+}
+
+.cancel-info {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: #991b1b;
+}
+
+.cancel-info p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.required {
+  color: #ef4444;
+  margin-left: 4px;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .modal-actions {

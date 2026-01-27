@@ -92,7 +92,10 @@ export const useRideStore = defineStore('ride', () => {
     vehicleType?: 'bike' | 'car' | 'premium'
   ): Promise<number> => {
     try {
-      // Always get base 'ride' fare from database
+      // Get vehicle multiplier from database first
+      const multiplier = await getVehicleMultiplierFromDatabase(vehicleType)
+      
+      // Get base 'ride' fare from database with cache busting
       const { data, error: rpcError } = await (supabase.rpc as any)('calculate_distance_fare', {
         p_service_type: 'ride', // Always use 'ride' as base
         p_distance_km: distanceKm
@@ -106,9 +109,6 @@ export const useRideStore = defineStore('ride', () => {
       
       if (data && Array.isArray(data) && data.length > 0) {
         const baseFare = Number(data[0].final_fare)
-        
-        // Apply vehicle multiplier if provided
-        const multiplier = getVehicleMultiplier(vehicleType)
         const finalFare = Math.round(baseFare * multiplier)
         
         console.log('[calculateFareFromDatabase] Success:', {
@@ -135,9 +135,38 @@ export const useRideStore = defineStore('ride', () => {
   }
 
   /**
-   * Get vehicle multiplier
+   * Get vehicle multiplier from database
    */
-  const getVehicleMultiplier = (vehicleType?: 'bike' | 'car' | 'premium'): number => {
+  const getVehicleMultiplierFromDatabase = async (vehicleType?: 'bike' | 'car' | 'premium'): Promise<number> => {
+    try {
+      // Fetch from database
+      const { data, error } = await supabase
+        .from('vehicle_multipliers')
+        .select('bike, car, premium')
+        .single()
+      
+      if (error || !data) {
+        console.warn('[getVehicleMultiplierFromDatabase] Error or no data, using fallback:', error)
+        return getVehicleMultiplierFallback(vehicleType)
+      }
+      
+      const multipliers = {
+        bike: Number(data.bike) || 0.7,
+        car: Number(data.car) || 1.0,
+        premium: Number(data.premium) || 1.5
+      }
+      
+      return multipliers[vehicleType || 'car'] || 1.0
+    } catch (error) {
+      console.error('[getVehicleMultiplierFromDatabase] Error:', error)
+      return getVehicleMultiplierFallback(vehicleType)
+    }
+  }
+
+  /**
+   * Get vehicle multiplier (fallback)
+   */
+  const getVehicleMultiplierFallback = (vehicleType?: 'bike' | 'car' | 'premium'): number => {
     const multipliers = {
       bike: 0.7,      // มอเตอร์ไซค์ - ถูกกว่า 30%
       car: 1.0,       // รถยนต์ - ราคาปกติ

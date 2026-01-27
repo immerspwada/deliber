@@ -423,8 +423,9 @@ const rideTypeFares = ref<Record<string, number>>({
 });
 
 // Update fares when distance changes
-watch(estimatedDistance, async (newDistance) => {
-  console.log('[watch estimatedDistance] Distance changed:', newDistance);
+watch(estimatedDistance, async (newDistance, oldDistance) => {
+  console.log('[watch estimatedDistance] ===== START =====');
+  console.log('[watch estimatedDistance] Distance changed from', oldDistance, 'to', newDistance);
   
   if (newDistance > 0) {
     try {
@@ -450,6 +451,7 @@ watch(estimatedDistance, async (newDistance) => {
       };
       
       console.log('[watch estimatedDistance] rideTypeFares updated:', rideTypeFares.value);
+      console.log('[watch estimatedDistance] ===== END =====');
     } catch (error) {
       console.error('[watch estimatedDistance] Error calculating fares:', error);
       // Fallback to old calculation
@@ -468,7 +470,7 @@ watch(estimatedDistance, async (newDistance) => {
       premium: 0
     };
   }
-});
+}, { immediate: false });
 
 // Wallet balance check
 const walletBalance = computed(() => wallet.balance.value?.balance || 0);
@@ -521,16 +523,16 @@ const calculateFare = async () => {
   isCalculating.value = true;
 
   try {
-    // Calculate distance if not already calculated
-    if (estimatedDistance.value === 0) {
-      estimatedDistance.value = calculateDistance(
-        pickupLocation.value.lat,
-        pickupLocation.value.lng,
-        destinationLocation.value.lat,
-        destinationLocation.value.lng
-      );
-      estimatedTime.value = calculateTravelTime(estimatedDistance.value);
-    }
+    // Always recalculate distance when locations change
+    estimatedDistance.value = calculateDistance(
+      pickupLocation.value.lat,
+      pickupLocation.value.lng,
+      destinationLocation.value.lat,
+      destinationLocation.value.lng
+    );
+    estimatedTime.value = calculateTravelTime(estimatedDistance.value);
+    
+    console.log('[calculateFare] Distance calculated:', estimatedDistance.value, 'km');
 
     // Use database pricing with vehicle type
     const vehicleType = rideType.value === 'premium' ? 'premium' : 
@@ -541,6 +543,8 @@ const calculateFare = async () => {
       'ride',
       vehicleType
     );
+    
+    console.log('[calculateFare] Fare from database:', fare);
     
     estimatedFare.value = fare || 0;
     step.value = "book";
@@ -875,6 +879,8 @@ const handleMapPickerConfirm = async (
   location: GeoLocation,
   type: "pickup" | "destination"
 ) => {
+  console.log('[handleMapPickerConfirm] ===== CALLED =====');
+  console.log('[handleMapPickerConfirm] Type:', type, 'Location:', location);
   if (type === "pickup") {
     pickupLocation.value = location;
     pickupAddress.value = location.address;
@@ -882,10 +888,13 @@ const handleMapPickerConfirm = async (
     await calculateSurge(location.lat, location.lng);
     step.value = "destination";
   } else {
+    console.log('[handleMapPickerConfirm] Setting destination location');
     destinationLocation.value = location;
     destinationAddress.value = location.address;
     showDestMapPicker.value = false;
+    console.log('[handleMapPickerConfirm] About to call calculateFare()');
     await calculateFare();
+    console.log('[handleMapPickerConfirm] calculateFare() completed');
   }
 };
 
@@ -984,6 +993,8 @@ const enableTapToSelect = () => {
 
 // Handler for DestinationPicker selection
 const handleDestinationPickerSelect = async (place: { name: string; address: string; lat: number; lng: number }) => {
+  console.log('[handleDestinationPickerSelect] ===== CALLED =====');
+  console.log('[handleDestinationPickerSelect] Place:', place);
   triggerHaptic('medium');
   destinationLocation.value = {
     lat: place.lat,
@@ -991,8 +1002,11 @@ const handleDestinationPickerSelect = async (place: { name: string; address: str
     address: place.name,
   };
   destinationAddress.value = place.name;
+  console.log('[handleDestinationPickerSelect] destinationLocation set:', destinationLocation.value);
   showDestinationPicker.value = false;
+  console.log('[handleDestinationPickerSelect] About to call calculateFare()');
   await calculateFare();
+  console.log('[handleDestinationPickerSelect] calculateFare() completed');
 };
 
 // Handler for PickupPicker selection
@@ -1207,6 +1221,8 @@ const selectDestPlaceQuick = async (place: {
   lat: number;
   lng: number;
 }) => {
+  console.log('[selectDestPlaceQuick] ===== CALLED =====');
+  console.log('[selectDestPlaceQuick] Place:', place);
   triggerHaptic("medium");
   destinationLocation.value = {
     lat: place.lat,
@@ -1214,7 +1230,9 @@ const selectDestPlaceQuick = async (place: {
     address: place.name,
   };
   destinationAddress.value = place.name;
+  console.log('[selectDestPlaceQuick] About to call calculateFare()');
   await calculateFare();
+  console.log('[selectDestPlaceQuick] calculateFare() completed');
 };
 
 const selectFavoritePlaceEnhanced = async (place: {

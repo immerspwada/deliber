@@ -40,36 +40,36 @@ const currentLocation = ref<{ lat: number; lng: number } | null>(null)
 const driverMarker = ref<L.Marker | null>(null)
 const historyPath = ref<L.Polyline | L.Polyline[] | null>(null)
 
-// ✅ CRITICAL: Watch isMapReady and enable pointer events
+// Enable pointer events when map is ready
 watch(isMapReady, (ready) => {
-  console.log('[MapView] isMapReady changed:', ready)
   if (ready && mapContainer.value) {
     mapContainer.value.style.pointerEvents = 'auto'
-    console.log('[MapView] ✅ Pointer events enabled!')
+    mapContainer.value.style.cursor = 'pointer'
     
-    // Debug: Log all computed styles
-    const computedStyle = window.getComputedStyle(mapContainer.value)
-    console.log('[MapView] 🔍 Map container computed styles:', {
-      pointerEvents: computedStyle.pointerEvents,
-      zIndex: computedStyle.zIndex,
-      position: computedStyle.position,
-      opacity: computedStyle.opacity,
-      visibility: computedStyle.visibility
-    })
+    const wrapper = mapContainer.value.parentElement
+    if (wrapper) {
+      wrapper.style.pointerEvents = 'auto'
+    }
     
-    // Debug: Check if any parent has pointer-events: none
+    // Fix parent pointer events if needed
     let parent = mapContainer.value.parentElement
     let level = 0
     while (parent && level < 5) {
       const parentStyle = window.getComputedStyle(parent)
       if (parentStyle.pointerEvents === 'none') {
-        console.warn(`[MapView] ⚠️ Parent at level ${level} has pointer-events: none!`, parent.className)
+        (parent as HTMLElement).style.pointerEvents = 'auto'
       }
       parent = parent.parentElement
       level++
     }
+    
+    const leafletContainer = mapContainer.value.querySelector('.leaflet-container') as HTMLElement
+    if (leafletContainer) {
+      leafletContainer.style.pointerEvents = 'auto'
+      leafletContainer.style.cursor = 'pointer'
+    }
   }
-})
+}, { immediate: true })
 
 // Haptic feedback for mobile devices
 const triggerHapticFeedback = () => {
@@ -212,7 +212,6 @@ watch(() => props.locationHistory, (newHistory) => {
       color: '#22C55E',
       fadeOut: true
     })
-    console.log('[MapView] Location history trail drawn:', newHistory.length, 'points')
   }
 }, { deep: true })
 
@@ -281,64 +280,28 @@ const updateDriverMarker = (location: { lat: number; lng: number; heading?: numb
 }
 
 onMounted(async () => {
-  if (!mapContainer.value) {
-    console.error('[MapView] Map container not found')
-    return
-  }
+  if (!mapContainer.value) return
 
-  // Default center (Bangkok for better initial view)
+  // Default center (Bangkok)
   let center = { lat: 13.7563, lng: 100.5018 }
   const defaultZoom = 14
 
-  // Use pickup location if provided (priority)
+  // Use pickup location if provided
   if (props.pickup) {
     center = { lat: props.pickup.lat, lng: props.pickup.lng }
-    console.log('[MapView] Using pickup location:', center)
-  } else {
-    console.log('[MapView] Using default center (Bangkok)')
   }
 
   try {
-    // Initialize map immediately with default/pickup location
+    // Initialize map
     initMap(mapContainer.value, {
       center,
       zoom: defaultZoom
     })
     
-    console.log('[MapView] ✅ Map initialized, isMapReady:', isMapReady.value)
-    console.log('[MapView] ✅ Map container pointer-events:', mapContainer.value.style.pointerEvents)
-    
     // Force map to render properly
     setTimeout(() => {
       if (mapInstance.value) {
         mapInstance.value.invalidateSize()
-        console.log('[MapView] 🔄 Map size invalidated after init')
-        
-        // Check if tiles are visible
-        const tilePane = mapContainer.value?.querySelector('.leaflet-tile-pane')
-        if (tilePane) {
-          const style = window.getComputedStyle(tilePane)
-          console.log('[MapView] 🔍 Tile pane styles:', {
-            opacity: style.opacity,
-            visibility: style.visibility,
-            display: style.display,
-            zIndex: style.zIndex
-          })
-          
-          // Count tiles
-          const tiles = tilePane.querySelectorAll('.leaflet-tile')
-          console.log('[MapView] 📊 Number of tiles:', tiles.length)
-          
-          if (tiles.length > 0) {
-            const firstTile = tiles[0] as HTMLImageElement
-            console.log('[MapView] 🖼️ First tile:', {
-              src: firstTile.src,
-              complete: firstTile.complete,
-              naturalWidth: firstTile.naturalWidth,
-              opacity: window.getComputedStyle(firstTile).opacity
-            })
-          }
-        }
       }
     }, 500)
   } catch (error) {
@@ -346,43 +309,19 @@ onMounted(async () => {
     return
   }
 
-  if (!mapInstance.value) {
-    console.error('[MapView] Map instance not available')
-    return
-  }
+  if (!mapInstance.value) return
 
   // Add click event listener for tap-to-select
   mapInstance.value.on('click', (e: L.LeafletMouseEvent) => {
-    console.log('[MapView] 🖱️ Map clicked!', e.latlng)
     triggerHapticFeedback()
     emit('mapClick', { lat: e.latlng.lat, lng: e.latlng.lng })
   })
-  
-  // Debug: Add mousedown/touchstart listeners to container
-  mapContainer.value.addEventListener('mousedown', (e) => {
-    console.log('[MapView] 🖱️ Container mousedown detected!', {
-      target: (e.target as HTMLElement).className,
-      clientX: e.clientX,
-      clientY: e.clientY
-    })
-  })
-  
-  mapContainer.value.addEventListener('touchstart', (e) => {
-    console.log('[MapView] 👆 Container touchstart detected!', {
-      target: (e.target as HTMLElement).className,
-      touches: e.touches.length
-    })
-  }, { passive: true })
 
-  // Always update markers if pickup or destination is provided
+  // Update markers if pickup or destination is provided
   if (props.pickup || props.destination) {
-    // Use nextTick to ensure map is fully ready
     setTimeout(() => {
-      console.log('[MapView] Updating markers...')
       updateMarkers()
     }, 100)
-  } else {
-    console.log('[MapView] No pickup/destination to display')
   }
 
   // Get GPS location in background (non-blocking)
@@ -406,7 +345,6 @@ onMounted(async () => {
       }
     })
     .catch(() => {
-      console.log('GPS not available, using default location')
       // If GPS fails but we have pickup, still show marker
       if (props.pickup && isMapReady.value && markers.value.length === 0) {
         updateMarkers()

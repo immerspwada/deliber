@@ -109,19 +109,50 @@ export function useDelivery() {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Calculate delivery fee
-  const calculateFee = (distanceKm: number, packageType: string): number => {
-    const baseFee = 35
-    const perKm = 8
-    const multipliers: Record<string, number> = {
-      document: 0.8,
-      small: 1.0,
-      medium: 1.3,
-      large: 1.6,
-      fragile: 1.5
+  // Calculate delivery fee from database
+  const calculateFee = async (distanceKm: number, packageType: string): Promise<number> => {
+    try {
+      // Get base fare from database
+      const { data, error: rpcError } = await (supabase.rpc as any)('calculate_distance_fare', {
+        p_service_type: 'delivery',
+        p_distance_km: distanceKm
+      })
+
+      if (rpcError) {
+        console.error('[useDelivery.calculateFee] RPC error:', rpcError)
+        // Fallback to default if RPC fails
+        const baseFee = 30
+        const perKm = 10
+        const multipliers: Record<string, number> = {
+          document: 0.8,
+          small: 1.0,
+          medium: 1.3,
+          large: 1.6,
+          fragile: 1.5
+        }
+        const multiplier = multipliers[packageType] || 1.0
+        return Math.ceil((baseFee + (distanceKm * perKm)) * multiplier)
+      }
+
+      if (data && typeof data === 'number') {
+        // Apply package type multiplier to database fare
+        const multipliers: Record<string, number> = {
+          document: 0.8,
+          small: 1.0,
+          medium: 1.3,
+          large: 1.6,
+          fragile: 1.5
+        }
+        const multiplier = multipliers[packageType] || 1.0
+        return Math.ceil(data * multiplier)
+      }
+
+      // Fallback
+      return 50
+    } catch (err) {
+      console.error('[useDelivery.calculateFee] Error:', err)
+      return 50
     }
-    const multiplier = multipliers[packageType] || 1.0
-    return Math.ceil((baseFee + (distanceKm * perKm)) * multiplier)
   }
 
   // Calculate estimated time range (more realistic than single value)
@@ -264,7 +295,7 @@ export function useDelivery() {
 
     loading.value = true
     try {
-      const estimatedFee = calculateFee(data.distanceKm, data.packageType)
+      const estimatedFee = await calculateFee(data.distanceKm, data.packageType)
 
       // Use atomic function to check wallet balance and create delivery
       const { data: result, error: rpcError } = await supabase.rpc('create_delivery_atomic', {

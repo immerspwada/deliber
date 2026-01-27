@@ -83,6 +83,22 @@ const successMessage = ref('')
 // Example distance for preview
 const exampleDistance = ref(5)
 
+// Computed example fare for current service
+const exampleFare = computed(() => {
+  return calculateExampleFare(localRates.value[activeTab.value], exampleDistance.value)
+})
+
+// Computed example fares for vehicle types (ride only)
+const exampleFareByVehicle = computed(() => {
+  if (activeTab.value !== 'ride') return null
+  const baseFare = calculateExampleFare(localRates.value.ride, exampleDistance.value)
+  return {
+    bike: baseFare * vehicleMultipliers.value.bike,
+    car: baseFare * vehicleMultipliers.value.car,
+    premium: baseFare * vehicleMultipliers.value.premium
+  }
+})
+
 function hasChange(key: keyof DistanceRates): boolean {
   const local = localRates.value[key]
   const original = originalRates.value[key]
@@ -277,7 +293,7 @@ watch(dbVehicleMultipliers, (newMultipliers) => {
             <div class="example-subtitle">{{ activeService.label }} - ระยะทาง {{ exampleDistance }} กิโลเมตร</div>
           </div>
           <div class="example-fare-large">
-            {{ formatCurrency(calculateExampleFare(localRates[activeTab], exampleDistance)) }}
+            {{ formatCurrency(exampleFare) }}
           </div>
         </div>
         <div class="slider-wrapper">
@@ -448,7 +464,7 @@ watch(dbVehicleMultipliers, (newMultipliers) => {
                 <span class="multiplier-unit">×</span>
               </div>
               <div class="multiplier-example">
-                ตัวอย่าง: {{ formatCurrency(calculateExampleFare(localRates.ride, exampleDistance) * vehicleMultipliers.bike) }}
+                ตัวอย่าง: {{ exampleFareByVehicle ? formatCurrency(exampleFareByVehicle.bike) : '-' }}
               </div>
             </div>
 
@@ -476,7 +492,7 @@ watch(dbVehicleMultipliers, (newMultipliers) => {
                 <span class="multiplier-unit">×</span>
               </div>
               <div class="multiplier-example">
-                ตัวอย่าง: {{ formatCurrency(calculateExampleFare(localRates.ride, exampleDistance) * vehicleMultipliers.car) }}
+                ตัวอย่าง: {{ exampleFareByVehicle ? formatCurrency(exampleFareByVehicle.car) : '-' }}
               </div>
             </div>
 
@@ -504,7 +520,7 @@ watch(dbVehicleMultipliers, (newMultipliers) => {
                 <span class="multiplier-unit">×</span>
               </div>
               <div class="multiplier-example">
-                ตัวอย่าง: {{ formatCurrency(calculateExampleFare(localRates.ride, exampleDistance) * vehicleMultipliers.premium) }}
+                ตัวอย่าง: {{ exampleFareByVehicle ? formatCurrency(exampleFareByVehicle.premium) : '-' }}
               </div>
             </div>
           </div>

@@ -71,7 +71,7 @@ export const routes: RouteRecordRaw[] = [
     path: '/customer/shopping',
     name: 'CustomerShopping',
     component: () => import('../views/ShoppingView.vue'),
-    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/profile',
@@ -96,6 +96,18 @@ export const routes: RouteRecordRaw[] = [
     name: 'CustomerSavedPlaces',
     component: () => import('../views/SavedPlacesView.vue'),
     meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
+  },
+  {
+    path: '/customer/queue-booking',
+    name: 'CustomerQueueBooking',
+    component: () => import('../views/QueueBookingView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
+  },
+  {
+    path: '/customer/queue-booking/:id',
+    name: 'QueueBookingTracking',
+    component: () => import('../views/QueueTrackingView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
     path: '/customer/become-provider',

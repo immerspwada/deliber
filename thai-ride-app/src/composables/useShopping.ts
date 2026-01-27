@@ -69,13 +69,36 @@ export function useShopping() {
   const shoppingHistory = ref<ShoppingRequest[]>([])
   const loading = ref(false)
 
-  // Calculate service fee
-  const calculateServiceFee = (budgetLimit: number, distanceKm: number): number => {
-    const baseFee = 29
-    const perKm = 5
-    // 5% of budget, min 20, max 100
-    const percentageFee = Math.max(20, Math.min(100, budgetLimit * 0.05))
-    return Math.ceil(baseFee + (distanceKm * perKm) + percentageFee)
+  // Calculate service fee from database
+  const calculateServiceFee = async (budgetLimit: number, distanceKm: number): Promise<number> => {
+    try {
+      // Get base fare from database
+      const { data, error: rpcError } = await (supabase.rpc as any)('calculate_distance_fare', {
+        p_service_type: 'shopping',
+        p_distance_km: distanceKm
+      })
+
+      if (rpcError) {
+        console.error('[useShopping.calculateServiceFee] RPC error:', rpcError)
+        // Fallback to default if RPC fails
+        const baseFee = 40
+        const perKm = 12
+        const percentageFee = Math.max(20, Math.min(100, budgetLimit * 0.05))
+        return Math.ceil(baseFee + (distanceKm * perKm) + percentageFee)
+      }
+
+      if (data && typeof data === 'number') {
+        // Add percentage fee based on budget (5% of budget, min 20, max 100)
+        const percentageFee = Math.max(20, Math.min(100, budgetLimit * 0.05))
+        return Math.ceil(data + percentageFee)
+      }
+
+      // Fallback
+      return 60
+    } catch (err) {
+      console.error('[useShopping.calculateServiceFee] Error:', err)
+      return 60
+    }
   }
 
   // Create shopping request using atomic function
@@ -111,7 +134,7 @@ export function useShopping() {
     })
 
     try {
-      const serviceFee = calculateServiceFee(data.budgetLimit, data.distanceKm)
+      const serviceFee = await calculateServiceFee(data.budgetLimit, data.distanceKm)
       console.log('💰 Service fee calculated:', serviceFee)
 
       // Parse item list into structured items

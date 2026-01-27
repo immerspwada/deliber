@@ -127,9 +127,6 @@ const rideNotes = ref('')
 
 // Handle map click to select destination
 async function handleMapClick(coords: { lat: number; lng: number }): Promise<void> {
-  console.log('%c[RideViewRefactored.handleMapClick] ===== MAP CLICKED =====', 'background: #9c27b0; color: white; font-weight: bold; padding: 4px 8px; border-radius: 4px;')
-  console.log('[RideViewRefactored.handleMapClick] 📍 Coordinates:', coords)
-  
   // Haptic feedback
   if ('vibrate' in navigator) {
     navigator.vibrate(30)
@@ -137,35 +134,26 @@ async function handleMapClick(coords: { lat: number; lng: number }): Promise<voi
   
   // Set destination immediately with coordinates (don't wait for geocoding)
   const tempAddress = `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
-  console.log('[RideViewRefactored.handleMapClick] 🏷️ Temp address:', tempAddress)
   
-  console.log('[RideViewRefactored.handleMapClick] 🎯 Calling selectDestination()...')
   selectDestination({
     name: tempAddress,
     address: tempAddress,
     lat: coords.lat,
     lng: coords.lng
   })
-  console.log('[RideViewRefactored.handleMapClick] ✅ selectDestination() called')
   
   searchQuery.value = tempAddress
   
   // Try to get better address in background (non-blocking) using multi-provider geocoding
-  console.log('[RideViewRefactored.handleMapClick] 🌍 Starting background geocoding...')
   reverseGeocode(coords.lat, coords.lng).then(result => {
-    console.log('[RideViewRefactored.handleMapClick] 📬 Geocoding result:', result)
     // Only update if we got a real address (not just coordinates)
     if (result.source !== 'coordinates' && destination.value) {
       destination.value.address = result.name
       searchQuery.value = result.name
-      console.log(`[RideView] Geocoded via ${result.source}: ${result.name}`)
     }
-  }).catch((err) => {
-    console.warn('[RideViewRefactored.handleMapClick] ⚠️ Geocoding failed:', err)
+  }).catch(() => {
     // Silently fail - coordinates are already shown
   })
-  
-  console.log('%c[RideViewRefactored.handleMapClick] ===== COMPLETED =====', 'background: #9c27b0; color: white; font-weight: bold; padding: 4px 8px; border-radius: 4px;')
 }
 
 // Pull-to-refresh setup
@@ -293,15 +281,6 @@ onMounted(() => {
               </svg>
               <span>แตะบนแผนที่เพื่อเลือกปลายทาง</span>
             </div>
-            
-            <!-- DEBUG: Test button -->
-            <button 
-              v-if="!destination && pickup"
-              class="test-map-click-btn"
-              @click="handleMapClick({ lat: pickup.lat + 0.01, lng: pickup.lng + 0.01 })"
-            >
-              🧪 TEST: Simulate Map Click
-            </button>
           </div>
 
           <!-- Step Indicator -->
@@ -485,32 +464,6 @@ onMounted(() => {
 @keyframes pin-bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
-}
-
-/* DEBUG: Test button */
-.test-map-click-btn {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  padding: 8px 16px;
-  background: #ff9800;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  pointer-events: auto !important;
-}
-
-.test-map-click-btn:hover {
-  background: #f57c00;
-}
-
-.test-map-click-btn:active {
-  transform: scale(0.95);
 }
 
 /* Step loading state */

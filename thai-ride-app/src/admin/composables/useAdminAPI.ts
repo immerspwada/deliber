@@ -514,10 +514,9 @@ export function useAdminAPI() {
     ): Promise<boolean> {
       try {
         // Map service types to correct table names
-        // Note: 'queue' service type uses ride_requests table
         const tableNameMap: Record<string, string> = {
           ride: 'ride_requests',
-          queue: 'ride_requests', // Queue bookings are stored in ride_requests
+          queue: 'queue_bookings', // ✅ Queue bookings have their own table
           delivery: 'delivery_requests',
           shopping: 'shopping_requests',
           moving: 'moving_requests',

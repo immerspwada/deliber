@@ -7,6 +7,7 @@
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
+import { useWalletBalance } from './useWalletBalance'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 // Types
@@ -54,6 +55,9 @@ export function useQueueBooking() {
   // Auth Store
   const authStore = useAuthStore()
   
+  // Wallet Balance - Don't destructure to maintain reactivity
+  const walletBalance = useWalletBalance()
+  
   // Check if demo mode
   const isDemoMode = () => localStorage.getItem('demo_mode') === 'true'
   
@@ -99,6 +103,12 @@ export function useQueueBooking() {
         return null
       }
 
+      console.log('🎫 Creating queue booking...')
+      console.log('👤 User ID:', userId)
+      console.log('💰 Current balance (from composable):', walletBalance.balance.value)
+      console.log('💰 Formatted balance:', walletBalance.formattedBalance.value)
+      console.log('💵 Service fee:', 50)
+
       // Demo mode - create mock booking
       if (isDemoMode()) {
         const mockBooking: QueueBooking = {
@@ -129,52 +139,68 @@ export function useQueueBooking() {
       // Calculate service fee
       const serviceFee = 50 // Base fee for queue booking
 
-      // Combine date and time for appointment
-      const appointmentTime = new Date(`${input.scheduled_date}T${input.scheduled_time}`)
+      console.log('🔌 Calling create_queue_atomic RPC...')
 
-      // Use atomic function for wallet check and order creation
+      // Call atomic function for transaction safety
       const { data: result, error: rpcError } = await supabase.rpc('create_queue_atomic', {
         p_user_id: userId,
-        p_pickup_lat: 0, // Queue booking doesn't need location
-        p_pickup_lng: 0,
-        p_pickup_address: input.place_address || input.place_name || 'สถานที่จองคิว',
-        p_service_name: input.category,
-        p_appointment_time: appointmentTime.toISOString(),
-        p_notes: input.details || null,
-        p_estimated_fare: serviceFee,
-        p_promo_code: null
+        p_category: input.category,
+        p_place_name: input.place_name || null,
+        p_place_address: input.place_address || null,
+        p_details: input.details || null,
+        p_scheduled_date: input.scheduled_date,
+        p_scheduled_time: input.scheduled_time,
+        p_service_fee: serviceFee
       })
 
       if (rpcError) {
-        console.error('Atomic create error:', rpcError)
-        // Handle specific error types
-        if (rpcError.message?.includes('INSUFFICIENT_BALANCE')) {
-          error.value = 'ยอดเงินใน Wallet ไม่เพียงพอ กรุณาเติมเงินก่อนจองคิว'
-          return null
+        console.error('❌ RPC Error:', rpcError)
+        
+        // Check if it's insufficient balance error
+        if (rpcError.message?.includes('INSUFFICIENT_BALANCE') || 
+            rpcError.message?.includes('ยอดเงินไม่เพียงพอ')) {
+          error.value = `ยอดเงินใน Wallet ไม่เพียงพอ (ปัจจุบัน: ${walletBalance.formattedBalance.value}) กรุณาเติมเงินก่อนจองคิว`
+        } else {
+          error.value = rpcError.message || 'เกิดข้อผิดพลาดในการจองคิว'
         }
-        if (rpcError.message?.includes('WALLET_NOT_FOUND')) {
-          error.value = 'ไม่พบ Wallet กรุณาติดต่อฝ่ายสนับสนุน'
-          return null
-        }
-        throw rpcError
+        return null
       }
 
-      if (result?.success) {
-        // Fetch the created queue booking
-        const { data, error: fetchError } = await supabase
-          .from('queue_bookings')
-          .select('*')
-          .eq('id', result.queue_id)
-          .single()
+      console.log('✅ RPC Result:', result)
 
-        if (!fetchError && data) {
-          currentBooking.value = data
-          bookings.value.unshift(data)
-          return data
-        }
+      // Check result
+      if (!result || result.length === 0) {
+        error.value = 'ไม่สามารถจองคิวได้'
+        return null
       }
-      return null
+
+      const atomicResult = result[0]
+      
+      if (!atomicResult.success) {
+        console.error('❌ Booking failed:', atomicResult.message)
+        error.value = atomicResult.message || 'ไม่สามารถจองคิวได้'
+        return null
+      }
+
+      console.log('✅ Booking created successfully:', atomicResult.booking_id)
+
+      // Fetch the created booking
+      const { data: queueData, error: fetchError } = await supabase
+        .from('queue_bookings')
+        .select('*')
+        .eq('id', atomicResult.booking_id)
+        .single()
+
+      if (fetchError || !queueData) {
+        error.value = 'จองคิวสำเร็จแต่ไม่สามารถโหลดข้อมูลได้'
+        return null
+      }
+
+      currentBooking.value = queueData
+      bookings.value.unshift(queueData)
+      return queueData
     } catch (err: any) {
+      console.error('❌ Create Queue Error:', err)
       error.value = err.message || 'เกิดข้อผิดพลาดในการจองคิว'
       return null
     } finally {
@@ -513,6 +539,9 @@ export function useQueueBooking() {
     currentBooking,
     loading,
     error,
+    
+    // Wallet - Return entire composable to maintain reactivity
+    walletBalance,
     
     // Computed
     pendingBookings,

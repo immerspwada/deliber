@@ -147,7 +147,7 @@ onMounted(() => {
 });
 
 // Auto calculate when both locations set
-watch([storeLocation, deliveryLocation], () => {
+watch([storeLocation, deliveryLocation], async () => {
   if (storeLocation.value && deliveryLocation.value) {
     estimatedDistance.value = calculateDistance(
       storeLocation.value.lat,
@@ -156,16 +156,16 @@ watch([storeLocation, deliveryLocation], () => {
       deliveryLocation.value.lng,
     );
     estimatedTime.value = Math.ceil((estimatedDistance.value / 20) * 60) + 30;
-    serviceFee.value = calculateServiceFee(
+    serviceFee.value = await calculateServiceFee(
       parseFloat(budgetLimit.value) || 0,
       estimatedDistance.value,
     );
   }
 });
 
-watch(budgetLimit, () => {
+watch(budgetLimit, async () => {
   if (storeLocation.value && deliveryLocation.value) {
-    serviceFee.value = calculateServiceFee(
+    serviceFee.value = await calculateServiceFee(
       parseFloat(budgetLimit.value) || 0,
       estimatedDistance.value,
     );
@@ -380,13 +380,13 @@ const handleMapPickerConfirm = (
   }
 };
 
-const handleRouteCalculated = (data: {
+const handleRouteCalculated = async (data: {
   distance: number;
   duration: number;
 }) => {
   estimatedDistance.value = data.distance;
   estimatedTime.value = data.duration + 30;
-  serviceFee.value = calculateServiceFee(
+  serviceFee.value = await calculateServiceFee(
     parseFloat(budgetLimit.value) || 0,
     data.distance,
   );
@@ -719,34 +719,16 @@ const clearError = () => {
             opacity: 1 - Math.abs(swipeOffset) / 200,
           }"
         >
-          <div class="step-header">
-            <div class="step-header-icon store-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-            </div>
-            <div class="step-header-text">
-              <h2 class="step-title">ซื้อของที่ไหน?</h2>
-              <p class="step-desc">เลือกร้านค้าที่ต้องการให้ไปซื้อ</p>
-            </div>
-          </div>
-
           <!-- Store Name Input -->
           <div class="form-card">
-            <label class="input-label">ชื่อร้าน (ถ้าทราบ)</label>
+            <label class="input-label">ชื่อร้านค้า (ถ้าทราบ)</label>
             <input
               v-model="storeName"
               type="text"
-              placeholder="เช่น 7-Eleven, Big C, Lotus's"
+              placeholder="เช่น 7-Eleven, Big C, Lotus's, ร้านชำ"
               class="input-field"
             />
+            <p class="input-hint">ระบุชื่อร้านเพื่อให้ไรเดอร์หาได้ง่ายขึ้น</p>
           </div>
 
           <!-- Quick Actions -->
@@ -841,10 +823,10 @@ const clearError = () => {
 
           <!-- Address Search -->
           <div class="form-card">
-            <label class="input-label">ค้นหาร้านค้า</label>
+            <label class="input-label">ค้นหาตำแหน่งร้านค้า</label>
             <AddressSearchInput
               v-model="storeAddress"
-              placeholder="ค้นหาร้านค้าหรือสถานที่..."
+              placeholder="พิมพ์ชื่อร้าน ถนน หรือสถานที่..."
               icon="pickup"
               :show-saved-places="false"
               :recent-places="recentPlaces"
@@ -948,24 +930,6 @@ const clearError = () => {
             opacity: 1 - Math.abs(swipeOffset) / 200,
           }"
         >
-          <div class="step-header">
-            <div class="step-header-icon delivery-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9,22 9,12 15,12 15,22" />
-              </svg>
-            </div>
-            <div class="step-header-text">
-              <h2 class="step-title">ส่งถึงที่ไหน?</h2>
-              <p class="step-desc">ระบุที่อยู่สำหรับจัดส่งสินค้า</p>
-            </div>
-          </div>
-
           <!-- Route Preview -->
           <div class="route-preview-card">
             <div class="route-preview-item">
@@ -1091,7 +1055,7 @@ const clearError = () => {
             <label class="input-label">ค้นหาที่อยู่จัดส่ง</label>
             <AddressSearchInput
               v-model="deliveryAddress"
-              placeholder="ค้นหาที่อยู่จัดส่ง..."
+              placeholder="พิมพ์ที่อยู่ บ้านเลขที่ ถนน หรือสถานที่..."
               icon="destination"
               :home-place="homePlace"
               :work-place="workPlace"
@@ -1194,25 +1158,6 @@ const clearError = () => {
             'step-prev': stepDirection === 'prev',
           }"
         >
-          <div class="step-header">
-            <div class="step-header-icon items-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                />
-              </svg>
-            </div>
-            <div class="step-header-text">
-              <h2 class="step-title">รายการสินค้า</h2>
-              <p class="step-desc">ระบุสิ่งที่ต้องการให้ซื้อ</p>
-            </div>
-          </div>
-
           <!-- Favorites Quick Access -->
           <div v-if="favorites.length > 0" class="favorites-row">
             <button class="favorites-btn" @click="showFavoritesModal = true">
@@ -1232,15 +1177,16 @@ const clearError = () => {
 
           <div class="form-card">
             <div class="label-row">
-              <label class="input-label">รายการที่ต้องการ</label>
+              <label class="input-label">รายการสินค้าที่ต้องการซื้อ</label>
               <span v-if="itemCount > 0" class="item-badge">{{ itemCount }} รายการ</span>
             </div>
             <textarea
               v-model="itemList"
-              placeholder="พิมพ์รายการสินค้า (บรรทัดละ 1 รายการ)&#10;&#10;ตัวอย่าง:&#10;• นมสด 1 กล่อง&#10;• ขนมปัง 2 ห่อ&#10;• ไข่ไก่ 1 แผง"
-              rows="5"
+              placeholder="พิมพ์รายการสินค้า (แยกบรรทัดละ 1 รายการ)&#10;&#10;ตัวอย่าง:&#10;• นมสด 1 กล่อง&#10;• ขนมปัง 2 ห่อ&#10;• ไข่ไก่ 1 แผง&#10;• น้ำดื่ม 6 ขวด"
+              rows="6"
               class="input-field textarea"
             ></textarea>
+            <p class="input-hint">เขียนให้ละเอียด ระบุจำนวนและยี่ห้อ (ถ้ามี) เพื่อความแม่นยำ</p>
 
             <!-- Save as Favorite -->
             <button
@@ -1315,12 +1261,13 @@ const clearError = () => {
               @change="handleFileSelect"
             />
             <p class="image-hint">
-              ถ่ายรูปสินค้าที่ต้องการ ช่วยให้ไรเดอร์หาได้ง่ายขึ้น
+              ถ่ายรูปสินค้าที่ต้องการ หรือแคปหน้าจอจากแอปอื่น<br>
+              ช่วยให้ไรเดอร์เข้าใจและหาสินค้าได้ง่ายขึ้น
             </p>
           </div>
 
           <div class="form-card">
-            <label class="input-label">งบประมาณสูงสุด</label>
+            <label class="input-label">งบประมาณสูงสุด (ไม่รวมค่าบริการ)</label>
             <div class="budget-options">
               <button
                 v-for="amount in budgetOptions"
@@ -1339,20 +1286,22 @@ const clearError = () => {
               <input
                 v-model="budgetLimit"
                 type="number"
-                placeholder="หรือระบุจำนวนเอง"
+                placeholder="หรือระบุจำนวนเงินเอง"
                 class="input-field with-prefix"
               />
             </div>
+            <p class="input-hint">ระบุงบที่ต้องการใช้ซื้อสินค้า (ไม่รวมค่าบริการไรเดอร์)</p>
           </div>
 
           <div class="form-card">
-            <label class="input-label">หมายเหตุเพิ่มเติม (ไม่บังคับ)</label>
+            <label class="input-label">หมายเหตุพิเศษ (ไม่บังคับ)</label>
             <textarea
               v-model="specialInstructions"
-              placeholder="เช่น ถ้าไม่มียี่ห้อนี้ให้เอายี่ห้ออื่นแทน..."
-              rows="2"
+              placeholder="ตัวอย่าง:&#10;• ถ้าไม่มียี่ห้อนี้ให้เอายี่ห้ออื่นแทน&#10;• เลือกผลไม้ที่สุกพอดี&#10;• ขอใบเสร็จด้วย"
+              rows="3"
               class="input-field textarea"
             ></textarea>
+            <p class="input-hint">ข้อแนะนำพิเศษสำหรับไรเดอร์ เช่น การเลือกสินค้า หรือคำขอพิเศษ</p>
           </div>
 
           <!-- Continue Button - Fixed at Bottom -->
@@ -1382,23 +1331,6 @@ const clearError = () => {
       <!-- Step 4: Confirmation -->
       <template v-else-if="currentStep === 'confirm'">
         <div class="step-content animate-step scrollable">
-          <div class="step-header">
-            <div class="step-header-icon confirm-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div class="step-header-text">
-              <h2 class="step-title">ยืนยันคำสั่งซื้อ</h2>
-              <p class="step-desc">ตรวจสอบรายละเอียดก่อนยืนยัน</p>
-            </div>
-          </div>
-
           <!-- Summary Card -->
           <div class="summary-card">
             <div class="summary-section">
@@ -1475,10 +1407,13 @@ const clearError = () => {
             </div>
             <div class="price-divider"></div>
             <div class="price-row total">
-              <span>ค่าบริการ</span>
+              <span>ค่าบริการไรเดอร์</span>
               <span class="total-price">฿{{ serviceFee.toLocaleString() }}</span>
             </div>
-            <p class="price-note">* ไม่รวมราคาสินค้า จ่ายเพิ่มตามจริง</p>
+            <p class="price-note">
+              <strong>หมายเหตุ:</strong> ค่าบริการนี้เป็นค่าไรเดอร์เท่านั้น<br>
+              ราคาสินค้าจะจ่ายเพิ่มตามจริงเมื่อไรเดอร์ซื้อเสร็จ
+            </p>
           </div>
 
           <!-- Submit Button - Fixed at Bottom -->
@@ -2101,6 +2036,13 @@ const clearError = () => {
 
 .input-field::placeholder {
   color: #999999;
+}
+
+.input-hint {
+  font-size: 12px;
+  color: #666666;
+  margin: 8px 0 0;
+  line-height: 1.5;
 }
 
 .textarea {

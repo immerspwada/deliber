@@ -1,0 +1,77 @@
+--- a/src/composables/useRideRequest.ts
++++ b/src/composables/useRideRequest.ts
+@@ -443,26 +443,58 @@
+    * perKmRate: standard=10, premium=15, shared=8
+    * Minimum: standard=50, premium=80, shared=40
+    */
+-  function calculateFare(): void {
++  async function calculateFare(): Promise<void> {
+     if (!pickup.value || !destination.value) return
++    
+     const dist = calculateDistance(
+       pickup.value.lat, pickup.value.lng,
+       destination.value.lat, destination.value.lng
+     )
+     estimatedDistance.value = dist
+     estimatedTime.value = calculateTravelTime(dist)
+-    // Use standard rate (10 THB/km) - matches ride.ts store
+-    const baseFare = 35
+-    const perKmRate = 10 // standard rate
+-    const minimumFare = 50
+-    estimatedFare.value = Math.round(Math.max(baseFare + dist * perKmRate, minimumFare))
++    
++    // Use database pricing with vehicle type
++    try {
++      const vehicleType = selectedVehicle.value?.type === 'premium' ? 'premium' : 
++                         selectedVehicle.value?.type === 'bike' ? 'bike' : 'car'
++      
++      const fare = await rideStore.calculateFareFromDatabase(
++        dist,
++        'ride',
++        vehicleType
++      )
++      
++      estimatedFare.value = fare || 0
++      console.log('[RideRequest.calculateFare] Fare from database:', fare, 'for vehicle:', vehicleType)
++    } catch (error) {
++      console.error('[RideRequest.calculateFare] Error:', error)
++      // Fallback to hardcoded calculation
++      const baseFare = 35
++      const perKmRate = 10
++      const minimumFare = 50
++      estimatedFare.value = Math.round(Math.max(baseFare + dist * perKmRate, minimumFare))
++    }
+   }
+ 
+-  function handleRouteCalculated(info: { distance: number; duration: number }): void {
++  async function handleRouteCalculated(info: { distance: number; duration: number }): Promise<void> {
+     estimatedDistance.value = info.distance
+     estimatedTime.value = info.duration
+-    // Use standard rate (10 THB/km) - matches ride.ts store
+-    const baseFare = 35
+-    const perKmRate = 10 // standard rate
+-    const minimumFare = 50
+-    estimatedFare.value = Math.round(Math.max(baseFare + info.distance * perKmRate, minimumFare))
++    
++    // Use database pricing with vehicle type
++    try {
++      const vehicleType = selectedVehicle.value?.type === 'premium' ? 'premium' : 
++                         selectedVehicle.value?.type === 'bike' ? 'bike' : 'car'
++      
++      const fare = await rideStore.calculateFareFromDatabase(
++        info.distance,
++        'ride',
++        vehicleType
++      )
++      
++      estimatedFare.value = fare || 0
++      console.log('[RideRequest.handleRouteCalculated] Fare from database:', fare, 'for vehicle:', vehicleType)
++    } catch (error) {
++      console.error('[RideRequest.handleRouteCalculated] Error:', error)
++      // Fallback to hardcoded calculation
++      const baseFare = 35
++      const perKmRate = 10
++      const minimumFare = 50
++      estimatedFare.value = Math.round(Math.max(baseFare + info.distance * perKmRate, minimumFare))
++    }
+   }
