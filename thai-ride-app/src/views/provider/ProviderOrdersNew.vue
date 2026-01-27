@@ -37,6 +37,10 @@ interface Order {
   tip_amount: number | null
   distance: number
   created_at: string
+  service_type?: 'ride' | 'queue' // เพิ่ม service type
+  scheduled_date?: string // สำหรับ queue booking
+  scheduled_time?: string // สำหรับ queue booking
+  place_name?: string // สำหรับ queue booking
 }
 
 // State
@@ -92,22 +96,70 @@ const dropPointsCount = computed(() => selectedOrders.value.size)
 async function loadOrders() {
   loading.value = true
   try {
-    const { data } = await (supabase
-      .from('ride_requests')
-      .select('id, tracking_id, pickup_address, destination_address, pickup_lat, pickup_lng, destination_lat, destination_lng, estimated_fare, final_fare, actual_fare, paid_amount, promo_discount_amount, promo_code, payment_method, tip_amount, created_at')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(10) as any)
+    // Load both ride requests and queue bookings
+    const [ridesResult, queueResult] = await Promise.all([
+      supabase
+        .from('ride_requests')
+        .select('id, tracking_id, pickup_address, destination_address, pickup_lat, pickup_lng, destination_lat, destination_lng, estimated_fare, final_fare, actual_fare, paid_amount, promo_discount_amount, promo_code, payment_method, tip_amount, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('queue_bookings')
+        .select('id, tracking_id, place_name, place_address, scheduled_date, scheduled_time, service_fee, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10)
+    ])
 
-    if (data) {
-      orders.value = data.map((o: any) => ({
+    const allOrders: Order[] = []
+
+    // Process ride requests
+    if (ridesResult.data) {
+      const rideOrders = ridesResult.data.map((o: any) => ({
         ...o,
+        service_type: 'ride' as const,
         distance: calculateDistance(o.pickup_lat, o.pickup_lng, o.destination_lat, o.destination_lng)
       }))
-      
-      // Select all by default
-      orders.value.forEach(o => selectedOrders.value.add(o.id))
+      allOrders.push(...rideOrders)
     }
+
+    // Process queue bookings
+    if (queueResult.data) {
+      const queueOrders = queueResult.data.map((q: any) => ({
+        id: q.id,
+        tracking_id: q.tracking_id,
+        pickup_address: q.place_name || q.place_address || 'จองคิว',
+        destination_address: `${q.scheduled_date} ${q.scheduled_time}`,
+        pickup_lat: 0, // Queue bookings don't have coordinates
+        pickup_lng: 0,
+        destination_lat: 0,
+        destination_lng: 0,
+        estimated_fare: q.service_fee || 50,
+        final_fare: null,
+        actual_fare: null,
+        paid_amount: null,
+        promo_discount_amount: null,
+        promo_code: null,
+        payment_method: null,
+        tip_amount: null,
+        distance: 0,
+        created_at: q.created_at,
+        service_type: 'queue' as const,
+        scheduled_date: q.scheduled_date,
+        scheduled_time: q.scheduled_time,
+        place_name: q.place_name
+      }))
+      allOrders.push(...queueOrders)
+    }
+
+    // Sort by created_at (newest first)
+    orders.value = allOrders.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+    
+    // Select all by default
+    orders.value.forEach(o => selectedOrders.value.add(o.id))
   } catch (err) {
     console.error('[Orders] Error:', err)
   } finally {
@@ -178,10 +230,17 @@ async function acceptOrders() {
       return
     }
 
-    // Accept selected orders
-    const orderIds = Array.from(selectedOrders.value)
-    
-    for (const orderId of orderIds) {
+    // Separate ride requests and queue bookings
+    const selectedOrdersList = Array.from(selectedOrders.value)
+    const rideOrders = orders.value.filter(o => 
+      selectedOrdersList.includes(o.id) && o.service_type === 'ride'
+    )
+    const queueOrders = orders.value.filter(o => 
+      selectedOrdersList.includes(o.id) && o.service_type === 'queue'
+    )
+
+    // Accept ride requests
+    for (const order of rideOrders) {
       const { error: updateError } = await (supabase
         .from('ride_requests') as any)
         .update({
@@ -190,19 +249,39 @@ async function acceptOrders() {
           matched_at: new Date().toISOString(),
           accepted_at: new Date().toISOString()
         })
-        .eq('id', orderId)
+        .eq('id', order.id)
         .eq('status', 'pending')
 
       if (updateError) {
-        console.error('[Orders] Accept error:', updateError)
+        console.error('[Orders] Accept ride error:', updateError)
         alert(`ไม่สามารถรับงานได้: ${updateError.message}`)
         return
       }
     }
 
-    // Navigate to first job detail
-    if (orderIds.length > 0) {
-      router.push(`/provider/job/${orderIds[0]}`)
+    // Accept queue bookings
+    for (const order of queueOrders) {
+      const { error: updateError } = await (supabase
+        .from('queue_bookings') as any)
+        .update({
+          provider_id: provider.id,
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString()
+        })
+        .eq('id', order.id)
+        .eq('status', 'pending')
+
+      if (updateError) {
+        console.error('[Orders] Accept queue error:', updateError)
+        alert(`ไม่สามารถรับงานจองคิวได้: ${updateError.message}`)
+        return
+      }
+    }
+
+    // Navigate to first job detail (prefer ride over queue)
+    const firstOrderId = rideOrders[0]?.id || queueOrders[0]?.id
+    if (firstOrderId) {
+      router.push(`/provider/job/${firstOrderId}`)
     }
   } catch (err) {
     console.error('[Orders] Accept error:', err)
@@ -246,7 +325,7 @@ function setupRealtimeSubscription() {
         filter: 'status=eq.pending'
       },
       (payload) => {
-        console.log('[Orders] New job received:', payload.new)
+        console.log('[Orders] New ride job received:', payload.new)
         // Add new job to the list
         const newJob = payload.new as any
         
@@ -269,6 +348,7 @@ function setupRealtimeSubscription() {
           payment_method: newJob.payment_method ?? null,
           tip_amount: newJob.tip_amount ?? null,
           created_at: newJob.created_at,
+          service_type: 'ride',
           distance: calculateDistance(newJob.pickup_lat, newJob.pickup_lng, newJob.destination_lat, newJob.destination_lng)
         }
         
@@ -283,15 +363,79 @@ function setupRealtimeSubscription() {
     .on(
       'postgres_changes',
       {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'queue_bookings',
+        filter: 'status=eq.pending'
+      },
+      (payload) => {
+        console.log('[Orders] New queue booking received:', payload.new)
+        const newQueue = payload.new as any
+        
+        const queueOrder: Order = {
+          id: newQueue.id,
+          tracking_id: newQueue.tracking_id,
+          pickup_address: newQueue.place_name || newQueue.place_address || 'จองคิว',
+          destination_address: `${newQueue.scheduled_date} ${newQueue.scheduled_time}`,
+          pickup_lat: 0,
+          pickup_lng: 0,
+          destination_lat: 0,
+          destination_lng: 0,
+          estimated_fare: newQueue.service_fee || 50,
+          final_fare: null,
+          actual_fare: null,
+          paid_amount: null,
+          promo_discount_amount: null,
+          promo_code: null,
+          payment_method: null,
+          tip_amount: null,
+          distance: 0,
+          created_at: newQueue.created_at,
+          service_type: 'queue',
+          scheduled_date: newQueue.scheduled_date,
+          scheduled_time: newQueue.scheduled_time,
+          place_name: newQueue.place_name
+        }
+        
+        // Add to beginning of list
+        orders.value = [queueOrder, ...orders.value]
+        
+        // Auto-select new job
+        selectedOrders.value.add(newQueue.id)
+        selectedOrders.value = new Set(selectedOrders.value)
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
         event: 'UPDATE',
         schema: 'public',
         table: 'ride_requests'
       },
       (payload) => {
-        console.log('[Orders] Job updated:', payload.new)
+        console.log('[Orders] Ride job updated:', payload.new)
         const updated = payload.new as { id: string; status: string }
         
         // Remove job if it's no longer pending (someone else took it)
+        if (updated.status !== 'pending') {
+          orders.value = orders.value.filter(o => o.id !== updated.id)
+          selectedOrders.value.delete(updated.id)
+          selectedOrders.value = new Set(selectedOrders.value)
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'queue_bookings'
+      },
+      (payload) => {
+        console.log('[Orders] Queue booking updated:', payload.new)
+        const updated = payload.new as { id: string; status: string }
+        
+        // Remove job if it's no longer pending
         if (updated.status !== 'pending') {
           orders.value = orders.value.filter(o => o.id !== updated.id)
           selectedOrders.value.delete(updated.id)
