@@ -682,6 +682,18 @@ function setupRealtimeSubscription() {
                 <div class="order-info-row">
                   <span v-if="order.payment_method === 'cash'" class="payment-badge cash">💵 เงินสด</span>
                   <span v-else-if="order.payment_method === 'wallet'" class="payment-badge wallet">💳 Wallet</span>
+                  <button 
+                    v-if="order.place_name"
+                    class="map-btn-inline"
+                    @click.stop="openMapPreview(order)"
+                    aria-label="ดูแผนที่"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span>ดูแผนที่</span>
+                  </button>
                 </div>
                 
                 <button 
@@ -1349,6 +1361,32 @@ function setupRealtimeSubscription() {
 .map-btn svg {
   width: 18px;
   height: 18px;
+}
+
+.map-btn-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #F3F4F6;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 36px;
+}
+
+.map-btn-inline:active {
+  background: #E5E7EB;
+  transform: scale(0.98);
+}
+
+.map-btn-inline svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Accept Order Button */
