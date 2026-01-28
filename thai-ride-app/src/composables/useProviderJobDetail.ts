@@ -82,7 +82,30 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
 
   const nextStatus = computed(() => {
     if (!job.value) return null
-    return getNextStatus(job.value.status)
+    
+    const currentStatus = job.value.status
+    const jobType = job.value.type
+    
+    // Shopping flow: matched → shopping → delivering → completed
+    if (jobType === 'shopping') {
+      if (currentStatus === 'matched') return STATUS_FLOW.find(s => s.key === 'shopping') || null
+      if (currentStatus === 'shopping') return STATUS_FLOW.find(s => s.key === 'delivering') || null
+      if (currentStatus === 'delivering') return STATUS_FLOW.find(s => s.key === 'completed') || null
+    }
+    
+    // Ride flow: matched → pickup → in_progress → completed
+    if (jobType === 'ride' || jobType === 'delivery') {
+      if (currentStatus === 'matched') return STATUS_FLOW.find(s => s.key === 'pickup') || null
+      if (currentStatus === 'pickup') return STATUS_FLOW.find(s => s.key === 'in_progress') || null
+      if (currentStatus === 'in_progress') return STATUS_FLOW.find(s => s.key === 'completed') || null
+    }
+    
+    // Queue flow: confirmed → completed
+    if (jobType === 'queue') {
+      if (currentStatus === 'confirmed') return STATUS_FLOW.find(s => s.key === 'completed') || null
+    }
+    
+    return null
   })
 
   const canUpdate = computed(() => {
@@ -229,7 +252,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
                 store_lat, store_lng, delivery_address, delivery_lat, delivery_lng,
                 items, items_cost, service_fee, total_cost,
                 created_at, matched_at, user_id, provider_id,
-                special_instructions, budget_limit
+                special_instructions, budget_limit, reference_images, item_list
               `)
               .eq('id', jobId)
               .maybeSingle()
@@ -348,6 +371,8 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             items_cost: rideData.items_cost,
             budget_limit: rideData.budget_limit,
             matched_at: rideData.matched_at,
+            reference_images: rideData.reference_images,
+            item_list: rideData.item_list,
             promo_code: null,
             promo_discount: null,
             tip_amount: null,
@@ -453,9 +478,9 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
           updated_at: new Date().toISOString()
         }
         
-        // Add status-specific timestamps (only for ride_requests)
-        // queue_bookings and shopping_requests don't have arrived_at/started_at columns
+        // Add status-specific timestamps based on table schema
         if (tableName === 'ride_requests') {
+          // ride_requests has: arrived_at, started_at, completed_at
           switch (newStatus) {
             case 'pickup':
               updateData.arrived_at = new Date().toISOString()
@@ -467,13 +492,34 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
               updateData.completed_at = new Date().toISOString()
               break
           }
-        } else {
-          // For queue_bookings and shopping_requests, only set completed_at and matched_at
-          if (newStatus === 'completed') {
-            updateData.completed_at = new Date().toISOString()
+        } else if (tableName === 'shopping_requests') {
+          // shopping_requests has: matched_at, shopped_at, delivered_at
+          // shopping_requests uses different status names: shopping, delivering (not pickup, in_progress)
+          switch (newStatus) {
+            case 'matched':
+              updateData.matched_at = new Date().toISOString()
+              break
+            case 'shopping':
+              // When provider starts shopping at store
+              updateData.shopped_at = new Date().toISOString()
+              break
+            case 'delivering':
+              // Shopping done, now delivering
+              // No additional timestamp needed (shopped_at already set)
+              break
+            case 'completed':
+              updateData.delivered_at = new Date().toISOString()
+              break
           }
-          if (newStatus === 'matched' && tableName === 'shopping_requests') {
-            updateData.matched_at = new Date().toISOString()
+        } else if (tableName === 'queue_bookings') {
+          // queue_bookings has: confirmed_at, completed_at
+          switch (newStatus) {
+            case 'confirmed':
+              updateData.confirmed_at = new Date().toISOString()
+              break
+            case 'completed':
+              updateData.completed_at = new Date().toISOString()
+              break
           }
         }
         

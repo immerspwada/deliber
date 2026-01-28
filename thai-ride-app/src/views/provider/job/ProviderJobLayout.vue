@@ -52,7 +52,9 @@ const STATUS_TO_STEP: Record<string, string> = {
   'confirmed': 'matched',
   'matched': 'matched',
   'pickup': 'pickup',
+  'shopping': 'pickup',      // Shopping: use pickup view for shopping phase
   'in_progress': 'in-progress',
+  'delivering': 'in-progress', // Shopping: use in-progress view for delivering phase
   'completed': 'completed',
   'cancelled': 'cancelled'
 }
@@ -221,7 +223,7 @@ onMounted(async () => {
       />
       
       <JobPickupView
-        v-else-if="job.status === 'pickup'"
+        v-else-if="job.status === 'pickup' || job.status === 'shopping'"
         :job="job"
         :updating="updating"
         @update-status="handleUpdateStatus"
@@ -232,7 +234,7 @@ onMounted(async () => {
       />
       
       <JobInProgressView
-        v-else-if="job.status === 'in_progress'"
+        v-else-if="job.status === 'in_progress' || job.status === 'delivering'"
         :job="job"
         :updating="updating"
         @update-status="handleUpdateStatus"

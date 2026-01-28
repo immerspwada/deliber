@@ -55,8 +55,10 @@ export type RideStatus =
   | 'pending'
   | 'matched'
   | 'confirmed'  // Queue booking status
-  | 'pickup'
-  | 'in_progress'
+  | 'pickup'     // Ride: arrived at pickup
+  | 'shopping'   // Shopping: shopping at store
+  | 'in_progress' // Ride: customer in vehicle
+  | 'delivering'  // Shopping: delivering items
   | 'completed'
   | 'cancelled'
 
@@ -101,6 +103,8 @@ export interface JobDetail {
   items_cost?: number | null
   budget_limit?: number | null
   matched_at?: string | null
+  reference_images?: readonly string[] | null
+  item_list?: string | null
 }
 
 export interface CustomerInfo {
@@ -170,8 +174,10 @@ export interface CancelJobResponse {
 export const STATUS_FLOW: StatusStep[] = [
   { key: 'matched', label: 'รับงานแล้ว', icon: '✅', action: 'กำลังไปรับ' },
   { key: 'confirmed', label: 'รับงานแล้ว', icon: '✅', action: 'กำลังไปรับ' }, // Queue booking status
-  { key: 'pickup', label: 'ถึงจุดรับแล้ว', icon: '📍', action: 'ถึงจุดรับแล้ว' },
-  { key: 'in_progress', label: 'กำลังเดินทาง', icon: '🛣️', action: 'รับลูกค้าแล้ว' },
+  { key: 'pickup', label: 'ถึงจุดรับแล้ว', icon: '📍', action: 'ถึงจุดรับแล้ว' }, // Ride
+  { key: 'shopping', label: 'กำลังซื้อของ', icon: '🛒', action: 'กำลังซื้อของ' }, // Shopping
+  { key: 'in_progress', label: 'กำลังเดินทาง', icon: '🛣️', action: 'รับลูกค้าแล้ว' }, // Ride
+  { key: 'delivering', label: 'กำลังส่งของ', icon: '🚚', action: 'กำลังส่งของ' }, // Shopping
   { key: 'completed', label: 'เสร็จสิ้น', icon: '🎉', action: 'ส่งลูกค้าสำเร็จ' }
 ] as const
 
@@ -200,9 +206,33 @@ export function getStatusIndex(status: RideStatus): number {
 }
 
 export function getNextStatus(currentStatus: RideStatus): StatusStep | null {
-  const currentIndex = getStatusIndex(currentStatus)
-  if (currentIndex < 0 || currentIndex >= STATUS_FLOW.length - 1) return null
-  return STATUS_FLOW[currentIndex + 1]
+  // Shopping flow: matched → shopping → delivering → completed
+  if (currentStatus === 'matched') {
+    // Could be ride (→ pickup) or shopping (→ shopping)
+    // Return shopping as default, caller should handle job type
+    return STATUS_FLOW.find(s => s.key === 'shopping') || STATUS_FLOW.find(s => s.key === 'pickup') || null
+  }
+  if (currentStatus === 'shopping') {
+    return STATUS_FLOW.find(s => s.key === 'delivering') || null
+  }
+  if (currentStatus === 'delivering') {
+    return STATUS_FLOW.find(s => s.key === 'completed') || null
+  }
+  
+  // Ride flow: matched → pickup → in_progress → completed
+  if (currentStatus === 'pickup') {
+    return STATUS_FLOW.find(s => s.key === 'in_progress') || null
+  }
+  if (currentStatus === 'in_progress') {
+    return STATUS_FLOW.find(s => s.key === 'completed') || null
+  }
+  
+  // Queue flow: confirmed → completed
+  if (currentStatus === 'confirmed') {
+    return STATUS_FLOW.find(s => s.key === 'completed') || null
+  }
+  
+  return null
 }
 
 export function canUpdateStatus(status: RideStatus): boolean {

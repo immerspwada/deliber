@@ -4,7 +4,7 @@
  * MUNEEF Style UI - Clean and Modern
  * Enhanced UX Flow: 1.ร้านค้า → 2.ที่อยู่ → 3.รายการ → 4.ยืนยัน
  */
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import AddressSearchInput from "../components/AddressSearchInput.vue";
 import MapView from "../components/MapView.vue";
@@ -17,12 +17,14 @@ import {
   type ShoppingFavoriteList,
 } from "../composables/useFavoriteShoppingLists";
 import { useShoppingImages } from "../composables/useShoppingImages";
+import { useRealtimeOrder } from "../composables/useRealtimeOrder";
+import { useWalletBalance } from "../composables/useWalletBalance";
 import type { PlaceResult } from "../composables/usePlaceSearch";
 
 const router = useRouter();
 const { calculateDistance, currentLocation, getCurrentPosition } =
   useLocation();
-const { createShoppingRequest, calculateServiceFee, loading } = useShopping();
+const { createShoppingRequest, calculateServiceFee, loading, formatStatus } = useShopping();
 const {
   homePlace,
   workPlace,
@@ -41,6 +43,8 @@ const {
   uploadImages,
   MAX_IMAGES,
 } = useShoppingImages();
+const { subscribe: subscribeToOrders, unsubscribe: unsubscribeFromOrders } = useRealtimeOrder();
+const { balance, formattedBalance, loading: walletLoading, fetchBalance } = useWalletBalance();
 void _uploading;
 
 // Step Flow
@@ -55,6 +59,10 @@ const pressedButton = ref<string | null>(null);
 const showExitConfirm = ref(false);
 const errorMessage = ref("");
 const showErrorToast = ref(false);
+
+// Realtime tracking
+const activeShoppingId = ref<string | null>(null);
+const realtimeConnected = ref(false);
 
 // Swipe gesture state
 const touchStartX = ref(0);
@@ -126,8 +134,13 @@ const canSubmit = computed(
     storeLocation.value &&
     deliveryLocation.value &&
     itemList.value.trim() &&
-    budgetLimit.value,
+    budgetLimit.value &&
+    balance.value >= serviceFee.value,
 );
+
+const insufficientBalance = computed(() => {
+  return serviceFee.value > 0 && balance.value < serviceFee.value;
+});
 
 const hasEnteredData = computed(() => {
   return (
@@ -144,6 +157,8 @@ onMounted(() => {
   fetchSavedPlaces();
   fetchRecentPlaces();
   fetchFavorites();
+  // Fetch wallet balance on mount
+  fetchBalance();
 });
 
 // Auto calculate when both locations set
@@ -470,11 +485,7 @@ const handleFileSelect = (event: Event) => {
 };
 
 // Show error toast
-const showError = (
-  message: string,
-  actionText?: string,
-  actionCallback?: () => void,
-) => {
+const showError = (message: string) => {
   errorMessage.value = message;
   showErrorToast.value = true;
   triggerHaptic("heavy");
@@ -484,10 +495,37 @@ const showError = (
   }, 6000);
 };
 
+// Show success notification
+const showNotification = (message: string) => {
+  // Use error toast for now (can be enhanced with separate notification component)
+  errorMessage.value = message;
+  showErrorToast.value = true;
+  triggerHaptic("medium");
+  setTimeout(() => {
+    showErrorToast.value = false;
+    errorMessage.value = "";
+  }, 4000);
+};
+
 // Submit
 const handleSubmit = async () => {
   if (!canSubmit.value || !storeLocation.value || !deliveryLocation.value) {
     showError("กรุณากรอกข้อมูลให้ครบถ้วน");
+    return;
+  }
+
+  // Refresh wallet balance before submission
+  console.log('🔄 [ShoppingView] Refreshing wallet balance before submission...');
+  await fetchBalance();
+  
+  // Check balance again after refresh
+  if (balance.value < serviceFee.value) {
+    console.error('❌ [ShoppingView] Insufficient balance after refresh:', {
+      balance: balance.value,
+      serviceFee: serviceFee.value,
+      required: serviceFee.value - balance.value
+    });
+    showError(`💰 ยอดเงินไม่เพียงพอ\n\nค่าบริการ: ฿${serviceFee.value}\nยอดคงเหลือ: ${formattedBalance.value}\nกรุณาเติมเงินก่อนสั่งบริการ`);
     return;
   }
 
@@ -516,6 +554,45 @@ const handleSubmit = async () => {
 
     if (result) {
       triggerHaptic("heavy");
+      
+      // Store shopping ID for realtime tracking
+      activeShoppingId.value = result.id;
+      
+      // Subscribe to realtime updates
+      console.log('🔌 [ShoppingView] Subscribing to realtime updates for:', result.id);
+      subscribeToOrders({
+        onOrderCreated: (order) => {
+          console.log('🆕 [ShoppingView] New shopping order:', order);
+        },
+        onOrderUpdated: (order) => {
+          console.log('🔄 [ShoppingView] Shopping order updated:', order);
+          if (order.orderId === activeShoppingId.value) {
+            showNotification('คำสั่งซื้อของคุณมีการอัพเดท');
+          }
+        },
+        onOrderStatusChanged: (orderId, newStatus) => {
+          console.log('📊 [ShoppingView] Status changed:', orderId, newStatus);
+          if (orderId === activeShoppingId.value) {
+            const statusText = formatStatus(newStatus);
+            showNotification(`สถานะเปลี่ยนเป็น: ${statusText}`);
+          }
+        },
+        onProviderAssigned: (orderId, providerId) => {
+          console.log('🚗 [ShoppingView] Provider assigned:', orderId, providerId);
+          if (orderId === activeShoppingId.value) {
+            showNotification('🎉 มีไรเดอร์รับงานแล้ว!');
+            triggerHaptic('heavy');
+          }
+        }
+      });
+      
+      realtimeConnected.value = true;
+      console.log('✅ [ShoppingView] Realtime subscription active');
+      
+      // Refresh wallet balance after successful order
+      await fetchBalance();
+      
+      // Navigate to tracking
       router.push(`/tracking/${result.tracking_id}`);
     } else {
       showError("ไม่สามารถสร้างคำสั่งซื้อได้ กรุณาลองใหม่");
@@ -527,10 +604,12 @@ const handleSubmit = async () => {
     let userMessage = "เกิดข้อผิดพลาด กรุณาลองใหม่";
 
     if (
-      error.message?.includes("ยอดเงินในกระเป๋าไม่เพียงพอ") ||
+      error.message?.includes("ยอดเงิน") ||
       error.message?.includes("INSUFFICIENT_BALANCE")
     ) {
-      userMessage = `💰 ยอดเงินไม่เพียงพอ\n\nค่าบริการ: ฿${serviceFee.value}\nกรุณาเติมเงินก่อนสั่งบริการ`;
+      // Refresh balance to show current amount
+      await fetchBalance();
+      userMessage = `💰 ยอดเงินไม่เพียงพอ\n\nค่าบริการ: ฿${serviceFee.value}\nยอดคงเหลือ: ${formattedBalance.value}\nกรุณาเติมเงินก่อนสั่งบริการ`;
     } else if (
       error.message?.includes("ไม่พบข้อมูลผู้ใช้") ||
       error.message?.includes("USER_NOT_FOUND")
@@ -549,6 +628,15 @@ const clearError = () => {
   showErrorToast.value = false;
   errorMessage.value = "";
 };
+
+// Cleanup realtime subscription on unmount
+onUnmounted(() => {
+  if (realtimeConnected.value) {
+    console.log('🔌 [ShoppingView] Unsubscribing from realtime');
+    unsubscribeFromOrders();
+    realtimeConnected.value = false;
+  }
+});
 </script>
 
 <template>
@@ -1158,6 +1246,22 @@ const clearError = () => {
             'step-prev': stepDirection === 'prev',
           }"
         >
+          <!-- Wallet Balance Preview (Early Display) -->
+          <div v-if="balance > 0" class="wallet-preview-card">
+            <div class="wallet-preview-content">
+              <div class="wallet-preview-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="1" y="4" width="22" height="16" rx="2" />
+                  <path d="M1 10h22" />
+                </svg>
+              </div>
+              <div class="wallet-preview-info">
+                <span class="wallet-preview-label">ยอดเงินในกระเป๋า</span>
+                <span class="wallet-preview-amount">{{ formattedBalance }}</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Favorites Quick Access -->
           <div v-if="favorites.length > 0" class="favorites-row">
             <button class="favorites-btn" @click="showFavoritesModal = true">
@@ -1416,9 +1520,93 @@ const clearError = () => {
             </p>
           </div>
 
+          <!-- Wallet Balance Card - Enhanced -->
+          <div class="wallet-balance-card" :class="{ 'insufficient': insufficientBalance, 'loading': walletLoading }">
+            <div class="wallet-header">
+              <div class="wallet-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="1" y="4" width="22" height="16" rx="2" />
+                  <path d="M1 10h22" />
+                </svg>
+              </div>
+              <div class="wallet-info">
+                <span class="wallet-label">ยอดเงินในกระเป๋า</span>
+                <span v-if="walletLoading" class="wallet-loading">
+                  <span class="loading-dots">กำลังโหลด<span>.</span><span>.</span><span>.</span></span>
+                </span>
+                <span v-else class="wallet-amount" :class="{ 'low': insufficientBalance }">
+                  {{ formattedBalance }}
+                </span>
+              </div>
+              <!-- Refresh Button -->
+              <button 
+                v-if="!walletLoading" 
+                class="wallet-refresh-btn"
+                :disabled="walletLoading"
+                @click="fetchBalance(); triggerHaptic('light')"
+                title="รีเฟรชยอดเงิน"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 4v6h6M23 20v-6h-6" />
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                </svg>
+              </button>
+            </div>
+            
+            <!-- Insufficient Balance Warning -->
+            <Transition name="slide-down">
+              <div v-if="insufficientBalance" class="insufficient-warning">
+                <div class="warning-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div class="warning-text">
+                  <strong>⚠️ ยอดเงินไม่เพียงพอ</strong>
+                  <p>ต้องการ <strong>฿{{ serviceFee.toLocaleString() }}</strong> แต่มีเพียง <strong>{{ formattedBalance }}</strong></p>
+                  <p class="topup-hint">💡 ต้องเติมเงินอีก <strong>฿{{ (serviceFee - balance).toLocaleString() }}</strong></p>
+                </div>
+              </div>
+            </Transition>
+
+            <!-- Balance After Payment - Enhanced -->
+            <Transition name="slide-down">
+              <div v-if="!insufficientBalance && serviceFee > 0" class="balance-after">
+                <div class="balance-breakdown">
+                  <div class="breakdown-row">
+                    <span>ยอดปัจจุบัน</span>
+                    <span>{{ formattedBalance }}</span>
+                  </div>
+                  <div class="breakdown-row deduct">
+                    <span>หักค่าบริการ</span>
+                    <span>-฿{{ serviceFee.toLocaleString() }}</span>
+                  </div>
+                  <div class="breakdown-divider"></div>
+                  <div class="breakdown-row remaining">
+                    <span>คงเหลือหลังชำระ</span>
+                    <span class="balance-value">฿{{ (balance - serviceFee).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
           <!-- Submit Button - Fixed at Bottom -->
           <div class="submit-btn-container">
             <button
+              v-if="insufficientBalance"
+              class="submit-btn topup"
+              @click="router.push('/wallet')"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              เติมเงินในกระเป๋า
+            </button>
+            <button
+              v-else
               class="submit-btn"
               :disabled="loading || !canSubmit"
               @click="handleSubmit"
@@ -3338,5 +3526,373 @@ const clearError = () => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Wallet Balance Card - Enhanced */
+.wallet-balance-card {
+  background: linear-gradient(135deg, #00a86b 0%, #00c878 100%);
+  border-radius: 16px;
+  padding: 20px;
+  margin-top: 16px;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Wallet Preview Card (Early Display in Items Step) */
+.wallet-preview-card {
+  background: linear-gradient(135deg, #e8f5ef 0%, #d4f1e3 100%);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 2px solid #00a86b;
+  animation: slideInDown 0.3s ease;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wallet-preview-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wallet-preview-icon {
+  width: 40px;
+  height: 40px;
+  background: #ffffff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.1);
+}
+
+.wallet-preview-icon svg {
+  width: 20px;
+  height: 20px;
+  color: #00a86b;
+}
+
+.wallet-preview-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wallet-preview-label {
+  font-size: 12px;
+  color: #666666;
+  font-weight: 500;
+}
+
+.wallet-preview-amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #00a86b;
+  letter-spacing: -0.3px;
+}
+
+.wallet-balance-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.wallet-balance-card.insufficient {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.wallet-balance-card.loading {
+  opacity: 0.8;
+}
+
+.wallet-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.wallet-balance-card:active .wallet-icon {
+  transform: scale(0.95);
+}
+
+.wallet-icon svg {
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+}
+
+.wallet-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wallet-label {
+  font-size: 13px;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.wallet-amount {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  transition: all 0.3s ease;
+}
+
+.wallet-amount.low {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.wallet-loading {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.loading-dots span {
+  animation: blink 1.4s infinite;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+/* Wallet Refresh Button */
+.wallet-refresh-btn {
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.wallet-refresh-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.wallet-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wallet-refresh-btn svg {
+  width: 18px;
+  height: 18px;
+  color: #ffffff;
+  transition: transform 0.3s ease;
+}
+
+.wallet-refresh-btn:active svg {
+  transform: rotate(180deg);
+}
+
+/* Insufficient Warning - Enhanced */
+.insufficient-warning {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: slideInUp 0.3s ease;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warning-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.warning-icon svg {
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.warning-text {
+  flex: 1;
+}
+
+.warning-text strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.warning-text p {
+  font-size: 13px;
+  margin: 4px 0;
+  opacity: 0.95;
+  line-height: 1.5;
+}
+
+.warning-text p strong {
+  display: inline;
+  font-weight: 700;
+  font-size: inherit;
+  margin: 0;
+}
+
+.topup-hint {
+  font-weight: 600;
+  margin-top: 8px !important;
+  opacity: 1 !important;
+}
+
+/* Balance After Payment - Enhanced */
+.balance-after {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: slideInUp 0.3s ease;
+}
+
+.balance-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.breakdown-row.deduct {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.breakdown-row.deduct span:last-child {
+  font-weight: 600;
+}
+
+.breakdown-row.remaining {
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 1;
+  padding-top: 4px;
+}
+
+.breakdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 4px 0;
+}
+
+.balance-value {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.submit-btn.topup {
+  background: linear-gradient(135deg, #00a86b 0%, #00c878 100%);
+  color: #ffffff;
+}
+
+.submit-btn.topup:active {
+  transform: scale(0.98);
+}
+
+.submit-btn.topup svg {
+  width: 20px;
+  height: 20px;
 }
 </style>

@@ -63,8 +63,11 @@ const statusConfig: Record<string, { label: string; icon: string; color: string 
   pending: { label: 'รอคนขับรับงาน', icon: ClockIcon, color: 'text-amber-600' },
   matched: { label: 'คนขับรับงานแล้ว', icon: UserIcon, color: 'text-blue-600' },
   pickup: { label: 'กำลังไปรับพัสดุ', icon: TruckIcon, color: 'text-indigo-600' },
+  shopping: { label: 'กำลังซื้อของ', icon: ShoppingBagIcon, color: 'text-indigo-600' },
   in_transit: { label: 'กำลังจัดส่ง', icon: TruckIcon, color: 'text-purple-600' },
+  delivering: { label: 'กำลังจัดส่ง', icon: TruckIcon, color: 'text-purple-600' },
   delivered: { label: 'ส่งสำเร็จ', icon: CheckCircleIcon, color: 'text-green-600' },
+  completed: { label: 'ส่งสำเร็จ', icon: CheckCircleIcon, color: 'text-green-600' },
   failed: { label: 'ส่งไม่สำเร็จ', icon: XCircleIcon, color: 'text-red-600' },
   cancelled: { label: 'ยกเลิก', icon: BanIcon, color: 'text-gray-600' }
 }
@@ -226,11 +229,39 @@ const loadDelivery = async () => {
     console.log('✅ [Tracking] Data loaded:', data)
     delivery.value = data
     
-    // Subscribe to updates (only for delivery_requests, not shopping_requests yet)
-    if (data.id && !identifier.startsWith('SHP-')) {
-      subscription = subscribeToDelivery(data.id, (updated) => {
-        delivery.value = updated
-      })
+    // Subscribe to realtime updates for both delivery and shopping orders
+    if (data.id) {
+      const tableName = identifier.startsWith('SHP-') ? 'shopping_requests' : 'delivery_requests'
+      console.log('🔔 [Tracking] Setting up realtime subscription for:', tableName, data.id)
+      
+      // Create realtime subscription
+      const channel = supabase
+        .channel(`${tableName}:${data.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: tableName,
+            filter: `id=eq.${data.id}`
+          },
+          (payload) => {
+            console.log('🔔 [Tracking] Realtime update received:', payload)
+            
+            // Reload delivery data to get updated provider info
+            loadDelivery()
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔔 [Tracking] Subscription status:', status)
+        })
+      
+      subscription = {
+        unsubscribe: () => {
+          console.log('🔕 [Tracking] Unsubscribing from realtime')
+          supabase.removeChannel(channel)
+        }
+      }
     }
   } catch (err) {
     console.error('💥 [Tracking] Error loading delivery:', err)

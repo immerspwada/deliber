@@ -117,7 +117,40 @@ function goBack(): void {
         </button>
       </section>
 
-      <!-- Shopping Order: Items List -->
+      <!-- Shopping Order: Reference Images -->
+      <section v-if="isShopping && job.reference_images && job.reference_images.length > 0" class="images-card">
+        <div class="images-header">
+          <div class="images-icon">📸</div>
+          <h3>รูปภาพอ้างอิง</h3>
+        </div>
+        <div class="images-grid">
+          <a 
+            v-for="(image, index) in job.reference_images" 
+            :key="index"
+            :href="image"
+            target="_blank"
+            class="image-item"
+          >
+            <img :src="image" :alt="`รูปภาพ ${index + 1}`" loading="lazy" />
+            <div class="image-overlay">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+              </svg>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Shopping Order: Item List (Text) -->
+      <section v-if="isShopping && job.item_list" class="item-list-card">
+        <div class="item-list-header">
+          <div class="item-list-icon">📝</div>
+          <h3>รายการสินค้า</h3>
+        </div>
+        <p class="item-list-content">{{ job.item_list }}</p>
+      </section>
+
+      <!-- Shopping Order: Items List (Structured) -->
       <section v-if="isShopping && shoppingItems.length > 0" class="items-card">
         <div class="items-header">
           <div class="items-icon">📦</div>
@@ -629,6 +662,117 @@ function goBack(): void {
   font-weight: 700;
   color: #1B5E20;
   margin: 0;
+}
+
+/* Reference Images */
+.images-card {
+  padding: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+}
+
+.images-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.images-icon {
+  font-size: 20px;
+}
+
+.images-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #F5F5F5;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.image-item:active {
+  transform: scale(0.95);
+}
+
+.image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.image-item:hover .image-overlay {
+  opacity: 1;
+}
+
+.image-overlay svg {
+  width: 24px;
+  height: 24px;
+  color: #FFFFFF;
+}
+
+/* Item List (Text) */
+.item-list-card {
+  padding: 16px;
+  background: #FFF9E6;
+  border: 1px solid #FFE082;
+  border-radius: 8px;
+}
+
+.item-list-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.item-list-icon {
+  font-size: 20px;
+}
+
+.item-list-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+}
+
+.item-list-content {
+  font-size: 14px;
+  color: #333333;
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Action Bar */
