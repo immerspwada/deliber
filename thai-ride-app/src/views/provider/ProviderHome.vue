@@ -1,22 +1,21 @@
 <script setup lang="ts">
 /**
- * ProviderHomeNew - หน้าหลัก Provider ใหม่
- * Design: Green theme ตาม reference UI
+ * ProviderHome - Smart Provider Dashboard
  * 
- * Features:
- * - Green gradient header with earnings & level
- * - Online/Offline status toggle with clear indicator
- * - Active job card with quick actions
- * - Today's job stats
- * - Rush hour alert
- * - Available orders count
- * - Recent transactions
+ * ✨ Smart Features:
+ * - Intelligent job detection across all service types
+ * - Smart caching with TTL
+ * - Predictive data loading
+ * - Optimized realtime subscriptions
+ * - Better error handling with retry
+ * - Performance monitoring
+ * 
+ * 🎯 Design: Green theme with native app feel
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { RideStatus } from '../../types/ride-requests'
 import { usePushNotification } from '../../composables/usePushNotification'
 import { useOrderNumber } from '../../composables/useOrderNumber'
 import { useCopyToClipboard } from '../../composables/useCopyToClipboard'
@@ -24,7 +23,7 @@ import { useToast } from '../../composables/useToast'
 
 const router = useRouter()
 
-// Push Notification
+// Composables
 const { 
   isSupported: pushSupported, 
   isSubscribed: pushSubscribed, 
@@ -34,15 +33,18 @@ const {
   notifyNewJob
 } = usePushNotification()
 
-// Order Number
 const { formatOrderNumber } = useOrderNumber()
 const { copyToClipboard } = useCopyToClipboard()
-const { showSuccess, showError } = useToast()
+const { show } = useToast()
 
-// Realtime subscription
-let realtimeChannel: RealtimeChannel | null = null
 
-// Types for Supabase queries
+// =====================================================
+// TYPES & INTERFACES
+// =====================================================
+
+type JobType = 'ride' | 'queue' | 'shopping' | 'delivery'
+type JobStatus = 'pending' | 'matched' | 'confirmed' | 'pickup' | 'shopping' | 'in_progress' | 'delivering' | 'completed' | 'cancelled'
+
 interface ProviderRow {
   id: string
   first_name: string | null
@@ -54,30 +56,97 @@ interface ProviderRow {
   is_available: boolean
 }
 
-interface RideRequestRow {
+interface ActiveJob {
   id: string
   tracking_id: string
-  status: string
+  type: JobType
+  status: JobStatus
   pickup_address: string
   destination_address: string
   estimated_fare: number
-  estimated_distance: number | null
-  final_fare: number | null
+  customer_name?: string
   created_at: string
-  user_id: string
-  pickup_lat: number
-  pickup_lng: number
-  destination_lat: number
-  destination_lng: number
-  rating: number | null
-  provider_id: string | null
 }
 
-interface ProfileRow {
-  name: string | null
+interface TodayStats {
+  completed: number
+  cancelled: number
+  totalDistance: number
+  avgRating: number
 }
 
-// State
+interface Transaction {
+  id: string
+  type: string
+  count: number
+  earnings: number
+  tips: number
+  date: string
+  distance: number
+}
+
+// =====================================================
+// SMART CACHE SYSTEM
+// =====================================================
+
+interface CacheEntry<T> {
+  data: T
+  timestamp: number
+  ttl: number
+}
+
+class SmartCache {
+  private cache = new Map<string, CacheEntry<any>>()
+  
+  set<T>(key: string, data: T, ttl: number = 30000): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    })
+  }
+  
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key)
+    if (!entry) return null
+    
+    const age = Date.now() - entry.timestamp
+    if (age > entry.ttl) {
+      this.cache.delete(key)
+      return null
+    }
+    
+    return entry.data as T
+  }
+  
+  invalidate(pattern?: string): void {
+    if (!pattern) {
+      this.cache.clear()
+      return
+    }
+    
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key)
+      }
+    }
+  }
+  
+  has(key: string): boolean {
+    return this.get(key) !== null
+  }
+}
+
+const cache = new SmartCache()
+
+// =====================================================
+// STATE MANAGEMENT
+// =====================================================
+
+// Realtime subscription
+let realtimeChannel: RealtimeChannel | null = null
+
+// Core state
 const loading = ref(true)
 const isOnline = ref(false)
 const isToggling = ref(false)
@@ -94,10 +163,10 @@ const providerData = ref<{
   total_trips?: number
 } | null>(null)
 
-// Earnings & Stats
+// Metrics
 const todayEarnings = ref(0)
 const availableOrders = ref(0)
-const todayStats = ref({
+const todayStats = ref<TodayStats>({
   completed: 0,
   cancelled: 0,
   totalDistance: 0,
@@ -105,35 +174,19 @@ const todayStats = ref({
 })
 
 // Active job
-const activeJob = ref<{
-  id: string
-  tracking_id: string
-  status: RideStatus
-  pickup_address: string
-  destination_address: string
-  estimated_fare: number
-  customer_name?: string
-  created_at: string
-} | null>(null)
+const activeJob = ref<ActiveJob | null>(null)
 
 // Recent transactions
-const recentTransactions = ref<Array<{
-  id: string
-  type: string
-  count: number
-  earnings: number
-  tips: number
-  date: string
-  distance: number
-}>>([])
+const recentTransactions = ref<Transaction[]>([])
 
-// Rush hour state
-const isRushHour = computed(() => {
-  const hour = new Date().getHours()
-  return (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 20)
-})
+// Performance tracking
+const lastLoadTime = ref(0)
+const loadCount = ref(0)
 
-// Computed
+// =====================================================
+// COMPUTED PROPERTIES
+// =====================================================
+
 const displayName = computed(() => {
   if (!providerData.value) return 'พาร์ทเนอร์'
   const first = providerData.value.first_name || ''
@@ -141,7 +194,6 @@ const displayName = computed(() => {
 })
 
 const providerLevel = computed(() => {
-  // Calculate level based on total_trips
   const trips = providerData.value?.total_trips || 0
   if (trips >= 1000) return 5
   if (trips >= 500) return 4
@@ -150,44 +202,74 @@ const providerLevel = computed(() => {
   return 1
 })
 
-// Job status helpers
 const hasActiveJob = computed(() => activeJob.value !== null)
+
+const isRushHour = computed(() => {
+  const hour = new Date().getHours()
+  return (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 20)
+})
 
 const jobStatusLabel = computed(() => {
   if (!activeJob.value) return ''
-  const statusMap: Record<RideStatus, string> = {
+  
+  const statusMap: Record<JobStatus, string> = {
     'pending': 'รอรับงาน',
     'matched': 'กำลังไปรับ',
+    'confirmed': 'ยืนยันแล้ว',
     'pickup': 'ถึงจุดรับแล้ว',
+    'shopping': 'กำลังช้อป',
     'in_progress': 'กำลังเดินทาง',
+    'delivering': 'กำลังส่ง',
     'completed': 'เสร็จสิ้น',
     'cancelled': 'ยกเลิก'
   }
+  
   return statusMap[activeJob.value.status] || activeJob.value.status
 })
 
 const jobStatusColor = computed(() => {
   if (!activeJob.value) return 'gray'
-  const colorMap: Record<RideStatus, string> = {
+  
+  const colorMap: Record<JobStatus, string> = {
     'pending': 'yellow',
     'matched': 'blue',
+    'confirmed': 'blue',
     'pickup': 'orange',
+    'shopping': 'orange',
     'in_progress': 'green',
+    'delivering': 'green',
     'completed': 'green',
     'cancelled': 'red'
   }
+  
   return colorMap[activeJob.value.status] || 'gray'
 })
 
-// Availability status
 const availabilityStatus = computed(() => {
   if (!isOnline.value) {
-    return { label: 'ออฟไลน์', desc: 'คุณไม่ได้รับงานอยู่', color: 'gray', icon: 'offline' }
+    return { 
+      label: 'ออฟไลน์', 
+      desc: 'คุณไม่ได้รับงานอยู่', 
+      color: 'gray', 
+      icon: 'offline' 
+    }
   }
+  
   if (hasActiveJob.value) {
-    return { label: 'กำลังทำงาน', desc: jobStatusLabel.value, color: 'blue', icon: 'working' }
+    return { 
+      label: 'กำลังทำงาน', 
+      desc: jobStatusLabel.value, 
+      color: 'blue', 
+      icon: 'working' 
+    }
   }
-  return { label: 'พร้อมรับงาน', desc: 'รอรับงานใหม่', color: 'green', icon: 'ready' }
+  
+  return { 
+    label: 'พร้อมรับงาน', 
+    desc: 'รอรับงานใหม่', 
+    color: 'green', 
+    icon: 'ready' 
+  }
 })
 
 // Methods
