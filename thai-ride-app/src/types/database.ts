@@ -603,6 +603,7 @@ export type Database = {
           customer_id: string
           id: string
           items: Json
+          matched_at: string | null
           provider_id: string | null
           service_fee: number
           status: string
@@ -619,6 +620,7 @@ export type Database = {
           customer_id: string
           id?: string
           items: Json
+          matched_at?: string | null
           provider_id?: string | null
           service_fee: number
           status?: string
@@ -635,6 +637,7 @@ export type Database = {
           customer_id?: string
           id?: string
           items?: Json
+          matched_at?: string | null
           provider_id?: string | null
           service_fee?: number
           status?: string

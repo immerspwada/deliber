@@ -418,6 +418,10 @@ async function acceptOrder(order: Order) {
         acceptingOrderId.value = null
         return
       }
+
+      // ✅ FIX: Wait for database commit and cache clear
+      console.log('[Orders] Shopping order accepted, waiting for sync...')
+      await new Promise(r => setTimeout(r, 500))
     } else if (order.service_type === 'delivery') {
       const { error: updateError } = await (supabase
         .from('delivery_requests') as any)
@@ -437,8 +441,11 @@ async function acceptOrder(order: Order) {
       }
     }
 
-    // Navigate to job detail
-    router.push(`/provider/job/${order.id}`)
+    // Navigate to job detail with refresh flag to force cache clear
+    router.push({
+      path: `/provider/job/${order.id}`,
+      query: { refresh: Date.now().toString() }
+    })
   } catch (err) {
     console.error('[Orders] Accept error:', err)
     acceptingOrderId.value = null

@@ -144,7 +144,12 @@ function callCustomer(): void {
 onMounted(async () => {
   console.log('[JobLayout] Mounted, loading job:', jobId.value)
   if (jobId.value) {
-    await loadJob(jobId.value)
+    // Force refresh if coming from accept (has refresh query param)
+    const forceRefresh = !!route.query.refresh
+    if (forceRefresh) {
+      console.log('[JobLayout] Force refresh requested')
+    }
+    await loadJob(jobId.value, forceRefresh)
     // Sync URL after initial load
     if (job.value) {
       syncURLWithStatus()
@@ -294,7 +299,7 @@ onMounted(async () => {
     <ChatDrawer
       v-if="showChatDrawer && job"
       :ride-id="job.id"
-      :booking-type="job.type === 'queue' ? 'queue' : 'ride'"
+      :booking-type="job.type === 'queue' ? 'queue' : job.type === 'shopping' ? 'shopping' : 'ride'"
       :other-user-name="job.customer?.name || 'ลูกค้า'"
       :is-open="showChatDrawer"
       @close="showChatDrawer = false"

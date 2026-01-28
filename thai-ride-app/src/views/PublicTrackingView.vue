@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDelivery, type DeliveryRequest } from '../composables/useDelivery'
+import { useChat } from '../composables/useChat'
+import type { BookingType } from '../composables/useChat'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../composables/useToast'
 
@@ -257,6 +259,33 @@ const cancelling = ref(false)
 const showCancelModal = ref(false)
 const cancelReason = ref('')
 
+// Chat system
+const showChatModal = ref(false)
+const newMessage = ref('')
+const messagesContainer = ref<HTMLElement | null>(null)
+const chatInitialized = ref(false)
+
+// Booking type detection
+const bookingType = computed<BookingType>(() => {
+  return delivery.value?.tracking_id?.startsWith('SHP-') ? 'shopping' : 'delivery'
+})
+
+// Booking ID for chat (unwrap from delivery)
+const chatBookingId = computed(() => delivery.value?.id || '')
+
+// Initialize chat composable
+const {
+  messages,
+  loading: chatLoading,
+  sending: chatSending,
+  error: chatError,
+  canSendMessage,
+  isChatClosed,
+  initialize: initializeChat,
+  sendMessage: sendChatMessage,
+  cleanupRealtimeSubscription
+} = useChat(chatBookingId, bookingType)
+
 // Check if user is authenticated and is the owner
 const canCancel = computed(() => {
   if (!delivery.value) return false
@@ -356,6 +385,80 @@ const confirmCancel = async () => {
   }
 }
 
+// Open chat with provider
+const openChat = async () => {
+  if (!delivery.value?.id) return
+  
+  if (!delivery.value?.provider_id) {
+    toast.error('ยังไม่มีผู้รับงาน')
+    return
+  }
+  
+  showChatModal.value = true
+  
+  // Initialize chat if not already initialized
+  if (!chatInitialized.value) {
+    try {
+      await initializeChat()
+      chatInitialized.value = true
+      
+      // Scroll to bottom after messages load
+      await nextTick()
+      scrollToBottom()
+    } catch (error) {
+      console.error('Failed to initialize chat:', error)
+      toast.error('ไม่สามารถเปิดแชทได้')
+      showChatModal.value = false
+    }
+  } else {
+    // Just scroll to bottom if already initialized
+    await nextTick()
+    scrollToBottom()
+  }
+}
+
+// Close chat modal
+const closeChat = () => {
+  showChatModal.value = false
+}
+
+// Send chat message
+const handleSendMessage = async () => {
+  if (!newMessage.value.trim() || !canSendMessage.value) return
+  
+  const messageText = newMessage.value.trim()
+  newMessage.value = ''
+  
+  try {
+    await sendChatMessage(messageText)
+    
+    // Scroll to bottom after sending
+    await nextTick()
+    scrollToBottom()
+  } catch (error) {
+    console.error('Failed to send message:', error)
+    toast.error('ไม่สามารถส่งข้อความได้')
+    // Restore message on error
+    newMessage.value = messageText
+  }
+}
+
+// Scroll chat to bottom
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+// Format message timestamp
+const formatMessageTime = (timestamp: string) => {
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString('th-TH', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
+
 onMounted(async () => {
   await checkProviderAccess()
   await loadDelivery()
@@ -363,6 +466,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (subscription) subscription.unsubscribe()
+  // Cleanup chat subscription
+  if (chatInitialized.value) {
+    cleanupRealtimeSubscription()
+  }
 })
 </script>
 
@@ -398,6 +505,52 @@ onUnmounted(() => {
         <div class="tracking-status">
           <div class="tracking-status-icon" :class="currentStatus?.color" v-html="currentStatus?.icon"></div>
           <h1 class="tracking-status-title">{{ currentStatus?.label }}</h1>
+        </div>
+
+        <!-- Provider Info Card (shown when provider is assigned) -->
+        <div v-if="delivery.provider && 'first_name' in delivery.provider && ['matched', 'pickup', 'shopping', 'in_transit', 'delivering'].includes(delivery.status)" class="tracking-card tracking-provider-card">
+          <h2 class="tracking-card-title">ข้อมูลผู้รับงาน</h2>
+          <div class="tracking-provider-info">
+            <div class="tracking-provider-avatar">
+              <div class="tracking-provider-avatar-icon" v-html="UserIcon"></div>
+            </div>
+            <div class="tracking-provider-details">
+              <p class="tracking-provider-name">
+                {{ delivery.provider.first_name }} {{ delivery.provider.last_name }}
+              </p>
+              <p class="tracking-provider-vehicle">
+                {{ delivery.provider.vehicle_type }} • {{ delivery.provider.vehicle_plate }}
+              </p>
+              <p class="tracking-provider-rating">
+                ⭐ {{ delivery.provider.rating?.toFixed(1) || '5.0' }}
+              </p>
+            </div>
+          </div>
+          
+          <!-- Contact Buttons -->
+          <div class="tracking-provider-actions">
+            <a 
+              :href="`tel:${delivery.provider.phone_number}`"
+              class="tracking-provider-btn tracking-provider-btn-call"
+              aria-label="โทรหาผู้รับงาน"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              <span>โทรออก</span>
+            </a>
+            <button 
+              type="button"
+              class="tracking-provider-btn tracking-provider-btn-chat"
+              @click="openChat"
+              aria-label="แชทกับผู้รับงาน"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span>แชท</span>
+            </button>
+          </div>
         </div>
 
         <!-- Tracking ID Card -->
@@ -628,26 +781,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Driver Card -->
-        <div v-if="delivery.provider && 'first_name' in delivery.provider" class="tracking-card">
-          <h2 class="tracking-card-title">ข้อมูลคนขับ</h2>
-          <div class="tracking-driver">
-            <div class="tracking-driver-avatar">
-              <div class="tracking-driver-avatar-icon" v-html="UserIcon"></div>
-            </div>
-            <div class="tracking-driver-info">
-              <p class="tracking-driver-name">
-                {{ delivery.provider.first_name }} {{ delivery.provider.last_name }}
-              </p>
-              <p class="tracking-driver-vehicle">
-                {{ delivery.provider.vehicle_type }} • {{ delivery.provider.vehicle_plate }}
-              </p>
-              <p class="tracking-driver-rating">
-                ⭐ {{ delivery.provider.rating?.toFixed(1) || '5.0' }}
-              </p>
-            </div>
-          </div>
-        </div>
+
 
         <!-- Provider Access Button -->
         <div v-if="isProvider && delivery?.provider_id === providerId" class="tracking-card">
@@ -742,5 +876,126 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Chat Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showChatModal"
+        class="chat-modal-overlay"
+        @click.self="closeChat"
+      >
+        <div class="chat-modal">
+          <!-- Chat Header -->
+          <div class="chat-header">
+            <div class="chat-header-info">
+              <div class="chat-avatar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+              <div class="chat-header-text">
+                <h3 class="chat-title">
+                  {{ delivery?.provider && 'first_name' in delivery.provider 
+                    ? `${delivery.provider.first_name} ${delivery.provider.last_name}` 
+                    : 'ผู้รับงาน' }}
+                </h3>
+                <p class="chat-subtitle">
+                  {{ delivery?.provider && 'vehicle_type' in delivery.provider 
+                    ? delivery.provider.vehicle_type 
+                    : '' }}
+                </p>
+              </div>
+            </div>
+            <button
+              class="chat-close-btn"
+              type="button"
+              @click="closeChat"
+              aria-label="ปิดแชท"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Chat Messages -->
+          <div ref="messagesContainer" class="chat-messages">
+            <!-- Loading State -->
+            <div v-if="chatLoading" class="chat-loading">
+              <div class="chat-spinner"></div>
+              <p>กำลังโหลดข้อความ...</p>
+            </div>
+
+            <!-- Error State -->
+            <div v-else-if="chatError" class="chat-error">
+              <p>⚠️ {{ chatError }}</p>
+            </div>
+
+            <!-- Messages List -->
+            <div v-else-if="messages.length > 0" class="chat-messages-list">
+              <div
+                v-for="message in messages"
+                :key="message.id"
+                :class="[
+                  'chat-message',
+                  message.sender_role === 'customer' ? 'chat-message-sent' : 'chat-message-received'
+                ]"
+              >
+                <div class="chat-message-content">
+                  <p class="chat-message-text">{{ message.message }}</p>
+                  <span class="chat-message-time">{{ formatMessageTime(message.created_at) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="chat-empty">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <p>ยังไม่มีข้อความ</p>
+              <p class="chat-empty-subtitle">เริ่มต้นการสนทนากับผู้รับงาน</p>
+            </div>
+          </div>
+
+          <!-- Chat Input -->
+          <div class="chat-input-container">
+            <div v-if="isChatClosed" class="chat-closed-notice">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+              <span>การสนทนาถูกปิดแล้ว</span>
+            </div>
+            <div v-else class="chat-input-wrapper">
+              <textarea
+                v-model="newMessage"
+                class="chat-input"
+                placeholder="พิมพ์ข้อความ..."
+                rows="1"
+                :disabled="chatSending || !canSendMessage"
+                @keydown.enter.exact.prevent="handleSendMessage"
+              ></textarea>
+              <button
+                class="chat-send-btn"
+                type="button"
+                :disabled="!newMessage.trim() || chatSending || !canSendMessage"
+                @click="handleSendMessage"
+                aria-label="ส่งข้อความ"
+              >
+                <svg v-if="chatSending" class="chat-send-spinner" width="20" height="20" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.25" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" fill="none" />
+                </svg>
+                <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

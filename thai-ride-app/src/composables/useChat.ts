@@ -11,16 +11,17 @@
  * - Push notification เมื่อมีข้อความใหม่
  * - รองรับทั้ง ride และ queue booking
  */
-import { ref, shallowRef, computed, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, onUnmounted, unref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { resizeImage, validateImageFile, RESIZE_PRESETS, createOptimizedFilename } from '../utils/imageResize'
 
-export type BookingType = 'ride' | 'queue'
+export type BookingType = 'ride' | 'queue' | 'shopping'
 
 export interface ChatMessage {
   id: string
   ride_id?: string | null
   queue_booking_id?: string | null
+  shopping_request_id?: string | null
   sender_id: string
   sender_type: 'customer' | 'provider' | 'system'
   message: string
@@ -42,6 +43,9 @@ const CHAT_ALLOWED_STATUSES = ['pending', 'matched', 'arriving', 'arrived', 'pic
 // Queue booking statuses that allow chat
 const QUEUE_CHAT_ALLOWED_STATUSES = ['confirmed', 'in_progress', 'completed']
 
+// Shopping request statuses that allow chat
+const SHOPPING_CHAT_ALLOWED_STATUSES = ['pending', 'matched', 'shopping', 'delivering', 'completed']
+
 // Debug logger with timestamps
 const chatLog = (level: 'info' | 'warn' | 'error' | 'debug', ...args: unknown[]) => {
   const timestamp = new Date().toISOString().split('T')[1].slice(0, 12)
@@ -59,7 +63,12 @@ export function useChat(
   bookingType: BookingType = 'ride'
 ) {
   // Support both static string and getter function for reactive bookingId
-  const getBookingId = typeof bookingIdInput === 'function' ? bookingIdInput : () => bookingIdInput
+  // CRITICAL: Use unref() to unwrap computed refs
+  const getBookingId = () => {
+    const rawValue = typeof bookingIdInput === 'function' ? bookingIdInput() : bookingIdInput
+    // Unwrap computed refs using unref()
+    return unref(rawValue)
+  }
   
   // Debug: Log bookingId on creation
   chatLog('info', '🚀 useChat CREATED', {
@@ -97,9 +106,14 @@ export function useChat(
     if (chatState.value.rideStatus === null) return false
     
     // Check based on booking type
-    const allowedStatuses = bookingType === 'ride' 
-      ? CHAT_ALLOWED_STATUSES 
-      : QUEUE_CHAT_ALLOWED_STATUSES
+    let allowedStatuses: string[]
+    if (bookingType === 'ride') {
+      allowedStatuses = CHAT_ALLOWED_STATUSES
+    } else if (bookingType === 'queue') {
+      allowedStatuses = QUEUE_CHAT_ALLOWED_STATUSES
+    } else {
+      allowedStatuses = SHOPPING_CHAT_ALLOWED_STATUSES
+    }
     
     return !allowedStatuses.includes(chatState.value.rideStatus)
   })
@@ -155,14 +169,25 @@ export function useChat(
       currentUserId.value = user.id
       chatLog('info', '✅ USER AUTHENTICATED', { userId: user.id, email: user.email })
 
-      // Step 1: Call get_user_role RPC (different for ride vs queue)
-      const roleRpcName = bookingType === 'ride' ? 'get_user_ride_role' : 'get_user_queue_booking_role'
-      const roleParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      // Step 1: Call get_user_role RPC (different for ride vs queue vs shopping)
+      let roleRpcName: string
+      let roleParam: string
+      let roleParams: Record<string, unknown>
       
-      // Queue booking function uses auth.uid() internally, doesn't need p_user_id
-      const roleParams = bookingType === 'ride' 
-        ? { [roleParam]: bookingId, p_user_id: user.id }
-        : { [roleParam]: bookingId }
+      if (bookingType === 'ride') {
+        roleRpcName = 'get_user_ride_role'
+        roleParam = 'p_ride_id'
+        roleParams = { [roleParam]: bookingId, p_user_id: user.id }
+      } else if (bookingType === 'queue') {
+        roleRpcName = 'get_user_queue_booking_role'
+        roleParam = 'p_queue_booking_id'
+        roleParams = { [roleParam]: bookingId }
+      } else {
+        // shopping
+        roleRpcName = 'get_user_shopping_role'
+        roleParam = 'p_shopping_request_id'
+        roleParams = { [roleParam]: bookingId }
+      }
       
       chatLog('debug', `📡 RPC: ${roleRpcName}`, roleParams)
       const roleStartTime = performance.now()
@@ -185,9 +210,21 @@ export function useChat(
         })
       }
 
-      // Step 2: Call is_chat_allowed RPC (different for ride vs queue)
-      const allowedRpcName = bookingType === 'ride' ? 'is_ride_chat_allowed' : 'is_queue_booking_chat_allowed'
-      const allowedParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      // Step 2: Call is_chat_allowed RPC (different for ride vs queue vs shopping)
+      let allowedRpcName: string
+      let allowedParam: string
+      
+      if (bookingType === 'ride') {
+        allowedRpcName = 'is_ride_chat_allowed'
+        allowedParam = 'p_ride_id'
+      } else if (bookingType === 'queue') {
+        allowedRpcName = 'is_queue_booking_chat_allowed'
+        allowedParam = 'p_queue_booking_id'
+      } else {
+        // shopping
+        allowedRpcName = 'is_shopping_chat_allowed'
+        allowedParam = 'p_shopping_request_id'
+      }
       
       chatLog('debug', `📡 RPC: ${allowedRpcName}`, { [allowedParam]: bookingId })
       const allowedStartTime = performance.now()
@@ -212,8 +249,16 @@ export function useChat(
         })
       }
 
-      // Step 3: Get booking status (different table for ride vs queue)
-      const tableName = bookingType === 'ride' ? 'ride_requests' : 'queue_bookings'
+      // Step 3: Get booking status (different table for ride vs queue vs shopping)
+      let tableName: string
+      if (bookingType === 'ride') {
+        tableName = 'ride_requests'
+      } else if (bookingType === 'queue') {
+        tableName = 'queue_bookings'
+      } else {
+        tableName = 'shopping_requests'
+      }
+      
       chatLog('debug', `📡 QUERY: ${tableName}.status`, { bookingId })
       const statusStartTime = performance.now()
       
@@ -318,8 +363,19 @@ export function useChat(
     
     try {
       const startTime = performance.now()
-      const rpcName = bookingType === 'ride' ? 'get_chat_history' : 'get_queue_booking_chat_history'
-      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      let rpcName: string
+      let rpcParam: string
+      
+      if (bookingType === 'ride') {
+        rpcName = 'get_chat_history'
+        rpcParam = 'p_ride_id'
+      } else if (bookingType === 'queue') {
+        rpcName = 'get_queue_booking_chat_history'
+        rpcParam = 'p_queue_booking_id'
+      } else {
+        rpcName = 'get_shopping_chat_history'
+        rpcParam = 'p_shopping_request_id'
+      }
       
       const { data, error: rpcError } = await supabase.rpc(rpcName, {
         [rpcParam]: bookingId,
@@ -341,19 +397,20 @@ export function useChat(
         return
       }
 
-      // Parse RPC response (returns JSONB)
-      const response = data as unknown as { success: boolean; messages?: Record<string, unknown>[] }
+      // Parse RPC response (returns TABLE - array of messages)
+      const messagesArray = data as unknown as Record<string, unknown>[]
       
       chatLog('debug', '📥 LOAD_MESSAGES RESPONSE', {
-        success: response?.success,
-        messageCount: response?.messages?.length || 0
+        messageCount: messagesArray?.length || 0,
+        isArray: Array.isArray(messagesArray)
       })
       
-      if (response?.success && response.messages) {
-        messages.value = response.messages.map(msg => ({
+      if (Array.isArray(messagesArray) && messagesArray.length > 0) {
+        messages.value = messagesArray.map(msg => ({
           id: msg.id as string,
           ride_id: msg.ride_id as string | null | undefined,
           queue_booking_id: msg.queue_booking_id as string | null | undefined,
+          shopping_request_id: msg.shopping_request_id as string | null | undefined,
           sender_id: msg.sender_id as string,
           sender_type: (msg.sender_type as ChatMessage['sender_type']) || 'customer',
           message: msg.message as string,
@@ -362,11 +419,11 @@ export function useChat(
           is_read: msg.is_read as boolean,
           created_at: msg.created_at as string
         }))
-        chatLog('info', '✅ MESSAGES LOADED', { count: messages.value.length })
+        chatLog('info', '✅ MESSAGES_RPC LOADED', { count: messages.value.length })
       } else {
-        chatLog('warn', '⚠️ RPC returned unexpected format, using fallback')
-        // Fallback if RPC returns unexpected format
-        await loadMessagesDirect()
+        // Empty result - no messages yet
+        messages.value = []
+        chatLog('info', '✅ MESSAGES_RPC LOADED', { count: 0 })
       }
 
       // Mark as read
@@ -382,7 +439,15 @@ export function useChat(
     const bookingId = getBookingId()
     chatLog('debug', '📥 LOAD_MESSAGES_DIRECT START', { bookingId, bookingType })
     
-    const filterColumn = bookingType === 'ride' ? 'ride_id' : 'queue_booking_id'
+    let filterColumn: string
+    if (bookingType === 'ride') {
+      filterColumn = 'ride_id'
+    } else if (bookingType === 'queue') {
+      filterColumn = 'queue_booking_id'
+    } else {
+      filterColumn = 'shopping_request_id'
+    }
+    
     const { data, error: dbError } = await supabase
       .from('chat_messages')
       .select('*')
@@ -445,8 +510,19 @@ export function useChat(
 
     try {
       // Use RPC for server-side validation
-      const rpcName = bookingType === 'ride' ? 'send_chat_message' : 'send_queue_booking_chat_message'
-      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      let rpcName: string
+      let rpcParam: string
+      
+      if (bookingType === 'ride') {
+        rpcName = 'send_chat_message'
+        rpcParam = 'p_ride_id'
+      } else if (bookingType === 'queue') {
+        rpcName = 'send_queue_booking_chat_message'
+        rpcParam = 'p_queue_booking_id'
+      } else {
+        rpcName = 'send_shopping_chat_message'
+        rpcParam = 'p_shopping_request_id'
+      }
       
       chatLog('debug', `📡 RPC: ${rpcName}`, { [rpcParam]: bookingId, p_message_type: type })
       const startTime = performance.now()
@@ -500,6 +576,7 @@ export function useChat(
           id: msgData.id as string,
           ride_id: msgData.ride_id as string | null | undefined,
           queue_booking_id: msgData.queue_booking_id as string | null | undefined,
+          shopping_request_id: msgData.shopping_request_id as string | null | undefined,
           sender_id: msgData.sender_id as string,
           sender_type: (msgData.sender_type as ChatMessage['sender_type']) || 'customer',
           message: msgData.message as string,
@@ -540,11 +617,13 @@ export function useChat(
       message_type: type
     }
     
-    // Add either ride_id or queue_booking_id
+    // Add either ride_id, queue_booking_id, or shopping_request_id
     if (bookingType === 'ride') {
       insertData.ride_id = bookingId
-    } else {
+    } else if (bookingType === 'queue') {
       insertData.queue_booking_id = bookingId
+    } else {
+      insertData.shopping_request_id = bookingId
     }
 
     const { data, error: dbError } = await supabase
@@ -571,6 +650,7 @@ export function useChat(
       id: data.id,
       ride_id: bookingType === 'ride' ? bookingId : null,
       queue_booking_id: bookingType === 'queue' ? bookingId : null,
+      shopping_request_id: bookingType === 'shopping' ? bookingId : null,
       sender_id: currentUserId.value,
       sender_type: chatState.value.userRole,
       message: text.trim(),
@@ -644,8 +724,19 @@ export function useChat(
       }
 
       // Send message with image URL using RPC
-      const rpcName = bookingType === 'ride' ? 'send_chat_message' : 'send_queue_booking_chat_message'
-      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      let rpcName: string
+      let rpcParam: string
+      
+      if (bookingType === 'ride') {
+        rpcName = 'send_chat_message'
+        rpcParam = 'p_ride_id'
+      } else if (bookingType === 'queue') {
+        rpcName = 'send_queue_booking_chat_message'
+        rpcParam = 'p_queue_booking_id'
+      } else {
+        rpcName = 'send_shopping_chat_message'
+        rpcParam = 'p_shopping_request_id'
+      }
       
       const { data, error: rpcError } = await supabase.rpc(rpcName, {
         [rpcParam]: bookingId,
@@ -670,6 +761,7 @@ export function useChat(
           id: msgData.id as string,
           ride_id: msgData.ride_id as string | null | undefined,
           queue_booking_id: msgData.queue_booking_id as string | null | undefined,
+          shopping_request_id: msgData.shopping_request_id as string | null | undefined,
           sender_id: msgData.sender_id as string,
           sender_type: (msgData.sender_type as ChatMessage['sender_type']) || 'customer',
           message: msgData.message as string,
@@ -700,12 +792,27 @@ export function useChat(
     if (!currentUserId.value) return
 
     try {
-      const rpcName = bookingType === 'ride' ? 'mark_messages_read' : 'mark_queue_booking_messages_read'
-      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      let rpcName: string
+      let rpcParam: string
+      let userParam: string
+      
+      if (bookingType === 'ride') {
+        rpcName = 'mark_messages_read'
+        rpcParam = 'p_ride_id'
+        userParam = 'p_user_id'
+      } else if (bookingType === 'queue') {
+        rpcName = 'mark_queue_booking_messages_read'
+        rpcParam = 'p_queue_booking_id'
+        userParam = 'p_user_id'
+      } else {
+        rpcName = 'mark_shopping_messages_read'
+        rpcParam = 'p_shopping_request_id'
+        userParam = 'p_sender_id' // Shopping uses p_sender_id not p_user_id
+      }
       
       await supabase.rpc(rpcName, {
         [rpcParam]: bookingId,
-        p_user_id: currentUserId.value
+        [userParam]: currentUserId.value
       })
       unreadCount.value = 0
     } catch (err) {
@@ -719,12 +826,27 @@ export function useChat(
     if (!currentUserId.value) return 0
 
     try {
-      const rpcName = bookingType === 'ride' ? 'get_unread_message_count' : 'get_queue_booking_unread_count'
-      const rpcParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      let rpcName: string
+      let rpcParam: string
+      let userParam: string
+      
+      if (bookingType === 'ride') {
+        rpcName = 'get_unread_message_count'
+        rpcParam = 'p_ride_id'
+        userParam = 'p_user_id'
+      } else if (bookingType === 'queue') {
+        rpcName = 'get_queue_booking_unread_count'
+        rpcParam = 'p_queue_booking_id'
+        userParam = 'p_user_id'
+      } else {
+        rpcName = 'get_shopping_unread_count'
+        rpcParam = 'p_shopping_request_id'
+        userParam = 'p_sender_id' // Shopping uses p_sender_id not p_user_id
+      }
       
       const { data, error: rpcError } = await supabase.rpc(rpcName, {
         [rpcParam]: bookingId,
-        p_user_id: currentUserId.value
+        [userParam]: currentUserId.value
       })
 
       if (rpcError) {
@@ -746,7 +868,15 @@ export function useChat(
     cleanupRealtimeSubscription()
 
     const channelName = `chat:${bookingType}:${bookingId}`
-    const filterColumn = bookingType === 'ride' ? 'ride_id' : 'queue_booking_id'
+    let filterColumn: string
+    if (bookingType === 'ride') {
+      filterColumn = 'ride_id'
+    } else if (bookingType === 'queue') {
+      filterColumn = 'queue_booking_id'
+    } else {
+      filterColumn = 'shopping_request_id'
+    }
+    
     chatLog('debug', '📡 REALTIME SETUP', { channelName, bookingId, bookingType, filterColumn })
     
     realtimeChannel = supabase
@@ -769,6 +899,7 @@ export function useChat(
             id: newRecord.id as string,
             ride_id: newRecord.ride_id as string | null | undefined,
             queue_booking_id: newRecord.queue_booking_id as string | null | undefined,
+            shopping_request_id: newRecord.shopping_request_id as string | null | undefined,
             sender_id: newRecord.sender_id as string,
             sender_type: (newRecord.sender_type as ChatMessage['sender_type']) || 'customer',
             message: newRecord.message as string,
@@ -851,14 +982,33 @@ export function useChat(
     if (!currentUserId.value) return
 
     try {
-      const allowedRpcName = bookingType === 'ride' ? 'is_ride_chat_allowed' : 'is_queue_booking_chat_allowed'
-      const allowedParam = bookingType === 'ride' ? 'p_ride_id' : 'p_queue_booking_id'
+      let allowedRpcName: string
+      let allowedParam: string
+      
+      if (bookingType === 'ride') {
+        allowedRpcName = 'is_ride_chat_allowed'
+        allowedParam = 'p_ride_id'
+      } else if (bookingType === 'queue') {
+        allowedRpcName = 'is_queue_booking_chat_allowed'
+        allowedParam = 'p_queue_booking_id'
+      } else {
+        allowedRpcName = 'is_shopping_chat_allowed'
+        allowedParam = 'p_shopping_request_id'
+      }
       
       const { data: allowedData } = await supabase.rpc(allowedRpcName, {
         [allowedParam]: bookingId
       })
 
-      const tableName = bookingType === 'ride' ? 'ride_requests' : 'queue_bookings'
+      let tableName: string
+      if (bookingType === 'ride') {
+        tableName = 'ride_requests'
+      } else if (bookingType === 'queue') {
+        tableName = 'queue_bookings'
+      } else {
+        tableName = 'shopping_requests'
+      }
+      
       const { data: bookingData } = await supabase
         .from(tableName)
         .select('status')

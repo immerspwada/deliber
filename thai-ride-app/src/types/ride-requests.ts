@@ -66,7 +66,7 @@ export type RideStatus =
 
 export interface JobDetail {
   id: string
-  type: 'ride' | 'delivery' | 'shopping' | 'queue'  // Added 'queue' type
+  type: 'ride' | 'delivery' | 'shopping' | 'queue'
   status: RideStatus
   service_type: string
   pickup_address: string
@@ -89,6 +89,18 @@ export interface JobDetail {
   // Tip
   tip_amount?: number | null
   tip_message?: string | null
+  // Queue-specific fields
+  tracking_id?: string | null
+  scheduled_date?: string | null
+  scheduled_time?: string | null
+  service_name?: string | null
+  location_name?: string | null
+  // Shopping-specific fields
+  store_name?: string | null
+  items?: any | null
+  items_cost?: number | null
+  budget_limit?: number | null
+  matched_at?: string | null
 }
 
 export interface CustomerInfo {

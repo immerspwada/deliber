@@ -22,12 +22,23 @@ const router = useRouter()
 const { navigate } = useNavigation()
 
 const customer = computed(() => props.job.customer)
+const isShopping = computed(() => props.job.type === 'shopping')
+
+// Shopping-specific computed
+const shoppingItems = computed(() => {
+  if (!isShopping.value || !props.job.items) return []
+  try {
+    return Array.isArray(props.job.items) ? props.job.items : JSON.parse(props.job.items)
+  } catch {
+    return []
+  }
+})
 
 function openNavigation(): void {
   navigate({
     lat: props.job.pickup_lat,
     lng: props.job.pickup_lng,
-    label: props.job.pickup_address || 'จุดรับ'
+    label: props.job.pickup_address || (isShopping.value ? 'ร้านค้า' : 'จุดรับ')
   })
 }
 
@@ -45,7 +56,8 @@ function goBack(): void {
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
       </button>
-      <h1>กำลังไปรับลูกค้า</h1>
+      <h1 v-if="isShopping">กำลังไปซื้อของ</h1>
+      <h1 v-else>กำลังไปรับลูกค้า</h1>
     </header>
 
     <!-- Content -->
@@ -86,8 +98,66 @@ function goBack(): void {
         </div>
       </section>
 
-      <!-- Pickup Location -->
-      <section class="location-card">
+      <!-- Shopping Order: Store Location -->
+      <section v-if="isShopping" class="location-card">
+        <div class="location-header">
+          <div class="location-icon store">
+            🏪
+          </div>
+          <div class="location-info">
+            <span class="location-label">ร้านค้า</span>
+            <p class="location-address">{{ job.store_name || job.pickup_address }}</p>
+          </div>
+        </div>
+        <button class="nav-btn" type="button" @click="openNavigation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+          </svg>
+          <span>เปิดแผนที่นำทาง</span>
+        </button>
+      </section>
+
+      <!-- Shopping Order: Items List -->
+      <section v-if="isShopping && shoppingItems.length > 0" class="items-card">
+        <div class="items-header">
+          <div class="items-icon">📦</div>
+          <h3>รายการสินค้า ({{ shoppingItems.length }} รายการ)</h3>
+        </div>
+        <div class="items-list">
+          <div v-for="(item, index) in shoppingItems" :key="index" class="item-row">
+            <span class="item-name">{{ item.name || item.item_name }}</span>
+            <span class="item-qty">x{{ item.quantity || 1 }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Shopping Order: Delivery Address -->
+      <section v-if="isShopping" class="location-card dropoff">
+        <div class="location-header">
+          <div class="location-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              <path d="M9 22V12h6v10" />
+            </svg>
+          </div>
+          <div class="location-info">
+            <span class="location-label">ที่อยู่จัดส่ง</span>
+            <p class="location-address">{{ job.dropoff_address }}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Shopping Order: Budget -->
+      <section v-if="isShopping && job.budget_limit" class="budget-card">
+        <div class="budget-icon">💵</div>
+        <div class="budget-info">
+          <span class="budget-label">งบประมาณ</span>
+          <p class="budget-amount">฿{{ job.budget_limit.toFixed(0) }}</p>
+        </div>
+      </section>
+
+      <!-- Ride Order: Pickup Location -->
+      <section v-if="!isShopping" class="location-card">
         <div class="location-header">
           <div class="location-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -108,8 +178,8 @@ function goBack(): void {
         </button>
       </section>
 
-      <!-- Dropoff Location -->
-      <section class="location-card dropoff">
+      <!-- Ride Order: Dropoff Location -->
+      <section v-if="!isShopping" class="location-card dropoff">
         <div class="location-header">
           <div class="location-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -161,7 +231,8 @@ function goBack(): void {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 6L9 17l-5-5"/>
           </svg>
-          <span>ถึงจุดรับแล้ว</span>
+          <span v-if="isShopping">เริ่มซื้อของ</span>
+          <span v-else>ถึงจุดรับแล้ว</span>
         </template>
       </button>
     </footer>
@@ -462,6 +533,102 @@ function goBack(): void {
   color: #333333;
   margin: 0;
   line-height: 1.5;
+}
+
+/* Shopping-specific styles */
+.location-icon.store {
+  font-size: 20px;
+  background: #FFF3E0;
+}
+
+.items-card {
+  padding: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+}
+
+.items-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.items-icon {
+  font-size: 20px;
+}
+
+.items-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+}
+
+.items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #F5F5F5;
+  border-radius: 6px;
+}
+
+.item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #000000;
+  flex: 1;
+}
+
+.item-qty {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666666;
+  margin-left: 12px;
+}
+
+.budget-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #E8F5E9;
+  border: 1px solid #C8E6C9;
+  border-radius: 8px;
+}
+
+.budget-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.budget-info {
+  flex: 1;
+}
+
+.budget-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2E7D32;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.budget-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1B5E20;
+  margin: 0;
 }
 
 /* Action Bar */
