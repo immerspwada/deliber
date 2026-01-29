@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, h } from 'vue'
 import { useFinancialSettings } from '@/admin/composables/useFinancialSettings'
+import { useCommissionImpact } from '@/admin/composables/useCommissionImpact'
 import ChangeReasonModal from '@/admin/components/settings/ChangeReasonModal.vue'
+import CommissionImpactModal from '@/admin/components/CommissionImpactModal.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import { useToast } from '@/composables/useToast'
 import type { CommissionRates } from '@/types/financial-settings'
 
 const CarIcon = () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', class: 'icon-sm' }, [
@@ -40,6 +43,14 @@ const services = [
 ] as const
 
 const { commissionRates, updateCommissionRates } = useFinancialSettings()
+const { 
+  calculateImpact, 
+  notifyAffectedProviders, 
+  logCommissionChange,
+  impactData,
+  loading: impactLoading 
+} = useCommissionImpact()
+const toast = useToast()
 
 const localRates = ref<CommissionRates>({
   ride: 0.20,
@@ -54,7 +65,9 @@ const originalRates = ref<CommissionRates>({ ...localRates.value })
 const changeReason = ref('')
 const saving = ref(false)
 const showReasonModal = ref(false)
+const showImpactModal = ref(false)
 const pendingServiceKey = ref<keyof CommissionRates | null>(null)
+const currentImpact = ref<any>(null)
 
 function hasChange(key: keyof CommissionRates): boolean {
   return localRates.value[key] !== originalRates.value[key]
@@ -81,19 +94,80 @@ function saveIndividualRate(serviceKey: keyof CommissionRates) {
   showReasonModal.value = true
 }
 
-async function confirmSave() {
+async function onReasonConfirmed() {
   if (!pendingServiceKey.value || !changeReason.value.trim()) return
+  
+  showReasonModal.value = false
+  
+  try {
+    // คำนวณผลกระทบ
+    const impact = await calculateImpact(originalRates.value, localRates.value)
+    
+    // หา impact ของ service ที่เลือก
+    currentImpact.value = impact.services.find(
+      s => s.service_type === pendingServiceKey.value
+    )
+    
+    if (!currentImpact.value) {
+      toast.error('ไม่พบข้อมูลผลกระทบ')
+      return
+    }
+    
+    // แสดง impact modal
+    showImpactModal.value = true
+    
+  } catch (error) {
+    console.error('Failed to calculate impact:', error)
+    toast.error('ไม่สามารถคำนวณผลกระทบได้')
+  }
+}
+
+async function confirmSave() {
+  if (!pendingServiceKey.value || !changeReason.value.trim() || !currentImpact.value) return
   
   saving.value = true
   try {
+    // 1. บันทึกการเปลี่ยนแปลง
     await updateCommissionRates(localRates.value, changeReason.value)
+    
+    // 2. ส่ง notification ไปยัง Provider
+    await notifyAffectedProviders(
+      pendingServiceKey.value,
+      currentImpact.value.current_rate,
+      currentImpact.value.new_rate,
+      impactData.value?.effective_date || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    )
+    
+    // 3. บันทึก audit log พร้อมผลกระทบ
+    await logCommissionChange(
+      pendingServiceKey.value,
+      currentImpact.value.current_rate,
+      currentImpact.value.new_rate,
+      changeReason.value,
+      currentImpact.value
+    )
+    
+    // 4. อัพเดท state
     originalRates.value = { ...localRates.value }
-    showReasonModal.value = false
+    showImpactModal.value = false
     changeReason.value = ''
     pendingServiceKey.value = null
+    currentImpact.value = null
+    
+    toast.success('บันทึกการเปลี่ยนแปลงเรียบร้อย และแจ้งเตือน Provider แล้ว')
+    
+  } catch (error) {
+    console.error('Failed to save commission rate:', error)
+    toast.error('ไม่สามารถบันทึกการเปลี่ยนแปลงได้')
   } finally {
     saving.value = false
   }
+}
+
+function cancelImpact() {
+  showImpactModal.value = false
+  currentImpact.value = null
+  // ไม่ reset changeReason เพื่อให้ user สามารถแก้ไขได้
 }
 
 onMounted(() => {
@@ -165,7 +239,16 @@ watch(commissionRates, (newRates) => {
       v-model="showReasonModal"
       v-model:reason="changeReason"
       placeholder="กรุณาระบุเหตุผลในการเปลี่ยนแปลงอัตราคอมมิชชั่น (เช่น ปรับตามสภาวะตลาด, โปรโมชั่นพิเศษ)"
+      @confirm="onReasonConfirmed"
+    />
+
+    <CommissionImpactModal
+      v-model="showImpactModal"
+      :service-type="pendingServiceKey || 'ride'"
+      :impact="currentImpact"
+      :loading="saving"
       @confirm="confirmSave"
+      @cancel="cancelImpact"
     />
   </div>
 </template>
