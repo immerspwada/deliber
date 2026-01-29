@@ -552,6 +552,83 @@ export type Database = {
           },
         ]
       }
+      ride_share_links: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ride_id: string
+          share_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          ride_id: string
+          share_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ride_id?: string
+          share_token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ride_share_links_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "ride_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ride_share_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ride_share_link_views: {
+        Row: {
+          created_at: string
+          id: string
+          ip_address: unknown | null
+          share_link_id: string
+          user_agent: string | null
+          viewed_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          share_link_id: string
+          user_agent?: string | null
+          viewed_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          share_link_id?: string
+          user_agent?: string | null
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ride_share_link_views_share_link_id_fkey"
+            columns: ["share_link_id"]
+            isOneToOne: false
+            referencedRelation: "ride_share_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_places: {
         Row: {
           address: string
@@ -915,7 +992,75 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_admin_customers: {
+        Args: {
+          p_search?: string | null
+          p_status?: string | null
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Array<{
+          id: string
+          email: string
+          phone: string
+          full_name: string
+          status: 'active' | 'suspended' | 'banned'
+          suspended_reason: string | null
+          created_at: string
+          total_rides: number
+          total_spent: number
+        }>
+      }
+      count_admin_customers: {
+        Args: {
+          p_search?: string | null
+          p_status?: string | null
+        }
+        Returns: number
+      }
+      admin_update_provider_commission: {
+        Args: {
+          p_provider_id: string
+          p_commission_type: string
+          p_commission_value: number
+          p_commission_notes?: string | null
+        }
+        Returns: void
+      }
+      admin_update_provider_service_types: {
+        Args: {
+          p_provider_id: string
+          p_service_types: string[]
+        }
+        Returns: void
+      }
+      get_topup_request_audit_logs: {
+        Args: {
+          p_topup_request_id: string
+          p_limit?: number
+        }
+        Returns: Array<{
+          id: string
+          topup_request_id: string
+          action: string
+          actor_id: string | null
+          actor_role: string | null
+          actor_name: string | null
+          actor_email: string | null
+          old_status: string | null
+          new_status: string | null
+          old_amount: number | null
+          new_amount: number | null
+          changes: Record<string, any> | null
+          metadata: Record<string, any> | null
+          notes: string | null
+          created_at: string
+        }>
+      }
+      cleanup_expired_share_links: {
+        Args: Record<string, never>
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
