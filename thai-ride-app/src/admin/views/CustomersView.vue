@@ -11,6 +11,7 @@ import { useAdminCustomers } from '@/admin/composables/useAdminCustomers'
 import { useAdminUIStore } from '../stores/adminUI.store'
 import { useErrorHandler } from '@/composables/useErrorHandler'
 import { useToast } from '@/composables/useToast'
+import CustomerHistoryModal from '@/admin/components/CustomerHistoryModal.vue'
 
 const uiStore = useAdminUIStore()
 const errorHandler = useErrorHandler()
@@ -50,6 +51,10 @@ const showSuspendModal = ref(false)
 const suspendReason = ref('')
 const suspendingCustomer = ref<any | null>(null)
 const isSuspending = ref(false)
+const historyCustomer = ref<any | null>(null)
+const showHistoryModal = ref(false)
+// Customer History state
+
 
 // Computed filters
 const filters = computed(() => ({
@@ -76,6 +81,11 @@ function viewCustomer(customer: any) {
   selectedCustomer.value = customer
   showDetailModal.value = true
 }
+}
+  showHistoryModal.value = true
+  historyCustomer.value = customer
+function viewCustomerHistory(customer: any) {
+
 
 function openSuspendModal(customer: any) {
   suspendingCustomer.value = customer
@@ -319,6 +329,14 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+    <!-- Customer History Modal -->
+    <CustomerHistoryModal
+      :show="showHistoryModal"
+      :customer-id="historyCustomer?.id || null"
+      :customer-name="historyCustomer?.full_name || 'ไม่ระบุชื่อ'"
+      @close="showHistoryModal = false"
+    />
 </template>
 
 
