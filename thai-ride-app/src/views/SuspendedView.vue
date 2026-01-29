@@ -149,7 +149,8 @@ onMounted(async () => {
         .single()
       
       if (!error && data) {
-        suspensionReason.value = data.suspended_reason || 'ไม่ระบุเหตุผล'
+        // Type assertion for suspended_reason which exists in database but may not be in generated types yet
+        suspensionReason.value = (data as { suspended_reason?: string | null }).suspended_reason || 'ไม่ระบุเหตุผล'
       }
     }
   } catch (err) {
