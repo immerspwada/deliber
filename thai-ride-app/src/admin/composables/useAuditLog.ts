@@ -42,10 +42,9 @@ export interface AuditLogEntry {
   action: AuditAction
   resource_type: ResourceType
   resource_id: string
-  changes?: Record<string, any>
+  details?: Record<string, any>
   ip_address?: string
   user_agent?: string
-  metadata?: Record<string, any>
 }
 
 export function useAuditLog() {
@@ -72,6 +71,8 @@ export function useAuditLog() {
    */
   async function log(entry: Omit<AuditLogEntry, 'user_id'>): Promise<boolean> {
     try {
+      console.log('[AuditLog] Creating audit log entry:', entry)
+
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -79,18 +80,20 @@ export function useAuditLog() {
         return false
       }
 
-      // Prepare audit log entry
+      console.log('[AuditLog] User authenticated:', user.id)
+
+      // Prepare audit log entry - use 'details' column instead of 'changes'
       const auditEntry = {
-        user_id: user.id,
+        admin_id: user.id, // Use admin_id instead of user_id
         action: entry.action,
         resource_type: entry.resource_type,
         resource_id: entry.resource_id,
-        changes: entry.changes || null,
+        details: entry.details || null, // Use details instead of changes
         ip_address: entry.ip_address || getClientIP() || null,
-        user_agent: entry.user_agent || getUserAgent(),
-        metadata: entry.metadata || null,
-        created_at: new Date().toISOString()
+        user_agent: entry.user_agent || getUserAgent()
       }
+
+      console.log('[AuditLog] Prepared audit entry:', auditEntry)
 
       // Insert into admin_audit_logs table
       const { error } = await supabase
@@ -103,7 +106,7 @@ export function useAuditLog() {
         return false
       }
 
-      console.log('[AuditLog] Logged action:', entry.action, 'for', entry.resource_type, entry.resource_id)
+      console.log('[AuditLog] ✅ Logged action:', entry.action, 'for', entry.resource_type, entry.resource_id)
       return true
     } catch (err) {
       console.error('[AuditLog] Error creating audit log:', err)
@@ -123,8 +126,7 @@ export function useAuditLog() {
       action: 'provider_approved',
       resource_type: 'provider',
       resource_id: providerId,
-      changes: { status: 'approved', notes },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'approved', notes, timestamp: new Date().toISOString() }
     })
   }
 
@@ -139,8 +141,7 @@ export function useAuditLog() {
       action: 'provider_rejected',
       resource_type: 'provider',
       resource_id: providerId,
-      changes: { status: 'rejected', reason },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'rejected', reason, timestamp: new Date().toISOString() }
     })
   }
 
@@ -155,8 +156,7 @@ export function useAuditLog() {
       action: 'provider_suspended',
       resource_type: 'provider',
       resource_id: providerId,
-      changes: { status: 'suspended', reason },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'suspended', reason, timestamp: new Date().toISOString() }
     })
   }
 
@@ -171,8 +171,7 @@ export function useAuditLog() {
       action: 'customer_suspended',
       resource_type: 'customer',
       resource_id: customerId,
-      changes: { status: 'suspended', reason },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'suspended', reason, timestamp: new Date().toISOString() }
     })
   }
 
@@ -186,8 +185,7 @@ export function useAuditLog() {
       action: 'customer_unsuspended',
       resource_type: 'customer',
       resource_id: customerId,
-      changes: { status: 'active' },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'active', timestamp: new Date().toISOString() }
     })
   }
 
@@ -203,8 +201,7 @@ export function useAuditLog() {
       action: 'withdrawal_approved',
       resource_type: 'withdrawal',
       resource_id: withdrawalId,
-      changes: { status: 'approved', transactionId, amount },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'approved', transactionId, amount, timestamp: new Date().toISOString() }
     })
   }
 
@@ -219,8 +216,7 @@ export function useAuditLog() {
       action: 'withdrawal_rejected',
       resource_type: 'withdrawal',
       resource_id: withdrawalId,
-      changes: { status: 'rejected', reason },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'rejected', reason, timestamp: new Date().toISOString() }
     })
   }
 
@@ -235,8 +231,7 @@ export function useAuditLog() {
       action: 'topup_approved',
       resource_type: 'topup',
       resource_id: topupId,
-      changes: { status: 'approved', amount },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'approved', amount, timestamp: new Date().toISOString() }
     })
   }
 
@@ -251,8 +246,7 @@ export function useAuditLog() {
       action: 'topup_rejected',
       resource_type: 'topup',
       resource_id: topupId,
-      changes: { status: 'rejected', reason },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { status: 'rejected', reason, timestamp: new Date().toISOString() }
     })
   }
 
@@ -268,8 +262,7 @@ export function useAuditLog() {
       action: 'settings_updated',
       resource_type: 'settings',
       resource_id: settingKey,
-      changes: { old: oldValue, new: newValue },
-      metadata: { timestamp: new Date().toISOString() }
+      details: { old: oldValue, new: newValue, timestamp: new Date().toISOString() }
     })
   }
 

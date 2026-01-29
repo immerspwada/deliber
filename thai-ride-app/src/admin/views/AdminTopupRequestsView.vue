@@ -7,6 +7,7 @@ import { useToast } from "@/composables/useToast";
 import { useErrorHandler } from "@/composables/useErrorHandler";
 import { usePaymentAccountsSync } from "@/composables/usePaymentAccountsSync";
 import { usePaymentAccounts, type PaymentAccount } from "@/composables/usePaymentAccounts";
+import TopupAuditLogTimeline from "@/admin/components/TopupAuditLogTimeline.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -16,10 +17,10 @@ interface TopupRequest {
   user_id: string;
   user_name: string;
   user_email: string;
-  user_phone: string;
+  user_phone: string | null; // Can be NULL in database
   amount: number;
   payment_method: string;
-  payment_reference: string;
+  payment_reference: string | null; // Can be NULL in database
   payment_proof_url: string | null;
   status: "pending" | "approved" | "rejected" | "cancelled";
   requested_at: string;
@@ -27,6 +28,7 @@ interface TopupRequest {
   processed_by: string | null;
   rejection_reason: string | null;
   wallet_balance: number;
+  tracking_id: string | null;
 }
 
 const authStore = useAuthStore();
@@ -63,6 +65,9 @@ const showImageModal = ref(false);
 const selectedImageUrl = ref<string | null>(null);
 const autoRefresh = ref(false);
 const refreshInterval = ref<number | null>(null);
+
+// Toast for copy feedback
+const copyToast = ref({ show: false, message: '' });
 
 // Settings state
 const paymentMethods = ref([
@@ -137,10 +142,11 @@ const filteredTopups = computed(() => {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(
       (t) =>
-        t.user_name.toLowerCase().includes(query) ||
-        t.user_email.toLowerCase().includes(query) ||
-        t.user_phone?.toLowerCase().includes(query) ||
-        t.payment_reference.toLowerCase().includes(query)
+        (t.user_name && t.user_name.toLowerCase().includes(query)) ||
+        (t.user_email && t.user_email.toLowerCase().includes(query)) ||
+        (t.user_phone && t.user_phone.toLowerCase().includes(query)) ||
+        (t.payment_reference && t.payment_reference.toLowerCase().includes(query)) ||
+        (t.tracking_id && t.tracking_id.toLowerCase().includes(query))
     );
   }
 
@@ -780,6 +786,21 @@ async function deleteBankAccount(id: string) {
   }
 }
 
+async function copyTrackingId(trackingId: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(trackingId);
+    showCopyToast('คัดลอกเลขคำสั่งซื้อแล้ว');
+  } catch (err) {
+    console.error('[AdminTopupRequestsView] Copy error:', err);
+    showCopyToast('ไม่สามารถคัดลอกได้');
+  }
+}
+
+function showCopyToast(message: string): void {
+  copyToast.value = { show: true, message };
+  setTimeout(() => { copyToast.value.show = false }, 2000);
+}
+
 </script>
 
 <template>
@@ -1056,6 +1077,7 @@ async function deleteBankAccount(id: string) {
             <thead>
               <tr>
                 <th>ลูกค้า</th>
+                <th>เลขคำสั่งซื้อ</th>
                 <th class="sortable" @click="toggleSort('amount')">
                   <div class="th-content">
                     จำนวนเงิน
@@ -1095,6 +1117,20 @@ async function deleteBankAccount(id: string) {
                       </div>
                     </div>
                   </div>
+                </td>
+                <td class="tracking-cell">
+                  <span 
+                    v-if="topup.tracking_id" 
+                    class="tracking-id"
+                    :title="'คลิกเพื่อคัดลอก: ' + topup.tracking_id"
+                    @click="copyTrackingId(topup.tracking_id)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    {{ topup.tracking_id }}
+                  </span>
+                  <span v-else class="no-tracking">-</span>
                 </td>
                 <td class="amount-cell">
                   <div class="amount">{{ formatCurrency(topup.amount) }}</div>
@@ -1215,6 +1251,21 @@ async function deleteBankAccount(id: string) {
               <label>เบอร์โทร</label>
               <p>{{ selectedTopup.user_phone || "-" }}</p>
             </div>
+            <div v-if="selectedTopup.tracking_id" class="detail-item">
+              <label>เลขคำสั่งซื้อ</label>
+              <p>
+                <span 
+                  class="tracking-id-detail"
+                  :title="'คลิกเพื่อคัดลอก: ' + selectedTopup.tracking_id"
+                  @click="copyTrackingId(selectedTopup.tracking_id)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                  </svg>
+                  {{ selectedTopup.tracking_id }}
+                </span>
+              </p>
+            </div>
             <div class="detail-item">
               <label>จำนวนเงิน</label>
               <p class="amount-highlight">
@@ -1227,7 +1278,7 @@ async function deleteBankAccount(id: string) {
             </div>
             <div class="detail-item">
               <label>เลขอ้างอิง</label>
-              <p class="reference">{{ selectedTopup.payment_reference }}</p>
+              <p class="reference">{{ selectedTopup.payment_reference || "-" }}</p>
             </div>
             <div class="detail-item">
               <label>สถานะ</label>
@@ -1265,6 +1316,14 @@ async function deleteBankAccount(id: string) {
               <label>เหตุผลที่ปฏิเสธ</label>
               <p class="rejection-reason">{{ selectedTopup.rejection_reason }}</p>
             </div>
+          </div>
+
+          <!-- Audit Log Timeline Section -->
+          <div class="audit-log-section">
+            <TopupAuditLogTimeline
+              :topup-request-id="selectedTopup.id"
+              :auto-refresh="true"
+            />
           </div>
         </div>
       </div>
@@ -1546,6 +1605,9 @@ async function deleteBankAccount(id: string) {
         </div>
       </div>
     </div>
+
+    <!-- Copy Toast Notification -->
+    <div v-if="copyToast.show" class="copy-toast">{{ copyToast.message }}</div>
   </div>
 </template>
 
@@ -2029,6 +2091,106 @@ async function deleteBankAccount(id: string) {
   color: #999;
 }
 
+.tracking-cell {
+  width: 180px;
+}
+
+.tracking-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #e8f5e9;
+  color: #00A86B;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.tracking-id:hover {
+  background: #c8e6c9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.2);
+}
+
+.tracking-id:active {
+  transform: translateY(0);
+}
+
+.tracking-id svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.no-tracking {
+  color: #999;
+  font-size: 13px;
+}
+
+.tracking-id-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #e8f5e9;
+  color: #00A86B;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.tracking-id-detail:hover {
+  background: #c8e6c9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.2);
+}
+
+.tracking-id-detail:active {
+  transform: translateY(0);
+}
+
+.tracking-id-detail svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.copy-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  animation: slideUp 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 .amount-cell {
   width: 150px;
 }
@@ -2400,6 +2562,12 @@ async function deleteBankAccount(id: string) {
   padding: 12px;
   border-radius: 4px;
   color: #721c24;
+}
+
+.audit-log-section {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 2px solid #f0f0f0;
 }
 
 .image-modal-overlay {

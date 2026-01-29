@@ -25,18 +25,21 @@ import { useAuditLog } from '@/admin/composables/useAuditLog'
 export interface AdminCustomer {
   id: string
   email: string
+  phone: string
+  phone_number: string // Alias for phone
   full_name: string
-  phone_number: string
   status: 'active' | 'suspended' | 'banned'
-  wallet_balance: number
-  total_orders: number
-  total_spent: number
-  average_rating: number
-  created_at: string
-  last_order_at: string | null
-  suspension_reason: string | null
+  suspension_reason: string | null // Match database column name
+  suspended_reason: string | null // Alias for backward compatibility
   suspended_at: string | null
   suspended_by: string | null
+  created_at: string
+  wallet_balance: number
+  total_rides: number
+  total_orders: number // Alias for total_rides
+  total_spent: number
+  total_topup: number
+  average_rating: number | null
 }
 
 export interface CustomerFilters {
@@ -48,7 +51,7 @@ export interface CustomerFilters {
 
 export function useAdminCustomers() {
   const { handle: handleError } = useErrorHandler()
-  const { showSuccess, showError } = useToast()
+  const { success: showSuccess, error: showError } = useToast()
   const { logCustomerSuspension, logCustomerUnsuspension } = useAuditLog()
 
   const loading = ref(false)
@@ -78,7 +81,7 @@ export function useAdminCustomers() {
 
     try {
       const { data, error: rpcError } = await supabase.rpc('get_admin_customers', {
-        p_search_term: filters.searchTerm || null,
+        p_search: filters.searchTerm || null,
         p_status: filters.status || null,
         p_limit: filters.limit || 20,
         p_offset: filters.offset || 0
@@ -92,7 +95,6 @@ export function useAdminCustomers() {
       const message = err instanceof Error ? err.message : 'Failed to fetch customers'
       error.value = message
       handleError(err, 'useAdminCustomers.fetchCustomers')
-      showError('ไม่สามารถโหลดข้อมูลลูกค้าได้')
       return []
     } finally {
       loading.value = false
@@ -105,7 +107,7 @@ export function useAdminCustomers() {
   async function fetchCount(filters: Omit<CustomerFilters, 'limit' | 'offset'> = {}): Promise<number> {
     try {
       const { data, error: rpcError } = await supabase.rpc('count_admin_customers', {
-        p_search_term: filters.searchTerm || null,
+        p_search: filters.searchTerm || null,
         p_status: filters.status || null
       })
 
@@ -142,24 +144,48 @@ export function useAdminCustomers() {
     error.value = null
 
     try {
-      // Validate input
-      const validation = validateInput(CustomerSuspensionSchema, { customerId, reason })
+      // Trim reason first
+      const trimmedReason = reason.trim()
+      
+      // Log input for debugging
+      console.log('[suspendCustomer] Input:', { 
+        customerId, 
+        reason, 
+        reasonLength: reason.length,
+        trimmedReason,
+        trimmedReasonLength: trimmedReason.length 
+      })
+
+      // Validate input with trimmed reason
+      const validation = validateInput(CustomerSuspensionSchema, { 
+        customerId: customerId, 
+        reason: trimmedReason 
+      })
+      
       if (!validation.success) {
         const errorMessage = Object.values(validation.errors).join(', ')
+        console.error('[suspendCustomer] Validation failed:', validation.errors)
         showError(errorMessage)
         return { success: false, message: errorMessage }
       }
 
-      // Call RPC function
+      console.log('[suspendCustomer] Validation passed, calling RPC...')
+
+      // Call RPC function with trimmed reason
       const { data, error: rpcError } = await supabase.rpc('suspend_customer_account', {
         p_customer_id: customerId,
-        p_reason: reason
+        p_reason: trimmedReason
       })
 
-      if (rpcError) throw rpcError
+      if (rpcError) {
+        console.error('[suspendCustomer] RPC error:', rpcError)
+        throw rpcError
+      }
+
+      console.log('[suspendCustomer] RPC success, logging audit...')
 
       // Log audit trail
-      await logCustomerSuspension(customerId, reason)
+      await logCustomerSuspension(customerId, trimmedReason)
 
       showSuccess('ระงับบัญชีลูกค้าสำเร็จ')
 
@@ -169,8 +195,8 @@ export function useAdminCustomers() {
         customers.value[index] = {
           ...customers.value[index],
           status: 'suspended',
-          suspension_reason: reason,
-          suspended_at: new Date().toISOString()
+          suspended_reason: trimmedReason,
+          suspension_reason: trimmedReason
         }
       }
 
@@ -178,8 +204,18 @@ export function useAdminCustomers() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to suspend customer'
       error.value = message
+      console.error('[suspendCustomer] Error:', err)
       handleError(err, 'useAdminCustomers.suspendCustomer')
-      showError('ไม่สามารถระงับบัญชีลูกค้าได้')
+      
+      // Show more specific error message
+      if (message.includes('Unauthorized')) {
+        showError('คุณไม่มีสิทธิ์ระงับบัญชีลูกค้า')
+      } else if (message.includes('not found')) {
+        showError('ไม่พบข้อมูลลูกค้า')
+      } else {
+        showError(`ไม่สามารถระงับบัญชีลูกค้าได้: ${message}`)
+      }
+      
       return { success: false, message }
     } finally {
       loading.value = false
@@ -222,9 +258,7 @@ export function useAdminCustomers() {
         customers.value[index] = {
           ...customers.value[index],
           status: 'active',
-          suspension_reason: null,
-          suspended_at: null,
-          suspended_by: null
+          suspended_reason: null
         }
       }
 

@@ -14,9 +14,9 @@ import { z } from 'zod'
 export const CustomerSuspensionSchema = z.object({
   customerId: z.string().uuid('รหัสลูกค้าไม่ถูกต้อง'),
   reason: z.string()
-    .min(10, 'เหตุผลต้องมีอย่างน้อย 10 ตัวอักษร')
-    .max(500, 'เหตุผลต้องไม่เกิน 500 ตัวอักษร')
-    .refine(val => val.trim().length > 0, 'กรุณาระบุเหตุผล')
+    .min(1, 'กรุณาระบุเหตุผล')
+    .refine(val => val.trim().length >= 10, 'เหตุผลต้องมีอย่างน้อย 10 ตัวอักษร')
+    .refine(val => val.trim().length <= 500, 'เหตุผลต้องไม่เกิน 500 ตัวอักษร')
 })
 
 export type CustomerSuspensionInput = z.infer<typeof CustomerSuspensionSchema>
@@ -209,12 +209,25 @@ export function validateInput<T>(
     return { success: true, data: result.data }
   }
   
+  // Log error structure for debugging
+  console.log('[validateInput] Zod error:', result.error)
+  console.log('[validateInput] Error issues:', result.error.issues)
+  
   // Format Zod errors into a more user-friendly structure
   const errors: Record<string, string> = {}
-  result.error.errors.forEach(err => {
-    const path = err.path.join('.')
-    errors[path] = err.message
-  })
+  
+  // Zod v3+ uses 'issues' property
+  if (result.error.issues && result.error.issues.length > 0) {
+    result.error.issues.forEach(issue => {
+      const path = issue.path.length > 0 ? issue.path.join('.') : 'general'
+      errors[path] = issue.message
+    })
+  } else {
+    // Fallback error message
+    errors['general'] = 'ข้อมูลไม่ถูกต้อง'
+  }
+  
+  console.log('[validateInput] Formatted errors:', errors)
   
   return { success: false, errors }
 }

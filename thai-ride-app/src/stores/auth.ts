@@ -317,6 +317,30 @@ export const useAuthStore = defineStore('auth', () => {
       if (result.data.user) {
         logger.log('Fetching user profile for:', result.data.user.id)
         await fetchUserProfile(result.data.user.id)
+        
+        // SECURITY CHECK: Verify user status after login
+        logger.log('Checking user status...')
+        const { data: userData, error: statusError } = await supabase
+          .from('users')
+          .select('status, suspension_reason')
+          .eq('id', result.data.user.id)
+          .single()
+        
+        if (statusError) {
+          logger.error('Status check error:', statusError)
+        } else if (userData && userData.status === 'suspended') {
+          logger.warn('User is suspended, blocking login')
+          error.value = `บัญชีของคุณถูกระงับการใช้งาน${userData.suspension_reason ? `: ${userData.suspension_reason}` : ''}`
+          
+          // Force logout
+          await signOut()
+          session.value = null
+          user.value = null
+          
+          loading.value = false
+          isLoggingIn.value = false
+          return false
+        }
       }
       
       logger.log('Login successful')
@@ -520,6 +544,9 @@ export const useAuthStore = defineStore('auth', () => {
       fetchUserProfile(newSession.user.id).catch(err => {
         console.warn('Background profile fetch failed:', err)
       })
+      
+      // Setup realtime listener for suspension events
+      setupSuspensionListener(newSession.user.id)
     } else if (event === 'SIGNED_OUT') {
       user.value = null
       // Clear any cached data
@@ -531,6 +558,48 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
   })
+  
+  // Setup realtime listener for user suspension
+  let suspensionChannel: any = null
+  const setupSuspensionListener = (userId: string) => {
+    // Remove existing listener if any
+    if (suspensionChannel) {
+      supabase.removeChannel(suspensionChannel)
+    }
+    
+    // Listen to changes in users table for current user
+    suspensionChannel = supabase
+      .channel(`user-status-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${userId}`
+        },
+        async (payload: any) => {
+          logger.log('User status changed:', payload)
+          
+          // Check if status changed to suspended
+          if (payload.new.status === 'suspended') {
+            logger.warn('User suspended, forcing logout')
+            
+            // Show notification
+            const reason = payload.new.suspension_reason || 'ไม่ระบุเหตุผล'
+            error.value = `บัญชีของคุณถูกระงับการใช้งาน: ${reason}`
+            
+            // Force logout after a short delay to show the message
+            setTimeout(async () => {
+              await logout()
+              // Redirect to suspended page will be handled by router
+              window.location.href = '/suspended'
+            }, 2000)
+          }
+        }
+      )
+      .subscribe()
+  }
 
   // Social Login - Google
   const loginWithGoogle = async () => {

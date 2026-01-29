@@ -19,6 +19,12 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/RegisterView.vue'),
     meta: { hideNavigation: true, public: true }
   },
+  {
+    path: '/suspended',
+    name: 'Suspended',
+    component: () => import('../views/SuspendedView.vue'),
+    meta: { hideNavigation: true, public: true }
+  },
   
   // Public tracking page (no auth required)
   {
@@ -282,25 +288,39 @@ router.beforeEach(async (to, _from, next) => {
     return next('/login')
   }
 
-  // Get user role from users table
+  // Get user role and status from users table
   let userRole: UserRole = 'customer'
+  let userStatus: string = 'active'
   try {
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role')
+      .select('role, status')
       .eq('id', session.user.id)
       .single()
 
     if (userError) {
-      console.error('[Router] Error fetching user role:', userError)
+      console.error('[Router] Error fetching user data:', userError)
     } else if (userData) {
       userRole = (userData.role as UserRole) || 'customer'
+      userStatus = userData.status || 'active'
     }
   } catch (err) {
-    console.error('[Router] Exception fetching user role:', err)
+    console.error('[Router] Exception fetching user data:', err)
   }
 
-  console.log('[Router] User role:', userRole)
+  console.log('[Router] User role:', userRole, 'Status:', userStatus)
+
+  // SECURITY CHECK: Block suspended users from accessing protected routes
+  if (userStatus === 'suspended' && to.path !== '/suspended') {
+    console.log('[Router] User is suspended, redirecting to suspended page')
+    return next('/suspended')
+  }
+  
+  // Allow suspended users to access suspended page
+  if (to.path === '/suspended' && userStatus !== 'suspended') {
+    console.log('[Router] User is not suspended, redirecting to customer home')
+    return next('/customer')
+  }
 
   // PHASE 1: Special handling for provider onboarding routes - ต้องมาก่อน provider access check
   if (to.path.includes('/provider/onboarding') || to.path.includes('/provider/register')) {

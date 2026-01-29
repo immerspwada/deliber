@@ -322,11 +322,7 @@ describe('Admin Error Handling - Integration Tests', () => {
       expect(error.value?.context.metadata).toEqual({ serviceType: 'delivery' });
     });
 
-    it('should include customerId in customer suspension errors', async () => {
-      // Skip this test as useCustomerSuspension is not yet implemented
-      // This test will be enabled when customer suspension composable is created
-      expect(true).toBe(true);
-    });
+
 
     it('should verify timestamp is current time', async () => {
       const timestampBefore = Date.now();

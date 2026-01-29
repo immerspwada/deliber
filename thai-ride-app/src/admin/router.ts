@@ -12,7 +12,7 @@ const LoginView = () => import('./views/LoginView.vue')
 const DashboardView = () => import('./views/DashboardView.vue')
 
 // New V2 Views
-const CustomersView = () => import('./views/CustomersViewEnhanced.vue')
+const CustomersView = () => import('./views/CustomersView.vue')
 const ProvidersView = () => import('./views/ProvidersView.vue')
 const OrdersView = () => import('./views/OrdersView.vue')
 const VerificationQueueView = () => import('./views/VerificationQueueView.vue')
