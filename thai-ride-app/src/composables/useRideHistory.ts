@@ -53,14 +53,33 @@ export function useRideHistory() {
 
   // Cache for provider info
   const providerCache = new Map<string, ProviderInfo>()
+  
+  // Smart caching with expiry (5 minutes)
+  const cacheExpiry = 5 * 60 * 1000
+  const cacheTimestamps = new Map<string, number>()
+  
+  // Pagination state
+  const currentPage = ref(1)
+  const itemsPerPage = ref(30)
+  const hasMore = ref(true)
+  const totalCount = ref(0)
+  
+  // Search and filter state
+  const searchQuery = ref('')
+  const dateRange = ref<{ start: Date | null; end: Date | null }>({ start: null, end: null })
+  const minFare = ref<number | null>(null)
+  const maxFare = ref<number | null>(null)
 
-  // Fetch provider info by ID (with caching)
+  // Fetch provider info by ID (with smart caching and expiry)
   const fetchProviderInfo = async (providerId: string): Promise<ProviderInfo | null> => {
     if (!providerId) return null
 
-    // Check cache first
-    if (providerCache.has(providerId)) {
-      return providerCache.get(providerId) || null
+    // Check cache first with expiry
+    const cached = providerCache.get(providerId)
+    const timestamp = cacheTimestamps.get(providerId)
+    
+    if (cached && timestamp && (Date.now() - timestamp < cacheExpiry)) {
+      return cached
     }
 
     try {
@@ -111,8 +130,9 @@ export function useRideHistory() {
         rating: data.rating
       }
 
-      // Cache the result
+      // Cache the result with timestamp
       providerCache.set(providerId, providerInfo)
+      cacheTimestamps.set(providerId, Date.now())
 
       return providerInfo
     } catch (err) {
@@ -124,10 +144,179 @@ export function useRideHistory() {
   // Clear provider cache
   const clearProviderCache = () => {
     providerCache.clear()
+    cacheTimestamps.clear()
+  }
+  
+  // Smart search in history (local filtering)
+  const searchHistory = (query: string) => {
+    searchQuery.value = query.toLowerCase()
+    return history.value.filter(item => 
+      item.tracking_id.toLowerCase().includes(searchQuery.value) ||
+      item.from.toLowerCase().includes(searchQuery.value) ||
+      item.to.toLowerCase().includes(searchQuery.value) ||
+      item.driver_name?.toLowerCase().includes(searchQuery.value) ||
+      item.typeName.toLowerCase().includes(searchQuery.value)
+    )
+  }
+  
+  // Filter by date range
+  const filterByDateRange = (start: Date | null, end: Date | null) => {
+    dateRange.value = { start, end }
+    if (!start && !end) return history.value
+    
+    return history.value.filter(item => {
+      const itemDate = new Date(item.created_at || 0)
+      if (start && itemDate < start) return false
+      if (end && itemDate > end) return false
+      return true
+    })
+  }
+  
+  // Filter by fare range
+  const filterByFareRange = (min: number | null, max: number | null) => {
+    minFare.value = min
+    maxFare.value = max
+    if (min === null && max === null) return history.value
+    
+    return history.value.filter(item => {
+      if (min !== null && item.fare < min) return false
+      if (max !== null && item.fare > max) return false
+      return true
+    })
+  }
+  
+  // Get statistics from history
+  const getStatistics = () => {
+    const completed = history.value.filter(h => h.status === 'completed')
+    const cancelled = history.value.filter(h => h.status === 'cancelled')
+    
+    const totalSpent = completed.reduce((sum, h) => sum + h.fare, 0)
+    const avgFare = completed.length > 0 ? totalSpent / completed.length : 0
+    const maxFare = completed.length > 0 ? Math.max(...completed.map(h => h.fare)) : 0
+    const minFare = completed.length > 0 ? Math.min(...completed.map(h => h.fare)) : 0
+    
+    // Count by service type
+    const byType = history.value.reduce((acc, item) => {
+      acc[item.type] = (acc[item.type] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+    
+    // Most used service
+    const mostUsedService = Object.entries(byType).sort((a, b) => b[1] - a[1])[0]
+    
+    // Completion rate
+    const completionRate = history.value.length > 0 
+      ? (completed.length / history.value.length) * 100 
+      : 0
+    
+    return {
+      totalOrders: history.value.length,
+      completedOrders: completed.length,
+      cancelledOrders: cancelled.length,
+      totalSpent,
+      avgFare: Math.round(avgFare),
+      maxFare,
+      minFare,
+      byType,
+      mostUsedService: mostUsedService ? { type: mostUsedService[0], count: mostUsedService[1] } : null,
+      completionRate: Math.round(completionRate)
+    }
+  }
+  
+  // Export history to CSV
+  const exportToCSV = () => {
+    const headers = ['วันที่', 'เวลา', 'รหัส', 'ประเภท', 'จาก', 'ถึง', 'ราคา', 'สถานะ', 'คะแนน']
+    const rows = history.value.map(item => [
+      item.date,
+      item.time,
+      item.tracking_id,
+      item.typeName,
+      item.from,
+      item.to,
+      item.fare.toString(),
+      item.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก',
+      item.rating?.toString() || '-'
+    ])
+    
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `history_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+  }
+  
+  // Group history by date
+  const groupByDate = () => {
+    const grouped = history.value.reduce((acc, item) => {
+      const date = item.date
+      if (!acc[date]) acc[date] = []
+      acc[date].push(item)
+      return acc
+    }, {} as Record<string, RideHistoryItem[]>)
+    
+    return Object.entries(grouped).map(([date, items]) => ({
+      date,
+      items,
+      totalFare: items.reduce((sum, item) => sum + item.fare, 0),
+      count: items.length
+    }))
+  }
+  
+  // Get favorite destinations (top 5)
+  const getFavoriteDestinations = () => {
+    const destinations = history.value
+      .filter(h => h.status === 'completed')
+      .reduce((acc, item) => {
+        acc[item.to] = (acc[item.to] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+    
+    return Object.entries(destinations)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([destination, count]) => ({ destination, count }))
+  }
+  
+  // Get frequent routes (top 5)
+  const getFrequentRoutes = () => {
+    const routes = history.value
+      .filter(h => h.status === 'completed')
+      .reduce((acc, item) => {
+        const route = `${item.from} → ${item.to}`
+        acc[route] = (acc[route] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+    
+    return Object.entries(routes)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([route, count]) => ({ route, count }))
+  }
+  
+  // Prefetch next page (smart loading)
+  const prefetchNextPage = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
+    if (!hasMore.value || loading.value) return
+    
+    const nextPage = currentPage.value + 1
+    const offset = nextPage * itemsPerPage.value
+    
+    // Prefetch in background without blocking UI
+    setTimeout(async () => {
+      try {
+        await fetchHistory(filter, offset, itemsPerPage.value)
+      } catch (err) {
+        console.warn('Prefetch failed:', err)
+      }
+    }, 1000)
   }
 
   // Fetch all order history (ride, delivery, shopping, queue, moving, laundry)
-  const fetchHistory = async (filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry') => {
+  const fetchHistory = async (
+    filter?: 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry',
+    offset = 0,
+    limit = 30
+  ) => {
     loading.value = true
     error.value = null
 

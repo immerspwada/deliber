@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRideHistory } from '../composables/useRideHistory'
+import { useHistoryAnalytics } from '../composables/useHistoryAnalytics'
+import { useHistoryCache } from '../composables/useHistoryCache'
 import { useServiceRatings } from '../composables/useServiceRatings'
 import PullToRefresh from '../components/PullToRefresh.vue'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
@@ -21,6 +23,13 @@ const {
   submitRating,
   skipRating
 } = useRideHistory()
+
+// Smart Analytics
+const { stats, insights } = useHistoryAnalytics(history)
+
+// Smart Caching
+const { getCached, setCache, isOnline } = useHistoryCache()
+
 useServiceRatings()
 
 // Rating modal state
@@ -83,6 +92,18 @@ type ServiceType = 'all' | 'ride' | 'delivery' | 'shopping' | 'queue' | 'moving'
 const activeFilter = ref<ServiceType>('all')
 const isRefreshing = ref(false)
 
+// UI State
+const showInsights = ref(false)
+const showAdvancedFilters = ref(false)
+const showFavorites = ref(false)
+const searchQuery = ref('')
+
+// Advanced filters
+const dateRangeStart = ref<Date | null>(null)
+const dateRangeEnd = ref<Date | null>(null)
+const fareMin = ref<number | null>(null)
+const fareMax = ref<number | null>(null)
+
 const filters: { id: ServiceType; label: string; icon: string }[] = [
   { id: 'all', label: 'ทั้งหมด', icon: 'grid' },
   { id: 'ride', label: 'เรียกรถ', icon: 'car' },
@@ -93,23 +114,153 @@ const filters: { id: ServiceType; label: string; icon: string }[] = [
   { id: 'laundry', label: 'ซักรีด', icon: 'washing' }
 ]
 
+// Smart filtering with search
 const filteredHistory = computed(() => {
-  if (activeFilter.value === 'all') return history.value
-  return history.value.filter(item => item.type === activeFilter.value)
+  let result = history.value
+  
+  // Filter by service type
+  if (activeFilter.value !== 'all') {
+    result = result.filter(item => item.type === activeFilter.value)
+  }
+  
+  // Search filter
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(item => 
+      item.tracking_id.toLowerCase().includes(query) ||
+      item.from.toLowerCase().includes(query) ||
+      item.to.toLowerCase().includes(query) ||
+      item.driver_name?.toLowerCase().includes(query) ||
+      item.typeName.toLowerCase().includes(query)
+    )
+  }
+  
+  // Date range filter
+  if (dateRangeStart.value || dateRangeEnd.value) {
+    result = result.filter(item => {
+      const itemDate = new Date(item.created_at || 0)
+      if (dateRangeStart.value && itemDate < dateRangeStart.value) return false
+      if (dateRangeEnd.value && itemDate > dateRangeEnd.value) return false
+      return true
+    })
+  }
+  
+  // Fare range filter
+  if (fareMin.value !== null || fareMax.value !== null) {
+    result = result.filter(item => {
+      if (fareMin.value !== null && item.fare < fareMin.value) return false
+      if (fareMax.value !== null && item.fare > fareMax.value) return false
+      return true
+    })
+  }
+  
+  return result
 })
 
-// Stats
-const stats = computed(() => {
-  const completed = history.value.filter(h => h.status === 'completed').length
-  const totalSpent = history.value
-    .filter(h => h.status === 'completed')
-    .reduce((sum, h) => sum + h.fare, 0)
-  return { completed, totalSpent }
+// Favorite destinations
+const favoriteDestinations = computed(() => {
+  const destinations = new Map<string, number>()
+  history.value.forEach(item => {
+    const count = destinations.get(item.to) || 0
+    destinations.set(item.to, count + 1)
+  })
+  return Array.from(destinations.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([destination, count]) => ({ destination, count }))
+})
+
+const frequentRoutes = computed(() => {
+  const routes = new Map<string, number>()
+  history.value.forEach(item => {
+    const route = `${item.from} → ${item.to}`
+    const count = routes.get(route) || 0
+    routes.set(route, count + 1)
+  })
+  return Array.from(routes.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([route, count]) => ({ route, count }))
 })
 
 const changeFilter = async (filter: ServiceType) => {
   activeFilter.value = filter
+  
+  // Try cache first (with error handling)
+  try {
+    const cached = await getCached(filter)
+    if (cached && cached.length > 0) {
+      history.value = cached
+      console.log('✅ Loaded from cache')
+      return
+    }
+  } catch (error) {
+    console.warn('Cache read failed, fetching fresh data:', error)
+  }
+  
+  // Fetch from API
   await fetchHistory(filter)
+  
+  // Try to cache (with error handling)
+  try {
+    await setCache(history.value, filter)
+    console.log('✅ Fetched and cached')
+  } catch (error) {
+    console.warn('Cache write failed:', error)
+  }
+}
+
+const handleExport = () => {
+  // Export filtered history to CSV
+  const csvContent = [
+    // Header
+    ['รหัส', 'ประเภท', 'จาก', 'ถึง', 'วันที่', 'เวลา', 'ราคา', 'สถานะ', 'ไรเดอร์'].join(','),
+    // Data rows
+    ...filteredHistory.value.map(item => [
+      item.tracking_id,
+      item.typeName,
+      item.from,
+      item.to,
+      item.date,
+      item.time,
+      item.fare,
+      getStatusText(item.status),
+      item.driver_name || '-'
+    ].join(','))
+  ].join('\n')
+  
+  // Create download
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', `history_${new Date().toISOString().split('T')[0]}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+const clearAdvancedFilters = () => {
+  dateRangeStart.value = null
+  dateRangeEnd.value = null
+  fareMin.value = null
+  fareMax.value = null
+  searchQuery.value = ''
+}
+
+const handleRefresh = async () => {
+  isRefreshing.value = true
+  await fetchHistory(activeFilter.value)
+  
+  // Try to cache (with error handling)
+  try {
+    await setCache(history.value, activeFilter.value)
+  } catch (error) {
+    console.warn('Cache write failed during refresh:', error)
+  }
+  
+  isRefreshing.value = false
 }
 
 const getStatusText = (status: string) => {
@@ -125,18 +276,32 @@ const viewReceipt = (id: string) => {
   router.push(`/receipt/${id}`)
 }
 
-const handleRefresh = async () => {
-  isRefreshing.value = true
-  await fetchHistory(activeFilter.value)
-  isRefreshing.value = false
-}
-
 const goBack = () => {
   router.back()
 }
 
 onMounted(async () => {
+  // Try cache first (with error handling)
+  try {
+    const cached = await getCached('all')
+    if (cached && cached.length > 0) {
+      history.value = cached
+      console.log('✅ Loaded from cache')
+    }
+  } catch (error) {
+    console.warn('Cache read failed on mount:', error)
+  }
+  
+  // Fetch fresh data
   await fetchHistory()
+  
+  // Try to cache (with error handling)
+  try {
+    await setCache(history.value, 'all')
+  } catch (error) {
+    console.warn('Cache write failed on mount:', error)
+  }
+  
   await checkUnratedOrders()
 })
 </script>
@@ -153,7 +318,27 @@ onMounted(async () => {
             </svg>
           </button>
           <h1 class="page-title">ประวัติการใช้งาน</h1>
-          <div class="header-spacer"></div>
+          <div class="header-actions">
+            <button 
+              class="icon-btn" 
+              aria-label="ส่งออกข้อมูล"
+              @click="handleExport"
+              :disabled="history.length === 0"
+            >
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </button>
+            <button 
+              class="icon-btn" 
+              aria-label="ข้อมูลเชิงลึก"
+              @click="showInsights = !showInsights"
+            >
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+            </button>
+          </div>
         </div>
         
         <!-- Stats Summary -->
@@ -165,7 +350,7 @@ onMounted(async () => {
               </svg>
             </div>
             <div class="stat-content">
-              <span class="stat-value">{{ stats.completed }}</span>
+              <span class="stat-value">{{ stats.completedOrders }}</span>
               <span class="stat-label">รายการสำเร็จ</span>
             </div>
           </div>
@@ -181,9 +366,65 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <!-- Insights Panel -->
+        <div v-if="showInsights && insights.length > 0" class="insights-panel">
+          <div 
+            v-for="insight in insights" 
+            :key="insight.title"
+            :class="['insight-card', insight.type]"
+          >
+            <div class="insight-icon">
+              <svg v-if="insight.icon === 'alert-circle'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <svg v-else-if="insight.icon === 'check-circle'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <svg v-else-if="insight.icon === 'star'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+              </svg>
+              <svg v-else-if="insight.icon === 'gift'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+              </svg>
+              <svg v-else width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div class="insight-content">
+              <h4 class="insight-title">{{ insight.title }}</h4>
+              <p class="insight-message">{{ insight.message }}</p>
+            </div>
+          </div>
+        </div>
       </header>
 
       <div class="content-container">
+        <!-- Search Bar -->
+        <div class="search-section">
+          <div class="search-bar">
+            <svg class="search-icon" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input 
+              v-model="searchQuery"
+              type="text" 
+              placeholder="ค้นหารหัส, สถานที่, ไรเดอร์..."
+              class="search-input"
+            />
+            <button 
+              v-if="searchQuery || dateRangeStart || fareMin"
+              class="clear-btn"
+              aria-label="ล้างการค้นหา"
+              @click="clearAdvancedFilters"
+            >
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <!-- Filter Tabs -->
         <div class="filter-section">
           <div class="filters-scroll">
@@ -333,9 +574,9 @@ onMounted(async () => {
           <div v-else class="empty-state">
             <div class="empty-illustration">
               <svg width="80" height="80" fill="none" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="36" fill="#F0FDF4" stroke="#00A86B" stroke-width="2" stroke-dasharray="4 4"/>
-                <path d="M28 32h24M28 40h16M28 48h20" stroke="#00A86B" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="54" cy="54" r="12" fill="#00A86B"/>
+                <circle cx="40" cy="40" r="36" fill="var(--cm-bg-hover)" stroke="var(--cm-accent)" stroke-width="2" stroke-dasharray="4 4"/>
+                <path d="M28 32h24M28 40h16M28 48h20" stroke="var(--cm-accent)" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="54" cy="54" r="12" fill="var(--cm-accent)"/>
                 <path d="M50 54l3 3 5-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
@@ -427,8 +668,33 @@ onMounted(async () => {
   color: #1A1A1A;
 }
 
-.header-spacer {
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
   width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #1A1A1A;
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+  background: #EBEBEB;
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Stats */
@@ -457,13 +723,13 @@ onMounted(async () => {
 }
 
 .stat-icon.completed {
-  background: #E8F5EF;
-  color: #00A86B;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .stat-icon.spent {
-  background: #FEF3C7;
-  color: #D97706;
+  background: var(--cm-bg-hover);
+  color: var(--cm-text-primary);
 }
 
 .stat-content {
@@ -482,11 +748,145 @@ onMounted(async () => {
   color: #6B6B6B;
 }
 
+/* Insights Panel */
+.insights-panel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insight-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #E5E5E5;
+}
+
+.insight-card.warning {
+  background: #FFF9F5;
+  border-color: #FFE5D9;
+}
+
+.insight-card.success {
+  background: #F5FFF9;
+  border-color: #D9FFE5;
+}
+
+.insight-card.info {
+  background: #F5F9FF;
+  border-color: #D9E5FF;
+}
+
+.insight-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.insight-card.warning .insight-icon {
+  background: #FFE5D9;
+  color: #FF6B35;
+}
+
+.insight-card.success .insight-icon {
+  background: #D9FFE5;
+  color: #00B377;
+}
+
+.insight-card.info .insight-icon {
+  background: #D9E5FF;
+  color: #3B82F6;
+}
+
+.insight-content {
+  flex: 1;
+}
+
+.insight-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin-bottom: 2px;
+}
+
+.insight-message {
+  font-size: 12px;
+  color: #6B6B6B;
+  line-height: 1.4;
+}
+
 /* Content */
 .content-container {
   max-width: 480px;
   margin: 0 auto;
   padding: 0 16px;
+}
+
+/* Search Bar */
+.search-section {
+  padding: 16px 0 8px;
+}
+
+.search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1.5px solid #E5E5E5;
+  border-radius: 12px;
+  padding: 0 12px;
+  transition: all 0.2s;
+}
+
+.search-bar:focus-within {
+  border-color: var(--cm-accent);
+  box-shadow: 0 0 0 3px rgba(0, 179, 119, 0.1);
+}
+
+.search-icon {
+  color: #9CA3AF;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 12px 8px;
+  font-size: 14px;
+  color: #1A1A1A;
+  background: transparent;
+}
+
+.search-input::placeholder {
+  color: #9CA3AF;
+}
+
+.clear-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 6px;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.clear-btn:active {
+  transform: scale(0.9);
+  background: #EBEBEB;
 }
 
 /* Filters */
@@ -533,8 +933,8 @@ onMounted(async () => {
 }
 
 .filter-chip.active {
-  background: #00A86B;
-  border-color: #00A86B;
+  background: var(--cm-accent);
+  border-color: var(--cm-accent);
   color: white;
 }
 
@@ -586,36 +986,8 @@ onMounted(async () => {
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-}
-
-.service-type.ride {
-  background: #E8F5EF;
-  color: #00875A;
-}
-
-.service-type.delivery {
-  background: #FEF3C7;
-  color: #92400E;
-}
-
-.service-type.shopping {
-  background: #DBEAFE;
-  color: #1E40AF;
-}
-
-.service-type.queue {
-  background: #EDE9FE;
-  color: #6D28D9;
-}
-
-.service-type.moving {
-  background: #FFEDD5;
-  color: #C2410C;
-}
-
-.service-type.laundry {
-  background: #E0F2FE;
-  color: #0369A1;
+  background: var(--cm-bg-hover);
+  color: var(--cm-text-primary);
 }
 
 .status-pill {
@@ -626,13 +998,13 @@ onMounted(async () => {
 }
 
 .status-pill.completed {
-  background: #DCFCE7;
-  color: #15803D;
+  background: var(--cm-bg-hover);
+  color: var(--cm-text-primary);
 }
 
 .status-pill.cancelled {
-  background: #FEE2E2;
-  color: #DC2626;
+  background: var(--cm-bg-hover);
+  color: var(--cm-text-secondary);
 }
 
 /* Route Section */
@@ -659,19 +1031,19 @@ onMounted(async () => {
 }
 
 .route-dot.start {
-  background: #00A86B;
+  background: var(--cm-accent);
 }
 
 .route-dot.end {
   background: white;
-  border: 2.5px solid #EF4444;
+  border: 2.5px solid var(--cm-text-secondary);
 }
 
 .route-line-vertical {
   width: 2px;
   flex: 1;
   min-height: 24px;
-  background: linear-gradient(180deg, #00A86B 0%, #E5E5E5 50%, #EF4444 100%);
+  background: linear-gradient(180deg, var(--cm-accent) 0%, #E5E5E5 50%, var(--cm-text-secondary) 100%);
   margin: 4px 0;
 }
 
@@ -747,9 +1119,9 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: #FEF3C7;
+  background: var(--cm-bg-hover);
   border-radius: 6px;
-  color: #D97706;
+  color: var(--cm-text-primary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -835,7 +1207,7 @@ onMounted(async () => {
 }
 
 .text-btn.primary {
-  background: #00A86B;
+  background: var(--cm-accent);
   color: white;
 }
 
@@ -883,7 +1255,7 @@ onMounted(async () => {
 
 .empty-cta {
   padding: 14px 32px;
-  background: #00A86B;
+  background: var(--cm-accent);
   color: white;
   border: none;
   border-radius: 12px;

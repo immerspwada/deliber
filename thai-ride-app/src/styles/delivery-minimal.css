@@ -1,0 +1,410 @@
+/**
+ * Delivery View - Minimal Clean Design System
+ * Date: 2026-01-30
+ * Theme: White-Black-Gray Minimal (Not Monochrome)
+ */
+
+/* ===== CSS VARIABLES ===== */
+:root {
+  /* Colors - Minimal Palette */
+  --dm-bg-primary: #FAFAFA;
+  --dm-bg-surface: #FFFFFF;
+  --dm-bg-hover: #F5F5F5;
+  --dm-bg-active: #E8E8E8;
+  
+  --dm-text-primary: #000000;
+  --dm-text-secondary: #525252;
+  --dm-text-tertiary: #A3A3A3;
+  --dm-text-disabled: #D4D4D4;
+  
+  --dm-border-primary: #E5E5E5;
+  --dm-border-secondary: #F0F0F0;
+  --dm-border-focus: #000000;
+  
+  /* Accent */
+  --dm-accent: #000000;
+  --dm-accent-light: #F5F5F5;
+  
+  /* Status Colors (Subtle) */
+  --dm-success: #16A34A;
+  --dm-success-bg: #F0FDF4;
+  --dm-error: #DC2626;
+  --dm-error-bg: #FEF2F2;
+  --dm-warning: #EA580C;
+  --dm-warning-bg: #FFF7ED;
+  
+  /* Spacing */
+  --dm-space-xs: 4px;
+  --dm-space-sm: 8px;
+  --dm-space-md: 12px;
+  --dm-space-lg: 16px;
+  --dm-space-xl: 20px;
+  --dm-space-2xl: 24px;
+  --dm-space-3xl: 32px;
+  
+  /* Border Radius */
+  --dm-radius-sm: 8px;
+  --dm-radius-md: 10px;
+  --dm-radius-lg: 12px;
+  --dm-radius-xl: 16px;
+  --dm-radius-full: 9999px;
+  
+  /* Shadows (Subtle) */
+  --dm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --dm-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --dm-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  
+  /* Transitions */
+  --dm-transition-fast: 0.15s ease;
+  --dm-transition-base: 0.2s ease;
+  --dm-transition-slow: 0.3s ease;
+}
+
+/* ===== TYPOGRAPHY ===== */
+.dm-heading-1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--dm-text-primary);
+  letter-spacing: -0.5px;
+}
+
+.dm-heading-2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--dm-text-primary);
+  letter-spacing: -0.3px;
+}
+
+.dm-heading-3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--dm-text-primary);
+  letter-spacing: -0.3px;
+}
+
+.dm-body-large {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--dm-text-primary);
+}
+
+.dm-body-regular {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--dm-text-secondary);
+}
+
+.dm-body-small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--dm-text-tertiary);
+}
+
+.dm-label-large {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dm-text-primary);
+}
+
+.dm-label-regular {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dm-text-secondary);
+}
+
+.dm-label-small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dm-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ===== BUTTONS ===== */
+.dm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dm-space-sm);
+  padding: var(--dm-space-lg) var(--dm-space-2xl);
+  border: none;
+  border-radius: var(--dm-radius-lg);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--dm-transition-base);
+  min-height: 44px;
+}
+
+.dm-btn-primary {
+  background: var(--dm-accent);
+  color: var(--dm-bg-surface);
+}
+
+.dm-btn-primary:hover {
+  background: #1A1A1A;
+  transform: translateY(-1px);
+}
+
+.dm-btn-primary:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.dm-btn-primary:disabled {
+  background: var(--dm-border-primary);
+  color: var(--dm-text-tertiary);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.dm-btn-secondary {
+  background: var(--dm-bg-surface);
+  color: var(--dm-text-primary);
+  border: 1.5px solid var(--dm-border-primary);
+}
+
+.dm-btn-secondary:hover {
+  border-color: var(--dm-accent);
+  background: var(--dm-bg-hover);
+}
+
+.dm-btn-ghost {
+  background: transparent;
+  color: var(--dm-text-primary);
+}
+
+.dm-btn-ghost:hover {
+  background: var(--dm-bg-hover);
+}
+
+.dm-btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--dm-radius-sm);
+}
+
+/* ===== CARDS ===== */
+.dm-card {
+  background: var(--dm-bg-surface);
+  border: 1px solid var(--dm-border-primary);
+  border-radius: var(--dm-radius-lg);
+  padding: var(--dm-space-lg);
+}
+
+.dm-card-hover {
+  transition: all var(--dm-transition-base);
+  cursor: pointer;
+}
+
+.dm-card-hover:hover {
+  border-color: var(--dm-accent);
+  background: var(--dm-bg-hover);
+}
+
+.dm-card-active {
+  border-color: var(--dm-accent);
+  background: var(--dm-bg-hover);
+}
+
+/* ===== INPUTS ===== */
+.dm-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-space-sm);
+}
+
+.dm-input-label {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-space-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dm-text-secondary);
+}
+
+.dm-input-label svg {
+  width: 16px;
+  height: 16px;
+  color: var(--dm-text-tertiary);
+}
+
+.dm-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid var(--dm-border-primary);
+  border-radius: var(--dm-radius-md);
+  font-size: 16px;
+  color: var(--dm-text-primary);
+  background: var(--dm-bg-surface);
+  transition: all var(--dm-transition-base);
+}
+
+.dm-input:focus {
+  outline: none;
+  border-color: var(--dm-border-focus);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.dm-input::placeholder {
+  color: var(--dm-text-tertiary);
+}
+
+.dm-input:disabled {
+  background: var(--dm-bg-hover);
+  color: var(--dm-text-disabled);
+  cursor: not-allowed;
+}
+
+.dm-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+/* ===== BADGES ===== */
+.dm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dm-space-xs);
+  padding: var(--dm-space-xs) var(--dm-space-sm);
+  border-radius: var(--dm-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dm-badge-default {
+  background: var(--dm-bg-hover);
+  color: var(--dm-text-secondary);
+}
+
+.dm-badge-success {
+  background: var(--dm-success-bg);
+  color: var(--dm-success);
+}
+
+.dm-badge-error {
+  background: var(--dm-error-bg);
+  color: var(--dm-error);
+}
+
+.dm-badge-warning {
+  background: var(--dm-warning-bg);
+  color: var(--dm-warning);
+}
+
+/* ===== DIVIDERS ===== */
+.dm-divider {
+  height: 1px;
+  background: var(--dm-border-secondary);
+  margin: var(--dm-space-lg) 0;
+}
+
+.dm-divider-vertical {
+  width: 1px;
+  height: 100%;
+  background: var(--dm-border-secondary);
+}
+
+/* ===== UTILITIES ===== */
+.dm-text-center {
+  text-align: center;
+}
+
+.dm-text-right {
+  text-align: right;
+}
+
+.dm-flex {
+  display: flex;
+}
+
+.dm-flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.dm-items-center {
+  align-items: center;
+}
+
+.dm-justify-between {
+  justify-content: space-between;
+}
+
+.dm-gap-xs { gap: var(--dm-space-xs); }
+.dm-gap-sm { gap: var(--dm-space-sm); }
+.dm-gap-md { gap: var(--dm-space-md); }
+.dm-gap-lg { gap: var(--dm-space-lg); }
+.dm-gap-xl { gap: var(--dm-space-xl); }
+
+.dm-p-xs { padding: var(--dm-space-xs); }
+.dm-p-sm { padding: var(--dm-space-sm); }
+.dm-p-md { padding: var(--dm-space-md); }
+.dm-p-lg { padding: var(--dm-space-lg); }
+.dm-p-xl { padding: var(--dm-space-xl); }
+
+.dm-m-xs { margin: var(--dm-space-xs); }
+.dm-m-sm { margin: var(--dm-space-sm); }
+.dm-m-md { margin: var(--dm-space-md); }
+.dm-m-lg { margin: var(--dm-space-lg); }
+.dm-m-xl { margin: var(--dm-space-xl); }
+
+/* ===== ANIMATIONS ===== */
+@keyframes dm-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dm-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes dm-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.dm-animate-fade-in {
+  animation: dm-fade-in var(--dm-transition-slow) ease-out;
+}
+
+.dm-animate-slide-in-right {
+  animation: dm-slide-in-right var(--dm-transition-slow) ease-out;
+}
+
+.dm-animate-slide-in-left {
+  animation: dm-slide-in-left var(--dm-transition-slow) ease-out;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  :root {
+    --dm-space-lg: 14px;
+    --dm-space-xl: 18px;
+    --dm-space-2xl: 20px;
+  }
+  
+  .dm-heading-1 { font-size: 22px; }
+  .dm-heading-2 { font-size: 18px; }
+  .dm-heading-3 { font-size: 16px; }
+}

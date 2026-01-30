@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Feature: F03 - Delivery Service
- * MUNEEF Style UI - Clean and Modern
+ * Minimal Clean Design - White-Black-Gray Theme
  * Enhanced UX Flow: 1.จุดรับ → 2.จุดส่ง → 3.รายละเอียด → 4.ยืนยัน
  */
 import { ref, computed, watch, onMounted } from "vue";
@@ -19,6 +19,7 @@ import { useServices } from "../composables/useServices";
 import { usePromoSystem } from "../composables/usePromoSystem";
 import { useWallet } from "../composables/useWallet";
 import { useAuthStore } from "../stores/auth";
+import "@/styles/delivery-minimal.css";
 import type { PlaceResult } from "../composables/usePlaceSearch";
 
 const router = useRouter();
@@ -691,35 +692,28 @@ const clearDropoff = () => {
     >
       <div class="panel-handle"></div>
 
-      <!-- Step Indicator -->
-      <div class="step-indicator">
-        <div
-          v-for="(s, index) in stepLabels"
-          :key="s.key"
-          :class="[
-            'step-item',
-            {
-              active: s.key === currentStep,
-              completed: index < currentStepIndex,
-              clickable: index < currentStepIndex,
-            },
-          ]"
-          @click="goToStep(s.key)"
-        >
-          <div class="step-number">
-            <template v-if="index < currentStepIndex">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-              >
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            </template>
-            <template v-else>{{ s.number }}</template>
+      <!-- Step Indicator - Progress Bar Style -->
+      <div class="step-progress-container">
+        <div class="step-progress-bar">
+          <div 
+            class="step-progress-fill"
+            :style="{ width: `${(currentStepIndex / (stepLabels.length - 1)) * 100}%` }"
+          ></div>
+        </div>
+        <div class="step-labels">
+          <div
+            v-for="(s, index) in stepLabels"
+            :key="s.key"
+            :class="[
+              'step-label-item',
+              {
+                active: s.key === currentStep,
+                completed: index < currentStepIndex,
+              },
+            ]"
+          >
+            <span class="step-label-text">{{ s.label }}</span>
           </div>
-          <span class="step-label">{{ s.label }}</span>
         </div>
       </div>
 
@@ -2180,7 +2174,7 @@ const clearDropoff = () => {
 .delivery-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #ffffff;
+  background: var(--dm-bg-primary, #FAFAFA);
   display: flex;
   flex-direction: column;
 }
@@ -2205,12 +2199,8 @@ const clearDropoff = () => {
   padding: 16px 20px;
   padding-top: calc(16px + env(safe-area-inset-top));
   z-index: 100;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.8) 70%,
-    transparent 100%
-  );
+  background: var(--dm-bg-surface, #FFFFFF);
+  border-bottom: 1px solid var(--dm-border-primary, #E5E5E5);
 }
 
 .nav-btn {
@@ -2219,52 +2209,53 @@ const clearDropoff = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
-  border: none;
+  background: var(--dm-bg-surface, #FFFFFF);
+  border: 1px solid var(--dm-border-primary, #E5E5E5);
   border-radius: 12px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
 }
 
 .nav-btn svg {
   width: 24px;
   height: 24px;
-  color: #1a1a1a;
+  color: var(--dm-text-primary, #000000);
 }
 
 .nav-btn:active {
   transform: scale(0.95);
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .nav-btn.home-btn {
-  background: rgba(0, 168, 107, 0.1);
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .nav-btn.home-btn svg {
-  stroke: #00a86b;
+  stroke: var(--dm-accent, #000000);
 }
 
 .nav-btn.home-btn:active {
-  background: rgba(0, 168, 107, 0.2);
+  background: var(--dm-bg-active, #E8E8E8);
 }
 
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--dm-text-primary, #000000);
 }
 
 /* Bottom Panel */
 .bottom-panel {
   flex: 1;
-  background: #ffffff;
+  background: var(--dm-bg-surface, #FFFFFF);
   border-radius: 28px 28px 0 0;
   margin-top: -24px;
   padding: 12px 20px 24px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
   position: relative;
   z-index: 20;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2278,90 +2269,71 @@ const clearDropoff = () => {
 .panel-handle {
   width: 40px;
   height: 4px;
-  background: #e0e0e0;
+  background: var(--dm-border-primary, #E5E5E5);
   border-radius: 2px;
   margin: 0 auto 12px;
 }
 
-/* Step Indicator */
-.step-indicator {
+/* Step Progress Container - New Design */
+.step-progress-container {
+  padding: 16px 20px 20px;
+  margin-bottom: 20px;
+}
+
+/* Progress Bar */
+.step-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--dm-border-primary, #E5E5E5);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.step-progress-fill {
+  height: 100%;
+  background: var(--dm-accent, #000000);
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+/* Step Labels */
+.step-labels {
   display: flex;
   justify-content: space-between;
-  padding: 0 8px;
-  margin-bottom: 16px;
+  align-items: flex-start;
 }
 
-.step-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+.step-label-item {
   flex: 1;
-  position: relative;
-}
-
-.step-item:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  top: 14px;
-  left: calc(50% + 18px);
-  width: calc(100% - 36px);
-  height: 2px;
-  background: #e8e8e8;
-}
-
-.step-item.completed:not(:last-child)::after {
-  background: #00a86b;
-}
-
-.step-number {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  background: #f5f5f5;
-  color: #999999;
-  position: relative;
-  z-index: 1;
-}
-
-.step-item.active .step-number {
-  background: #00a86b;
-  color: #ffffff;
-}
-
-.step-item.completed .step-number {
-  background: #00a86b;
-  color: #ffffff;
-}
-
-.step-item.completed .step-number svg {
-  width: 14px;
-  height: 14px;
-}
-
-.step-item.clickable {
-  cursor: pointer;
-}
-
-.step-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: #999999;
   text-align: center;
+  position: relative;
 }
 
-.step-item.active .step-label {
-  color: #00a86b;
+.step-label-item:first-child {
+  text-align: left;
+}
+
+.step-label-item:last-child {
+  text-align: right;
+}
+
+.step-label-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dm-text-tertiary, #A3A3A3);
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.step-label-item.active .step-label-text {
+  color: var(--dm-text-primary, #000000);
   font-weight: 600;
+  font-size: 13px;
 }
 
-.step-item.completed .step-label {
-  color: #00a86b;
+.step-label-item.completed .step-label-text {
+  color: var(--dm-text-secondary, #525252);
 }
 
 /* Step Content */
@@ -2475,47 +2447,30 @@ const clearDropoff = () => {
   opacity: 0;
 }
 
-/* Step Header */
+/* Step Header - Designer Quality */
 .step-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 8px;
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .step-header-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .step-header-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.step-header-icon.pickup-icon {
-  background: #e8f5ef;
-  color: #00a86b;
-}
-
-.step-header-icon.destination-icon {
-  background: #ffebee;
-  color: #e53935;
-}
-
-.step-header-icon.details-icon {
-  background: #e3f2fd;
-  color: #1976d2;
-}
-
-.step-header-icon.confirm-icon {
-  background: #dcfce7;
-  color: #16a34a;
+  width: 26px;
+  height: 26px;
 }
 
 .step-header-text {
@@ -2523,24 +2478,26 @@ const clearDropoff = () => {
 }
 
 .step-title {
-  font-size: 20px;
+  font-size: 23px;
   font-weight: 700;
-  color: #1a1a1a;
-  margin: 0 0 2px;
+  color: var(--dm-text-primary, #000000);
+  margin: 0 0 6px;
+  letter-spacing: -0.3px;
 }
 
 .step-desc {
   font-size: 14px;
-  color: #666666;
+  color: var(--dm-text-secondary, #525252);
   margin: 0;
+  letter-spacing: -0.1px;
 }
 
-/* Quick Location Cards - New Design */
+/* Quick Location Cards - Designer Quality */
 .quick-location-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .location-card-btn {
@@ -2548,14 +2505,56 @@ const clearDropoff = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 20px 16px;
-  background: #ffffff;
-  border: 2px solid #f0f0f0;
+  gap: 14px;
+  padding: 24px 16px;
+  background: var(--dm-bg-surface, #FFFFFF);
+  border: 2px solid var(--dm-border-primary, #E5E5E5);
   border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 110px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 120px;
+}
+
+.location-card-btn:hover {
+  border-color: var(--dm-accent, #000000);
+  background: var(--dm-bg-hover, #F5F5F5);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.location-card-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.location-card-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--dm-bg-hover, #F5F5F5);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dm-accent, #000000);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.location-card-btn:hover .location-card-icon {
+  background: var(--dm-accent, #000000);
+  color: var(--dm-bg-surface, #FFFFFF);
+  transform: scale(1.1);
+}
+
+.location-card-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.location-card-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dm-text-primary, #000000);
+  text-align: center;
+  letter-spacing: -0.1px;
 }
 
 .location-card-btn:active {
@@ -2563,23 +2562,23 @@ const clearDropoff = () => {
 }
 
 .location-card-btn.current-location {
-  border-color: #00a86b;
-  background: #f0fdf4;
+  border-color: var(--dm-accent, #000000);
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .location-card-btn.current-location .location-card-icon {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .location-card-btn.home-location .location-card-icon {
-  background: #fff3e0;
-  color: #f5a623;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .location-card-btn.nearby-location .location-card-icon {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .location-card-btn.is-loading {
@@ -2608,68 +2607,90 @@ const clearDropoff = () => {
   text-align: center;
 }
 
-/* Map Picker Full Button */
+/* Map Picker Full Button - Designer Quality */
 .map-picker-btn-full {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
-  padding: 16px;
-  background: #ffffff;
-  border: 1.5px solid #e8e8e8;
-  border-radius: 14px;
+  padding: 18px 20px;
+  background: var(--dm-bg-surface, #FFFFFF);
+  border: 2px solid var(--dm-border-primary, #E5E5E5);
+  border-radius: 16px;
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s ease;
-  margin-bottom: 16px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 20px;
+}
+
+.map-picker-btn-full:hover {
+  border-color: var(--dm-accent, #000000);
+  background: var(--dm-bg-hover, #F5F5F5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .map-picker-btn-full:active {
-  transform: scale(0.98);
-  background: #f5f5f5;
+  transform: translateY(0) scale(0.98);
 }
 
 .map-picker-icon-wrapper {
-  width: 44px;
-  height: 44px;
-  background: #e3f2fd;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  background: var(--dm-bg-hover, #F5F5F5);
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1976d2;
+  color: var(--dm-accent, #000000);
   flex-shrink: 0;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.map-picker-btn-full:hover .map-picker-icon-wrapper {
+  background: var(--dm-accent, #000000);
+  color: var(--dm-bg-surface, #FFFFFF);
+  transform: scale(1.05);
 }
 
 .map-picker-icon-wrapper svg {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
 }
 
 .map-picker-text-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .map-picker-title {
   display: block;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 2px;
+  color: var(--dm-text-primary, #000000);
+  letter-spacing: -0.2px;
 }
 
 .map-picker-subtitle {
   display: block;
-  font-size: 12px;
-  color: #666666;
+  font-size: 13px;
+  color: var(--dm-text-secondary, #525252);
+  letter-spacing: -0.1px;
 }
 
 .map-picker-arrow-icon {
   width: 20px;
   height: 20px;
-  color: #cccccc;
+  color: var(--dm-text-secondary, #525252);
   flex-shrink: 0;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.map-picker-btn-full:hover .map-picker-arrow-icon {
+  transform: translateX(4px);
 }
 
 /* Quick Destinations Row */
@@ -2709,8 +2730,8 @@ const clearDropoff = () => {
 }
 
 .chip-icon-large.work {
-  background: #e8eaf6;
-  color: #5c6bc0;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .quick-dest-chip-large span {
@@ -2723,8 +2744,8 @@ const clearDropoff = () => {
 .mini-spinner {
   width: 22px;
   height: 22px;
-  border: 2px solid #e8f5ef;
-  border-top-color: #00a86b;
+  border: 2px solid var(--dm-border-primary, #E5E5E5);
+  border-top-color: var(--dm-accent, #000000);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -2768,14 +2789,14 @@ const clearDropoff = () => {
 }
 
 .quick-dest-chip:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--dm-accent, #000000);
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .quick-dest-chip:active,
 .quick-dest-chip.is-pressed {
   transform: scale(0.96);
-  background: #f0fdf4;
+  background: var(--dm-bg-active, #E8E8E8);
 }
 
 .chip-icon {
@@ -2793,13 +2814,13 @@ const clearDropoff = () => {
 }
 
 .chip-icon.home {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .chip-icon.work {
-  background: #f3e5f5;
-  color: #7b1fa2;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .quick-dest-chip span {
@@ -2892,13 +2913,13 @@ const clearDropoff = () => {
 }
 
 .place-icon.favorite {
-  background: #fef3c7;
-  color: #f59e0b;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-accent, #000000);
 }
 
 .place-icon.recent {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--dm-bg-hover, #F5F5F5);
+  color: var(--dm-text-secondary, #525252);
 }
 
 .place-info {
@@ -2931,19 +2952,19 @@ const clearDropoff = () => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #e8f5ef;
-  border: 2px solid #00a86b;
+  background: var(--dm-bg-hover, #F5F5F5);
+  border: 2px solid var(--dm-accent, #000000);
   border-radius: 14px;
   position: relative;
 }
 
 .selected-location-card.success {
-  background: #f0fdf4;
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .selected-location-card.destination {
-  background: #fef2f2;
-  border-color: #e53935;
+  background: var(--dm-bg-hover, #F5F5F5);
+  border-color: var(--dm-accent, #000000);
 }
 
 .success-check {
@@ -2952,18 +2973,18 @@ const clearDropoff = () => {
   right: -8px;
   width: 24px;
   height: 24px;
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.3);
+  color: var(--dm-bg-surface, #FFFFFF);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .selected-location-card.destination .success-check {
-  background: #e53935;
-  box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3);
+  background: var(--dm-accent, #000000);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .success-check svg {
@@ -2999,11 +3020,11 @@ const clearDropoff = () => {
 }
 
 .location-marker.pickup .step-number {
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
 }
 
 .location-marker.destination .step-number {
-  background: #e53935;
+  background: var(--dm-accent, #000000);
 }
 
 .marker-dot {
@@ -3013,11 +3034,11 @@ const clearDropoff = () => {
 }
 
 .location-marker.pickup .marker-dot {
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
 }
 
 .location-marker.destination .marker-dot {
-  background: #e53935;
+  background: var(--dm-accent, #000000);
 }
 
 .marker-dot.pulse {
@@ -3047,13 +3068,13 @@ const clearDropoff = () => {
 .location-sublabel {
   font-size: 11px;
   font-weight: 500;
-  color: #00a86b;
+  color: var(--dm-text-secondary, #525252);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .selected-location-card.destination .location-sublabel {
-  color: #e53935;
+  color: var(--dm-text-secondary, #525252);
 }
 
 .location-label {
@@ -3067,12 +3088,12 @@ const clearDropoff = () => {
 
 .change-btn {
   padding: 8px 14px;
-  background: #ffffff;
-  border: 1px solid #e8e8e8;
+  background: var(--dm-bg-surface, #FFFFFF);
+  border: 1px solid var(--dm-border-primary, #E5E5E5);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #00a86b;
+  color: var(--dm-accent, #000000);
   cursor: pointer;
 }
 
@@ -3097,9 +3118,9 @@ const clearDropoff = () => {
 }
 
 .continue-btn.primary {
-  background: #00a86b;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  background: var(--dm-accent, #000000);
+  color: var(--dm-bg-surface, #FFFFFF);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .continue-btn.primary:hover {
@@ -3154,20 +3175,20 @@ const clearDropoff = () => {
 }
 
 .route-dot.pickup {
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
 }
 
 .route-dot.destination {
-  background: #e53935;
+  background: var(--dm-accent, #000000);
 }
 
 .route-dot.destination.empty {
   background: transparent;
-  border: 2px dashed #e53935;
+  border: 2px dashed var(--dm-border-primary, #E5E5E5);
 }
 
 .route-dot.destination.empty .route-step-number {
-  color: #e53935;
+  color: var(--dm-text-secondary, #525252);
 }
 
 .route-preview-text {
@@ -3228,7 +3249,7 @@ const clearDropoff = () => {
 .route-connector-line {
   width: 2px;
   height: 20px;
-  background: linear-gradient(to bottom, #00a86b, #e53935);
+  background: var(--dm-border-primary, #E5E5E5);
   margin: 8px 0 8px 5px;
 }
 
@@ -3252,9 +3273,9 @@ const clearDropoff = () => {
 }
 
 .map-picker-btn:hover {
-  border-color: #00a86b;
+  border-color: var(--dm-accent, #000000);
   border-style: solid;
-  background: #fafffe;
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .map-picker-btn:active {
@@ -3264,12 +3285,12 @@ const clearDropoff = () => {
 .map-picker-icon {
   width: 44px;
   height: 44px;
-  background: #e3f2fd;
+  background: var(--dm-bg-hover, #F5F5F5);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1976d2;
+  color: var(--dm-accent, #000000);
   flex-shrink: 0;
 }
 
@@ -3308,6 +3329,8 @@ const clearDropoff = () => {
   background: #f8f8f8;
   border-radius: 16px;
   overflow: hidden;
+  position: relative;
+  z-index: 30;
 }
 
 .route-summary-header {
@@ -3361,11 +3384,11 @@ const clearDropoff = () => {
 }
 
 .route-dot-enhanced.pickup {
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
 }
 
 .route-dot-enhanced.destination {
-  background: #e53935;
+  background: var(--dm-accent, #000000);
 }
 
 /* Route Number Badges */
@@ -3384,11 +3407,11 @@ const clearDropoff = () => {
 }
 
 .route-number.pickup {
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
 }
 
 .route-number.destination {
-  background: #e53935;
+  background: var(--dm-accent, #000000);
 }
 
 .route-point-text {
@@ -3419,7 +3442,7 @@ const clearDropoff = () => {
 .route-connector-enhanced {
   width: 2px;
   height: 24px;
-  background: linear-gradient(to bottom, #00a86b, #e53935);
+  background: var(--dm-border-primary, #E5E5E5);
   margin: 8px 0 8px 5px;
 }
 
@@ -3429,6 +3452,8 @@ const clearDropoff = () => {
   padding: 12px 16px;
   background: #ffffff;
   border-top: 1px solid #f0f0f0;
+  position: relative;
+  z-index: 50;
 }
 
 .stat-chip {
@@ -3446,7 +3471,7 @@ const clearDropoff = () => {
 .stat-chip svg {
   width: 14px;
   height: 14px;
-  color: #00a86b;
+  color: var(--dm-accent, #000000);
 }
 
 /* Package Type Section */
@@ -3476,8 +3501,8 @@ const clearDropoff = () => {
 }
 
 .package-type-card:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--dm-accent, #000000);
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .package-type-card:active {
@@ -3485,8 +3510,8 @@ const clearDropoff = () => {
 }
 
 .package-type-card.active {
-  border-color: #00a86b;
-  background: #f0fdf4;
+  border-color: var(--dm-accent, #000000);
+  background: var(--dm-bg-hover, #F5F5F5);
 }
 
 .package-type-icon {
@@ -3502,8 +3527,8 @@ const clearDropoff = () => {
 }
 
 .package-type-card.active .package-type-icon {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--dm-accent, #000000);
+  color: var(--dm-bg-surface, #FFFFFF);
 }
 
 .package-type-icon svg {
@@ -3533,7 +3558,7 @@ const clearDropoff = () => {
 .package-check {
   width: 24px;
   height: 24px;
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -3579,8 +3604,8 @@ const clearDropoff = () => {
 }
 
 .input-field-enhanced:focus {
-  border-color: #00a86b;
-  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+  border-color: var(--dm-border-focus, #000000);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .input-field-enhanced::placeholder {
@@ -3601,8 +3626,8 @@ const clearDropoff = () => {
 }
 
 .textarea-field-enhanced:focus {
-  border-color: #00a86b;
-  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+  border-color: var(--dm-border-focus, #000000);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .textarea-field-enhanced::placeholder {
@@ -3679,11 +3704,11 @@ const clearDropoff = () => {
 }
 
 .confirm-dot.pickup {
-  background: #00a86b;
+  background: var(--dm-accent, #000000);
 }
 
 .confirm-dot.destination {
-  background: #e53935;
+  background: var(--dm-accent, #000000);
 }
 
 .confirm-route-text {
@@ -3773,8 +3798,8 @@ const clearDropoff = () => {
 
 /* Fee Summary Card */
 .fee-summary-card {
-  background: #f0fdf4;
-  border: 2px solid #00a86b;
+  background: var(--dm-bg-surface, #FFFFFF);
+  border: 2px solid var(--dm-border-primary, #E5E5E5);
   border-radius: 16px;
   overflow: hidden;
 }
@@ -3788,7 +3813,7 @@ const clearDropoff = () => {
 .fee-summary-title {
   font-size: 14px;
   font-weight: 600;
-  color: #00a86b;
+  color: var(--dm-text-primary, #000000);
 }
 
 .fee-summary-body {
@@ -3844,11 +3869,11 @@ const clearDropoff = () => {
 }
 
 .fee-row.discount .fee-label {
-  color: #00a86b;
+  color: var(--dm-success, #16A34A);
 }
 
 .fee-value.discount {
-  color: #00a86b;
+  color: var(--dm-success, #16A34A);
   font-weight: 600;
 }
 
@@ -3876,7 +3901,7 @@ const clearDropoff = () => {
 .wallet-balance-info .wallet-icon svg {
   width: 20px;
   height: 20px;
-  color: #00a86b;
+  color: var(--dm-accent, #000000);
 }
 
 .wallet-balance-info .wallet-info-text {
@@ -3894,17 +3919,17 @@ const clearDropoff = () => {
 .wallet-balance-info .wallet-amount {
   font-size: 16px;
   font-weight: 700;
-  color: #00a86b;
+  color: var(--dm-accent, #000000);
 }
 
 .wallet-balance-info .wallet-amount.insufficient {
-  color: #e53935;
+  color: var(--dm-error, #DC2626);
 }
 
 .wallet-balance-info .topup-link {
   padding: 8px 16px;
-  background: #00a86b;
-  color: #fff;
+  background: var(--dm-accent, #000000);
+  color: var(--dm-bg-surface, #FFFFFF);
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -3927,7 +3952,7 @@ const clearDropoff = () => {
 .insufficient-balance-warning svg {
   width: 24px;
   height: 24px;
-  color: #e53935;
+  color: var(--dm-error, #DC2626);
   flex-shrink: 0;
 }
 
@@ -3965,7 +3990,7 @@ const clearDropoff = () => {
 .confirm-book-btn {
   width: 100%;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #00a86b 0%, #00c77b 100%);
+  background: var(--dm-accent, #000000);
   border: none;
   border-radius: 16px;
   cursor: pointer;
@@ -4243,7 +4268,7 @@ const clearDropoff = () => {
 }
 
 .stat-chip.time-range svg {
-  color: #00a86b;
+  color: var(--dm-accent, #000000);
 }
 
 /* Photo Upload Section */
@@ -4286,9 +4311,9 @@ const clearDropoff = () => {
 }
 
 .quality-toggle-btn:hover {
-  background: #e8f5ef;
-  border-color: #00a86b;
-  color: #00a86b;
+  background: var(--dm-bg-hover, #F5F5F5);
+  border-color: var(--dm-accent, #000000);
+  color: var(--dm-accent, #000000);
 }
 
 .quality-toggle-btn svg {
@@ -4349,8 +4374,8 @@ const clearDropoff = () => {
 }
 
 .quality-option.active {
-  background: #e8f5ef;
-  border-color: #00a86b;
+  background: var(--dm-bg-hover, #F5F5F5);
+  border-color: var(--dm-accent, #000000);
 }
 
 .quality-option-icon {
@@ -4365,8 +4390,8 @@ const clearDropoff = () => {
 }
 
 .quality-option.active .quality-option-icon {
-  background: #00a86b;
-  color: #ffffff;
+  background: var(--dm-accent, #000000);
+  color: var(--dm-bg-surface, #FFFFFF);
 }
 
 .quality-option-icon svg {
@@ -4796,11 +4821,11 @@ const clearDropoff = () => {
 }
 
 .input-hint.success {
-  color: #00a86b;
+  color: var(--dm-success, #16A34A);
 }
 
 .input-hint.success svg {
-  color: #00a86b;
+  color: var(--dm-success, #16A34A);
 }
 
 /* Continue Button States */

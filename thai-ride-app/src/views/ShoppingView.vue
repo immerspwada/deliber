@@ -1937,13 +1937,13 @@ onUnmounted(() => {
 }
 
 .step-item.active .step-number {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   transform: scale(1.1);
 }
 
 .step-item.completed .step-number {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
 }
 
@@ -1959,7 +1959,7 @@ onUnmounted(() => {
 }
 
 .step-item.active .step-label {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 600;
 }
 
@@ -2057,23 +2057,23 @@ onUnmounted(() => {
 }
 
 .step-header-icon.store-icon {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-icon.delivery-icon {
-  background: #fff3e0;
+  background: var(--cm-bg-hover);
   color: #f5a623;
 }
 
 .step-header-icon.items-icon {
-  background: #e3f2fd;
-  color: #2196f3;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-icon.confirm-icon {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-text h2 {
@@ -2114,7 +2114,7 @@ onUnmounted(() => {
 .quick-action-card:active,
 .quick-action-card.is-pressed {
   transform: scale(0.98);
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
   background: #f8fff8;
 }
 
@@ -2127,11 +2127,11 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
   flex-shrink: 0;
 }
 
@@ -2141,7 +2141,7 @@ onUnmounted(() => {
 }
 
 .action-card-icon.map-icon {
-  background: #fff3e0;
+  background: var(--cm-bg-hover);
   color: #f5a623;
 }
 
@@ -2200,8 +2200,8 @@ onUnmounted(() => {
 .item-badge {
   font-size: 12px;
   font-weight: 600;
-  color: #00a86b;
-  background: #e8f5ef;
+  color: var(--cm-accent);
+  background: var(--cm-bg-hover);
   padding: 4px 10px;
   border-radius: 12px;
 }
@@ -2219,7 +2219,7 @@ onUnmounted(() => {
 
 .input-field:focus {
   outline: none;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .input-field::placeholder {
@@ -2263,9 +2263,9 @@ onUnmounted(() => {
 }
 
 .budget-btn.active {
-  border-color: #00a86b;
-  background: #e8f5ef;
-  color: #00a86b;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .input-with-icon {
@@ -2317,7 +2317,7 @@ onUnmounted(() => {
 
 .quick-dest-chip:active {
   transform: scale(0.98);
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .chip-icon {
@@ -2335,13 +2335,13 @@ onUnmounted(() => {
 }
 
 .chip-icon.home {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .chip-icon.work {
-  background: #e3f2fd;
-  color: #2196f3;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .quick-dest-chip span {
@@ -2449,7 +2449,7 @@ onUnmounted(() => {
 }
 
 .selected-location-card.success {
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
   background: #f8fff8;
 }
 
@@ -2457,7 +2457,7 @@ onUnmounted(() => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #00a86b;
+  background: var(--cm-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2478,7 +2478,7 @@ onUnmounted(() => {
 }
 
 .location-marker.store {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .location-marker.destination {
@@ -2568,7 +2568,7 @@ onUnmounted(() => {
 }
 
 .route-dot.store {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .route-dot.destination {
@@ -2628,7 +2628,7 @@ onUnmounted(() => {
 .route-connector-line {
   width: 2px;
   height: 24px;
-  background: linear-gradient(to bottom, #00a86b, #e53935);
+  background: linear-gradient(to bottom, var(--cm-accent), #e53935);
   margin: 8px 0 8px 5px;
 }
 
@@ -2648,7 +2648,7 @@ onUnmounted(() => {
 }
 
 .map-picker-btn:active {
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
   background: #f8fff8;
 }
 
@@ -2656,7 +2656,7 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: #fff3e0;
+  background: var(--cm-bg-hover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2738,9 +2738,9 @@ onUnmounted(() => {
 }
 
 .continue-btn.primary {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .continue-btn.primary:active {
@@ -2948,7 +2948,7 @@ onUnmounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #00a86b;
+  background: var(--cm-accent);
   flex-shrink: 0;
 }
 
@@ -2978,7 +2978,7 @@ onUnmounted(() => {
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 16px;
-  border: 2px solid #00a86b;
+  border: 2px solid var(--cm-accent);
 }
 
 .price-row {
@@ -3006,7 +3006,7 @@ onUnmounted(() => {
 .total-price {
   font-size: 24px;
   font-weight: 700;
-  color: #00a86b !important;
+  color: var(--cm-accent) !important;
 }
 
 .price-divider {
@@ -3030,14 +3030,14 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #008f5b 100%);
   border: none;
   border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
 }
 
@@ -3079,7 +3079,7 @@ onUnmounted(() => {
   width: 22px;
   height: 22px;
   border: 2px solid rgba(0, 168, 107, 0.2);
-  border-top-color: #00a86b;
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -3293,7 +3293,7 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
 }
 
@@ -3530,7 +3530,7 @@ onUnmounted(() => {
 
 /* Wallet Balance Card - Enhanced */
 .wallet-balance-card {
-  background: linear-gradient(135deg, #00a86b 0%, #00c878 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #00c878 100%);
   border-radius: 16px;
   padding: 20px;
   margin-top: 16px;
@@ -3543,11 +3543,11 @@ onUnmounted(() => {
 
 /* Wallet Preview Card (Early Display in Items Step) */
 .wallet-preview-card {
-  background: linear-gradient(135deg, #e8f5ef 0%, #d4f1e3 100%);
+  background: linear-gradient(135deg, var(--cm-bg-hover) 0%, #d4f1e3 100%);
   border-radius: 14px;
   padding: 14px 16px;
   margin-bottom: 16px;
-  border: 2px solid #00a86b;
+  border: 2px solid var(--cm-accent);
   animation: slideInDown 0.3s ease;
 }
 
@@ -3577,13 +3577,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .wallet-preview-icon svg {
   width: 20px;
   height: 20px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .wallet-preview-info {
@@ -3602,7 +3602,7 @@ onUnmounted(() => {
 .wallet-preview-amount {
   font-size: 20px;
   font-weight: 700;
-  color: #00a86b;
+  color: var(--cm-accent);
   letter-spacing: -0.3px;
 }
 
@@ -3883,7 +3883,7 @@ onUnmounted(() => {
 }
 
 .submit-btn.topup {
-  background: linear-gradient(135deg, #00a86b 0%, #00c878 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #00c878 100%);
   color: #ffffff;
 }
 

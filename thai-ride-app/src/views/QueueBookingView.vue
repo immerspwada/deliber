@@ -80,8 +80,8 @@ const categories = [
     id: 'bank', 
     label: 'ธนาคาร', 
     icon: 'bank', 
-    color: '#2196F3', 
-    bgColor: '#E3F2FD',
+    color: 'var(--cm-accent)', 
+    bgColor: 'var(--cm-bg-hover)',
     desc: 'จองคิวทำธุรกรรม' 
   },
   { 
@@ -97,7 +97,7 @@ const categories = [
     label: 'ร้านอาหาร', 
     icon: 'restaurant', 
     color: '#FF9800', 
-    bgColor: '#FFF3E0',
+    bgColor: 'var(--cm-bg-hover)',
     desc: 'จองโต๊ะอาหาร' 
   },
   { 

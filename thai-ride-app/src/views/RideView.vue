@@ -1420,11 +1420,11 @@ watch(rideType, async () => {
                 cx="16"
                 cy="16"
                 r="14"
-                stroke="#00A86B"
+                stroke="var(--cm-accent)"
                 stroke-width="2"
               />
-              <path d="M16 8L22 20H10L16 8Z" fill="#00A86B" />
-              <circle cx="16" cy="18" r="3" fill="#00A86B" />
+              <path d="M16 8L22 20H10L16 8Z" fill="var(--cm-accent)" />
+              <circle cx="16" cy="18" r="3" fill="var(--cm-accent)" />
             </svg>
             <span>GOBEAR</span>
           </div>
@@ -2021,7 +2021,7 @@ watch(rideType, async () => {
                             ? '#1A1A1A'
                             : type.value === 'shared'
                               ? '#6366F1'
-                              : '#00A86B'
+                              : 'var(--cm-accent)'
                         "
                       />
                       <rect
@@ -2035,7 +2035,7 @@ watch(rideType, async () => {
                             ? '#1A1A1A'
                             : type.value === 'shared'
                               ? '#6366F1'
-                              : '#00A86B'
+                              : 'var(--cm-accent)'
                         "
                       />
                       <rect
@@ -2049,7 +2049,7 @@ watch(rideType, async () => {
                             ? '#4A4A4A'
                             : type.value === 'shared'
                               ? '#A5B4FC'
-                              : '#E8F5EF'
+                              : 'var(--cm-bg-hover)'
                         "
                       />
                       <rect
@@ -2063,7 +2063,7 @@ watch(rideType, async () => {
                             ? '#4A4A4A'
                             : type.value === 'shared'
                               ? '#A5B4FC'
-                              : '#E8F5EF'
+                              : 'var(--cm-bg-hover)'
                         "
                       />
                       <circle cx="14" cy="36" r="5" fill="#333" />
@@ -2975,7 +2975,7 @@ watch(rideType, async () => {
 .logo-badge span {
   font-size: 14px;
   font-weight: 700;
-  color: #00a86b;
+  color: var(--cm-accent);
   letter-spacing: 0.5px;
 }
 
@@ -3010,11 +3010,11 @@ watch(rideType, async () => {
 
 /* Step Indicator Enhanced */
 .step-indicator-wrapper {
-  background: linear-gradient(135deg, #f8fdf9 0%, #e8f5ef 100%);
+  background: var(--cm-bg-surface);
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 16px;
-  border: 1px solid rgba(0, 168, 107, 0.15);
+  border: 1px solid var(--cm-border-primary);
 }
 
 .step-indicator-header {
@@ -3035,8 +3035,8 @@ watch(rideType, async () => {
 .step-indicator-current {
   font-size: 14px;
   font-weight: 700;
-  color: #00a86b;
-  background: rgba(0, 168, 107, 0.1);
+  color: var(--cm-accent);
+  background: var(--cm-bg-hover);
   padding: 4px 12px;
   border-radius: 20px;
 }
@@ -3058,7 +3058,7 @@ watch(rideType, async () => {
 
 .step-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #00a86b, #00c77b);
+  background: var(--cm-accent);
   border-radius: 2px;
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -3105,18 +3105,18 @@ watch(rideType, async () => {
 }
 
 .step-item-enhanced.active .step-circle {
-  background: #00a86b;
-  color: #ffffff;
-  border-color: #00a86b;
-  box-shadow: 0 4px 16px rgba(0, 168, 107, 0.4);
+  background: var(--cm-accent);
+  color: var(--cm-text-inverse);
+  border-color: var(--cm-accent);
+  box-shadow: var(--cm-shadow-md);
   transform: scale(1.15);
 }
 
 .step-item-enhanced.completed .step-circle {
-  background: #00a86b;
-  color: #ffffff;
-  border-color: #00a86b;
-  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.25);
+  background: var(--cm-accent);
+  color: var(--cm-text-inverse);
+  border-color: var(--cm-accent);
+  box-shadow: var(--cm-shadow-sm);
 }
 
 .step-item-enhanced.completed .step-circle svg {
@@ -3148,21 +3148,21 @@ watch(rideType, async () => {
 }
 
 .step-item-enhanced.active .step-text {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 700;
 }
 
 .step-item-enhanced.active .step-description {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .step-item-enhanced.completed .step-text {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 600;
 }
 
 .step-item-enhanced.completed .step-description {
-  color: rgba(0, 168, 107, 0.7);
+  color: var(--cm-text-secondary);
 }
 
 /* Step Content */
@@ -3188,13 +3188,13 @@ watch(rideType, async () => {
 }
 
 .location-section.is-selected {
-  border-color: #00a86b;
-  background: #f0fdf4;
+  border-color: var(--cm-border-focus);
+  background: var(--cm-bg-hover);
 }
 
 .location-section.is-active {
-  border-color: #00a86b;
-  box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.1);
+  border-color: var(--cm-border-focus);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
 }
 
 .location-section-header {
@@ -3214,13 +3214,13 @@ watch(rideType, async () => {
 }
 
 .location-marker-icon.pickup {
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
 }
 
 .location-marker-icon.pickup .marker-dot {
   width: 16px;
   height: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border-radius: 50%;
 }
 
@@ -3305,8 +3305,8 @@ watch(rideType, async () => {
 }
 
 .gps-btn.primary {
-  background: #00a86b;
-  color: #ffffff;
+  background: var(--cm-accent);
+  color: var(--cm-text-inverse);
 }
 
 .gps-btn:active {
@@ -3375,7 +3375,7 @@ watch(rideType, async () => {
 }
 
 .quick-option-btn.home svg {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .quick-option-btn.work svg {
@@ -3482,7 +3482,7 @@ watch(rideType, async () => {
 }
 
 .route-dot.pickup {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .route-dot.destination {
@@ -3493,7 +3493,7 @@ watch(rideType, async () => {
   width: 2px;
   flex: 1;
   min-height: 24px;
-  background: linear-gradient(to bottom, #00a86b, #ef4444);
+  background: linear-gradient(to bottom, var(--cm-accent), var(--cm-error));
 }
 
 .route-info {
@@ -3528,7 +3528,7 @@ watch(rideType, async () => {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: linear-gradient(135deg, #00a86b 0%, #00c878 100%);
+  background: var(--cm-accent);
   border-radius: 12px;
   margin-top: 12px;
 }
@@ -3588,7 +3588,7 @@ watch(rideType, async () => {
 }
 
 .fare-summary-compact .fare-row.discount {
-  color: #00a86b;
+  color: var(--cm-success);
 }
 
 .fare-summary-compact .fare-row.total {
@@ -3602,7 +3602,7 @@ watch(rideType, async () => {
 .fare-summary-compact .total-price {
   font-size: 18px;
   font-weight: 700;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Button Spinner */
@@ -3639,23 +3639,23 @@ watch(rideType, async () => {
 }
 
 .step-header-icon-box.pickup {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-icon-box.destination {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-icon-box.options {
-  background: #fff3e0;
-  color: #f57c00;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-icon-box.confirm {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-content {
@@ -3698,14 +3698,14 @@ watch(rideType, async () => {
 }
 
 .location-option-card:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-border-focus);
+  background: var(--cm-bg-hover);
 }
 
 .location-option-card:active,
 .location-option-card.is-pressed {
   transform: scale(0.98);
-  border-color: #00a86b;
+  border-color: var(--cm-border-focus);
 }
 
 .location-option-card.is-loading {
@@ -3729,13 +3729,13 @@ watch(rideType, async () => {
 }
 
 .option-icon-box.green {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .option-icon-box.blue {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .option-text {
@@ -3772,8 +3772,8 @@ watch(rideType, async () => {
 .mini-spinner {
   width: 24px;
   height: 24px;
-  border: 3px solid #e8f5ef;
-  border-top-color: #00a86b;
+  border: 3px solid var(--cm-border-secondary);
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -3817,8 +3817,8 @@ watch(rideType, async () => {
 }
 
 .quick-action-btn:hover {
-  border-color: #00a86b;
-  background: #f8fdf9;
+  border-color: var(--cm-border-focus);
+  background: var(--cm-bg-hover);
 }
 
 .quick-action-btn:active {
@@ -3828,12 +3828,12 @@ watch(rideType, async () => {
 .action-icon {
   width: 36px;
   height: 36px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .action-icon svg {
@@ -3842,8 +3842,8 @@ watch(rideType, async () => {
 }
 
 .action-icon.nearby {
-  background: #fff3e0;
-  color: #f5a623;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .quick-action-btn span {
@@ -3873,8 +3873,8 @@ watch(rideType, async () => {
 }
 
 .saved-place-btn:hover {
-  border-color: #00a86b;
-  background: #f8fdf9;
+  border-color: var(--cm-border-focus);
+  background: var(--cm-bg-hover);
 }
 
 .saved-place-btn:active {
@@ -3897,8 +3897,8 @@ watch(rideType, async () => {
 }
 
 .saved-icon.home {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .saved-icon.work {
@@ -4143,8 +4143,8 @@ watch(rideType, async () => {
 }
 
 .search-input-wrapper:focus-within {
-  background: #ffffff;
-  border-color: #00a86b;
+  background: var(--cm-bg-surface);
+  border-color: var(--cm-border-focus);
 }
 
 .search-icon {
@@ -4197,22 +4197,22 @@ watch(rideType, async () => {
 }
 
 .search-result-item:hover {
-  background: #f8fdf9;
+  background: var(--cm-bg-hover);
 }
 
 .search-result-item:active {
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
 }
 
 .result-icon {
   width: 36px;
   height: 36px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
   flex-shrink: 0;
 }
 
@@ -4222,8 +4222,8 @@ watch(rideType, async () => {
 }
 
 .result-icon.destination {
-  background: #ffebee;
-  color: #e53935;
+  background: var(--cm-error-bg);
+  color: var(--cm-error);
 }
 
 .result-info {
@@ -4254,8 +4254,8 @@ watch(rideType, async () => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #e8f5ef;
-  border: 2px solid #00a86b;
+  background: var(--cm-bg-hover);
+  border: 2px solid var(--cm-border-focus);
   border-radius: 14px;
 }
 
@@ -4274,12 +4274,12 @@ watch(rideType, async () => {
 
 .change-btn {
   padding: 8px 14px;
-  background: #ffffff;
-  border: 1px solid #e8e8e8;
+  background: var(--cm-bg-surface);
+  border: 1px solid var(--cm-border-primary);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #00a86b;
+  color: var(--cm-accent);
   cursor: pointer;
 }
 
@@ -4352,7 +4352,7 @@ watch(rideType, async () => {
 .stat svg {
   width: 18px;
   height: 18px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Confirm Route Card */
@@ -4452,12 +4452,12 @@ watch(rideType, async () => {
 .payment-icon {
   width: 40px;
   height: 40px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .payment-icon svg {
@@ -4525,11 +4525,11 @@ watch(rideType, async () => {
 }
 
 .location-marker.pickup .marker-dot {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .location-marker.destination .marker-dot {
-  background: #e53935;
+  background: var(--cm-error);
 }
 
 .location-input {
@@ -4604,12 +4604,12 @@ watch(rideType, async () => {
   align-items: center;
   gap: 6px;
   padding: 10px 14px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border: none;
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
-  color: #00a86b;
+  color: var(--cm-accent);
   cursor: pointer;
 }
 
@@ -4643,8 +4643,8 @@ watch(rideType, async () => {
 }
 
 .ride-option.active {
-  border-color: #00a86b;
-  background: #f8fdf9;
+  border-color: var(--cm-border-focus);
+  background: var(--cm-bg-hover);
 }
 
 .ride-icon {
@@ -4709,12 +4709,12 @@ watch(rideType, async () => {
 .ride-check {
   width: 28px;
   height: 28px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--cm-text-inverse);
   flex-shrink: 0;
 }
 
@@ -4727,8 +4727,8 @@ watch(rideType, async () => {
 .book-btn {
   width: 100%;
   padding: 18px 24px;
-  background: #00a86b;
-  color: #ffffff;
+  background: var(--cm-accent);
+  color: var(--cm-text-inverse);
   border: none;
   border-radius: 14px;
   font-size: 16px;
@@ -4738,12 +4738,12 @@ watch(rideType, async () => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: var(--cm-shadow-md);
   margin-top: auto;
 }
 
 .book-btn:hover:not(:disabled) {
-  background: #008f5b;
+  background: var(--cm-accent-hover);
 }
 
 .book-btn:active:not(:disabled) {
@@ -4866,9 +4866,9 @@ watch(rideType, async () => {
 }
 
 .action-btn.share {
-  background: #00a86b;
-  border-color: #00a86b;
-  color: #ffffff;
+  background: var(--cm-accent);
+  border-color: var(--cm-accent);
+  color: var(--cm-text-inverse);
 }
 
 .action-btn:active {
@@ -4925,19 +4925,19 @@ watch(rideType, async () => {
 }
 
 .payment-option.active {
-  border-color: #00a86b;
-  background: #f8fdf9;
+  border-color: var(--cm-border-focus);
+  background: var(--cm-bg-hover);
 }
 
 .check-mark {
   width: 24px;
   height: 24px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--cm-text-inverse);
 }
 
 .check-mark svg {
@@ -4962,13 +4962,13 @@ watch(rideType, async () => {
 
 .promo-input:focus {
   outline: none;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .apply-btn {
   width: 100%;
   padding: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 12px;
@@ -5056,8 +5056,8 @@ watch(rideType, async () => {
 .history-chip:active,
 .history-chip.is-pressed {
   transform: scale(0.95);
-  background: #e8f5ef;
-  border-color: #00a86b;
+  background: var(--cm-bg-hover);
+  border-color: var(--cm-accent);
 }
 
 .history-chip-icon {
@@ -5116,13 +5116,13 @@ watch(rideType, async () => {
 }
 
 .step-header-icon.pickup-icon {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-icon.destination-icon {
-  background: #ffebee;
-  color: #e53935;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .step-header-text {
@@ -5158,14 +5158,14 @@ watch(rideType, async () => {
 }
 
 .quick-action-card:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .quick-action-card:active,
 .quick-action-card.is-pressed {
   transform: scale(0.98);
-  background: #f0fdf4;
+  background: var(--cm-bg-hover);
 }
 
 .quick-action-card.is-loading {
@@ -5176,12 +5176,12 @@ watch(rideType, async () => {
 .action-card-icon {
   width: 44px;
   height: 44px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
   flex-shrink: 0;
 }
 
@@ -5191,8 +5191,8 @@ watch(rideType, async () => {
 }
 
 .action-card-icon.map-icon {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .action-card-content {
@@ -5230,8 +5230,8 @@ watch(rideType, async () => {
 .mini-spinner {
   width: 22px;
   height: 22px;
-  border: 2px solid #e8f5ef;
-  border-top-color: #00a86b;
+  border: 2px solid var(--cm-border-secondary);
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -5271,8 +5271,8 @@ watch(rideType, async () => {
 
 .search-input-wrapper.enhanced:focus-within {
   background: #ffffff;
-  border-color: #00a86b;
-  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+  border-color: var(--cm-accent);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .clear-search-btn {
@@ -5336,8 +5336,8 @@ watch(rideType, async () => {
 
 /* Selected Location Card Success */
 .selected-location-card.success {
-  background: #f0fdf4;
-  border: 2px solid #00a86b;
+  background: var(--cm-bg-hover);
+  border: 2px solid var(--cm-accent);
   position: relative;
 }
 
@@ -5347,13 +5347,13 @@ watch(rideType, async () => {
   right: -8px;
   width: 24px;
   height: 24px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .success-check svg {
@@ -5400,9 +5400,9 @@ watch(rideType, async () => {
 }
 
 .continue-btn.primary {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: var(--cm-shadow-md);
 }
 
 .continue-btn.primary:hover {
@@ -5441,7 +5441,7 @@ watch(rideType, async () => {
 }
 
 .route-dot.pickup {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .route-dot.destination {
@@ -5511,7 +5511,7 @@ watch(rideType, async () => {
 .route-connector-line {
   width: 2px;
   height: 20px;
-  background: linear-gradient(to bottom, #00a86b, #e53935);
+  background: linear-gradient(to bottom, var(--cm-accent), #e53935);
   margin-left: 5px;
   margin: 8px 0 8px 5px;
 }
@@ -5553,14 +5553,14 @@ watch(rideType, async () => {
 }
 
 .quick-dest-chip:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .quick-dest-chip:active,
 .quick-dest-chip.is-pressed {
   transform: scale(0.96);
-  background: #f0fdf4;
+  background: var(--cm-bg-hover);
 }
 
 .chip-icon {
@@ -5578,8 +5578,8 @@ watch(rideType, async () => {
 }
 
 .chip-icon.home {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .chip-icon.work {
@@ -5588,8 +5588,8 @@ watch(rideType, async () => {
 }
 
 .chip-icon.nearby {
-  background: #fff3e0;
-  color: #f5a623;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .quick-dest-chip span {
@@ -5614,9 +5614,9 @@ watch(rideType, async () => {
 }
 
 .map-picker-btn:hover {
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
   border-style: solid;
-  background: #fafffe;
+  background: var(--cm-bg-hover);
 }
 
 .map-picker-btn:active {
@@ -5626,12 +5626,12 @@ watch(rideType, async () => {
 .map-picker-icon {
   width: 44px;
   height: 44px;
-  background: #e3f2fd;
+  background: var(--cm-bg-hover);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1976d2;
+  color: var(--cm-accent);
   flex-shrink: 0;
 }
 
@@ -5769,8 +5769,8 @@ watch(rideType, async () => {
 .calculating-spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid #e8f5ef;
-  border-top-color: #00a86b;
+  border: 3px solid var(--cm-bg-hover);
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -5879,12 +5879,12 @@ watch(rideType, async () => {
 .route-summary-icon {
   width: 32px;
   height: 32px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .route-summary-icon svg {
@@ -5906,7 +5906,7 @@ watch(rideType, async () => {
   padding: 6px 10px;
   background: transparent;
   border: none;
-  color: #00a86b;
+  color: var(--cm-accent);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -5940,7 +5940,7 @@ watch(rideType, async () => {
 }
 
 .route-dot-enhanced.pickup {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .route-dot-enhanced.destination {
@@ -5975,7 +5975,7 @@ watch(rideType, async () => {
 .route-connector-enhanced {
   width: 2px;
   height: 24px;
-  background: linear-gradient(to bottom, #00a86b, #e53935);
+  background: linear-gradient(to bottom, var(--cm-accent), #e53935);
   margin: 8px 0 8px 5px;
 }
 
@@ -6002,7 +6002,7 @@ watch(rideType, async () => {
 .stat-chip svg {
   width: 14px;
   height: 14px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Schedule Section */
@@ -6025,8 +6025,8 @@ watch(rideType, async () => {
 }
 
 .schedule-badge-enhanced:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .schedule-badge-enhanced:active {
@@ -6034,28 +6034,28 @@ watch(rideType, async () => {
 }
 
 .schedule-badge-enhanced.scheduled {
-  border-color: #00a86b;
-  background: #e8f5ef;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .schedule-badge-enhanced.scheduled .schedule-icon {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
 }
 
 .schedule-badge-enhanced.scheduled .schedule-value {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .schedule-icon {
   width: 40px;
   height: 40px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .schedule-icon svg {
@@ -6120,9 +6120,9 @@ watch(rideType, async () => {
 }
 
 .ride-option-enhanced.active {
-  border-color: #00a86b;
-  background: #f8fdf9;
-  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .ride-option-left {
@@ -6250,7 +6250,7 @@ watch(rideType, async () => {
 .ride-check-enhanced {
   width: 28px;
   height: 28px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -6361,8 +6361,8 @@ watch(rideType, async () => {
 }
 
 .edit-link:hover {
-  color: #00a86b;
-  background: #f0fdf4;
+  color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .confirm-route-body {
@@ -6384,7 +6384,7 @@ watch(rideType, async () => {
 }
 
 .confirm-dot.pickup {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 .confirm-dot.destination {
@@ -6416,7 +6416,7 @@ watch(rideType, async () => {
 .confirm-route-line {
   width: 2px;
   height: 20px;
-  background: linear-gradient(to bottom, #00a86b, #e53935);
+  background: linear-gradient(to bottom, var(--cm-accent), #e53935);
   margin: 6px 0 6px 5px;
 }
 
@@ -6442,7 +6442,7 @@ watch(rideType, async () => {
 .confirm-stat svg {
   width: 14px;
   height: 14px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .confirm-stat-divider {
@@ -6542,7 +6542,7 @@ watch(rideType, async () => {
 }
 
 .payment-method-card-enhanced:hover {
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .payment-method-card-enhanced:active,
@@ -6575,12 +6575,12 @@ watch(rideType, async () => {
 .payment-method-icon {
   width: 44px;
   height: 44px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .payment-method-icon svg {
@@ -6609,7 +6609,7 @@ watch(rideType, async () => {
 .wallet-balance-hint {
   display: block;
   font-size: 12px;
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 500;
 }
 
@@ -6769,11 +6769,11 @@ watch(rideType, async () => {
 }
 
 .fare-row-enhanced.discount .fare-row-label {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .fare-row-value.discount {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 600;
 }
 
@@ -6796,14 +6796,14 @@ watch(rideType, async () => {
 .fare-row-value.total {
   font-size: 20px;
   font-weight: 700;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Confirm Book Button Enhanced */
 .confirm-book-btn {
   width: 100%;
   padding: 18px 24px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 16px;
@@ -6840,7 +6840,7 @@ watch(rideType, async () => {
 .confirm-book-btn.is-loading {
   justify-content: center;
   gap: 14px;
-  background: linear-gradient(90deg, #00a86b, #00c77b, #00a86b);
+  background: linear-gradient(90deg, var(--cm-accent), var(--cm-accent), var(--cm-accent));
   background-size: 200% 100%;
   animation: shimmerBtn 1.5s infinite;
 }
@@ -6924,7 +6924,7 @@ watch(rideType, async () => {
 .safety-note svg {
   width: 16px;
   height: 16px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Schedule Sheet Styles */
@@ -6948,13 +6948,13 @@ watch(rideType, async () => {
 }
 
 .schedule-option:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .schedule-option.active {
-  border-color: #00a86b;
-  background: #e8f5ef;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .schedule-option-icon {
@@ -6968,8 +6968,8 @@ watch(rideType, async () => {
 }
 
 .schedule-option-icon.now {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .schedule-option-icon.later {
@@ -6978,7 +6978,7 @@ watch(rideType, async () => {
 }
 
 .schedule-option.active .schedule-option-icon.now {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
 }
 
@@ -7013,7 +7013,7 @@ watch(rideType, async () => {
 .schedule-check {
   width: 28px;
   height: 28px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -7057,7 +7057,7 @@ watch(rideType, async () => {
 .datetime-label svg {
   width: 18px;
   height: 18px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .datetime-input {
@@ -7074,7 +7074,7 @@ watch(rideType, async () => {
 
 .datetime-input:focus {
   outline: none;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .quick-time-options {
@@ -7096,9 +7096,9 @@ watch(rideType, async () => {
 }
 
 .quick-time-btn:hover {
-  border-color: #00a86b;
-  color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-accent);
+  color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .quick-time-btn:active {
@@ -7108,7 +7108,7 @@ watch(rideType, async () => {
 .schedule-confirm-btn {
   width: 100%;
   padding: 16px 24px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 14px;
@@ -7116,7 +7116,7 @@ watch(rideType, async () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .schedule-confirm-btn:hover:not(:disabled) {
@@ -7156,7 +7156,7 @@ watch(rideType, async () => {
 .recurring-link svg {
   width: 20px;
   height: 20px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .recurring-link span {
@@ -7167,7 +7167,7 @@ watch(rideType, async () => {
 }
 
 .recurring-count {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   padding: 2px 8px;
   border-radius: 10px;
@@ -7230,8 +7230,8 @@ watch(rideType, async () => {
 }
 
 .recurring-item:hover {
-  border-color: #00a86b;
-  background: #fafffe;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .recurring-item.inactive {
@@ -7250,7 +7250,7 @@ watch(rideType, async () => {
 .recurring-item-icon {
   width: 40px;
   height: 40px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -7261,7 +7261,7 @@ watch(rideType, async () => {
 .recurring-item-icon svg {
   width: 20px;
   height: 20px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .recurring-item-info {
@@ -7288,7 +7288,7 @@ watch(rideType, async () => {
 
 .recurring-item-schedule {
   font-size: 12px;
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 500;
 }
 
@@ -7325,8 +7325,8 @@ watch(rideType, async () => {
 }
 
 .recurring-action-btn.toggle.active {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .recurring-action-btn.delete {
@@ -7345,7 +7345,7 @@ watch(rideType, async () => {
   gap: 10px;
   width: 100%;
   padding: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 14px;
@@ -7353,7 +7353,7 @@ watch(rideType, async () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .create-recurring-btn:hover:not(:disabled) {
@@ -7432,7 +7432,7 @@ watch(rideType, async () => {
 
 .form-input:focus {
   outline: none;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .form-input.time-input {
@@ -7457,9 +7457,9 @@ watch(rideType, async () => {
 }
 
 .schedule-type-btn.active {
-  background: #e8f5ef;
-  border-color: #00a86b;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  border-color: var(--cm-accent);
+  color: var(--cm-accent);
   font-weight: 500;
 }
 
@@ -7482,15 +7482,15 @@ watch(rideType, async () => {
 }
 
 .day-btn.active {
-  background: #00a86b;
-  border-color: #00a86b;
+  background: var(--cm-accent);
+  border-color: var(--cm-accent);
   color: #ffffff;
 }
 
 .save-recurring-btn {
   width: 100%;
   padding: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 14px;
@@ -7498,7 +7498,7 @@ watch(rideType, async () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .save-recurring-btn:hover:not(:disabled) {
@@ -7515,7 +7515,7 @@ watch(rideType, async () => {
   width: 24px;
   height: 24px;
   border: 3px solid #e8e8e8;
-  border-top-color: #00a86b;
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -7555,8 +7555,8 @@ watch(rideType, async () => {
 }
 
 .quick-action-btn.search {
-  background: linear-gradient(135deg, #e8f5ef 0%, #d4edda 100%);
-  border-color: #00a86b;
+  background: linear-gradient(135deg, var(--cm-bg-hover) 0%, #d4edda 100%);
+  border-color: var(--cm-accent);
 }
 
 .quick-action-btn.search:active {
@@ -7564,7 +7564,7 @@ watch(rideType, async () => {
 }
 
 .quick-action-btn.map {
-  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  background: linear-gradient(135deg, var(--cm-bg-hover) 0%, #bbdefb 100%);
   border-color: #2196f3;
 }
 
@@ -7584,7 +7584,7 @@ watch(rideType, async () => {
 }
 
 .quick-action-btn.search .quick-action-icon {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .quick-action-btn.map .quick-action-icon {
@@ -7679,12 +7679,12 @@ watch(rideType, async () => {
   gap: 14px;
   width: 100%;
   padding: 16px 18px;
-  background: linear-gradient(135deg, #00A86B 0%, #00875A 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #00875A 100%);
   border: none;
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   margin-bottom: 16px;
 }
 
@@ -7798,8 +7798,8 @@ watch(rideType, async () => {
 
 .quick-place-chip:active {
   transform: scale(0.97);
-  border-color: #00A86B;
-  background: #f0fdf4;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .quick-place-chip .chip-icon {
@@ -7846,14 +7846,14 @@ watch(rideType, async () => {
 }
 
 .hero-search-bar:hover {
-  border-color: #00A86B;
+  border-color: var(--cm-accent);
   background: #fff;
 }
 
 .hero-search-bar:active {
   transform: scale(0.99);
-  border-color: #00A86B;
-  background: #f0fdf4;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .hero-search-icon {
@@ -7862,7 +7862,7 @@ watch(rideType, async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #00A86B 0%, #00875A 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #00875A 100%);
   border-radius: 12px;
   color: #fff;
   flex-shrink: 0;
@@ -7915,8 +7915,8 @@ watch(rideType, async () => {
 
 .quick-access-chip:active {
   transform: scale(0.97);
-  border-color: #00A86B;
-  background: #f0fdf4;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .quick-access-icon {
@@ -7993,7 +7993,7 @@ watch(rideType, async () => {
 
 .popular-chip:active {
   transform: scale(0.97);
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
 }
 
 .popular-icon {
@@ -8069,7 +8069,7 @@ watch(rideType, async () => {
 
 .recent-item:active {
   transform: scale(0.99);
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
 }
 
 .recent-icon {
@@ -8120,7 +8120,7 @@ watch(rideType, async () => {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 12px;
   margin-top: auto;
 }
@@ -8128,7 +8128,7 @@ watch(rideType, async () => {
 .pickup-summary-compact .pickup-dot {
   width: 10px;
   height: 10px;
-  background: #00A86B;
+  background: var(--cm-accent);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -8158,7 +8158,7 @@ watch(rideType, async () => {
   background: #fff;
   border: none;
   border-radius: 8px;
-  color: #00A86B;
+  color: var(--cm-accent);
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.2s ease;
@@ -8359,9 +8359,9 @@ watch(rideType, async () => {
 }
 
 .tap-action-btn.confirm {
-  background: linear-gradient(135deg, #00A86B 0%, #00875A 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #00875A 100%);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .tap-action-btn.confirm:active {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * CustomerHomeView - หน้าแรกลูกค้าแบบน่ารัก
- * MUNEEF Style: สีเขียว #00A86B, ใส่ใจทุกรายละเอียด
+ * MUNEEF Style: สีเขียว var(--cm-accent), ใส่ใจทุกรายละเอียด
  *
  * Performance Optimizations:
  * - Progressive loading: แสดง UI ทันที ไม่รอ data
@@ -184,7 +184,7 @@ const mainServices = [
     name: "เรียกรถ",
     description: "รถยนต์ส่วนตัว",
     route: "/customer/ride",
-    color: "#00A86B",
+    color: "var(--cm-accent)",
   },
   {
     id: "delivery",
@@ -216,7 +216,7 @@ const moreServices = [
     name: "ขนย้าย",
     description: "บริการขนย้าย",
     route: "/customer/moving",
-    color: "#2196F3",
+    color: "var(--cm-accent)",
   },
   {
     id: "laundry",
@@ -239,7 +239,7 @@ const shortcuts = [
     id: "scheduled",
     name: "นัดล่วงหน้า",
     route: "/customer/scheduled-rides",
-    color: "#00A86B",
+    color: "var(--cm-accent)",
   },
   {
     id: "saved",
@@ -251,7 +251,7 @@ const shortcuts = [
     id: "history",
     name: "ประวัติ",
     route: "/customer/history",
-    color: "#2196F3",
+    color: "var(--cm-accent)",
   },
   {
     id: "referral",
@@ -269,7 +269,7 @@ const shortcuts = [
     id: "wallet",
     name: "กระเป๋าเงิน",
     route: "/customer/wallet",
-    color: "#00A86B",
+    color: "var(--cm-accent)",
   },
   { id: "help", name: "ช่วยเหลือ", route: "/customer/help", color: "#666666" },
 ];

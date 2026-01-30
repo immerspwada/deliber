@@ -1052,7 +1052,7 @@ const toggleMapPreview = async (placeId: string, place: any) => {
       // Add marker
       const icon = L.divIcon({
         className: 'custom-marker',
-        html: `<div style="width: 24px; height: 24px; background: #00a86b; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>`,
+        html: `<div style="width: 24px; height: 24px; background: var(--cm-accent); border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12]
       });
@@ -2268,7 +2268,7 @@ const copyPlaceLink = async () => {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #008f5b 100%);
   border-radius: 16px;
   margin-bottom: 20px;
   color: #fff;
@@ -2385,7 +2385,7 @@ const copyPlaceLink = async () => {
 }
 
 .tab.active {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .tab-indicator {
@@ -2394,7 +2394,7 @@ const copyPlaceLink = async () => {
   left: 0;
   width: 50%;
   height: 2px;
-  background: #00a86b;
+  background: var(--cm-accent);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -2439,8 +2439,8 @@ const copyPlaceLink = async () => {
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #e8f5ef;
-  border-top-color: #00a86b;
+  border: 3px solid var(--cm-bg-hover);
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -2538,8 +2538,8 @@ const copyPlaceLink = async () => {
 }
 
 .place-card.drag-over {
-  border-color: #00a86b;
-  background: #e8f5ef;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
   transform: translateY(4px);
 }
 
@@ -2600,7 +2600,7 @@ const copyPlaceLink = async () => {
 .place-icon {
   width: 46px;
   height: 46px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -2610,23 +2610,23 @@ const copyPlaceLink = async () => {
 .place-icon svg {
   width: 22px;
   height: 22px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .place-icon.home {
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
 }
 
 .place-icon.home svg {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .place-icon.work {
-  background: #e3f2fd;
+  background: var(--cm-bg-hover);
 }
 
 .place-icon.work svg {
-  color: #2196f3;
+  color: var(--cm-accent);
 }
 
 .place-info {
@@ -2669,14 +2669,14 @@ const copyPlaceLink = async () => {
   border-radius: 14px;
   font-size: 14px;
   font-weight: 500;
-  color: #00a86b;
+  color: var(--cm-accent);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .add-place-btn:active {
-  background: #e8f5ef;
-  border-color: #00a86b;
+  background: var(--cm-bg-hover);
+  border-color: var(--cm-accent);
 }
 
 .add-place-btn svg {
@@ -2694,7 +2694,7 @@ const copyPlaceLink = async () => {
   width: 56px;
   height: 56px;
   margin-bottom: 16px;
-  color: #00a86b;
+  color: var(--cm-accent);
   opacity: 0.5;
 }
 
@@ -2783,7 +2783,7 @@ const copyPlaceLink = async () => {
 }
 
 .form-group input:focus {
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .form-group input::placeholder {
@@ -2810,8 +2810,8 @@ const copyPlaceLink = async () => {
 }
 
 .type-btn.active {
-  border-color: #00a86b;
-  background: #e8f5ef;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .type-btn svg {
@@ -2821,7 +2821,7 @@ const copyPlaceLink = async () => {
 }
 
 .type-btn.active svg {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .type-btn span {
@@ -2831,7 +2831,7 @@ const copyPlaceLink = async () => {
 }
 
 .type-btn.active span {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .modal-actions {
@@ -2843,7 +2843,7 @@ const copyPlaceLink = async () => {
 .btn-primary {
   flex: 1;
   padding: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #fff;
   border: none;
   border-radius: 14px;
@@ -2851,7 +2851,7 @@ const copyPlaceLink = async () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary:active {
@@ -2902,12 +2902,12 @@ const copyPlaceLink = async () => {
   padding: 12px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: #00a86b;
-  background: #e8f5ef;
+  color: var(--cm-accent);
+  background: var(--cm-bg-hover);
 }
 
 .map-preview-header svg {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .map-preview-container {
@@ -2970,13 +2970,13 @@ const copyPlaceLink = async () => {
 .fab-import svg {
   width: 22px;
   height: 22px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .fab-quick-add {
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #008f5b 100%);
   border: none;
   border-radius: 16px;
   display: flex;
@@ -3010,7 +3010,7 @@ const copyPlaceLink = async () => {
   justify-content: center;
   font-size: 14px;
   font-weight: 700;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Import Options Modal */
@@ -3086,8 +3086,8 @@ const copyPlaceLink = async () => {
 }
 
 .import-icon.google {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .import-icon.apple {
@@ -3140,14 +3140,14 @@ const copyPlaceLink = async () => {
   gap: 10px;
   width: 100%;
   padding: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border: none;
   border-radius: 14px;
   font-size: 15px;
   font-weight: 600;
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all 0.15s;
 }
 
@@ -3228,11 +3228,11 @@ const copyPlaceLink = async () => {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   margin-bottom: 12px;
   font-size: 13px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .map-hint svg {
@@ -3271,7 +3271,7 @@ const copyPlaceLink = async () => {
 .btn-current-location svg {
   width: 18px;
   height: 18px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .selected-location {
@@ -3287,7 +3287,7 @@ const copyPlaceLink = async () => {
 .location-icon {
   width: 36px;
   height: 36px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -3298,7 +3298,7 @@ const copyPlaceLink = async () => {
 .location-icon svg {
   width: 18px;
   height: 18px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .location-text {
@@ -3342,14 +3342,14 @@ const copyPlaceLink = async () => {
 .btn-confirm {
   flex: 2;
   padding: 16px;
-  background: #00a86b;
+  background: var(--cm-accent);
   border: none;
   border-radius: 14px;
   font-size: 15px;
   font-weight: 600;
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all 0.15s;
 }
 
@@ -3414,8 +3414,8 @@ const copyPlaceLink = async () => {
 }
 
 .action-btn.map-btn {
-  background: #e3f2fd;
-  color: #2196f3;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .action-btn.map-btn:active {
@@ -3423,7 +3423,7 @@ const copyPlaceLink = async () => {
 }
 
 .action-btn.share-btn {
-  background: #fff3e0;
+  background: var(--cm-bg-hover);
   color: #ff9800;
 }
 
@@ -3432,8 +3432,8 @@ const copyPlaceLink = async () => {
 }
 
 .action-btn.use-btn {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .action-btn.use-btn:active {
@@ -3543,7 +3543,7 @@ const copyPlaceLink = async () => {
 .share-place-icon {
   width: 44px;
   height: 44px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -3554,7 +3554,7 @@ const copyPlaceLink = async () => {
 .share-place-icon svg {
   width: 22px;
   height: 22px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .share-place-text {
@@ -3624,8 +3624,8 @@ const copyPlaceLink = async () => {
 }
 
 .share-icon.native {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .share-icon.line {
@@ -3639,8 +3639,8 @@ const copyPlaceLink = async () => {
 }
 
 .share-icon.copy {
-  background: #e3f2fd;
-  color: #2196f3;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 /* Fade Animation */
@@ -3660,7 +3660,7 @@ const copyPlaceLink = async () => {
 
 /* Quick Access Section */
 .quick-access-section {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e8f5ef 100%);
+  background: linear-gradient(135deg, #f8f9fa 0%, var(--cm-bg-hover) 100%);
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 20px;
@@ -3686,8 +3686,8 @@ const copyPlaceLink = async () => {
 }
 
 .quick-access-chip:active {
-  background: #e8f5ef;
-  border-color: #00a86b;
+  background: var(--cm-bg-hover);
+  border-color: var(--cm-accent);
 }
 
 .chip-name {
@@ -3696,7 +3696,7 @@ const copyPlaceLink = async () => {
 }
 
 .chip-count {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-size: 11px;
   font-weight: 600;
 }
@@ -3726,8 +3726,8 @@ const copyPlaceLink = async () => {
 }
 
 .header-action-btn.active {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 /* Dropdown Menu */
@@ -3759,13 +3759,13 @@ const copyPlaceLink = async () => {
 }
 
 .dropdown-item.active {
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .dropdown-item .check-icon {
   margin-left: auto;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Category Menu */
@@ -3807,7 +3807,7 @@ const copyPlaceLink = async () => {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: #fff3e0;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   margin-bottom: 12px;
   color: #e65100;
@@ -3829,8 +3829,8 @@ const copyPlaceLink = async () => {
 .usage-badge {
   font-size: 10px;
   padding: 2px 6px;
-  background: #e8f5ef;
-  color: #00a86b;
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
   border-radius: 10px;
   font-weight: 600;
 }
@@ -3860,7 +3860,7 @@ const copyPlaceLink = async () => {
 }
 
 .offline-toggle-btn svg[fill="currentColor"] {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 /* Category Selection in Modal */
@@ -3889,17 +3889,17 @@ const copyPlaceLink = async () => {
 }
 
 .category-btn.active {
-  border-color: var(--cat-color, #00a86b);
-  background: color-mix(in srgb, var(--cat-color, #00a86b) 10%, white);
+  border-color: var(--cat-color, var(--cm-accent));
+  background: color-mix(in srgb, var(--cat-color, var(--cm-accent)) 10%, white);
 }
 
 .category-btn.active .cat-icon {
-  background: var(--cat-color, #00a86b) !important;
+  background: var(--cat-color, var(--cm-accent)) !important;
   color: #fff !important;
 }
 
 .category-btn.active .cat-label {
-  color: var(--cat-color, #00a86b);
+  color: var(--cat-color, var(--cm-accent));
   font-weight: 600;
 }
 
@@ -4054,9 +4054,9 @@ const copyPlaceLink = async () => {
 }
 
 .limit-btn.active {
-  border-color: #00a86b;
-  background: #f0fdf4;
-  color: #00a86b;
+  border-color: var(--cm-accent);
+  background: var(--cm-bg-hover);
+  color: var(--cm-accent);
 }
 
 .settings-info {
@@ -4108,11 +4108,11 @@ const copyPlaceLink = async () => {
 
 .suggestion-chip {
   padding: 6px 12px;
-  background: #e8f5ef;
+  background: var(--cm-bg-hover);
   border: 1px solid #d4ede3;
   border-radius: 16px;
   font-size: 13px;
-  color: #00a86b;
+  color: var(--cm-accent);
   cursor: pointer;
   transition: all 0.15s;
   font-weight: 500;
@@ -4120,12 +4120,12 @@ const copyPlaceLink = async () => {
 
 .suggestion-chip:hover {
   background: #d4ede3;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .suggestion-chip:active {
   transform: scale(0.95);
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #fff;
 }
 
@@ -4136,7 +4136,7 @@ const copyPlaceLink = async () => {
   gap: 8px;
   margin-top: 8px;
   padding: 10px 12px;
-  background: #fff3e0;
+  background: var(--cm-bg-hover);
   border-radius: 10px;
   font-size: 13px;
   color: #e65100;
@@ -4210,9 +4210,9 @@ const copyPlaceLink = async () => {
 
 .form-group input[type="text"]:focus {
   outline: none;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
   background: #f8fbf9;
-  box-shadow: 0 0 0 3px rgba(0, 168, 107, 0.1);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .form-group input[type="text"]::placeholder {
@@ -4231,7 +4231,7 @@ const copyPlaceLink = async () => {
 .btn-primary {
   flex: 1;
   padding: 14px 20px;
-  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
+  background: linear-gradient(135deg, var(--cm-accent) 0%, #008f5b 100%);
   border: none;
   border-radius: 12px;
   color: #fff;
@@ -4244,7 +4244,7 @@ const copyPlaceLink = async () => {
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -4312,8 +4312,8 @@ const copyPlaceLink = async () => {
 }
 
 .type-btn.active {
-  background: #e8f5ef;
-  border-color: #00a86b;
+  background: var(--cm-bg-hover);
+  border-color: var(--cm-accent);
 }
 
 .type-btn svg {
@@ -4324,7 +4324,7 @@ const copyPlaceLink = async () => {
 }
 
 .type-btn.active svg {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .type-btn span {
@@ -4335,7 +4335,7 @@ const copyPlaceLink = async () => {
 }
 
 .type-btn.active span {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 600;
 }
 
@@ -4361,7 +4361,7 @@ const copyPlaceLink = async () => {
 }
 
 .map-preview-header svg {
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .map-preview-container {

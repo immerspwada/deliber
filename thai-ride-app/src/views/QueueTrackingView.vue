@@ -853,7 +853,7 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border: 3px solid #f0f0f0;
-  border-top-color: #00a86b;
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-bottom: 16px;
@@ -1066,7 +1066,7 @@ onUnmounted(() => {
 }
 
 .action-btn.call {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #fff;
 }
 
@@ -1076,13 +1076,13 @@ onUnmounted(() => {
 }
 
 .action-btn.chat {
-  background: #2196F3;
+  background: var(--cm-accent);
   color: #fff;
 }
 
 .action-btn.chat:active {
   transform: scale(0.95);
-  background: #1976D2;
+  background: var(--cm-accent);
 }
 
 /* Vehicle Info Row */
@@ -1169,7 +1169,7 @@ onUnmounted(() => {
 }
 
 .timeline-step.active .step-dot {
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
 }
 
@@ -1197,7 +1197,7 @@ onUnmounted(() => {
 }
 
 .timeline-step.active .step-label {
-  color: #00a86b;
+  color: var(--cm-accent);
   font-weight: 500;
 }
 
@@ -1216,7 +1216,7 @@ onUnmounted(() => {
 }
 
 .timeline-step.active .step-line {
-  background: #00a86b;
+  background: var(--cm-accent);
 }
 
 /* Details Card */
@@ -1319,7 +1319,7 @@ onUnmounted(() => {
   gap: 8px;
   width: 100%;
   padding: 14px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 14px;
@@ -1327,7 +1327,7 @@ onUnmounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .btn-rate:active {
@@ -1358,7 +1358,7 @@ onUnmounted(() => {
 
 .btn-primary {
   padding: 12px 24px;
-  background: #00a86b;
+  background: var(--cm-accent);
   color: #ffffff;
   border: none;
   border-radius: 12px;
@@ -1446,7 +1446,7 @@ onUnmounted(() => {
 
 .modal-box textarea:focus {
   outline: none;
-  border-color: #00a86b;
+  border-color: var(--cm-accent);
 }
 
 .modal-actions {
@@ -1549,7 +1549,7 @@ onUnmounted(() => {
 
 .chat-status {
   font-size: 12px;
-  color: #00a86b;
+  color: var(--cm-accent);
 }
 
 .chat-close-btn {
@@ -1603,7 +1603,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border: 3px solid #f0f0f0;
-  border-top-color: #00a86b;
+  border-top-color: var(--cm-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1670,7 +1670,7 @@ onUnmounted(() => {
 }
 
 .message-bubble.sent .message-content {
-  background: #2196F3;
+  background: var(--cm-accent);
   color: #ffffff;
   border-bottom-right-radius: 4px;
 }
@@ -1745,7 +1745,7 @@ onUnmounted(() => {
 
 .chat-textarea:focus {
   outline: none;
-  border-color: #2196F3;
+  border-color: var(--cm-accent);
 }
 
 .chat-textarea:disabled {
@@ -1759,7 +1759,7 @@ onUnmounted(() => {
   height: 44px;
   border-radius: 50%;
   border: none;
-  background: #2196F3;
+  background: var(--cm-accent);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -1771,7 +1771,7 @@ onUnmounted(() => {
 
 .chat-send-btn:active:not(:disabled) {
   transform: scale(0.95);
-  background: #1976D2;
+  background: var(--cm-accent);
 }
 
 .chat-send-btn:disabled {
