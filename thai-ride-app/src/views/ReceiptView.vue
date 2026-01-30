@@ -1,236 +1,110 @@
-<template>
-  <div class="min-h-screen bg-white">
-    <!-- Header -->
-    <div class="sticky top-0 z-10 bg-white border-b border-gray-200">
-      <div class="flex items-center justify-between px-4 py-3">
-        <button
-          @click="goBack"
-          class="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
-        >
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <h1 class="text-lg font-semibold">ใบเสร็จ</h1>
-        <button
-          @click="shareReceipt"
-          class="p-2 -mr-2 hover:bg-gray-100 rounded-full transition-colors"
-        >
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <!-- Loading State -->
-    <div v-if="loading" class="flex items-center justify-center py-20">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
-    </div>
-
-    <!-- Error State -->
-    <div v-else-if="error" class="p-4">
-      <div class="bg-gray-50 rounded-lg p-6 text-center">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p class="text-gray-600 mb-4">{{ error }}</p>
-        <button
-          @click="goBack"
-          class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          กลับ
-        </button>
-      </div>
-    </div>
-
-    <!-- Receipt Content -->
-    <div v-else-if="order" class="p-4 pb-20">
-      <!-- Receipt Card -->
-      <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <!-- Status Badge -->
-        <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
-          <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-600">สถานะ</span>
-            <span class="px-3 py-1 bg-gray-100 text-gray-800 text-sm rounded-full">
-              {{ getStatusLabel(order.status) }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Order Info -->
-        <div class="p-4 space-y-3 border-b border-gray-200">
-          <div class="flex justify-between">
-            <span class="text-sm text-gray-600">รหัสคำสั่ง</span>
-            <span class="text-sm font-medium">{{ order.tracking_id || order.id.slice(0, 8) }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-sm text-gray-600">ประเภทบริการ</span>
-            <span class="text-sm font-medium">{{ getServiceTypeLabel(order.service_type) }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-sm text-gray-600">วันที่</span>
-            <span class="text-sm font-medium">{{ formatDate(order.created_at) }}</span>
-          </div>
-        </div>
-
-        <!-- Route Info (for ride/delivery) -->
-        <div v-if="order.pickup_address || order.dropoff_address" class="p-4 space-y-3 border-b border-gray-200">
-          <div v-if="order.pickup_address">
-            <div class="text-sm text-gray-600 mb-1">จุดรับ</div>
-            <div class="text-sm">{{ order.pickup_address }}</div>
-          </div>
-          <div v-if="order.dropoff_address">
-            <div class="text-sm text-gray-600 mb-1">จุดส่ง</div>
-            <div class="text-sm">{{ order.dropoff_address }}</div>
-          </div>
-        </div>
-
-        <!-- Fare Breakdown -->
-        <div class="p-4 space-y-3 border-b border-gray-200">
-          <div class="text-sm font-medium mb-2">รายละเอียดค่าใช้จ่าย</div>
-          
-          <div class="flex justify-between text-sm">
-            <span class="text-gray-600">ค่าบริการ</span>
-            <span>฿{{ formatAmount(order.total_fare || order.fare || 0) }}</span>
-          </div>
-
-          <div v-if="order.promo_discount_amount && order.promo_discount_amount > 0" class="flex justify-between text-sm text-green-600">
-            <span>ส่วนลด ({{ order.promo_code }})</span>
-            <span>-฿{{ formatAmount(order.promo_discount_amount) }}</span>
-          </div>
-
-          <div v-if="order.tip_amount && order.tip_amount > 0" class="flex justify-between text-sm">
-            <span class="text-gray-600">ทิป</span>
-            <span>฿{{ formatAmount(order.tip_amount) }}</span>
-          </div>
-
-          <div class="pt-3 border-t border-gray-200 flex justify-between font-semibold">
-            <span>ยอดรวม</span>
-            <span class="text-lg">฿{{ formatAmount(getTotalAmount()) }}</span>
-          </div>
-        </div>
-
-        <!-- Payment Method -->
-        <div class="p-4 border-b border-gray-200">
-          <div class="flex justify-between">
-            <span class="text-sm text-gray-600">วิธีชำระเงิน</span>
-            <span class="text-sm font-medium">กระเป๋าเงิน</span>
-          </div>
-        </div>
-
-        <!-- Provider Info (if available) -->
-        <div v-if="order.provider_name" class="p-4">
-          <div class="text-sm text-gray-600 mb-2">ผู้ให้บริการ</div>
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <div>
-              <div class="text-sm font-medium">{{ order.provider_name }}</div>
-              <div v-if="order.vehicle_plate" class="text-xs text-gray-600">{{ order.vehicle_plate }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="mt-6 space-y-3">
-        <button
-          @click="downloadReceipt"
-          class="w-full py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center space-x-2"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          <span>ดาวน์โหลดใบเสร็จ</span>
-        </button>
-
-        <button
-          v-if="canRebook"
-          @click="rebook"
-          class="w-full py-3 bg-gray-100 text-black rounded-lg hover:bg-gray-200 transition-colors"
-        >
-          จองอีกครั้ง
-        </button>
-      </div>
-
-      <!-- Help Text -->
-      <div class="mt-6 text-center text-sm text-gray-600">
-        <p>หากมีปัญหาเกี่ยวกับใบเสร็จนี้</p>
-        <button class="text-black underline mt-1">ติดต่อฝ่ายสนับสนุน</button>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { supabase } from '@/lib/supabase'
-import { useToast } from '@/composables/useToast'
+import { supabase } from '../lib/supabase'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
 
+const orderId = route.params.id as string
 const loading = ref(true)
 const error = ref<string | null>(null)
 const order = ref<any>(null)
+const orderType = ref<'ride' | 'delivery' | 'shopping' | 'queue' | 'moving' | 'laundry' | null>(null)
 
-const orderId = computed(() => route.params.id as string)
+// Fetch order details from all possible tables
+const fetchOrderDetails = async () => {
+  loading.value = true
+  error.value = null
 
-const canRebook = computed(() => {
-  if (!order.value) return false
-  return ['ride', 'delivery', 'queue_booking'].includes(order.value.service_type)
-})
-
-onMounted(async () => {
-  await fetchOrder()
-})
-
-async function fetchOrder() {
   try {
-    loading.value = true
-    error.value = null
+    // Try ride_requests
+    const { data: ride } = await supabase
+      .from('ride_requests')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle()
 
-    // Try to fetch from different tables based on service type
-    const tables = [
-      'ride_requests',
-      'delivery_requests',
-      'shopping_requests',
-      'queue_bookings',
-      'moving_requests',
-      'laundry_requests'
-    ]
-
-    let foundOrder = null
-
-    for (const table of tables) {
-      const { data, error: fetchError } = await supabase
-        .from(table)
-        .select('*')
-        .eq('id', orderId.value)
-        .maybeSingle()
-
-      if (data && !fetchError) {
-        foundOrder = {
-          ...data,
-          service_type: getServiceTypeFromTable(table)
-        }
-        break
-      }
-    }
-
-    if (!foundOrder) {
-      error.value = 'ไม่พบข้อมูลใบเสร็จ'
+    if (ride) {
+      order.value = ride
+      orderType.value = 'ride'
+      loading.value = false
       return
     }
 
-    order.value = foundOrder
-  } catch (err) {
+    // Try delivery_requests
+    const { data: delivery } = await supabase
+      .from('delivery_requests')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle()
+
+    if (delivery) {
+      order.value = delivery
+      orderType.value = 'delivery'
+      loading.value = false
+      return
+    }
+
+    // Try shopping_requests
+    const { data: shopping } = await supabase
+      .from('shopping_requests')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle()
+
+    if (shopping) {
+      order.value = shopping
+      orderType.value = 'shopping'
+      loading.value = false
+      return
+    }
+
+    // Try queue_bookings
+    const { data: queue } = await supabase
+      .from('queue_bookings')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle()
+
+    if (queue) {
+      order.value = queue
+      orderType.value = 'queue'
+      loading.value = false
+      return
+    }
+
+    // Try moving_requests
+    const { data: moving } = await supabase
+      .from('moving_requests')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle()
+
+    if (moving) {
+      order.value = moving
+      orderType.value = 'moving'
+      loading.value = false
+      return
+    }
+
+    // Try laundry_requests
+    const { data: laundry } = await supabase
+      .from('laundry_requests')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle()
+
+    if (laundry) {
+      order.value = laundry
+      orderType.value = 'laundry'
+      loading.value = false
+      return
+    }
+
+    // Not found in any table
+    error.value = 'ไม่พบข้อมูลใบเสร็จ'
+  } catch (err: any) {
     console.error('Error fetching order:', err)
     error.value = 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
   } finally {
@@ -238,119 +112,754 @@ async function fetchOrder() {
   }
 }
 
-function getServiceTypeFromTable(table: string): string {
-  const mapping: Record<string, string> = {
-    'ride_requests': 'ride',
-    'delivery_requests': 'delivery',
-    'shopping_requests': 'shopping',
-    'queue_bookings': 'queue_booking',
-    'moving_requests': 'moving',
-    'laundry_requests': 'laundry'
+// Computed properties for display
+const serviceName = computed(() => {
+  switch (orderType.value) {
+    case 'ride': return 'เรียกรถ'
+    case 'delivery': return 'ส่งของ'
+    case 'shopping': return 'ซื้อของ'
+    case 'queue': return 'จองคิว'
+    case 'moving': return 'ขนย้าย'
+    case 'laundry': return 'ซักรีด'
+    default: return 'บริการ'
   }
-  return mapping[table] || 'unknown'
-}
+})
 
-function getServiceTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    ride: 'เรียกรถ',
-    delivery: 'ส่งของ',
-    shopping: 'ช้อปปิ้ง',
-    queue_booking: 'จองคิว',
-    moving: 'ขนของ',
-    laundry: 'ซักรีด'
+const trackingId = computed(() => {
+  return order.value?.tracking_id || '-'
+})
+
+const fromAddress = computed(() => {
+  if (!order.value) return '-'
+  
+  switch (orderType.value) {
+    case 'ride':
+      return order.value.pickup_address || '-'
+    case 'delivery':
+      return order.value.sender_address || '-'
+    case 'shopping':
+      return order.value.store_name || order.value.store_address || '-'
+    case 'queue':
+      return order.value.category || '-'
+    case 'moving':
+      return order.value.pickup_address || '-'
+    case 'laundry':
+      return order.value.pickup_address || '-'
+    default:
+      return '-'
   }
-  return labels[type] || type
-}
+})
 
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    pending: 'รอดำเนินการ',
-    matched: 'จับคู่แล้ว',
-    accepted: 'รับงานแล้ว',
-    in_progress: 'กำลังดำเนินการ',
-    completed: 'เสร็จสิ้น',
-    cancelled: 'ยกเลิก'
+const toAddress = computed(() => {
+  if (!order.value) return '-'
+  
+  switch (orderType.value) {
+    case 'ride':
+      return order.value.destination_address || '-'
+    case 'delivery':
+      return order.value.recipient_address || '-'
+    case 'shopping':
+      return order.value.delivery_address || '-'
+    case 'queue':
+      return order.value.place_name || order.value.place_address || '-'
+    case 'moving':
+      return order.value.destination_address || '-'
+    case 'laundry':
+      return 'บริการซักรีด'
+    default:
+      return '-'
   }
-  return labels[status] || status
-}
+})
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
+const totalFare = computed(() => {
+  if (!order.value) return 0
+  
+  switch (orderType.value) {
+    case 'ride':
+      return order.value.final_fare || order.value.estimated_fare || 0
+    case 'delivery':
+      return order.value.final_fee || order.value.estimated_fee || 0
+    case 'shopping':
+      return order.value.total_cost || order.value.service_fee || 0
+    case 'queue':
+      return order.value.final_fee || order.value.service_fee || 0
+    case 'moving':
+      return order.value.final_price || order.value.estimated_price || 0
+    case 'laundry':
+      return order.value.final_price || order.value.estimated_price || 0
+    default:
+      return 0
+  }
+})
+
+const discount = computed(() => {
+  return order.value?.promo_discount_amount || 0
+})
+
+const tip = computed(() => {
+  return order.value?.tip_amount || 0
+})
+
+const createdDate = computed(() => {
+  if (!order.value?.created_at) return '-'
+  const date = new Date(order.value.created_at)
   return date.toLocaleDateString('th-TH', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric',
+    day: 'numeric'
+  })
+})
+
+const createdTime = computed(() => {
+  if (!order.value?.created_at) return '-'
+  const date = new Date(order.value.created_at)
+  return date.toLocaleTimeString('th-TH', {
     hour: '2-digit',
     minute: '2-digit'
   })
-}
+})
 
-function formatAmount(amount: number): string {
-  return Math.round(amount).toLocaleString('th-TH')
-}
+const statusText = computed(() => {
+  if (!order.value) return '-'
+  
+  const status = order.value.status
+  if (status === 'completed' || status === 'delivered') return 'สำเร็จ'
+  if (status === 'cancelled') return 'ยกเลิก'
+  return status
+})
 
-function getTotalAmount(): number {
-  if (!order.value) return 0
-  
-  let total = order.value.total_fare || order.value.fare || 0
-  
-  // Subtract discount
-  if (order.value.promo_discount_amount) {
-    total -= order.value.promo_discount_amount
-  }
-  
-  // Add tip
-  if (order.value.tip_amount) {
-    total += order.value.tip_amount
-  }
-  
-  return total
-}
-
-function goBack() {
+// Actions
+const goBack = () => {
   router.back()
 }
 
-function shareReceipt() {
+const shareReceipt = async () => {
+  const text = `ใบเสร็จ ${serviceName.value}\nรหัส: ${trackingId.value}\nยอดรวม: ฿${totalFare.value.toLocaleString()}`
+  
   if (navigator.share) {
-    navigator.share({
-      title: 'ใบเสร็จ',
-      text: `ใบเสร็จ ${order.value.tracking_id || order.value.id.slice(0, 8)}`,
-      url: window.location.href
-    }).catch(() => {
-      // User cancelled share
-    })
+    try {
+      await navigator.share({
+        title: 'ใบเสร็จ',
+        text
+      })
+    } catch (err) {
+      console.log('Share cancelled')
+    }
   } else {
-    // Fallback: copy link
-    navigator.clipboard.writeText(window.location.href)
-    toast.success('คัดลอกลิงก์แล้ว')
+    // Fallback: copy to clipboard
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('คัดลอกข้อมูลแล้ว')
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
   }
 }
 
-function downloadReceipt() {
-  // TODO: Implement PDF generation
-  toast.info('ฟีเจอร์นี้กำลังพัฒนา')
+const downloadReceipt = () => {
+  // TODO: Generate PDF receipt
+  alert('ฟีเจอร์ดาวน์โหลด PDF กำลังพัฒนา')
 }
 
-function rebook() {
-  if (!order.value) return
-
-  const serviceType = order.value.service_type
-  const routes: Record<string, string> = {
-    ride: '/customer/ride',
-    delivery: '/customer/delivery',
-    queue_booking: '/customer/queue-booking'
-  }
-
-  const targetRoute = routes[serviceType]
-  if (targetRoute) {
-    router.push({
-      path: targetRoute,
-      query: {
-        pickup: order.value.pickup_address,
-        dropoff: order.value.dropoff_address
-      }
-    })
+const rebookService = () => {
+  // Navigate to appropriate service page
+  switch (orderType.value) {
+    case 'ride':
+      router.push('/customer/ride')
+      break
+    case 'delivery':
+      router.push('/customer/delivery')
+      break
+    case 'shopping':
+      router.push('/customer/shopping')
+      break
+    case 'queue':
+      router.push('/customer/queue-booking')
+      break
+    default:
+      router.push('/customer')
   }
 }
+
+onMounted(() => {
+  fetchOrderDetails()
+})
 </script>
+
+<template>
+  <div class="receipt-page">
+    <!-- Header -->
+    <header class="receipt-header">
+      <button class="back-btn" aria-label="กลับ" @click="goBack">
+        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <h1 class="page-title">ใบเสร็จ</h1>
+      <div class="header-actions">
+        <button 
+          v-if="!loading && order"
+          class="icon-btn" 
+          aria-label="แชร์"
+          @click="shareReceipt"
+        >
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>กำลังโหลด...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <h3>{{ error }}</h3>
+      <button class="retry-btn" @click="fetchOrderDetails">ลองใหม่</button>
+    </div>
+
+    <!-- Receipt Content -->
+    <div v-else-if="order" class="receipt-content">
+      <!-- Receipt Card -->
+      <div class="receipt-card">
+        <!-- Status Badge -->
+        <div class="status-section">
+          <div :class="['status-badge', order.status]">
+            <svg v-if="order.status === 'completed' || order.status === 'delivered'" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <svg v-else width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            <span>{{ statusText }}</span>
+          </div>
+        </div>
+
+        <!-- Service Type -->
+        <div class="service-section">
+          <h2 class="service-name">{{ serviceName }}</h2>
+          <p class="tracking-id">รหัส: {{ trackingId }}</p>
+        </div>
+
+        <!-- Date & Time -->
+        <div class="datetime-section">
+          <div class="datetime-item">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span>{{ createdDate }}</span>
+          </div>
+          <div class="datetime-item">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>{{ createdTime }}</span>
+          </div>
+        </div>
+
+        <!-- Route Info -->
+        <div class="route-section">
+          <div class="route-item">
+            <div class="route-icon start">
+              <div class="dot"></div>
+            </div>
+            <div class="route-details">
+              <span class="route-label">จาก</span>
+              <span class="route-address">{{ fromAddress }}</span>
+            </div>
+          </div>
+          <div class="route-line"></div>
+          <div class="route-item">
+            <div class="route-icon end">
+              <div class="dot"></div>
+            </div>
+            <div class="route-details">
+              <span class="route-label">ถึง</span>
+              <span class="route-address">{{ toAddress }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fare Breakdown -->
+        <div class="fare-section">
+          <h3 class="section-title">รายละเอียดค่าบริการ</h3>
+          
+          <div class="fare-row">
+            <span class="fare-label">ค่าบริการ</span>
+            <span class="fare-value">฿{{ totalFare.toLocaleString() }}</span>
+          </div>
+
+          <div v-if="discount > 0" class="fare-row discount">
+            <span class="fare-label">ส่วนลด</span>
+            <span class="fare-value">-฿{{ discount.toLocaleString() }}</span>
+          </div>
+
+          <div v-if="tip > 0" class="fare-row">
+            <span class="fare-label">ทิป</span>
+            <span class="fare-value">฿{{ tip.toLocaleString() }}</span>
+          </div>
+
+          <div class="fare-divider"></div>
+
+          <div class="fare-row total">
+            <span class="fare-label">ยอดรวม</span>
+            <span class="fare-value">฿{{ (totalFare - discount + tip).toLocaleString() }}</span>
+          </div>
+        </div>
+
+        <!-- Provider Info (if available) -->
+        <div v-if="order.provider_id" class="provider-section">
+          <h3 class="section-title">ข้อมูลผู้ให้บริการ</h3>
+          <div class="provider-info">
+            <div class="provider-avatar">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+            </div>
+            <div class="provider-details">
+              <p class="provider-name">ผู้ให้บริการ</p>
+              <p class="provider-id">ID: {{ order.provider_id.slice(0, 8) }}...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions-section">
+        <button 
+          v-if="orderType === 'ride' || orderType === 'delivery' || orderType === 'queue'"
+          class="action-btn primary" 
+          @click="rebookService"
+        >
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          <span>จองอีกครั้ง</span>
+        </button>
+        
+        <button class="action-btn secondary" @click="downloadReceipt">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span>ดาวน์โหลด PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.receipt-page {
+  min-height: 100vh;
+  background: #FAFAFA;
+  padding-bottom: 100px;
+}
+
+/* Header */
+.receipt-header {
+  background: white;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #E5E5E5;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.back-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #1A1A1A;
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+  background: #EBEBEB;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #1A1A1A;
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+  background: #EBEBEB;
+}
+
+/* Loading & Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E5E5E5;
+  border-top-color: #1A1A1A;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p,
+.error-state h3 {
+  margin-top: 16px;
+  font-size: 16px;
+  color: #6B6B6B;
+}
+
+.error-state svg {
+  color: #6B6B6B;
+}
+
+.retry-btn {
+  margin-top: 16px;
+  padding: 12px 24px;
+  background: #1A1A1A;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retry-btn:active {
+  transform: scale(0.95);
+}
+
+/* Receipt Content */
+.receipt-content {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+.receipt-card {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* Status */
+.status-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-badge.completed,
+.status-badge.delivered {
+  background: #F5F5F5;
+  color: #1A1A1A;
+}
+
+.status-badge.cancelled {
+  background: #F5F5F5;
+  color: #6B6B6B;
+}
+
+/* Service */
+.service-section {
+  text-align: center;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.service-name {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.tracking-id {
+  font-size: 14px;
+  color: #6B6B6B;
+  font-family: 'Courier New', monospace;
+}
+
+/* DateTime */
+.datetime-section {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.datetime-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #6B6B6B;
+}
+
+.datetime-item svg {
+  color: #9CA3AF;
+}
+
+/* Route */
+.route-section {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.route-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.route-item + .route-line {
+  margin: 8px 0 8px 11px;
+}
+
+.route-line {
+  width: 2px;
+  height: 24px;
+  background: #E5E5E5;
+}
+
+.route-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.route-icon .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.route-icon.start .dot {
+  background: #1A1A1A;
+}
+
+.route-icon.end .dot {
+  background: #6B6B6B;
+  border: 2px solid #1A1A1A;
+}
+
+.route-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-label {
+  font-size: 12px;
+  color: #9CA3AF;
+  font-weight: 500;
+}
+
+.route-address {
+  font-size: 14px;
+  color: #1A1A1A;
+  line-height: 1.4;
+}
+
+/* Fare */
+.fare-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6B6B6B;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fare-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  font-size: 14px;
+}
+
+.fare-row.discount {
+  color: #6B6B6B;
+}
+
+.fare-row.total {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.fare-label {
+  color: #6B6B6B;
+}
+
+.fare-row.total .fare-label {
+  color: #1A1A1A;
+}
+
+.fare-value {
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.fare-divider {
+  height: 1px;
+  background: #E5E5E5;
+  margin: 8px 0;
+}
+
+/* Provider */
+.provider-section {
+  padding-top: 24px;
+  border-top: 1px solid #E5E5E5;
+}
+
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #FAFAFA;
+  border-radius: 12px;
+}
+
+.provider-avatar {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 12px;
+  color: #6B6B6B;
+}
+
+.provider-details {
+  flex: 1;
+}
+
+.provider-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin-bottom: 2px;
+}
+
+.provider-id {
+  font-size: 12px;
+  color: #9CA3AF;
+  font-family: 'Courier New', monospace;
+}
+
+/* Actions */
+.actions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn.primary {
+  background: #1A1A1A;
+  color: white;
+}
+
+.action-btn.primary:active {
+  transform: scale(0.98);
+  background: #000000;
+}
+
+.action-btn.secondary {
+  background: #F5F5F5;
+  color: #1A1A1A;
+}
+
+.action-btn.secondary:active {
+  transform: scale(0.98);
+  background: #EBEBEB;
+}
+</style>
