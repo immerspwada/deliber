@@ -92,6 +92,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
+    path: '/receipt/:id',
+    name: 'Receipt',
+    component: () => import('../views/ReceiptView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
+  },
+  {
     path: '/customer/wallet',
     name: 'CustomerWallet',
     component: () => import('../views/WalletView.vue'),
