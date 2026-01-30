@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Cache Version Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      font-size: 28px;
+      color: #1F2937;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .subtitle {
+      color: #6B7280;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .test-section {
+      background: #F9FAFB;
+      border: 2px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .test-title {
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+    .test-result {
+      font-family: 'SF Mono', monospace;
+      font-size: 13px;
+      padding: 12px;
+      background: #1F2937;
+      color: #10B981;
+      border-radius: 8px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .status {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    .status.good { background: #D1FAE5; color: #065F46; }
+    .status.bad { background: #FEE2E2; color: #991B1B; }
+    .status.warning { background: #FEF3C7; color: #92400E; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: #00A86B;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+    .btn:hover { background: #008C5A; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .info-box {
+      background: #DBEAFE;
+      border-left: 4px solid #3B82F6;
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .info-box p {
+      color: #1E40AF;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .timestamp {
+      color: #9CA3AF;
+      font-size: 12px;
+      margin-top: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Cache Version Test</h1>
+    <p class="subtitle">ตรวจสอบว่าเบราว์เซอร์โหลดโค้ดเวอร์ชันล่าสุดหรือไม่</p>
+
+    <!-- Test 1: JavaScript File Hash -->
+    <div class="test-section">
+      <div class="test-title">1. JavaScript File Version</div>
+      <p style="font-size: 13px; color: #6B7280; margin-bottom: 10px;">
+        ตรวจสอบ hash ของไฟล์ JavaScript ที่โหลด
+      </p>
+      <button class="btn" onclick="checkJSVersion()">🔍 ตรวจสอบ JS Version</button>
+      <div id="js-result"></div>
+    </div>
+
+    <!-- Test 2: Service Worker Status -->
+    <div class="test-section">
+      <div class="test-title">2. Service Worker Status</div>
+      <p style="font-size: 13px; color: #6B7280; margin-bottom: 10px;">
+        ตรวจสอบว่ามี Service Worker ที่อาจ cache โค้ดเก่าไว้หรือไม่
+      </p>
+      <button class="btn" onclick="checkServiceWorker()">🔍 ตรวจสอบ Service Worker</button>
+      <div id="sw-result"></div>
+    </div>
+
+    <!-- Test 3: Cache Storage -->
+    <div class="test-section">
+      <div class="test-title">3. Cache Storage</div>
+      <p style="font-size: 13px; color: #6B7280; margin-bottom: 10px;">
+        ตรวจสอบ cache ที่เก็บไว้ในเบราว์เซอร์
+      </p>
+      <button class="btn" onclick="checkCacheStorage()">🔍 ตรวจสอบ Cache</button>
+      <button class="btn" style="background: #EF4444; margin-left: 10px;" onclick="clearAllCaches()">🗑️ ลบ Cache ทั้งหมด</button>
+      <div id="cache-result"></div>
+    </div>
+
+    <!-- Test 4: Current Page Version -->
+    <div class="test-section">
+      <div class="test-title">4. Current Page Version</div>
+      <p style="font-size: 13px; color: #6B7280; margin-bottom: 10px;">
+        เวอร์ชันของหน้านี้
+      </p>
+      <div class="test-result">
+Version: 2026-01-30-16:00
+Build: FRESH
+Timestamp: <span id="current-time"></span>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <p><strong>💡 วิธีแก้ปัญหา:</strong></p>
+      <p style="margin-top: 8px;">
+        1. กด "ลบ Cache ทั้งหมด" ด้านบน<br>
+        2. ปิดแท็บนี้<br>
+        3. เปิด <strong>Incognito/Private Window</strong> (Cmd+Shift+N)<br>
+        4. ไปที่ http://localhost:5173/admin/customers<br>
+        5. ทดสอบปุ่ม History
+      </p>
+    </div>
+
+    <div class="timestamp">
+      Last updated: <span id="last-update"></span>
+    </div>
+  </div>
+
+  <script>
+    // Update timestamps
+    document.getElementById('current-time').textContent = new Date().toLocaleString('th-TH');
+    document.getElementById('last-update').textContent = new Date().toLocaleString('th-TH');
+
+    // Test 1: Check JS Version
+    async function checkJSVersion() {
+      const result = document.getElementById('js-result');
+      result.innerHTML = '<div class="test-result">กำลังตรวจสอบ...</div>';
+
+      try {
+        const scripts = Array.from(document.scripts);
+        const appScripts = scripts.filter(s => s.src.includes('assets/'));
+        
+        if (appScripts.length === 0) {
+          result.innerHTML = `
+            <div class="status warning">⚠️ ไม่พบ JavaScript files</div>
+            <div class="test-result">หน้านี้เป็นหน้า static HTML ไม่มี Vue app</div>
+          `;
+          return;
+        }
+
+        let html = '<div class="test-result">';
+        appScripts.forEach(script => {
+          const url = new URL(script.src);
+          const filename = url.pathname.split('/').pop();
+          html += `${filename}\n`;
+        });
+        html += '</div>';
+        html += '<div class="status good">✅ พบ JavaScript files</div>';
+        
+        result.innerHTML = html;
+      } catch (e) {
+        result.innerHTML = `<div class="status bad">❌ Error: ${e.message}</div>`;
+      }
+    }
+
+    // Test 2: Check Service Worker
+    async function checkServiceWorker() {
+      const result = document.getElementById('sw-result');
+      result.innerHTML = '<div class="test-result">กำลังตรวจสอบ...</div>';
+
+      try {
+        if (!('serviceWorker' in navigator)) {
+          result.innerHTML = '<div class="status good">✅ ไม่มี Service Worker</div>';
+          return;
+        }
+
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        
+        if (registrations.length === 0) {
+          result.innerHTML = '<div class="status good">✅ ไม่มี Service Worker ที่ active</div>';
+          return;
+        }
+
+        let html = '<div class="test-result">';
+        html += `พบ Service Worker: ${registrations.length} ตัว\n\n`;
+        registrations.forEach((reg, i) => {
+          html += `SW ${i + 1}: ${reg.scope}\n`;
+          html += `State: ${reg.active?.state || 'none'}\n\n`;
+        });
+        html += '</div>';
+        html += '<div class="status warning">⚠️ มี Service Worker (อาจ cache โค้ดเก่า)</div>';
+        html += '<button class="btn" style="background: #EF4444; margin-top: 10px;" onclick="unregisterServiceWorkers()">🗑️ ลบ Service Workers</button>';
+        
+        result.innerHTML = html;
+      } catch (e) {
+        result.innerHTML = `<div class="status bad">❌ Error: ${e.message}</div>`;
+      }
+    }
+
+    // Test 3: Check Cache Storage
+    async function checkCacheStorage() {
+      const result = document.getElementById('cache-result');
+      result.innerHTML = '<div class="test-result">กำลังตรวจสอบ...</div>';
+
+      try {
+        if (!('caches' in window)) {
+          result.innerHTML = '<div class="status good">✅ ไม่มี Cache Storage</div>';
+          return;
+        }
+
+        const cacheNames = await caches.keys();
+        
+        if (cacheNames.length === 0) {
+          result.innerHTML = '<div class="status good">✅ ไม่มี Cache</div>';
+          return;
+        }
+
+        let totalSize = 0;
+        let html = '<div class="test-result">';
+        html += `พบ Cache: ${cacheNames.length} รายการ\n\n`;
+        
+        for (const name of cacheNames) {
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+          html += `${name}: ${keys.length} files\n`;
+          totalSize += keys.length;
+        }
+        
+        html += `\nTotal cached files: ${totalSize}`;
+        html += '</div>';
+        html += '<div class="status warning">⚠️ มี Cache (อาจเป็นโค้ดเก่า)</div>';
+        
+        result.innerHTML = html;
+      } catch (e) {
+        result.innerHTML = `<div class="status bad">❌ Error: ${e.message}</div>`;
+      }
+    }
+
+    // Clear all caches
+    async function clearAllCaches() {
+      const result = document.getElementById('cache-result');
+      result.innerHTML = '<div class="test-result">กำลังลบ cache...</div>';
+
+      try {
+        // Clear Cache Storage
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(name => caches.delete(name)));
+        }
+
+        // Unregister Service Workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(reg => reg.unregister()));
+        }
+
+        result.innerHTML = `
+          <div class="status good">✅ ลบ cache สำเร็จ!</div>
+          <div class="test-result">
+กรุณา:
+1. ปิดแท็บนี้
+2. เปิด Incognito mode (Cmd+Shift+N)
+3. ไปที่ http://localhost:5173/admin/customers
+4. ทดสอบปุ่ม History
+          </div>
+        `;
+      } catch (e) {
+        result.innerHTML = `<div class="status bad">❌ Error: ${e.message}</div>`;
+      }
+    }
+
+    // Unregister Service Workers
+    async function unregisterServiceWorkers() {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+        alert('✅ ลบ Service Workers สำเร็จ!\n\nกรุณารีเฟรชหน้า (Cmd+R)');
+        location.reload();
+      } catch (e) {
+        alert('❌ Error: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>
