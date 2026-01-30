@@ -30,19 +30,25 @@ import { useRoleAccess } from "../composables/useRoleAccess";
 import { useToast } from "../composables/useToast";
 import { usePerformanceMetrics } from "../composables/usePerformanceMetrics";
 import { useQuickReorder } from "../composables/useQuickReorder";
+import { useErrorHandler } from "../composables/useErrorHandler";
+import { useLoadingStates } from "../composables/useLoadingStates";
+import { useCacheInvalidation, CacheKeys } from "../composables/useCacheInvalidation";
+import { useDebounceFn } from "@vueuse/core";
 import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // Critical Components - โหลดทันที
+import ErrorBoundary from "../components/ErrorBoundary.vue";
 import WelcomeHeader from "../components/customer/WelcomeHeader.vue";
-import QuickDestinationSearch from "../components/customer/QuickDestinationSearch.vue";
 import CuteServiceGrid from "../components/customer/CuteServiceGrid.vue";
 import BottomNavigation from "../components/customer/BottomNavigation.vue";
-
 
 // Non-critical Components - Lazy load
 const ActiveOrderCard = defineAsyncComponent(
   () => import("../components/customer/ActiveOrderCard.vue")
+);
+const OrderLoadingSkeleton = defineAsyncComponent(
+  () => import("../components/customer/OrderLoadingSkeleton.vue")
 );
 const SavedPlacesRow = defineAsyncComponent(
   () => import("../components/customer/SavedPlacesRow.vue")
@@ -65,11 +71,17 @@ const QuickReorderCard = defineAsyncComponent(
 const SmartSuggestionsCard = defineAsyncComponent(
   () => import("../components/customer/SmartSuggestionsCard.vue")
 );
+const WhereToGoBanner = defineAsyncComponent(
+  () => import("../components/customer/WhereToGoBanner.vue")
+);
 
 const router = useRouter();
 const authStore = useAuthStore();
 const rideStore = useRideStore();
-const { success: showSuccess, error: showError, warning: showWarning, info: showInfo } = useToast();
+const { success: showSuccess, info: showInfo } = useToast();
+const { handle: handleError } = useErrorHandler();
+const { withLoading, isLoadingKey } = useLoadingStates();
+const { get: getCache, set: setCache, invalidate, registerRefresh } = useCacheInvalidation();
 const { unreadCount, fetchNotifications } = useNotifications();
 const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } =
   useLoyalty();
@@ -88,44 +100,10 @@ const {
 } = useQuickReorder();
 
 // Multi-role support
-const { 
-  isProvider, 
-  getRoleBadge, 
-  getRoleColor
-} = useRoleAccess();
+const { getRoleBadge } = useRoleAccess();
 
 // Performance Metrics - เก็บ Web Vitals
 const { startCollecting, stopCollecting } = usePerformanceMetrics();
-
-// =====================================================
-// CACHE KEYS & HELPERS
-// =====================================================
-const CACHE_KEYS = {
-  wallet: "customer_wallet_cache",
-  loyalty: "customer_loyalty_cache",
-  orders: "customer_orders_cache",
-};
-
-const getCache = <T>(key: string): T | null => {
-  try {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    const { data, timestamp } = JSON.parse(cached);
-    // Cache valid for 5 minutes
-    if (Date.now() - timestamp > 5 * 60 * 1000) return null;
-    return data;
-  } catch {
-    return null;
-  }
-};
-
-const setCache = (key: string, data: any) => {
-  try {
-    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-  } catch {
-    /* ignore */
-  }
-};
 
 // =====================================================
 // STATE - แสดง UI ทันทีด้วย cached data
@@ -137,9 +115,9 @@ const startY = ref(0);
 const PULL_THRESHOLD = 80;
 
 // Load cached data immediately for instant display
-const cachedWallet = getCache<number>(CACHE_KEYS.wallet);
-const cachedLoyalty = getCache<number>(CACHE_KEYS.loyalty);
-const cachedOrders = getCache<ActiveOrder[]>(CACHE_KEYS.orders);
+const cachedWallet = getCache<number>(CacheKeys.wallet('customer'));
+const cachedLoyalty = getCache<number>(CacheKeys.loyalty('customer'));
+const cachedOrders = getCache<ActiveOrder[]>(CacheKeys.orders('customer'));
 
 // Active orders
 interface ActiveOrder {
@@ -156,7 +134,6 @@ interface ActiveOrder {
 
 // Active orders - ใช้ cached data ก่อน
 const activeOrders = ref<ActiveOrder[]>(cachedOrders || []);
-const loadingOrders = ref(!cachedOrders); // ไม่ loading ถ้ามี cache
 let realtimeChannel: RealtimeChannel | null = null;
 
 // Computed - ใช้ cached values สำหรับ instant display
@@ -172,7 +149,7 @@ const userName = computed(() => {
 const walletBalance = computed(() => {
   const live = balance.value?.balance;
   if (live !== undefined && live !== null) {
-    setCache(CACHE_KEYS.wallet, live);
+    setCache(CacheKeys.wallet('customer'), live, 5 * 60 * 1000); // 5 min TTL
     return live;
   }
   return cachedWallet || 0;
@@ -181,7 +158,7 @@ const walletBalance = computed(() => {
 const loyaltyPoints = computed(() => {
   const live = loyaltySummary.value?.current_points;
   if (live !== undefined && live !== null) {
-    setCache(CACHE_KEYS.loyalty, live);
+    setCache(CacheKeys.loyalty('customer'), live, 5 * 60 * 1000); // 5 min TTL
     return live;
   }
   return cachedLoyalty || 0;
@@ -344,121 +321,127 @@ const getStatusText = (type: string, status: string): string => {
 const fetchActiveOrders = async () => {
   if (!authStore.user?.id) return;
 
-  // ไม่ set loading ถ้ามี cached data อยู่แล้ว
-  if (activeOrders.value.length === 0) {
-    loadingOrders.value = true;
-  }
+  await withLoading('activeOrders', async () => {
+    try {
+      const userId = authStore.user!.id;
+      const orders: ActiveOrder[] = [];
 
-  try {
-    const userId = authStore.user.id;
-    const orders: ActiveOrder[] = [];
+      // Parallel fetch all order types - ใช้ Promise.allSettled เพื่อไม่ให้ error หนึ่งทำให้ทั้งหมดล้ม
+      const [ridesResult, deliveriesResult, shoppingResult, queuesResult] =
+        await Promise.allSettled([
+          supabase
+            .from("ride_requests")
+            .select(
+              "id, tracking_id, status, pickup_address, destination_address"
+            )
+            .eq("user_id", userId)
+            .in("status", ["pending", "matched", "arriving", "arrived", "picked_up", "in_progress"])
+            .limit(3),
+          supabase
+            .from("delivery_requests")
+            .select("id, tracking_id, status, sender_address, recipient_address")
+            .eq("user_id", userId)
+            .in("status", ["pending", "matched", "picked_up", "in_transit"])
+            .limit(3),
+          supabase
+            .from("shopping_requests")
+            .select("id, tracking_id, status, store_name, delivery_address")
+            .eq("user_id", userId)
+            .in("status", ["pending", "matched", "purchased", "delivering"])
+            .limit(3),
+          // Note: queue_bookings may not be in database types yet
+          supabase
+            .from("ride_requests" as any)
+            .select("id, tracking_id, status")
+            .eq("user_id", userId)
+            .eq("service_type", "queue")
+            .in("status", ["pending", "confirmed", "in_progress"])
+            .limit(0), // Disabled until queue_bookings table is added
+        ]);
 
-    // Parallel fetch all order types - ใช้ Promise.allSettled เพื่อไม่ให้ error หนึ่งทำให้ทั้งหมดล้ม
-    const [ridesResult, deliveriesResult, shoppingResult, queuesResult] =
-      await Promise.allSettled([
-        (supabase.from("ride_requests") as any)
-          .select(
-            "id, tracking_id, status, pickup_address, destination_address"
-          )
-          .eq("user_id", userId)
-          .in("status", ["pending", "matched", "arriving", "arrived", "picked_up", "in_progress"])
-          .limit(3),
-        (supabase.from("delivery_requests") as any)
-          .select("id, tracking_id, status, sender_address, recipient_address")
-          .eq("user_id", userId)
-          .in("status", ["pending", "matched", "picked_up", "in_transit"])
-          .limit(3),
-        (supabase.from("shopping_requests") as any)
-          .select("id, tracking_id, status, store_name, delivery_address")
-          .eq("user_id", userId)
-          .in("status", ["pending", "matched", "purchased", "delivering"])
-          .limit(3),
-        (supabase.from("queue_bookings") as any)
-          .select("id, tracking_id, status, service_name, location_name")
-          .eq("user_id", userId)
-          .in("status", ["pending", "confirmed", "in_progress"])
-          .limit(3),
-      ]);
-
-    // Process rides
-    if (ridesResult.status === "fulfilled" && ridesResult.value.data) {
-      ridesResult.value.data.forEach((r: any) => {
-        orders.push({
-          id: r.id,
-          trackingId: r.tracking_id,
-          type: "ride",
-          typeName: "เรียกรถ",
-          status: r.status,
-          statusText: getStatusText("ride", r.status),
-          from: r.pickup_address?.split(",")[0] || "",
-          to: r.destination_address?.split(",")[0] || "",
-          trackingPath: `/customer/ride`,
+      // Process rides
+      if (ridesResult.status === "fulfilled" && ridesResult.value.data) {
+        ridesResult.value.data.forEach((r: any) => {
+          orders.push({
+            id: r.id,
+            trackingId: r.tracking_id,
+            type: "ride",
+            typeName: "เรียกรถ",
+            status: r.status,
+            statusText: getStatusText("ride", r.status),
+            from: r.pickup_address?.split(",")[0] || "",
+            to: r.destination_address?.split(",")[0] || "",
+            trackingPath: `/customer/ride`,
+          });
         });
-      });
-    }
+      }
 
-    // Process deliveries
-    if (
-      deliveriesResult.status === "fulfilled" &&
-      deliveriesResult.value.data
-    ) {
-      deliveriesResult.value.data.forEach((d: any) => {
-        orders.push({
-          id: d.id,
-          trackingId: d.tracking_id,
-          type: "delivery",
-          typeName: "ส่งของ",
-          status: d.status,
-          statusText: getStatusText("delivery", d.status),
-          from: d.sender_address?.split(",")[0] || "",
-          to: d.recipient_address?.split(",")[0] || "",
-          trackingPath: `/tracking/${d.id}`,
+      // Process deliveries
+      if (
+        deliveriesResult.status === "fulfilled" &&
+        deliveriesResult.value.data
+      ) {
+        deliveriesResult.value.data.forEach((d: any) => {
+          orders.push({
+            id: d.id,
+            trackingId: d.tracking_id,
+            type: "delivery",
+            typeName: "ส่งของ",
+            status: d.status,
+            statusText: getStatusText("delivery", d.status),
+            from: d.sender_address?.split(",")[0] || "",
+            to: d.recipient_address?.split(",")[0] || "",
+            trackingPath: `/tracking/${d.id}`,
+          });
         });
-      });
-    }
+      }
 
-    // Process shopping
-    if (shoppingResult.status === "fulfilled" && shoppingResult.value.data) {
-      shoppingResult.value.data.forEach((s: any) => {
-        orders.push({
-          id: s.id,
-          trackingId: s.tracking_id,
-          type: "shopping",
-          typeName: "ซื้อของ",
-          status: s.status,
-          statusText: getStatusText("shopping", s.status),
-          from: s.store_name || "ร้านค้า",
-          to: s.delivery_address?.split(",")[0] || "",
-          trackingPath: `/tracking/${s.id}`,
+      // Process shopping
+      if (shoppingResult.status === "fulfilled" && shoppingResult.value.data) {
+        shoppingResult.value.data.forEach((s: any) => {
+          orders.push({
+            id: s.id,
+            trackingId: s.tracking_id,
+            type: "shopping",
+            typeName: "ซื้อของ",
+            status: s.status,
+            statusText: getStatusText("shopping", s.status),
+            from: s.store_name || "ร้านค้า",
+            to: s.delivery_address?.split(",")[0] || "",
+            trackingPath: `/tracking/${s.id}`,
+          });
         });
-      });
-    }
+      }
 
-    // Process queues
-    if (queuesResult.status === "fulfilled" && queuesResult.value.data) {
-      queuesResult.value.data.forEach((q: any) => {
-        orders.push({
-          id: q.id,
-          trackingId: q.tracking_id,
-          type: "queue",
-          typeName: "จองคิว",
-          status: q.status,
-          statusText: getStatusText("queue", q.status),
-          from: q.service_name || "",
-          to: q.location_name || "",
-          trackingPath: `/customer/queue-booking/${q.id}`,
-        });
-      });
-    }
+      // Process queues (disabled until table exists)
+      // if (queuesResult.status === "fulfilled" && queuesResult.value.data) {
+      //   queuesResult.value.data.forEach((q: any) => {
+      //     orders.push({
+      //       id: q.id,
+      //       trackingId: q.tracking_id,
+      //       type: "queue",
+      //       typeName: "จองคิว",
+      //       status: q.status,
+      //       statusText: getStatusText("queue", q.status),
+      //       from: q.service_name || "",
+      //       to: q.location_name || "",
+      //       trackingPath: `/customer/queue-booking/${q.id}`,
+      //     });
+      //   });
+      // }
 
-    activeOrders.value = orders.slice(0, 3);
-    setCache(CACHE_KEYS.orders, activeOrders.value);
-  } catch (err) {
-    console.error("Error fetching active orders:", err);
-  } finally {
-    loadingOrders.value = false;
-  }
+      activeOrders.value = orders.slice(0, 3);
+      setCache(CacheKeys.orders('customer'), activeOrders.value, 5 * 60 * 1000); // 5 min TTL
+    } catch (err) {
+      handleError(err, 'fetchActiveOrders');
+      // Don't show error toast here - silent fail with cached data
+      // User can pull to refresh if needed
+    }
+  });
 };
+
+// Computed for loading state
+const loadingOrders = computed(() => isLoadingKey('activeOrders'));
 
 // Pull to refresh handlers
 const handleTouchStart = (e: TouchEvent) => {
@@ -501,10 +484,18 @@ const refreshData = async () => {
     fetchSavedPlaces(),
     fetchActiveOrders(),
   ]);
+  
+  // Invalidate all customer caches to force fresh data
+  invalidate(CacheKeys.wallet('customer'));
+  invalidate(CacheKeys.loyalty('customer'));
+  invalidate(CacheKeys.orders('customer'));
+  
   showSuccess("รีเฟรชข้อมูลแล้ว");
 };
 
-// Setup realtime subscription
+// Setup realtime subscription with debounce
+const debouncedFetchOrders = useDebounceFn(fetchActiveOrders, 1000);
+
 const setupRealtimeSubscription = () => {
   if (!authStore.user?.id) return;
   const userId = authStore.user.id;
@@ -519,7 +510,7 @@ const setupRealtimeSubscription = () => {
         table: "ride_requests",
         filter: `user_id=eq.${userId}`,
       },
-      () => fetchActiveOrders()
+      () => debouncedFetchOrders()
     )
     .on(
       "postgres_changes",
@@ -529,7 +520,7 @@ const setupRealtimeSubscription = () => {
         table: "delivery_requests",
         filter: `user_id=eq.${userId}`,
       },
-      () => fetchActiveOrders()
+      () => debouncedFetchOrders()
     )
     .on(
       "postgres_changes",
@@ -539,17 +530,7 @@ const setupRealtimeSubscription = () => {
         table: "shopping_requests",
         filter: `user_id=eq.${userId}`,
       },
-      () => fetchActiveOrders()
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "queue_bookings",
-        filter: `user_id=eq.${userId}`,
-      },
-      () => fetchActiveOrders()
+      () => debouncedFetchOrders()
     )
     .subscribe();
 };
@@ -616,15 +597,20 @@ onMounted(() => {
   // Start performance tracking
   startCollecting("/customer");
 
+  // Register background refresh for critical data
+  registerRefresh(CacheKeys.wallet('customer'), () => fetchBalance(), 60 * 1000); // Every 1 min
+  registerRefresh(CacheKeys.loyalty('customer'), () => fetchLoyaltySummary(), 5 * 60 * 1000); // Every 5 min
+  registerRefresh(CacheKeys.orders('customer'), () => fetchActiveOrders(), 30 * 1000); // Every 30 sec
+
   // Phase 1: Critical data (active orders) - โหลดทันที
   fetchActiveOrders();
 
   // Phase 2: Important data - โหลดหลังจาก UI render แล้ว
   requestAnimationFrame(() => {
     Promise.all([
-      fetchBalance().catch(() => {}),
-      fetchSavedPlaces().catch(() => {}),
-      fetchReorderableItems(3).catch(() => {}), // Fetch top 3 reorderable items
+      withLoading('wallet', () => fetchBalance().catch(() => {})),
+      withLoading('savedPlaces', () => fetchSavedPlaces().catch(() => {})),
+      withLoading('reorderItems', () => fetchReorderableItems(3).catch(() => {})),
     ]);
   });
 
@@ -632,26 +618,30 @@ onMounted(() => {
   if ("requestIdleCallback" in window) {
     requestIdleCallback(
       () => {
-        fetchNotifications().catch(() => {});
-        fetchLoyaltySummary().catch(() => {});
-        fetchRecentPlaces().catch(() => {});
-        fetchUnratedRides().catch(() => {});
-
-        // Stop performance tracking after all data loaded
-        stopCollecting(true);
+        Promise.all([
+          withLoading('notifications', () => fetchNotifications().catch(() => {})),
+          withLoading('loyalty', () => fetchLoyaltySummary().catch(() => {})),
+          withLoading('recentPlaces', () => fetchRecentPlaces().catch(() => {})),
+          withLoading('unratedRides', () => fetchUnratedRides().catch(() => {})),
+        ]).finally(() => {
+          // Stop performance tracking after all data loaded
+          stopCollecting();
+        });
       },
       { timeout: 2000 }
     );
   } else {
     // Fallback สำหรับ browser ที่ไม่รองรับ
     setTimeout(() => {
-      fetchNotifications().catch(() => {});
-      fetchLoyaltySummary().catch(() => {});
-      fetchRecentPlaces().catch(() => {});
-      fetchUnratedRides().catch(() => {});
-
-      // Stop performance tracking
-      stopCollecting(true);
+      Promise.all([
+        fetchNotifications().catch(() => {}),
+        fetchLoyaltySummary().catch(() => {}),
+        fetchRecentPlaces().catch(() => {}),
+        fetchUnratedRides().catch(() => {}),
+      ]).finally(() => {
+        // Stop performance tracking
+        stopCollecting();
+      });
     }, 500);
   }
 
@@ -663,23 +653,32 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  
+  // Clean up background refresh intervals
+  invalidate(CacheKeys.wallet('customer'));
+  invalidate(CacheKeys.loyalty('customer'));
+  invalidate(CacheKeys.orders('customer'));
 });
 </script>
 
 <template>
-  <div
-    class="customer-home"
-    @touchstart="handleTouchStart"
-    @touchmove="handleTouchMove"
-    @touchend="handleTouchEnd"
-  >
+  <ErrorBoundary fallback-message="ไม่สามารถโหลดหน้าหลักได้ กรุณาลองใหม่">
+    <div
+      class="customer-home"
+      @touchstart="handleTouchStart"
+      @touchmove="handleTouchMove"
+      @touchend="handleTouchEnd"
+    >
     <!-- Pull to Refresh Indicator -->
     <div
       class="pull-indicator"
       :class="{ visible: pullDistance > 0, refreshing: isRefreshing }"
       :style="{ transform: `translateY(${pullDistance - 50}px)` }"
+      role="status"
+      aria-live="polite"
+      :aria-label="isRefreshing ? 'กำลังรีเฟรชข้อมูล' : 'ดึงลงเพื่อรีเฟรชข้อมูล'"
     >
-      <div class="pull-spinner" :class="{ spinning: isRefreshing }">
+      <div class="pull-spinner" :class="{ spinning: isRefreshing }" aria-hidden="true">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -689,10 +688,9 @@ onUnmounted(() => {
           <path d="M21 12a9 9 0 11-6.219-8.56" />
         </svg>
       </div>
-      <span v-if="!isRefreshing">{{
-        pullDistance >= PULL_THRESHOLD ? "ปล่อยเพื่อรีเฟรช" : "ดึงลงเพื่อรีเฟรช"
+      <span>{{
+        pullDistance >= PULL_THRESHOLD ? "ปล่อยเพื่อรีเฟรช" : isRefreshing ? "กำลังโหลด..." : "ดึงลงเพื่อรีเฟรช"
       }}</span>
-      <span v-else>กำลังโหลด...</span>
     </div>
 
     <!-- Welcome Header -->
@@ -709,36 +707,39 @@ onUnmounted(() => {
 
 
     <!-- Main Content -->
-    <main class="main-content">
-      <!-- Search Card -->
-      <section class="search-section">
-        <QuickDestinationSearch
-          @search-click="navigateTo('/customer/ride')"
-          @voice-click="navigateTo('/customer/ride')"
+    <main class="main-content" role="main" aria-label="เนื้อหาหลัก">
+      <!-- Where To Go Banner -->
+      <section class="where-to-go-section">
+        <WhereToGoBanner
+          title="ไปไหนดี?"
+          subtitle="ค้นหาสถานที่ยอดนิยม"
+          @click="navigateTo('/customer/ride')"
         />
       </section>
 
       <!-- Active Orders -->
       <section
-        v-if="loadingOrders || activeOrders.length > 0"
+        v-if="loadingOrders || activeOrders.length > 0 || (!loadingOrders && activeOrders.length === 0)"
         class="active-orders-section"
+        aria-label="รายการที่กำลังดำเนินการ"
       >
         <div class="section-header">
           <h3 class="section-title">กำลังดำเนินการ</h3>
-          <span v-if="!loadingOrders" class="order-count">{{ activeOrders.length }} รายการ</span>
+          <span v-if="!loadingOrders && activeOrders.length > 0" class="order-count" role="status">{{ activeOrders.length }} รายการ</span>
         </div>
 
         <!-- Skeleton Loading -->
-        <div v-if="loadingOrders" class="skeleton-orders">
-          <div v-for="i in 2" :key="i" class="skeleton-order"></div>
+        <div v-if="loadingOrders" class="skeleton-orders" aria-busy="true" aria-label="กำลังโหลดรายการ">
+          <OrderLoadingSkeleton v-for="i in 2" :key="i" />
         </div>
 
         <!-- Orders List -->
-        <div v-else class="orders-list">
+        <div v-else-if="activeOrders.length > 0" class="orders-list" role="list">
           <ActiveOrderCard
             v-for="order in activeOrders"
             :key="order.id"
             v-bind="order"
+            role="listitem"
             @click="handleOrderClick"
           />
         </div>
@@ -839,15 +840,15 @@ onUnmounted(() => {
       @navigate="navigateTo"
     />
   </div>
+  </ErrorBoundary>
 </template>
 
 <style scoped>
 .customer-home {
   min-height: 100vh;
   min-height: 100dvh;
-  background: #f5f5f5;
+  background: var(--color-bg-secondary);
   padding-bottom: 90px;
-  /* ลบ opacity transition - แสดง UI ทันที */
 }
 
 /* Pull to Refresh */
@@ -858,14 +859,14 @@ onUnmounted(() => {
   transform: translateX(-50%) translateY(-50px);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  z-index: 200;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-sticky);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-base) var(--ease-in-out);
 }
 
 .pull-indicator.visible {
@@ -873,15 +874,15 @@ onUnmounted(() => {
 }
 
 .pull-indicator span {
-  font-size: 13px;
-  color: #666666;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
 .pull-spinner {
   width: 20px;
   height: 20px;
-  color: #00a86b;
+  color: var(--color-primary);
 }
 
 .pull-spinner svg {
@@ -906,71 +907,48 @@ onUnmounted(() => {
 .main-content {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding-top: 20px;
-}
-
-/* Search Section */
-.search-section {
-  padding: 0 20px;
-  margin-top: -12px;
+  gap: var(--spacing-6);
+  padding-top: var(--spacing-5);
 }
 
 /* Active Orders Section */
 .active-orders-section {
-  padding: 0 20px;
+  padding: 0 var(--spacing-5);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--spacing-3);
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
 }
 
 .order-count {
-  padding: 4px 10px;
-  background: #e8f5ef;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #00a86b;
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--color-primary-bg);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
 }
 
 .orders-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--spacing-3);
 }
 
 /* Skeleton Loading */
 .skeleton-orders {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.skeleton-order {
-  height: 80px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  border-radius: 18px;
-  animation: shimmer 1.5s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  gap: var(--spacing-3);
 }
 
 /* Saved Section */
@@ -980,34 +958,37 @@ onUnmounted(() => {
 
 /* Promo Section */
 .promo-section {
-  padding: 0 20px;
+  padding: 0 var(--spacing-5);
 }
 
 /* Quick Reorder Section */
 .quick-reorder-section {
-  padding: 0 20px;
+  padding: 0 var(--spacing-5);
 }
 
 .reorder-badge {
-  padding: 4px 10px;
-  background: linear-gradient(135deg, #00a86b 0%, #008f5b 100%);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #ffffff;
+  padding: var(--spacing-1) var(--spacing-3);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-inverse);
 }
 
 .reorder-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--spacing-3);
 }
 
 /* Provider Section */
 .provider-section {
-  padding: 0 20px;
-  margin-bottom: 20px;
+  padding: 0 var(--spacing-5);
+  margin-bottom: var(--spacing-5);
 }
 
-
+/* Where To Go Section */
+.where-to-go-section {
+  padding: 0 var(--spacing-5);
+}
 </style>

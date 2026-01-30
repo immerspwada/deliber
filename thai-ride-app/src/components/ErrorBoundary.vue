@@ -1,15 +1,17 @@
 <script setup lang="ts">
 /**
- * ErrorBoundary - จัดการ errors ใน component tree
- * แสดง fallback UI เมื่อเกิด error
+ * ErrorBoundary - Component สำหรับจัดการ error ที่เกิดขึ้นใน child components
+ * 
+ * Features:
+ * - Catch errors from child components
+ * - Display user-friendly error message
+ * - Report to Sentry (production)
+ * - Allow retry
  */
 import { onErrorCaptured, ref } from 'vue'
-import { useToast } from '../composables/useToast'
 
 interface Props {
-  /** Custom error message */
   fallbackMessage?: string
-  /** Show retry button */
   showRetry?: boolean
 }
 
@@ -19,45 +21,43 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  'retry': []
-  'error': [error: Error]
+  error: [error: Error]
+  retry: []
 }>()
 
-const toast = useToast()
 const error = ref<Error | null>(null)
 const errorCount = ref(0)
 
+// Move import.meta.env checks to script section
+const isDev = import.meta.env.DEV
+const isProd = import.meta.env.PROD
+
 onErrorCaptured((err: Error) => {
-  console.error('[ErrorBoundary] Caught error:', err)
-  
   error.value = err
   errorCount.value++
   
-  // Show toast notification
-  try {
-    toast.error(props.fallbackMessage)
-  } catch (toastErr) {
-    console.warn('[ErrorBoundary] Toast failed:', toastErr)
+  // Log to console in development
+  if (isDev) {
+    console.error('[ErrorBoundary] Caught error:', err)
   }
   
-  // Emit error event for logging
-  emit('error', err)
-  
-  // Log to external service (e.g., Sentry) in production
-  if (import.meta.env.PROD) {
-    // TODO: Send to error tracking service
-    console.error('[Production Error]', {
-      message: err.message,
-      stack: err.stack,
-      count: errorCount.value
+  // Report to Sentry in production
+  if (isProd && window.Sentry) {
+    window.Sentry.captureException(err, {
+      tags: {
+        component: 'ErrorBoundary',
+        errorCount: errorCount.value
+      }
     })
   }
+  
+  emit('error', err)
   
   // Prevent error from propagating
   return false
 })
 
-const handleRetry = (): void => {
+const handleRetry = () => {
   error.value = null
   emit('retry')
 }
@@ -66,33 +66,53 @@ const handleRetry = (): void => {
 <template>
   <div v-if="error" class="error-boundary">
     <div class="error-content">
+      <!-- Error Icon -->
       <div class="error-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          stroke-width="2"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v4M12 16h.01" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
       </div>
       
-      <h3 class="error-title">เกิดข้อผิดพลาด</h3>
-      <p class="error-message">{{ fallbackMessage }}</p>
+      <!-- Error Message -->
+      <h3 class="error-title">{{ fallbackMessage }}</h3>
       
+      <!-- Error Details (dev only) -->
+      <details v-if="isDev" class="error-details">
+        <summary>รายละเอียดข้อผิดพลาด</summary>
+        <pre>{{ error.message }}</pre>
+        <pre v-if="error.stack">{{ error.stack }}</pre>
+      </details>
+      
+      <!-- Retry Button -->
       <button
         v-if="showRetry"
-        class="retry-btn"
+        type="button"
+        class="retry-button"
         @click="handleRetry"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          stroke-width="2"
+          aria-hidden="true"
+        >
           <path d="M21 12a9 9 0 11-6.219-8.56" />
         </svg>
-        ลองใหม่อีกครั้ง
+        <span>ลองใหม่อีกครั้ง</span>
       </button>
-      
-      <p v-if="errorCount > 3" class="error-hint">
-        หากปัญหายังคงอยู่ กรุณาติดต่อฝ่ายสนับสนุน
-      </p>
     </div>
   </div>
   
+  <!-- Render children when no error -->
   <slot v-else />
 </template>
 
@@ -101,82 +121,100 @@ const handleRetry = (): void => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
-  padding: 40px 20px;
+  min-height: 200px;
+  padding: 24px;
 }
 
 .error-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  max-width: 400px;
   text-align: center;
+  max-width: 400px;
 }
 
 .error-icon {
   width: 64px;
   height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffebee;
-  border-radius: 50%;
-  color: #e53935;
+  margin: 0 auto 16px;
+  color: #ef4444;
 }
 
 .error-icon svg {
-  width: 32px;
-  height: 32px;
+  width: 100%;
+  height: 100%;
 }
 
 .error-title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   color: #1a1a1a;
-  margin: 0;
+  margin-bottom: 16px;
 }
 
-.error-message {
+.error-details {
+  margin: 16px 0;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.error-details summary {
+  cursor: pointer;
   font-size: 14px;
+  font-weight: 600;
   color: #666666;
-  line-height: 1.5;
-  margin: 0;
+  margin-bottom: 8px;
 }
 
-.retry-btn {
-  display: flex;
+.error-details pre {
+  font-size: 12px;
+  color: #ef4444;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+}
+
+.retry-button {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
   background: #00a86b;
+  color: #ffffff;
   border: none;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-top: 8px;
+  min-height: 44px;
+  min-width: 44px;
 }
 
-.retry-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.retry-btn:hover {
+.retry-button:hover {
   background: #008f5b;
   transform: translateY(-1px);
 }
 
-.retry-btn:active {
+.retry-button:active {
   transform: scale(0.98);
 }
 
-.error-hint {
-  font-size: 12px;
-  color: #999999;
-  margin: 8px 0 0;
+.retry-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .error-title {
+    color: #ffffff;
+  }
+  
+  .error-details {
+    background: #2a2a2a;
+  }
+  
+  .error-details summary {
+    color: #cccccc;
+  }
 }
 </style>

@@ -1,294 +1,168 @@
 /**
- * Centralized Error Handler Composable
- * ใช้สำหรับจัดการ error ทั่วทั้งแอป
+ * useErrorHandler - Composable สำหรับจัดการ errors แบบ centralized
  * 
  * Features:
- * - Automatic retry with exponential backoff
- * - Network error detection
- * - User-friendly error messages
- * - Retry button for recoverable errors
+ * - Standardized error handling
+ * - User-friendly Thai messages
+ * - Sentry integration (production)
+ * - Toast notifications
  */
-import { ref, readonly } from 'vue'
-import { 
-  type AppError, 
-  ErrorCode, 
-  handleSupabaseError, 
-  parseEdgeFunctionError,
-  handleNetworkError,
-  createUserErrorMessage,
-  createAppError
-} from '../utils/errorHandler'
+import { useToast } from './useToast'
 
-interface ErrorState {
-  hasError: boolean
-  error: AppError | null
-  retryCount: number
-  canRetry: boolean
-  retryCallback: (() => Promise<void>) | null
+export enum ErrorCode {
+  NETWORK = 'NETWORK',
+  AUTH = 'AUTH',
+  VALIDATION = 'VALIDATION',
+  NOT_FOUND = 'NOT_FOUND',
+  PERMISSION = 'PERMISSION',
+  RATE_LIMITED = 'RATE_LIMITED',
+  BUSINESS = 'BUSINESS',
+  INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
+  UNKNOWN = 'UNKNOWN'
 }
 
-// Simple toast notification function (can be replaced with a proper toast library)
-function useToast() {
-  const showError = (message: string, options?: { action?: { label: string; onClick: () => void } }): void => {
-    console.error('[Toast Error]', message)
-    // In a real app, this would show a toast notification
-    // For now, we'll use console.error and could show an alert in development
-    if (import.meta.env.DEV) {
-      // Could show browser notification or use a toast library
-    }
-    
-    // If there's a retry action, log it
-    if (options?.action) {
-      console.log('[Toast Action]', options.action.label)
-    }
+export class AppError extends Error {
+  constructor(
+    message: string,
+    public code: ErrorCode,
+    public userMessage?: string,
+    public context?: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = 'AppError'
   }
+}
 
-  const showWarning = (message: string): void => {
-    console.warn('[Toast Warning]', message)
-  }
-
-  return { showError, showWarning }
+// Thai user messages
+export const ERROR_MESSAGES: Record<ErrorCode, string> = {
+  NETWORK: 'ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบอินเทอร์เน็ต',
+  AUTH: 'กรุณาเข้าสู่ระบบใหม่',
+  VALIDATION: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง',
+  NOT_FOUND: 'ไม่พบข้อมูลที่ต้องการ',
+  PERMISSION: 'คุณไม่มีสิทธิ์เข้าถึง',
+  RATE_LIMITED: 'คำขอมากเกินไป กรุณารอสักครู่',
+  BUSINESS: 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่',
+  INSUFFICIENT_BALANCE: 'ยอดเงินไม่เพียงพอ กรุณาเติมเงิน',
+  UNKNOWN: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'
 }
 
 export function useErrorHandler() {
-  const { showError, showWarning } = useToast()
-  const errorState = ref<ErrorState>({
-    hasError: false,
-    error: null,
-    retryCount: 0,
-    canRetry: false,
-    retryCallback: null
-  })
+  const { error: showError, warning: showWarning } = useToast()
 
   /**
-   * Handle any error and show appropriate user message
+   * Handle error with user-friendly message
    */
-  function handle(error: unknown, context?: string, retryCallback?: () => Promise<void>): AppError {
-    console.error(`[ErrorHandler${context ? ` - ${context}` : ''}]`, error)
-    
-    let appError: AppError
-
-    // Convert different error types to AppError
-    if (error && typeof error === 'object' && 'code' in error && 'userMessage' in error) {
-      // Already an AppError
-      appError = error as AppError
-    } else if (error && typeof error === 'object' && 'error' in error) {
-      // Edge Function error response
-      appError = parseEdgeFunctionError(error)
-    } else if (error && typeof error === 'object' && ('message' in error || 'code' in error)) {
-      // Supabase error
-      appError = handleSupabaseError(error, context)
-    } else if (error instanceof TypeError && error.message.includes('fetch')) {
-      // Network error
-      appError = handleNetworkError(error)
-    } else if (error instanceof Error) {
-      // Generic JavaScript error
-      appError = createAppError(ErrorCode.UNKNOWN, error.message)
-    } else {
-      // Unknown error type
-      appError = createAppError(ErrorCode.UNKNOWN, String(error))
+  function handle(error: unknown, context?: string): void {
+    // Log for debugging
+    if (import.meta.env.DEV) {
+      console.error(`[ErrorHandler${context ? ` - ${context}` : ''}]`, error)
     }
 
-    // Check if error is recoverable
-    const canRetry = isRecoverableError(appError)
+    // Handle AppError
+    if (error instanceof AppError) {
+      const message = error.userMessage ?? ERROR_MESSAGES[error.code]
+      
+      if (error.code === ErrorCode.RATE_LIMITED) {
+        showWarning(message)
+      } else {
+        showError(message)
+      }
 
-    // Update error state
-    errorState.value = {
-      hasError: true,
-      error: appError,
-      retryCount: errorState.value.retryCount + 1,
-      canRetry,
-      retryCallback: canRetry ? retryCallback || null : null
+      // Report to Sentry (production)
+      if (import.meta.env.PROD && window.Sentry) {
+        window.Sentry.captureException(error, {
+          tags: {
+            errorCode: error.code,
+            context: context || 'unknown'
+          },
+          extra: error.context
+        })
+      }
+      return
     }
 
-    // Show error with retry button if applicable
-    if (canRetry && retryCallback) {
-      const retrySuggestion = getRetrySuggestion(appError)
-      showError(appError.userMessage || retrySuggestion || 'เกิดข้อผิดพลาด', {
-        action: {
-          label: 'ลองใหม่',
-          onClick: () => {
-            clearError()
-            retryCallback()
+    // Handle Supabase errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      const supabaseError = error as { code: string; message: string }
+      
+      // Map Supabase error codes to AppError codes
+      let errorCode = ErrorCode.UNKNOWN
+      let userMessage = ERROR_MESSAGES.UNKNOWN
+      
+      if (supabaseError.code === 'PGRST116') {
+        errorCode = ErrorCode.NOT_FOUND
+        userMessage = ERROR_MESSAGES.NOT_FOUND
+      } else if (supabaseError.code === '42501') {
+        errorCode = ErrorCode.PERMISSION
+        userMessage = ERROR_MESSAGES.PERMISSION
+      } else if (supabaseError.message?.includes('JWT')) {
+        errorCode = ErrorCode.AUTH
+        userMessage = ERROR_MESSAGES.AUTH
+      }
+      
+      showError(userMessage)
+      
+      if (import.meta.env.PROD && window.Sentry) {
+        window.Sentry.captureException(error, {
+          tags: {
+            errorCode,
+            supabaseCode: supabaseError.code,
+            context: context || 'unknown'
           }
+        })
+      }
+      return
+    }
+
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      showError(ERROR_MESSAGES.NETWORK)
+      return
+    }
+
+    // Handle unknown errors
+    showError(ERROR_MESSAGES.UNKNOWN)
+    
+    if (import.meta.env.PROD && window.Sentry) {
+      window.Sentry.captureException(error, {
+        tags: {
+          errorCode: ErrorCode.UNKNOWN,
+          context: context || 'unknown'
         }
       })
-    } else {
-      showError(appError.userMessage || 'เกิดข้อผิดพลาด')
-    }
-
-    // Log to external service in production
-    if (import.meta.env.PROD) {
-      logErrorToService(appError, context)
-    }
-
-    return appError
-  }
-
-  /**
-   * Legacy handleError method (for backward compatibility)
-   */
-  function handleError(error: unknown, context?: string): AppError {
-    return handle(error, context)
-  }
-
-  /**
-   * Handle async operations with error handling
-   */
-  async function handleAsync<T>(
-    operation: () => Promise<T>,
-    context?: string,
-    options?: {
-      showLoading?: boolean
-      retryOnError?: boolean
-      maxRetries?: number
-    }
-  ): Promise<T | null> {
-    const { showLoading = false, retryOnError = false, maxRetries = 3 } = options || {}
-    
-    let attempts = 0
-    
-    while (attempts < (retryOnError ? maxRetries : 1)) {
-      try {
-        attempts++
-        
-        if (showLoading) {
-          // Show loading state
-        }
-        
-        const result = await operation()
-        
-        // Clear error state on success
-        clearError()
-        
-        return result
-      } catch (error) {
-        const appError = handleError(error, context)
-        
-        // Retry logic for certain error types
-        if (retryOnError && attempts < maxRetries) {
-          const shouldRetry = [
-            ErrorCode.NETWORK_ERROR,
-            ErrorCode.TIMEOUT_ERROR,
-            ErrorCode.SERVICE_UNAVAILABLE
-          ].includes(appError.code)
-          
-          if (shouldRetry) {
-            // Exponential backoff
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000)
-            await new Promise(resolve => setTimeout(resolve, delay))
-            continue
-          }
-        }
-        
-        // Don't retry, return null
-        return null
-      }
-    }
-    
-    return null
-  }
-
-  /**
-   * Clear error state
-   */
-  function clearError(): void {
-    errorState.value = {
-      hasError: false,
-      error: null,
-      retryCount: 0,
-      canRetry: false,
-      retryCallback: null
     }
   }
 
   /**
-   * Manually trigger retry
+   * Create AppError with code
    */
-  async function retry(): Promise<void> {
-    if (errorState.value.retryCallback) {
-      clearError()
-      await errorState.value.retryCallback()
-    }
-  }
-
-  /**
-   * Check if error is recoverable
-   */
-  function isRecoverableError(error: AppError): boolean {
-    const recoverableErrors = [
-      ErrorCode.NETWORK_ERROR,
-      ErrorCode.TIMEOUT_ERROR,
-      ErrorCode.SERVICE_UNAVAILABLE,
-      ErrorCode.RATE_LIMITED
-    ]
-    
-    return recoverableErrors.includes(error.code)
-  }
-
-  /**
-   * Get retry suggestion for user
-   */
-  function getRetrySuggestion(error: AppError): string | null {
-    switch (error.code) {
-      case ErrorCode.NETWORK_ERROR:
-        return 'ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่'
-      case ErrorCode.TIMEOUT_ERROR:
-        return 'ลองใหม่ในอีกสักครู่'
-      case ErrorCode.RATE_LIMITED:
-        return 'รอ 1-2 นาทีแล้วลองใหม่'
-      case ErrorCode.SERVICE_UNAVAILABLE:
-        return 'บริการไม่พร้อมใช้งาน กรุณาลองใหม่ในภายหลัง'
-      case ErrorCode.AUTH_ERROR:
-        return 'เข้าสู่ระบบใหม่'
-      case ErrorCode.SESSION_EXPIRED:
-        return 'เข้าสู่ระบบใหม่'
-      default:
-        return null
-    }
-  }
-
-  /**
-   * Log error to external service (Sentry, LogRocket, etc.)
-   */
-  function logErrorToService(error: AppError, context?: string): void {
-    // TODO: Implement external error logging
-    console.error('[Production Error]', {
-      code: error.code,
-      message: error.message,
-      userMessage: error.userMessage,
-      context,
-      timestamp: error.timestamp,
-      details: error.details
-    })
+  function createError(
+    code: ErrorCode,
+    message?: string,
+    context?: Record<string, unknown>
+  ): AppError {
+    return new AppError(
+      message || ERROR_MESSAGES[code],
+      code,
+      ERROR_MESSAGES[code],
+      context
+    )
   }
 
   return {
-    errorState: readonly(errorState),
     handle,
-    handleError, // Legacy method
-    handleAsync,
-    clearError,
-    retry,
-    isRecoverableError,
-    getRetrySuggestion
+    createError,
+    AppError,
+    ErrorCode,
+    ERROR_MESSAGES
   }
 }
 
-/**
- * Global error handler for unhandled promise rejections
- */
-export function setupGlobalErrorHandler(): void {
-  const { handleError } = useErrorHandler()
-  
-  // Handle unhandled promise rejections
-  window.addEventListener('unhandledrejection', (event) => {
-    handleError(event.reason, 'UnhandledPromiseRejection')
-    event.preventDefault()
-  })
-  
-  // Handle global errors
-  window.addEventListener('error', (event) => {
-    handleError(event.error, 'GlobalError')
-  })
+// Type augmentation for Sentry
+declare global {
+  interface Window {
+    Sentry?: {
+      captureException: (error: unknown, context?: any) => void
+    }
+  }
 }

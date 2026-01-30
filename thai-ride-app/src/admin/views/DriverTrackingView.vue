@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { supabase } from '../../lib/supabase'
+import { useDebounceFn } from '@vueuse/core'
 import L from 'leaflet'
 // Note: Leaflet CSS loaded via CDN in index.html
 
@@ -47,14 +48,28 @@ let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
 // Filters
 const filterStatus = ref<'all' | 'online' | 'available'>('all')
 const searchQuery = ref('')
+const debouncedSearch = ref('')
+
+// Debounce search input
+const updateSearch = useDebounceFn((value: string) => {
+  debouncedSearch.value = value
+}, 300)
+
+watch(searchQuery, (newValue) => {
+  updateSearch(newValue)
+})
 
 const filteredProviders = computed(() => {
   let result = [...providers.value]
   if (filterStatus.value === 'online') result = result.filter(p => p.is_online)
   else if (filterStatus.value === 'available') result = result.filter(p => p.is_online && p.is_available)
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(p => p.user_name.toLowerCase().includes(query) || (p.provider_uid?.toLowerCase() || '').includes(query) || (p.phone_number || '').includes(query))
+  if (debouncedSearch.value) {
+    const query = debouncedSearch.value.toLowerCase()
+    result = result.filter(p => 
+      p.user_name.toLowerCase().includes(query) || 
+      (p.provider_uid?.toLowerCase() || '').includes(query) || 
+      (p.phone_number || '').includes(query)
+    )
   }
   return result
 })
@@ -128,37 +143,60 @@ function createPopupContent(provider: ProviderLocation): string {
 
 async function loadProviders(): Promise<void> {
   error.value = null
+  loading.value = true
   try {
-    const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_active_providers_locations')
-    if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+    // Try RPC function first (optimized query)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_active_providers_locations')
+    
+    if (!rpcError && rpcData && Array.isArray(rpcData)) {
       providers.value = rpcData.map((p: any) => ({
-        id: p.id, provider_uid: p.provider_uid, provider_type: p.provider_type,
-        user_name: p.user_name || 'ไม่ระบุชื่อ', phone_number: p.phone_number,
-        current_lat: p.current_lat, current_lng: p.current_lng,
-        is_online: p.is_online || false, is_available: p.is_online || false,
-        rating: p.rating || 0, total_trips: p.total_trips || 0,
+        id: p.id,
+        provider_uid: p.provider_uid,
+        provider_type: p.provider_type,
+        user_name: p.user_name || 'ไม่ระบุชื่อ',
+        phone_number: p.phone_number,
+        current_lat: p.current_lat ? parseFloat(p.current_lat) : null,
+        current_lng: p.current_lng ? parseFloat(p.current_lng) : null,
+        is_online: p.is_online || false,
+        is_available: p.is_online || false,
+        rating: p.rating ? parseFloat(p.rating) : 0,
+        total_trips: p.total_trips || 0,
         last_location_update: p.last_updated
       }))
     } else {
+      // Fallback to direct query
       const { data, error: queryError } = await supabase
         .from('providers_v2')
-        .select('id, provider_uid, provider_type, first_name, last_name, phone_number, current_lat, current_lng, is_online, is_available, rating, total_trips, updated_at')
+        .select('id, provider_uid, provider_type, first_name, last_name, phone_number, current_lat, current_lng, is_online, is_available, rating, total_trips, location_updated_at')
         .in('status', ['approved', 'active'])
-        .order('updated_at', { ascending: false }).limit(100)
+        .order('location_updated_at', { ascending: false, nullsFirst: false })
+        .limit(100)
+      
       if (queryError) throw queryError
+      
       providers.value = (data || []).map((p: any) => ({
-        id: p.id, provider_uid: p.provider_uid, provider_type: p.provider_type || 'driver',
+        id: p.id,
+        provider_uid: p.provider_uid,
+        provider_type: p.provider_type || 'driver',
         user_name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'ไม่ระบุชื่อ',
-        phone_number: p.phone_number, current_lat: p.current_lat, current_lng: p.current_lng,
-        is_online: p.is_online || false, is_available: p.is_available || false,
-        rating: p.rating || 0, total_trips: p.total_trips || 0, last_location_update: p.updated_at
+        phone_number: p.phone_number,
+        current_lat: p.current_lat,
+        current_lng: p.current_lng,
+        is_online: p.is_online || false,
+        is_available: p.is_available || false,
+        rating: p.rating || 0,
+        total_trips: p.total_trips || 0,
+        last_location_update: p.location_updated_at
       }))
     }
+    
     nextTick(() => updateMarkers())
   } catch (err: unknown) {
     console.error('Error loading providers:', err)
     error.value = (err as Error).message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
-  } finally { loading.value = false }
+  } finally {
+    loading.value = false
+  }
 }
 
 // Realtime subscription
@@ -189,17 +227,28 @@ async function loadLocationHistory(providerId: string): Promise<void> {
   historyLoading.value = true
   locationHistory.value = []
   try {
-    const { data, error: historyError } = await (supabase.rpc as any)('get_provider_location_history', {
-      p_provider_id: providerId, p_hours: 24, p_limit: 100
+    const { data, error: historyError } = await supabase.rpc('get_provider_location_history', {
+      p_provider_id: providerId,
+      p_hours: 24,
+      p_limit: 100
     })
+    
     if (historyError) throw historyError
+    
     locationHistory.value = (data || []).map((h: any) => ({
-      id: h.id, latitude: h.latitude, longitude: h.longitude, recorded_at: h.recorded_at
+      id: h.id,
+      latitude: parseFloat(h.latitude),
+      longitude: parseFloat(h.longitude),
+      recorded_at: h.recorded_at
     }))
+    
     nextTick(() => initHistoryMap())
   } catch (err) {
     console.error('Error loading history:', err)
-  } finally { historyLoading.value = false }
+    error.value = 'ไม่สามารถโหลดประวัติตำแหน่งได้'
+  } finally {
+    historyLoading.value = false
+  }
 }
 
 function initHistoryMap(): void {

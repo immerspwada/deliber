@@ -13,7 +13,6 @@ export { default as EmptyState } from './EmptyState.vue'
 
 // Cute Customer Components (New)
 export { default as WelcomeHeader } from './WelcomeHeader.vue'
-export { default as QuickDestinationSearch } from './QuickDestinationSearch.vue'
 export { default as CuteServiceGrid } from './CuteServiceGrid.vue'
 export { default as ActiveOrderCard } from './ActiveOrderCard.vue'
 export { default as SavedPlacesRow } from './SavedPlacesRow.vue'
@@ -25,6 +24,7 @@ export { default as BottomNavigation } from './BottomNavigation.vue'
 export { default as LoyaltyCard } from './LoyaltyCard.vue'
 export { default as FloatingActionButton } from './FloatingActionButton.vue'
 export { default as ChatWidget } from './ChatWidget.vue'
+export { default as WhereToGoBanner } from './WhereToGoBanner.vue'
 
 // Cross-Role Integration Components (F174-F177)
 export { default as LiveProviderTracker } from './LiveProviderTracker.vue'
