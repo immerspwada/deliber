@@ -201,13 +201,6 @@ onMounted(() => {
             <td class="wallet">{{ formatCurrency(customer.wallet_balance) }}</td>
             <td class="date">{{ formatDate(customer.created_at) }}</td>
             <td class="actions-cell">
-              <button class="action-btn history-btn" aria-label="ดูประวัติ" title="ดูประวัติออเดอร์และการเปลี่ยนแปลง" @click.stop="viewCustomerHistory(customer)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <polyline points="12 6 12 12 16 14"/>
-                </svg>
-              </button>
-              <button class="action-btn" aria-label="ดูรายละเอียด" @click.stop="viewCustomer(customer)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
               <button v-if="customer.status !== 'suspended'" class="action-btn suspend-btn" aria-label="ระงับการใช้งาน" title="ระงับการใช้งาน" @click.stop="openSuspendModal(customer)">
@@ -319,13 +312,6 @@ onMounted(() => {
       </div>
     </div>
   </div>
-    <!-- Customer History Modal -->
-    <CustomerHistoryModal
-      :show="showHistoryModal"
-      :customer-id="historyCustomer?.id || null"
-      :customer-name="historyCustomer?.full_name || ''"
-      @close="showHistoryModal = false"
-    />
 
 </template>
 
@@ -379,8 +365,6 @@ onMounted(() => {
 .actions-cell { display: flex; gap: 4px; }
 .action-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 8px; cursor: pointer; color: #6B7280; transition: all 0.15s; }
 .action-btn:hover { background: #F3F4F6; }
-.action-btn.history-btn { color: #3B82F6; }
-.action-btn.history-btn:hover { background: #DBEAFE; color: #2563EB; }
 .action-btn.suspend-btn:hover { background: #FEE2E2; color: #EF4444; }
 .action-btn.unsuspend-btn:hover { background: #D1FAE5; color: #059669; }
 .empty-state { display: flex; align-items: center; justify-content: center; padding: 60px; color: #9CA3AF; }
