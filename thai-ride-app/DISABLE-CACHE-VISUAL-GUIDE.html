@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎯 Visual Guide: Disable Cache</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f3f4f6;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    
+    .header h1 {
+      font-size: 36px;
+      color: #1f2937;
+      margin-bottom: 12px;
+    }
+    
+    .header p {
+      font-size: 18px;
+      color: #6b7280;
+    }
+    
+    .step-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .step-number {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    
+    .step-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1f2937;
+    }
+    
+    .step-content {
+      padding-left: 64px;
+    }
+    
+    .screenshot {
+      background: #f9fafb;
+      border: 3px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      margin: 16px 0;
+      position: relative;
+    }
+    
+    .screenshot-label {
+      position: absolute;
+      top: -12px;
+      left: 16px;
+      background: #667eea;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .devtools-mockup {
+      background: #1f2937;
+      border-radius: 8px;
+      padding: 16px;
+      color: #e5e7eb;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+    }
+    
+    .devtools-header {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #374151;
+    }
+    
+    .devtools-tab {
+      padding: 8px 16px;
+      background: #374151;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    .devtools-tab.active {
+      background: #667eea;
+      color: white;
+    }
+    
+    .checkbox-demo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: #fef3c7;
+      border: 2px solid #fbbf24;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+    
+    .checkbox-demo input[type="checkbox"] {
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+    }
+    
+    .checkbox-demo label {
+      font-size: 16px;
+      font-weight: 600;
+      color: #92400e;
+      cursor: pointer;
+    }
+    
+    .network-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    
+    .network-table th {
+      background: #374151;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+    }
+    
+    .network-table td {
+      padding: 12px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .status-304 {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    
+    .status-200 {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    
+    .keyboard-shortcut {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #1f2937;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 16px;
+      font-weight: 600;
+      margin: 8px 4px;
+    }
+    
+    .key {
+      background: #374151;
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid #4b5563;
+    }
+    
+    .alert {
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    
+    .alert-success {
+      background: #d1fae5;
+      border: 2px solid #10b981;
+      color: #065f46;
+    }
+    
+    .alert-error {
+      background: #fee2e2;
+      border: 2px solid #ef4444;
+      color: #991b1b;
+    }
+    
+    .alert-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    
+    .alert-content {
+      flex: 1;
+    }
+    
+    .alert-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+    }
+    
+    .final-cta {
+      text-align: center;
+      margin-top: 48px;
+      padding: 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 16px;
+      color: white;
+    }
+    
+    .final-cta h2 {
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+    
+    .final-cta p {
+      font-size: 18px;
+      margin-bottom: 24px;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎯 Visual Guide: Disable Browser Cache</h1>
+      <p>ทำตามขั้นตอนเหล่านี้เพื่อแก้ปัญหา viewCustomerHistory function</p>
+    </div>
+    
+    <!-- Step 1 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">เปิด DevTools</div>
+      </div>
+      <div class="step-content">
+        <p style="margin-bottom: 16px; color: #4b5563; font-size: 16px;">
+          กดปุ่มลัดเพื่อเปิด Chrome DevTools:
+        </p>
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+          <div class="keyboard-shortcut">
+            <span>Mac:</span>
+            <span class="key">Cmd</span>
+            <span>+</span>
+            <span class="key">Option</span>
+            <span>+</span>
+            <span class="key">I</span>
+          </div>
+          <div class="keyboard-shortcut">
+            <span>Windows:</span>
+            <span class="key">F12</span>
+          </div>
+        </div>
+        <div class="screenshot">
+          <div class="screenshot-label">DevTools Location</div>
+          <div class="devtools-mockup">
+            <div style="color: #9ca3af; margin-bottom: 8px;">// DevTools จะเปิดที่ด้านล่างหรือด้านข้างของหน้าเว็บ</div>
+            <div style="color: #10b981;">✓ Elements | Console | Sources | Network | ...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Step 2 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <div class="step-title">ไปที่แท็บ Network</div>
+      </div>
+      <div class="step-content">
+        <p style="margin-bottom: 16px; color: #4b5563; font-size: 16px;">
+          คลิกที่แท็บ "Network" ใน DevTools:
+        </p>
+        <div class="screenshot">
+          <div class="screenshot-label">Network Tab</div>
+          <div class="devtools-mockup">
+            <div class="devtools-header">
+              <div class="devtools-tab">Elements</div>
+              <div class="devtools-tab">Console</div>
+              <div class="devtools-tab">Sources</div>
+              <div class="devtools-tab active">Network</div>
+              <div class="devtools-tab">Performance</div>
+            </div>
+            <div style="color: #9ca3af;">
+              Filter: All | Fetch/XHR | JS | CSS | Img | Media | Font | Doc | WS | Wasm | Manifest | Other
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Step 3 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <div class="step-title">เช็คช่อง "Disable cache"</div>
+      </div>
+      <div class="step-content">
+        <p style="margin-bottom: 16px; color: #4b5563; font-size: 16px;">
+          หาและเช็คช่อง "Disable cache" ที่ด้านบนของแท็บ Network:
+        </p>
+        <div class="checkbox-demo">
+          <input type="checkbox" id="disable-cache" checked>
+          <label for="disable-cache">🔥 Disable cache (ต้องเช็คช่องนี้!)</label>
+        </div>
+        <div class="alert alert-error">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <div class="alert-title">สำคัญมาก!</div>
+            <div>ต้องเช็คช่องนี้และเปิด DevTools ไว้ตลอดเวลาที่ทำงาน</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Step 4 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">4</div>
+        <div class="step-title">Hard Reload หน้าเว็บ</div>
+      </div>
+      <div class="step-content">
+        <p style="margin-bottom: 16px; color: #4b5563; font-size: 16px;">
+          กดปุ่มลัดเพื่อ Hard Reload (รีโหลดแบบล้าง cache):
+        </p>
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+          <div class="keyboard-shortcut">
+            <span>Mac:</span>
+            <span class="key">Cmd</span>
+            <span>+</span>
+            <span class="key">Shift</span>
+            <span>+</span>
+            <span class="key">R</span>
+          </div>
+          <div class="keyboard-shortcut">
+            <span>Windows:</span>
+            <span class="key">Ctrl</span>
+            <span>+</span>
+            <span class="key">Shift</span>
+            <span>+</span>
+            <span class="key">R</span>
+          </div>
+        </div>
+        <p style="margin-top: 16px; color: #4b5563; font-size: 14px;">
+          หรือคลิกขวาที่ปุ่ม Reload → เลือก "Empty Cache and Hard Reload"
+        </p>
+      </div>
+    </div>
+    
+    <!-- Step 5 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">5</div>
+        <div class="step-title">ตรวจสอบ Network Tab</div>
+      </div>
+      <div class="step-content">
+        <p style="margin-bottom: 16px; color: #4b5563; font-size: 16px;">
+          ดูที่แท็บ Network - ต้องเห็น status code <strong>200</strong> (ไม่ใช่ 304):
+        </p>
+        
+        <div class="screenshot">
+          <div class="screenshot-label">❌ ก่อนแก้ (Cache ยังทำงาน)</div>
+          <table class="network-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Type</th>
+                <th>Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>CustomersView.vue</td>
+                <td><span class="status-304">304</span></td>
+                <td>javascript</td>
+                <td>(from cache)</td>
+              </tr>
+              <tr>
+                <td>app.js</td>
+                <td><span class="status-304">304</span></td>
+                <td>javascript</td>
+                <td>(from cache)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="screenshot">
+          <div class="screenshot-label">✅ หลังแก้ (โหลดใหม่)</div>
+          <table class="network-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Type</th>
+                <th>Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>CustomersView.vue</td>
+                <td><span class="status-200">200</span></td>
+                <td>javascript</td>
+                <td>45.2 KB</td>
+              </tr>
+              <tr>
+                <td>app.js</td>
+                <td><span class="status-200">200</span></td>
+                <td>javascript</td>
+                <td>123.4 KB</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="alert alert-success">
+          <div class="alert-icon">✅</div>
+          <div class="alert-content">
+            <div class="alert-title">สำเร็จ!</div>
+            <div>เมื่อเห็น status code 200 แสดงว่าโหลดโค้ดใหม่แล้ว</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Step 6 -->
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-number">6</div>
+        <div class="step-title">ทดสอบ History Button</div>
+      </div>
+      <div class="step-content">
+        <p style="margin-bottom: 16px; color: #4b5563; font-size: 16px;">
+          ไปที่หน้า Admin Customers และทดสอบปุ่ม History:
+        </p>
+        <ol style="color: #4b5563; line-height: 1.8; margin-left: 20px;">
+          <li>ไปที่ <code style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">http://localhost:5173/admin/customers</code></li>
+          <li>หาปุ่มไอคอนนาฬิกา (🕐) ในแถวของลูกค้า</li>
+          <li>คลิกปุ่ม History</li>
+          <li>Modal ควรเปิดขึ้นมาพร้อมแท็บ Rides, Deliveries, Shopping</li>
+        </ol>
+        
+        <div class="alert alert-success" style="margin-top: 24px;">
+          <div class="alert-icon">🎉</div>
+          <div class="alert-content">
+            <div class="alert-title">เสร็จสิ้น!</div>
+            <div>ถ้า Modal เปิดได้ แสดงว่าแก้ปัญหาสำเร็จแล้ว</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Final CTA -->
+    <div class="final-cta">
+      <h2>🚀 พร้อมแล้ว? ไปทดสอบเลย!</h2>
+      <p>อย่าลืมเปิด DevTools และเช็คช่อง "Disable cache" ก่อนนะ</p>
+      <a href="http://localhost:5173/admin/customers" class="btn-primary" style="background: white; color: #667eea;">
+        <span>🎯</span>
+        ไปที่ Admin Customers
+      </a>
+    </div>
+  </div>
+  
+  <script>
+    // Auto-check the checkbox for demo
+    document.getElementById('disable-cache').checked = true;
+    
+    // Log instructions
+    console.log('🎯 Cache Disable Instructions:');
+    console.log('1. Open DevTools (F12 or Cmd+Option+I)');
+    console.log('2. Go to Network tab');
+    console.log('3. CHECK "Disable cache" checkbox');
+    console.log('4. Hard reload (Cmd+Shift+R or Ctrl+Shift+R)');
+    console.log('5. Verify 200 status codes (not 304)');
+    console.log('6. Test history button at /admin/customers');
+  </script>
+</body>
+</html>

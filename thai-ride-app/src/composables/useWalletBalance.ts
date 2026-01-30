@@ -12,6 +12,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { roundToInt, formatCurrency as formatCurrencyUtil } from '@/utils/mathRounding'
 
 export function useWalletBalance() {
   const authStore = useAuthStore()
@@ -27,14 +28,9 @@ export function useWalletBalance() {
   console.log('   Auth user:', authStore.user?.email || 'null')
   console.log('   Auth user ID:', authStore.user?.id || 'null')
 
-  // Formatted balance
+  // Formatted balance (integer only, no decimals)
   const formattedBalance = computed(() => {
-    const formatted = new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(balance.value)
+    const formatted = formatCurrencyUtil(balance.value, true)
     
     console.log('💰 [useWalletBalance] formattedBalance computed:', {
       rawBalance: balance.value,
@@ -117,12 +113,12 @@ export function useWalletBalance() {
           console.error('❌ [useWalletBalance] Failed to parse string to number:', walletBalance)
           balance.value = 0
         } else {
-          balance.value = parsed
-          console.log('✅ [useWalletBalance] Parsed string to number:', balance.value)
+          balance.value = roundToInt(parsed) // Round to integer
+          console.log('✅ [useWalletBalance] Parsed string to integer:', balance.value)
         }
       } else if (typeof walletBalance === 'number') {
-        balance.value = walletBalance
-        console.log('✅ [useWalletBalance] Using number directly:', balance.value)
+        balance.value = roundToInt(walletBalance) // Round to integer
+        console.log('✅ [useWalletBalance] Rounded number to integer:', balance.value)
       } else {
         console.error('❌ [useWalletBalance] Unexpected type:', typeof walletBalance)
         balance.value = 0
@@ -178,9 +174,9 @@ export function useWalletBalance() {
           if (newBalance.wallet_balance !== undefined && newBalance.wallet_balance !== null) {
             const walletBalance = newBalance.wallet_balance
             if (typeof walletBalance === 'string') {
-              balance.value = parseFloat(walletBalance)
+              balance.value = roundToInt(parseFloat(walletBalance))
             } else {
-              balance.value = walletBalance
+              balance.value = roundToInt(walletBalance)
             }
             console.log('💰 Wallet balance updated (realtime):', balance.value)
           }

@@ -319,14 +319,6 @@ onMounted(() => {
       </div>
     </div>
   </div>
-    <!-- Customer History Modal -->
-    <CustomerHistoryModal
-      :show="showHistoryModal"
-      :customer-id="historyCustomer?.id || null"
-      :customer-name="historyCustomer?.full_name || ''"
-      @close="showHistoryModal = false"
-    />
-
 </template>
 
 

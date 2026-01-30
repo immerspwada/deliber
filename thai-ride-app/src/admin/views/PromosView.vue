@@ -1,140 +1,601 @@
-<script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { supabase } from '../../lib/supabase'
-import { useAdminUIStore } from '../stores/adminUI.store'
-
-const uiStore = useAdminUIStore()
-const isLoading = ref(true)
-const promos = ref<any[]>([])
-const totalPromos = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const totalPages = ref(0)
-const searchQuery = ref('')
-const statusFilter = ref('')
-const showCreateModal = ref(false)
-const saving = ref(false)
-const newPromo = ref({ code: '', description: '', discount_type: 'percentage', discount_value: 10, usage_limit: 100, is_active: true })
-
-async function loadPromos() {
-  isLoading.value = true
-  try {
-    const offset = (currentPage.value - 1) * pageSize.value
-    let query = supabase.from('promo_codes').select('*', { count: 'exact' })
-    if (searchQuery.value) query = query.ilike('code', `%${searchQuery.value}%`)
-    if (statusFilter.value === 'active') query = query.eq('is_active', true)
-    if (statusFilter.value === 'inactive') query = query.eq('is_active', false)
-    query = query.order('created_at', { ascending: false }).range(offset, offset + pageSize.value - 1)
-    const { data, count } = await query
-    promos.value = data || []
-    totalPromos.value = count || 0
-    totalPages.value = Math.ceil((count || 0) / pageSize.value)
-  } catch (e) { console.error(e) } finally { isLoading.value = false }
-}
-
-async function createPromo() {
-  saving.value = true
-  try {
-    await supabase.from('promo_codes').insert([newPromo.value])
-    showCreateModal.value = false
-    newPromo.value = { code: '', description: '', discount_type: 'percentage', discount_value: 10, usage_limit: 100, is_active: true }
-    loadPromos()
-  } catch (e) { console.error(e) } finally { saving.value = false }
-}
-
-async function toggleStatus(p: any) {
-  await supabase.from('promo_codes').update({ is_active: !p.is_active }).eq('id', p.id)
-  loadPromos()
-}
-
-function formatCurrency(n: number) { return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(n) }
-
-watch([searchQuery, statusFilter], () => { currentPage.value = 1; loadPromos() })
-watch(currentPage, loadPromos)
-onMounted(() => { uiStore.setBreadcrumbs([{ label: 'Marketing' }, { label: 'โปรโมชั่น' }]); loadPromos() })
-</script>
-
 <template>
   <div class="promos-view">
-    <div class="page-header">
-      <div class="header-left"><h1 class="page-title">โปรโมชั่น</h1><span class="total-count">{{ totalPromos }}</span></div>
-      <button class="create-btn" @click="showCreateModal = true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>สร้างโปรโม</button>
-    </div>
-    <div class="filters-bar">
-      <div class="search-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input v-model="searchQuery" type="text" placeholder="ค้นหาโค้ด..." class="search-input" /></div>
-      <select v-model="statusFilter" class="filter-select"><option value="">ทุกสถานะ</option><option value="active">ใช้งาน</option><option value="inactive">ปิด</option></select>
-    </div>
-    <div class="table-container">
-      <div v-if="isLoading" class="loading-state"><div v-for="i in 8" :key="i" class="skeleton" /></div>
-      <table v-else-if="promos.length" class="data-table">
-        <thead><tr><th>โค้ด</th><th>ส่วนลด</th><th>ใช้แล้ว/จำกัด</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody>
-          <tr v-for="p in promos" :key="p.id">
-            <td><code class="promo-code">{{ p.code }}</code><div class="desc">{{ p.description || '-' }}</div></td>
-            <td class="discount">{{ p.discount_type === 'percentage' ? `${p.discount_value}%` : formatCurrency(p.discount_value) }}</td>
-            <td>{{ p.usage_count || 0 }} / {{ p.usage_limit || '∞' }}</td>
-            <td><button class="status-toggle" :class="{ active: p.is_active }" @click="toggleStatus(p)">{{ p.is_active ? 'ใช้งาน' : 'ปิด' }}</button></td>
-            <td></td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="empty-state"><p>ไม่พบโปรโมชั่น</p></div>
-    </div>
-    <div v-if="totalPages > 1" class="pagination"><button class="page-btn" :disabled="currentPage === 1" @click="currentPage--"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button><span>{{ currentPage }} / {{ totalPages }}</span><button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button></div>
-    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
-      <div class="modal">
-        <div class="modal-header"><h2>สร้างโปรโมชั่น</h2><button class="close-btn" @click="showCreateModal = false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-        <div class="modal-body">
-          <div class="form-row"><label>โค้ด</label><input v-model="newPromo.code" type="text" placeholder="SAVE20" /></div>
-          <div class="form-row"><label>คำอธิบาย</label><input v-model="newPromo.description" type="text" /></div>
-          <div class="form-row"><label>ส่วนลด</label><input v-model.number="newPromo.discount_value" type="number" /></div>
-          <div class="form-row"><label>จำกัด</label><input v-model.number="newPromo.usage_limit" type="number" /></div>
-          <div class="modal-actions"><button class="btn-cancel" @click="showCreateModal = false">ยกเลิก</button><button class="btn-primary" :disabled="saving || !newPromo.code" @click="createPromo">สร้าง</button></div>
-        </div>
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1>โปรโมชั่น</h1>
+        <p>จัดการโค้ดส่วนลดและแคมเปญโปรโมชั่น</p>
       </div>
+      <button
+        type="button"
+        class="btn-create"
+        @click="showCreateModal = true"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        <span>สร้างโปรโมชั่น</span>
+      </button>
+    </header>
+
+    <!-- Stats -->
+    <section v-if="stats" class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">ทั้งหมด</span>
+        <span class="stat-value">{{ stats.total_promos }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">ใช้งานอยู่</span>
+        <span class="stat-value">{{ stats.active_promos }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">ยังไม่หมดอายุ</span>
+        <span class="stat-value">{{ stats.valid_promos }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">ใช้งานทั้งหมด</span>
+        <span class="stat-value">{{ stats.total_usage.toLocaleString() }}</span>
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="filters">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="ค้นหาโค้ดหรือคำอธิบาย..."
+        class="search-input"
+        @input="handleSearch"
+      />
+      <select
+        v-model="statusFilter"
+        class="filter-select"
+        @change="handleFilterChange"
+      >
+        <option value="all">ทั้งหมด</option>
+        <option value="active">ใช้งานอยู่</option>
+        <option value="inactive">ปิดใช้งาน</option>
+        <option value="expired">หมดอายุ</option>
+        <option value="upcoming">กำลังจะมา</option>
+      </select>
+      <select
+        v-model="categoryFilter"
+        class="filter-select"
+        @change="handleFilterChange"
+      >
+        <option value="all">ทุกหมวดหมู่</option>
+        <option value="ride">Ride</option>
+        <option value="delivery">Delivery</option>
+        <option value="shopping">Shopping</option>
+      </select>
+    </section>
+
+    <!-- Bulk Actions -->
+    <section v-if="selectedPromos.length > 0" class="bulk-actions">
+      <span class="bulk-count">เลือก {{ selectedPromos.length }} รายการ</span>
+      <div class="bulk-buttons">
+        <button type="button" class="bulk-btn" @click="handleBulkActivate">
+          เปิดใช้งาน
+        </button>
+        <button type="button" class="bulk-btn" @click="handleBulkDeactivate">
+          ปิดใช้งาน
+        </button>
+        <button type="button" class="bulk-btn danger" @click="handleBulkDelete">
+          ลบ
+        </button>
+        <button type="button" class="bulk-btn cancel" @click="selectedPromos = []">
+          ยกเลิก
+        </button>
+      </div>
+    </section>
+
+    <!-- Loading -->
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>กำลังโหลด...</p>
     </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="error-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 8v4M12 16h.01"/>
+      </svg>
+      <p>{{ error }}</p>
+    </div>
+
+    <!-- Empty -->
+    <div v-else-if="filteredPromos.length === 0" class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 01-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 011-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 011.52 0C14.51 3.81 17 5 19 5a1 1 0 011 1z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+      <p>ไม่พบโปรโมชั่น</p>
+    </div>
+
+    <!-- Promos List -->
+    <section v-else class="promos-list">
+      <PromoCard
+        v-for="promo in filteredPromos"
+        :key="promo.id"
+        :promo="promo"
+        :selected="selectedPromos.includes(promo.id)"
+        @select="toggleSelection(promo.id)"
+        @edit="handleEdit(promo)"
+        @delete="handleDelete(promo.id)"
+        @toggle-status="handleToggleStatus(promo.id, !promo.is_active)"
+      />
+    </section>
+
+    <!-- Create/Edit Modal -->
+    <PromoFormModal
+      v-if="showCreateModal || showEditModal"
+      :promo="editingPromo"
+      @close="closeModals"
+      @save="handleSave"
+    />
   </div>
 </template>
 
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useAdminPromos } from '@/admin/composables/useAdminPromos'
+import PromoCard from '@/admin/components/PromoCard.vue'
+import PromoFormModal from '@/admin/components/PromoFormModal.vue'
+import type { Database } from '@/types/database'
+
+type PromoCode = Database['public']['Tables']['promo_codes']['Row']
+
+const {
+  promos,
+  filteredPromos,
+  stats,
+  loading,
+  error,
+  fetchPromos,
+  fetchStats,
+  updatePromo,
+  deletePromo,
+  togglePromoStatus,
+  bulkUpdateStatus,
+  bulkDelete
+} = useAdminPromos()
+
+const searchQuery = ref('')
+const statusFilter = ref('all')
+const categoryFilter = ref('all')
+const selectedPromos = ref<string[]>([])
+const showCreateModal = ref(false)
+const showEditModal = ref(false)
+const editingPromo = ref<PromoCode | null>(null)
+
+onMounted(async () => {
+  await fetchPromos()
+  await fetchStats()
+})
+
+function handleSearch() {
+  fetchPromos({
+    status: statusFilter.value as any,
+    category: categoryFilter.value,
+    search: searchQuery.value
+  })
+}
+
+function handleFilterChange() {
+  fetchPromos({
+    status: statusFilter.value as any,
+    category: categoryFilter.value,
+    search: searchQuery.value
+  })
+}
+
+function toggleSelection(id: string) {
+  const index = selectedPromos.value.indexOf(id)
+  if (index > -1) {
+    selectedPromos.value.splice(index, 1)
+  } else {
+    selectedPromos.value.push(id)
+  }
+}
+
+function handleEdit(promo: PromoCode) {
+  editingPromo.value = promo
+  showEditModal.value = true
+}
+
+async function handleDelete(id: string) {
+  if (!confirm('คุณแน่ใจหรือไม่ที่จะลบโปรโมชั่นนี้?')) return
+  
+  try {
+    await deletePromo(id)
+  } catch (err) {
+    console.error('Failed to delete promo:', err)
+  }
+}
+
+async function handleToggleStatus(id: string, isActive: boolean) {
+  try {
+    await togglePromoStatus(id, isActive)
+  } catch (err) {
+    console.error('Failed to toggle status:', err)
+  }
+}
+
+async function handleBulkActivate() {
+  try {
+    await bulkUpdateStatus(selectedPromos.value, true)
+    selectedPromos.value = []
+  } catch (err) {
+    console.error('Failed to bulk activate:', err)
+  }
+}
+
+async function handleBulkDeactivate() {
+  try {
+    await bulkUpdateStatus(selectedPromos.value, false)
+    selectedPromos.value = []
+  } catch (err) {
+    console.error('Failed to bulk deactivate:', err)
+  }
+}
+
+async function handleBulkDelete() {
+  if (!confirm(`คุณแน่ใจหรือไม่ที่จะลบ ${selectedPromos.value.length} รายการ?`)) return
+  
+  try {
+    await bulkDelete(selectedPromos.value)
+    selectedPromos.value = []
+  } catch (err) {
+    console.error('Failed to bulk delete:', err)
+  }
+}
+
+function handleSave() {
+  closeModals()
+  fetchPromos()
+  fetchStats()
+}
+
+function closeModals() {
+  showCreateModal.value = false
+  showEditModal.value = false
+  editingPromo.value = null
+}
+</script>
+
 <style scoped>
-.promos-view { max-width: 1400px; margin: 0 auto; }
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.page-title { font-size: 24px; font-weight: 700; color: #1F2937; margin: 0; }
-.total-count { padding: 4px 12px; background: #E8F5EF; color: #00A86B; font-size: 13px; font-weight: 500; border-radius: 16px; }
-.create-btn { display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: #00A86B; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
-.filters-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-.search-box { flex: 1; max-width: 300px; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; }
-.search-box svg { color: #9CA3AF; }
-.search-input { flex: 1; padding: 12px 0; border: none; outline: none; font-size: 14px; }
-.filter-select { padding: 12px 16px; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; font-size: 14px; }
-.table-container { background: #fff; border-radius: 16px; overflow: hidden; }
-.loading-state { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-.skeleton { height: 56px; background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th { padding: 14px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6B7280; text-transform: uppercase; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
-.data-table td { padding: 14px 16px; border-bottom: 1px solid #F3F4F6; }
-.promo-code { font-family: monospace; font-size: 14px; font-weight: 600; padding: 4px 8px; background: #FEF3C7; color: #92400E; border-radius: 4px; }
-.desc { font-size: 12px; color: #6B7280; margin-top: 4px; }
-.discount { font-weight: 600; color: #059669; }
-.status-toggle { padding: 6px 12px; border: none; border-radius: 16px; font-size: 12px; font-weight: 500; cursor: pointer; background: #FEE2E2; color: #DC2626; }
-.status-toggle.active { background: #D1FAE5; color: #059669; }
-.empty-state { display: flex; align-items: center; justify-content: center; padding: 60px; color: #9CA3AF; }
-.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 20px; }
-.page-btn { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; cursor: pointer; }
-.page-btn:disabled { opacity: 0.5; }
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-.modal { background: #fff; border-radius: 16px; width: 100%; max-width: 440px; }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #E5E7EB; }
-.modal-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
-.close-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 8px; cursor: pointer; color: #6B7280; }
-.modal-body { padding: 24px; }
-.form-row { margin-bottom: 16px; }
-.form-row label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 8px; }
-.form-row input { width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 10px; font-size: 14px; }
-.modal-actions { display: flex; gap: 12px; margin-top: 24px; }
-.btn-cancel { flex: 1; padding: 12px; background: #F3F4F6; border: none; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
-.btn-primary { flex: 1; padding: 12px; background: #00A86B; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
-.btn-primary:disabled { opacity: 0.5; }
+/* Base Layout */
+.promos-view {
+  min-height: 100vh;
+  background: #FFFFFF;
+  padding: 20px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #000000;
+}
+
+.header-content h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 4px 0;
+}
+
+.header-content p {
+  font-size: 14px;
+  color: #666666;
+  margin: 0;
+}
+
+.btn-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #000000;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.btn-create:hover {
+  background: #1A1A1A;
+}
+
+.btn-create svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: #FFFFFF;
+  border: 2px solid #000000;
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #000000;
+}
+
+/* Filters */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 250px;
+  padding: 12px 16px;
+  background: #FFFFFF;
+  border: 2px solid #E5E5E5;
+  border-radius: 8px;
+  font-size: 15px;
+  color: #000000;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #000000;
+}
+
+.search-input::placeholder {
+  color: #999999;
+}
+
+.filter-select {
+  padding: 12px 16px;
+  background: #FFFFFF;
+  border: 2px solid #E5E5E5;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #000000;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  min-width: 150px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #000000;
+}
+
+/* Bulk Actions */
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #F5F5F5;
+  border: 2px solid #E5E5E5;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #000000;
+}
+
+.bulk-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.bulk-btn {
+  padding: 10px 16px;
+  background: #000000;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 40px;
+}
+
+.bulk-btn:hover {
+  background: #1A1A1A;
+}
+
+.bulk-btn.danger {
+  background: #FFFFFF;
+  color: #000000;
+  border: 2px solid #000000;
+}
+
+.bulk-btn.danger:hover {
+  background: #000000;
+  color: #FFFFFF;
+}
+
+.bulk-btn.cancel {
+  background: #FFFFFF;
+  color: #666666;
+  border: 2px solid #E5E5E5;
+}
+
+.bulk-btn.cancel:hover {
+  border-color: #CCCCCC;
+  color: #000000;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E5E5E5;
+  border-top-color: #000000;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  font-size: 15px;
+  font-weight: 500;
+  color: #666666;
+  margin: 0;
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  background: #FFFFFF;
+  border: 2px solid #000000;
+  border-radius: 8px;
+}
+
+.error-state svg {
+  width: 48px;
+  height: 48px;
+  color: #000000;
+}
+
+.error-state p {
+  font-size: 15px;
+  font-weight: 500;
+  color: #000000;
+  margin: 0;
+  text-align: center;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  gap: 16px;
+  background: #FFFFFF;
+  border: 2px dashed #E5E5E5;
+  border-radius: 8px;
+}
+
+.empty-state svg {
+  width: 64px;
+  height: 64px;
+  color: #CCCCCC;
+}
+
+.empty-state p {
+  font-size: 16px;
+  font-weight: 500;
+  color: #666666;
+  margin: 0;
+}
+
+/* Promos List */
+.promos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .promos-view {
+    padding: 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-create {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filters {
+    flex-direction: column;
+  }
+
+  .search-input,
+  .filter-select {
+    width: 100%;
+  }
+
+  .bulk-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bulk-buttons {
+    flex-direction: column;
+  }
+
+  .bulk-btn {
+    width: 100%;
+  }
+}
 </style>

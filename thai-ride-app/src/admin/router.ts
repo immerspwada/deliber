@@ -246,13 +246,13 @@ export const adminRoutes: RouteRecordRaw[] = [
       {
         path: 'promos',
         name: 'AdminPromosV2',
-        component: PromoManagementView,
+        component: PromosView,
         meta: { module: 'marketing' }
       },
       {
         path: 'promos-legacy',
         name: 'AdminPromosLegacy',
-        component: PromosView,
+        component: PromoManagementView,
         meta: { module: 'marketing' }
       },
       {

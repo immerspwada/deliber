@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear Browser Cache</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1a1a1a;
+      margin-top: 0;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .success {
+      background: #10b981;
+      padding: 12px;
+      border-radius: 8px;
+      color: white;
+      margin-top: 20px;
+      display: none;
+    }
+    .info {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 12px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔥 Clear Browser Cache</h1>
+    
+    <div class="info">
+      <strong>ปัญหา:</strong> Browser cache ทำให้โค้ดเก่ายังคงถูกใช้งาน<br>
+      <strong>วิธีแก้:</strong> ล้าง cache ทั้งหมดแล้ว reload
+    </div>
+
+    <button onclick="clearAllCaches()">
+      🗑️ Clear All Caches
+    </button>
+
+    <button onclick="clearServiceWorker()">
+      🔧 Clear Service Worker
+    </button>
+
+    <button onclick="clearLocalStorage()">
+      💾 Clear Local Storage
+    </button>
+
+    <button onclick="clearEverything()">
+      💣 Clear Everything & Reload
+    </button>
+
+    <div id="success" class="success"></div>
+
+    <div class="info" style="margin-top: 30px;">
+      <strong>หลังจากล้าง cache:</strong><br>
+      1. กด "Clear Everything & Reload"<br>
+      2. รอ 2-3 วินาที<br>
+      3. ไปที่ <a href="http://localhost:5173/admin/customers">http://localhost:5173/admin/customers</a><br>
+      4. ทดสอบคลิกปุ่ม clock icon
+    </div>
+  </div>
+
+  <script>
+    function showSuccess(message) {
+      const el = document.getElementById('success');
+      el.textContent = message;
+      el.style.display = 'block';
+      setTimeout(() => {
+        el.style.display = 'none';
+      }, 3000);
+    }
+
+    async function clearAllCaches() {
+      try {
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(name => caches.delete(name)));
+          showSuccess(`✅ Cleared ${cacheNames.length} caches`);
+        }
+      } catch (e) {
+        showSuccess('❌ Error: ' + e.message);
+      }
+    }
+
+    async function clearServiceWorker() {
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(reg => reg.unregister()));
+          showSuccess(`✅ Unregistered ${registrations.length} service workers`);
+        }
+      } catch (e) {
+        showSuccess('❌ Error: ' + e.message);
+      }
+    }
+
+    function clearLocalStorage() {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        showSuccess('✅ Cleared localStorage and sessionStorage');
+      } catch (e) {
+        showSuccess('❌ Error: ' + e.message);
+      }
+    }
+
+    async function clearEverything() {
+      try {
+        // Clear all caches
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(name => caches.delete(name)));
+        }
+
+        // Unregister service workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(reg => reg.unregister()));
+        }
+
+        // Clear storage
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // Clear cookies
+        document.cookie.split(";").forEach(c => {
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+
+        showSuccess('✅ Everything cleared! Reloading in 2 seconds...');
+        
+        setTimeout(() => {
+          window.location.href = 'http://localhost:5173/admin/customers';
+        }, 2000);
+      } catch (e) {
+        showSuccess('❌ Error: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>

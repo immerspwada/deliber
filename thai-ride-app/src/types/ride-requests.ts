@@ -77,7 +77,7 @@ export interface JobDetail {
   dropoff_address: string
   dropoff_lat: number
   dropoff_lng: number
-  fare: number
+  fare: number  // Provider earnings (what they actually get)
   notes?: string
   created_at: string
   pickup_photo?: string | null
@@ -86,6 +86,9 @@ export interface JobDetail {
   // Promo & Pricing
   estimated_fare: number
   final_fare: number | null
+  provider_earnings?: number | null  // What provider actually receives
+  platform_commission?: number | null  // Platform's commission
+  commission_rate?: number | null  // Commission rate (e.g., 0.2 = 20%)
   promo_code?: string | null
   promo_discount?: number | null
   // Tip

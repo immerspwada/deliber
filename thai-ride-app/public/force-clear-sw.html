@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔥 Force Clear Service Worker - GOBEAR</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    h1 {
+      color: #1a202c;
+      font-size: 28px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .subtitle {
+      color: #718096;
+      font-size: 14px;
+      margin-bottom: 30px;
+    }
+    
+    .status {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .status-item:last-child {
+      border-bottom: none;
+    }
+    
+    .status-label {
+      color: #4a5568;
+      font-weight: 500;
+    }
+    
+    .status-value {
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .status-value.success {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+    
+    .status-value.error {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+    
+    .status-value.warning {
+      background: #feebc8;
+      color: #7c2d12;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5a67d8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #e53e3e;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+    }
+    
+    .btn-success {
+      background: #48bb78;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #38a169;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .log {
+      background: #1a202c;
+      color: #48bb78;
+      border-radius: 12px;
+      padding: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+      line-height: 1.6;
+    }
+    
+    .log-item {
+      margin-bottom: 8px;
+    }
+    
+    .log-success { color: #48bb78; }
+    .log-error { color: #f56565; }
+    .log-warning { color: #ed8936; }
+    .log-info { color: #4299e1; }
+    
+    .alert {
+      background: #fff5f5;
+      border-left: 4px solid #f56565;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    
+    .alert-title {
+      font-weight: 600;
+      color: #742a2a;
+      margin-bottom: 8px;
+    }
+    
+    .alert-text {
+      color: #742a2a;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      🔥 Force Clear Service Worker
+    </h1>
+    <p class="subtitle">ลบ Service Worker และ Cache ทั้งหมดเพื่อแก้ปัญหาโค้ดเก่า</p>
+    
+    <div class="alert">
+      <div class="alert-title">⚠️ คำเตือน</div>
+      <div class="alert-text">
+        การดำเนินการนี้จะลบ Service Worker และ Cache ทั้งหมด<br>
+        คุณจะต้อง login ใหม่หลังจากนี้
+      </div>
+    </div>
+    
+    <div class="status">
+      <div class="status-item">
+        <span class="status-label">Service Worker Support</span>
+        <span class="status-value" id="sw-support">กำลังตรวจสอบ...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Active Service Workers</span>
+        <span class="status-value" id="sw-count">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Cache Storage</span>
+        <span class="status-value" id="cache-count">0 caches</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">IndexedDB</span>
+        <span class="status-value" id="idb-count">0 databases</span>
+      </div>
+    </div>
+    
+    <button class="btn btn-danger" id="clearBtn" onclick="clearEverything()">
+      🗑️ ลบทั้งหมดและ Reload
+    </button>
+    
+    <button class="btn btn-primary" id="checkBtn" onclick="checkStatus()">
+      🔍 ตรวจสอบสถานะ
+    </button>
+    
+    <button class="btn btn-success" id="backBtn" onclick="goBack()" style="display: none;">
+      ✅ กลับไปหน้าหลัก
+    </button>
+    
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    const log = document.getElementById('log');
+    const clearBtn = document.getElementById('clearBtn');
+    const checkBtn = document.getElementById('checkBtn');
+    const backBtn = document.getElementById('backBtn');
+    
+    function addLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString('th-TH');
+      const logItem = document.createElement('div');
+      logItem.className = `log-item log-${type}`;
+      logItem.textContent = `[${timestamp}] ${message}`;
+      log.appendChild(logItem);
+      log.scrollTop = log.scrollHeight;
+    }
+    
+    async function checkStatus() {
+      addLog('🔍 กำลังตรวจสอบสถานะ...', 'info');
+      
+      // Check Service Worker support
+      const swSupport = 'serviceWorker' in navigator;
+      document.getElementById('sw-support').textContent = swSupport ? 'รองรับ' : 'ไม่รองรับ';
+      document.getElementById('sw-support').className = `status-value ${swSupport ? 'success' : 'error'}`;
+      addLog(`Service Worker Support: ${swSupport ? '✅ รองรับ' : '❌ ไม่รองรับ'}`, swSupport ? 'success' : 'error');
+      
+      if (!swSupport) {
+        addLog('❌ Browser ไม่รองรับ Service Worker', 'error');
+        return;
+      }
+      
+      // Check active Service Workers
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        document.getElementById('sw-count').textContent = registrations.length;
+        document.getElementById('sw-count').className = `status-value ${registrations.length > 0 ? 'warning' : 'success'}`;
+        addLog(`Service Workers: ${registrations.length} active`, registrations.length > 0 ? 'warning' : 'success');
+        
+        registrations.forEach((reg, index) => {
+          addLog(`  SW ${index + 1}: ${reg.scope}`, 'info');
+        });
+      } catch (error) {
+        addLog(`❌ Error checking Service Workers: ${error.message}`, 'error');
+      }
+      
+      // Check Cache Storage
+      try {
+        const cacheNames = await caches.keys();
+        document.getElementById('cache-count').textContent = `${cacheNames.length} caches`;
+        document.getElementById('cache-count').className = `status-value ${cacheNames.length > 0 ? 'warning' : 'success'}`;
+        addLog(`Cache Storage: ${cacheNames.length} caches`, cacheNames.length > 0 ? 'warning' : 'success');
+        
+        cacheNames.forEach((name, index) => {
+          addLog(`  Cache ${index + 1}: ${name}`, 'info');
+        });
+      } catch (error) {
+        addLog(`❌ Error checking Cache Storage: ${error.message}`, 'error');
+      }
+      
+      // Check IndexedDB
+      try {
+        const databases = await indexedDB.databases();
+        document.getElementById('idb-count').textContent = `${databases.length} databases`;
+        document.getElementById('idb-count').className = `status-value ${databases.length > 0 ? 'warning' : 'success'}`;
+        addLog(`IndexedDB: ${databases.length} databases`, databases.length > 0 ? 'warning' : 'success');
+        
+        databases.forEach((db, index) => {
+          addLog(`  DB ${index + 1}: ${db.name}`, 'info');
+        });
+      } catch (error) {
+        addLog(`⚠️ Cannot check IndexedDB: ${error.message}`, 'warning');
+      }
+      
+      addLog('✅ ตรวจสอบสถานะเสร็จสิ้น', 'success');
+    }
+    
+    async function clearEverything() {
+      if (!confirm('⚠️ คุณแน่ใจหรือไม่?\n\nการดำเนินการนี้จะ:\n- Unregister Service Workers ทั้งหมด\n- ลบ Cache Storage ทั้งหมด\n- ลบ IndexedDB ทั้งหมด\n- ลบ LocalStorage\n- ลบ SessionStorage\n\nคุณจะต้อง login ใหม่')) {
+        return;
+      }
+      
+      clearBtn.disabled = true;
+      checkBtn.disabled = true;
+      
+      addLog('🔥 เริ่มลบทุกอย่าง...', 'warning');
+      
+      let success = true;
+      
+      // 1. Unregister all Service Workers
+      try {
+        addLog('1️⃣ กำลัง unregister Service Workers...', 'info');
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        
+        for (const registration of registrations) {
+          await registration.unregister();
+          addLog(`  ✅ Unregistered: ${registration.scope}`, 'success');
+        }
+        
+        addLog(`✅ Unregistered ${registrations.length} Service Workers`, 'success');
+      } catch (error) {
+        addLog(`❌ Error unregistering Service Workers: ${error.message}`, 'error');
+        success = false;
+      }
+      
+      // 2. Clear all Cache Storage
+      try {
+        addLog('2️⃣ กำลังลบ Cache Storage...', 'info');
+        const cacheNames = await caches.keys();
+        
+        for (const cacheName of cacheNames) {
+          await caches.delete(cacheName);
+          addLog(`  ✅ Deleted cache: ${cacheName}`, 'success');
+        }
+        
+        addLog(`✅ Deleted ${cacheNames.length} caches`, 'success');
+      } catch (error) {
+        addLog(`❌ Error deleting Cache Storage: ${error.message}`, 'error');
+        success = false;
+      }
+      
+      // 3. Clear IndexedDB
+      try {
+        addLog('3️⃣ กำลังลบ IndexedDB...', 'info');
+        const databases = await indexedDB.databases();
+        
+        for (const db of databases) {
+          if (db.name) {
+            indexedDB.deleteDatabase(db.name);
+            addLog(`  ✅ Deleted database: ${db.name}`, 'success');
+          }
+        }
+        
+        addLog(`✅ Deleted ${databases.length} databases`, 'success');
+      } catch (error) {
+        addLog(`⚠️ Cannot delete IndexedDB: ${error.message}`, 'warning');
+      }
+      
+      // 4. Clear LocalStorage
+      try {
+        addLog('4️⃣ กำลังลบ LocalStorage...', 'info');
+        const localStorageKeys = Object.keys(localStorage);
+        localStorage.clear();
+        addLog(`✅ Cleared ${localStorageKeys.length} LocalStorage items`, 'success');
+      } catch (error) {
+        addLog(`❌ Error clearing LocalStorage: ${error.message}`, 'error');
+      }
+      
+      // 5. Clear SessionStorage
+      try {
+        addLog('5️⃣ กำลังลบ SessionStorage...', 'info');
+        const sessionStorageKeys = Object.keys(sessionStorage);
+        sessionStorage.clear();
+        addLog(`✅ Cleared ${sessionStorageKeys.length} SessionStorage items`, 'success');
+      } catch (error) {
+        addLog(`❌ Error clearing SessionStorage: ${error.message}`, 'error');
+      }
+      
+      // 6. Clear Cookies
+      try {
+        addLog('6️⃣ กำลังลบ Cookies...', 'info');
+        const cookies = document.cookie.split(';');
+        
+        for (const cookie of cookies) {
+          const eqPos = cookie.indexOf('=');
+          const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+          document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+        }
+        
+        addLog(`✅ Cleared ${cookies.length} cookies`, 'success');
+      } catch (error) {
+        addLog(`❌ Error clearing Cookies: ${error.message}`, 'error');
+      }
+      
+      if (success) {
+        addLog('', 'info');
+        addLog('🎉 ลบทุกอย่างสำเร็จ!', 'success');
+        addLog('', 'info');
+        addLog('⏳ กำลัง reload หน้าใน 3 วินาที...', 'warning');
+        
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
+      } else {
+        addLog('', 'info');
+        addLog('⚠️ ลบเสร็จแล้ว แต่มีข้อผิดพลาดบางส่วน', 'warning');
+        addLog('กรุณา reload หน้าด้วยตนเอง (Cmd+Shift+R)', 'warning');
+        
+        clearBtn.disabled = false;
+        checkBtn.disabled = false;
+        backBtn.style.display = 'block';
+      }
+    }
+    
+    function goBack() {
+      window.location.href = '/';
+    }
+    
+    // Auto-check status on load
+    window.addEventListener('load', () => {
+      checkStatus();
+    });
+  </script>
+</body>
+</html>

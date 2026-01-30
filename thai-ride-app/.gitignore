@@ -26,3 +26,6 @@ dist-ssr
 
 # Security - VAPID keys
 VAPID_SETUP.md
+
+# Documentation archives
+.archive/

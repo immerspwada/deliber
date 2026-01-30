@@ -11,6 +11,7 @@
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/composables/useToast'
+import { roundToInt, formatCurrency as formatCurrencyUtil } from '@/utils/mathRounding'
 
 export interface CommissionBreakdown {
   service_type: string
@@ -126,7 +127,7 @@ export function useFinancialSystem() {
 
       // Show success message
       toast.success(
-        `งานเสร็จสิ้น! รับเงิน ${result.financial_breakdown.total_provider_credit.toFixed(2)} บาท`
+        `งานเสร็จสิ้น! รับเงิน ${formatCurrencyUtil(result.financial_breakdown.total_provider_credit, false)} บาท`
       )
 
       return result
@@ -175,7 +176,7 @@ export function useFinancialSystem() {
       if (rpcError) throw rpcError
 
       if (data?.success) {
-        toast.success(`หักเงิน ${amount.toFixed(2)} บาท สำเร็จ`)
+        toast.success(`หักเงิน ${formatCurrencyUtil(amount, false)} บาท สำเร็จ`)
         return true
       }
 
@@ -261,15 +262,10 @@ export function useFinancialSystem() {
   }
 
   /**
-   * Format currency for display
+   * Format currency for display (integer only, no decimals)
    */
   const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount)
+    return formatCurrencyUtil(amount, true)
   }
 
   /**
@@ -310,11 +306,11 @@ export function useFinancialSystem() {
       // Show appropriate message
       if (result.cancellation_details.cancellation_fee > 0) {
         toast.warning(
-          `ยกเลิกสำเร็จ คืนเงิน ${result.cancellation_details.refund_amount.toFixed(2)} บาท (หักค่ายกเลิก ${result.cancellation_details.cancellation_fee.toFixed(2)} บาท)`
+          `ยกเลิกสำเร็จ คืนเงิน ${formatCurrencyUtil(result.cancellation_details.refund_amount, false)} บาท (หักค่ายกเลิก ${formatCurrencyUtil(result.cancellation_details.cancellation_fee, false)} บาท)`
         )
       } else {
         toast.success(
-          `ยกเลิกสำเร็จ คืนเงินเต็มจำนวน ${result.cancellation_details.refund_amount.toFixed(2)} บาท`
+          `ยกเลิกสำเร็จ คืนเงินเต็มจำนวน ${formatCurrencyUtil(result.cancellation_details.refund_amount, false)} บาท`
         )
       }
 
@@ -365,7 +361,7 @@ export function useFinancialSystem() {
       // Show success message
       const refundPercent = (refundPercentage * 100).toFixed(0)
       toast.success(
-        `คืนเงิน ${refundPercent}% สำเร็จ จำนวน ${result.refund_details.total_refund.toFixed(2)} บาท`
+        `คืนเงิน ${refundPercent}% สำเร็จ จำนวน ${formatCurrencyUtil(result.refund_details.total_refund, false)} บาท`
       )
 
       return result

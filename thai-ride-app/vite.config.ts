@@ -139,7 +139,7 @@ export default defineConfig({
         globIgnores: ['**/node_modules/**/*', 'sw.js', 'workbox-*.js'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: false, // ให้ user เลือก update เอง
+        skipWaiting: true, // ✅ Auto-update Service Worker ทันที (แก้ปัญหาโค้ดเก่า)
         
         // Navigation fallback for SPA
         navigateFallback: '/index.html',
@@ -163,16 +163,17 @@ export default defineConfig({
             }
           },
           
-          // Static JS/CSS - StaleWhileRevalidate for instant loads
+          // Static JS/CSS - NetworkFirst เพื่อให้ได้โค้ดใหม่เสมอ (แก้ปัญหาโค้ดเก่า)
           {
             urlPattern: /\.(?:js|css)$/i,
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'static-resources',
               expiration: {
                 maxEntries: 60,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              }
+                maxAgeSeconds: 60 * 60 * 24 // 1 day (ลดลงเพื่อให้ update เร็วขึ้น)
+              },
+              networkTimeoutSeconds: 3 // Timeout เร็วเพื่อ fallback to cache
             }
           },
           
@@ -367,9 +368,10 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: false,
+        enabled: false, // ✅ PWA disabled in dev mode (ป้องกันปัญหาโค้ดเก่า)
         suppressWarnings: true,
-        type: 'module'
+        type: 'module',
+        navigateFallback: undefined
       }
     })
   ],
@@ -385,6 +387,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
+        // ✅ เพิ่ม timestamp เพื่อ cache busting
+        entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        assetFileNames: `assets/[name]-[hash]-${Date.now()}.[ext]`,
         manualChunks: (id) => {
           // Vue core
           if (id.includes('node_modules/vue') || 

@@ -10,7 +10,8 @@ import LocationPicker from "../components/LocationPicker.vue";
 import MapView from "../components/MapView.vue";
 import RideTracker from "../components/RideTracker.vue";
 import BottomSheet from "../components/BottomSheet.vue";
-import PromoCodeInput from "../components/shared/PromoCodeInput.vue";
+import PromoButton from "../components/promo/PromoButton.vue";
+import PromoSelectionModal from "../components/promo/PromoSelectionModal.vue";
 import DestinationPicker from "../components/DestinationPicker.vue";
 import PickupPicker from "../components/PickupPicker.vue";
 import type { NearbyPlace } from "../composables/useNearbyPlaces";
@@ -124,7 +125,7 @@ const estimatedFare = ref(0);
 const estimatedTime = ref(0);
 const estimatedDistance = ref(0);
 const showPaymentSheet = ref(false);
-const showPromoSheet = ref(false);
+const showPromoModal = ref(false);
 const showPickupMapPicker = ref(false);
 const showDestMapPicker = ref(false);
 const showNearbyPlaces = ref(false);
@@ -482,6 +483,25 @@ const hasInsufficientBalance = computed(() => {
 // Handle promo discount
 const handlePromoDiscount = (amount: number) => {
   promoDiscount.value = amount;
+};
+
+// Handle promo selected from modal
+const handlePromoSelected = (promo: {
+  code: string;
+  promoId: string;
+  discountAmount: number;
+}) => {
+  appliedPromo.value = promo;
+  promoDiscount.value = promo.discountAmount;
+  showPromoModal.value = false;
+  triggerHaptic('medium');
+};
+
+// Remove applied promo
+const removePromo = () => {
+  appliedPromo.value = null;
+  promoDiscount.value = 0;
+  triggerHaptic('light');
 };
 
 // Handlers (reserved for future use)
@@ -2216,13 +2236,10 @@ watch(rideType, async () => {
             </div>
 
             <!-- Promo Code -->
-            <PromoCodeInput
-              v-model="appliedPromo"
-              service-type="ride"
-              :order-amount="
-                estimatedFare * (surgeMultiplier > 1 ? surgeMultiplier : 1)
-              "
-              @discount-applied="handlePromoDiscount"
+            <PromoButton
+              :applied-promo="appliedPromo"
+              @open-promo-modal="showPromoModal = true"
+              @remove-promo="removePromo"
             />
 
             <!-- Fare Summary Compact -->
@@ -2783,18 +2800,13 @@ watch(rideType, async () => {
       </div>
     </BottomSheet>
 
-    <!-- Promo Sheet -->
-    <BottomSheet v-model="showPromoSheet" title="โค้ดส่วนลด">
-      <div class="promo-input-section">
-        <input
-          v-model="promoCode"
-          type="text"
-          placeholder="ใส่โค้ดส่วนลด"
-          class="promo-input"
-        />
-        <button class="apply-btn" @click="showPromoSheet = false">ใช้</button>
-      </div>
-    </BottomSheet>
+    <!-- Promo Selection Modal -->
+    <PromoSelectionModal
+      v-model="showPromoModal"
+      service-type="ride"
+      :order-amount="estimatedFare * (surgeMultiplier > 1 ? surgeMultiplier : 1)"
+      @promo-selected="handlePromoSelected"
+    />
 
     <!-- Pickup Map Picker -->
     <LocationPicker

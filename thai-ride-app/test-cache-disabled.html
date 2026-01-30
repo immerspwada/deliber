@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔍 Test Cache Disabled</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 24px;
+      padding: 48px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    
+    .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    
+    h1 {
+      font-size: 28px;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      color: #6b7280;
+      font-size: 16px;
+    }
+    
+    .test-section {
+      background: #f9fafb;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    
+    .test-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
+    .status.warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .info-box {
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+    
+    .info-box p {
+      color: #4b5563;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+    
+    .info-box p:last-child {
+      margin-bottom: 0;
+    }
+    
+    .code {
+      background: #1f2937;
+      color: #10b981;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+    }
+    
+    .steps {
+      list-style: none;
+      counter-reset: step;
+    }
+    
+    .steps li {
+      counter-increment: step;
+      padding-left: 40px;
+      position: relative;
+      margin-bottom: 16px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+    
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 28px;
+      height: 28px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    
+    .btn:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .timestamp {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 14px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e7eb;
+    }
+    
+    .highlight {
+      background: #fef3c7;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">🔍</div>
+      <h1>ทดสอบ Cache Disabled</h1>
+      <p class="subtitle">ตรวจสอบว่า Browser Cache ถูกปิดแล้วหรือยัง</p>
+    </div>
+    
+    <div class="test-section">
+      <div class="test-title">
+        <span>📊</span>
+        สถานะ Cache
+      </div>
+      <div id="cache-status"></div>
+      <div class="info-box">
+        <p><strong>วิธีตรวจสอบ:</strong></p>
+        <ol class="steps">
+          <li>เปิด DevTools (กด <span class="code">F12</span> หรือ <span class="code">Cmd+Option+I</span>)</li>
+          <li>ไปที่แท็บ <span class="highlight">Network</span></li>
+          <li>เช็คช่อง <span class="highlight">"Disable cache"</span> ที่ด้านบน</li>
+          <li>รีโหลดหน้านี้ (กด <span class="code">Cmd+Shift+R</span>)</li>
+        </ol>
+      </div>
+    </div>
+    
+    <div class="test-section">
+      <div class="test-title">
+        <span>🕐</span>
+        Timestamp Test
+      </div>
+      <div id="timestamp-test"></div>
+      <div class="info-box">
+        <p><strong>ทดสอบ:</strong> รีโหลดหน้านี้หลายครั้ง</p>
+        <p>✅ ถ้า timestamp เปลี่ยนทุกครั้ง = Cache ถูกปิด</p>
+        <p>❌ ถ้า timestamp ไม่เปลี่ยน = Cache ยังทำงานอยู่</p>
+      </div>
+    </div>
+    
+    <div class="test-section">
+      <div class="test-title">
+        <span>🎯</span>
+        ขั้นตอนถัดไป
+      </div>
+      <div class="info-box">
+        <p><strong>เมื่อ Cache ถูกปิดแล้ว:</strong></p>
+        <ol class="steps">
+          <li>ไปที่ <span class="code">http://localhost:5173/admin/customers</span></li>
+          <li>รีโหลดหน้าด้วย <span class="code">Cmd+Shift+R</span></li>
+          <li>ลองกดปุ่ม History (ไอคอนนาฬิกา)</li>
+          <li>Modal ควรเปิดได้ปกติ</li>
+        </ol>
+      </div>
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="http://localhost:5173/admin/customers" class="btn">
+          <span>🚀</span>
+          ไปที่ Admin Customers
+        </a>
+      </div>
+    </div>
+    
+    <div class="timestamp">
+      <strong>Page Load Time:</strong> <span id="load-time"></span>
+    </div>
+  </div>
+  
+  <script>
+    // Generate unique timestamp
+    const now = new Date();
+    const timestamp = now.toLocaleString('th-TH', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      fractionalSecondDigits: 3
+    });
+    
+    // Display load time
+    document.getElementById('load-time').textContent = timestamp;
+    
+    // Check if page was loaded from cache
+    const perfData = performance.getEntriesByType('navigation')[0];
+    const fromCache = perfData && perfData.transferSize === 0;
+    
+    // Display cache status
+    const cacheStatusEl = document.getElementById('cache-status');
+    if (fromCache) {
+      cacheStatusEl.innerHTML = `
+        <div class="status error">
+          <span>❌</span>
+          Cache ยังทำงานอยู่
+        </div>
+      `;
+    } else {
+      cacheStatusEl.innerHTML = `
+        <div class="status success">
+          <span>✅</span>
+          Cache ถูกปิดแล้ว
+        </div>
+      `;
+    }
+    
+    // Display timestamp test
+    const timestampTestEl = document.getElementById('timestamp-test');
+    timestampTestEl.innerHTML = `
+      <div class="status warning">
+        <span>🕐</span>
+        ${timestamp}
+      </div>
+    `;
+    
+    // Log to console
+    console.log('🔍 Cache Test Results:');
+    console.log('  Timestamp:', timestamp);
+    console.log('  From Cache:', fromCache);
+    console.log('  Transfer Size:', perfData?.transferSize || 0);
+    console.log('  Duration:', perfData?.duration || 0);
+  </script>
+</body>
+</html>

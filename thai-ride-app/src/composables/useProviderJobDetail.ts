@@ -21,6 +21,7 @@ import { useErrorHandler } from './useErrorHandler'
 import { useRoleAccess } from './useRoleAccess'
 import { useJobAlert } from './useJobAlert'
 import { measureAsync } from '../utils/performance'
+import { roundToInt } from '../utils/mathRounding'
 import { 
   type JobDetail, 
   type RideRequestRow, 
@@ -214,8 +215,9 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
           .select(`
             id, status, ride_type, pickup_address, destination_address,
             pickup_lat, pickup_lng, destination_lat, destination_lng,
-            estimated_fare, final_fare, notes, created_at, user_id, provider_id,
-            pickup_photo, dropoff_photo
+            estimated_fare, final_fare, provider_earnings, platform_commission, commission_rate,
+            notes, created_at, user_id, provider_id,
+            pickup_photo, dropoff_photo, promo_code, promo_discount_amount, tip_amount
           `)
           .eq('id', jobId)
           .maybeSingle()  // ✅ Use maybeSingle() instead of single()
@@ -232,7 +234,8 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             .select(`
               id, tracking_id, status, category, place_name, place_address,
               place_lat, place_lng, details, scheduled_date, scheduled_time,
-              service_fee, final_fee, created_at, user_id, provider_id,
+              service_fee, final_fee, provider_earnings, platform_commission, commission_rate,
+              created_at, user_id, provider_id,
               service_name, location_name
             `)
             .eq('id', jobId)
@@ -250,7 +253,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
               .select(`
                 id, tracking_id, status, store_name, store_address,
                 store_lat, store_lng, delivery_address, delivery_lat, delivery_lng,
-                items, items_cost, service_fee, total_cost,
+                items, items_cost, service_fee, total_cost, provider_earnings, platform_commission, commission_rate,
                 created_at, matched_at, user_id, provider_id,
                 special_instructions, budget_limit, reference_images, item_list
               `)
@@ -314,7 +317,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             dropoff_address: '', // Queue bookings don't have dropoff
             dropoff_lat: 0,
             dropoff_lng: 0,
-            fare: rideData.final_fee || rideData.service_fee || 0,
+            fare: roundToInt(rideData.provider_earnings || (rideData.final_fee || rideData.service_fee) * (1 - (rideData.commission_rate || 0.2))),
             notes: rideData.details || undefined,
             created_at: rideData.created_at,
             pickup_photo: undefined,
@@ -327,6 +330,9 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             } : null,
             estimated_fare: rideData.service_fee || 0,
             final_fare: rideData.final_fee,
+            provider_earnings: rideData.provider_earnings,
+            platform_commission: rideData.platform_commission,
+            commission_rate: rideData.commission_rate,
             // Queue-specific fields
             tracking_id: rideData.tracking_id,
             scheduled_date: rideData.scheduled_date,
@@ -351,7 +357,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             dropoff_address: rideData.delivery_address || '',
             dropoff_lat: rideData.delivery_lat || 0,
             dropoff_lng: rideData.delivery_lng || 0,
-            fare: rideData.total_cost || rideData.service_fee || 0,
+            fare: roundToInt(rideData.provider_earnings || (rideData.total_cost || rideData.service_fee) * (1 - (rideData.commission_rate || 0.15))),
             notes: rideData.special_instructions || undefined,
             created_at: rideData.created_at,
             pickup_photo: undefined,
@@ -364,6 +370,9 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             } : null,
             estimated_fare: rideData.service_fee || 0,
             final_fare: rideData.total_cost,
+            provider_earnings: rideData.provider_earnings,
+            platform_commission: rideData.platform_commission,
+            commission_rate: rideData.commission_rate,
             // Shopping-specific fields
             tracking_id: rideData.tracking_id,
             store_name: rideData.store_name,
@@ -391,7 +400,7 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             dropoff_address: rideData.destination_address || '',
             dropoff_lat: rideData.destination_lat || 0,
             dropoff_lng: rideData.destination_lng || 0,
-            fare: rideData.final_fare || rideData.estimated_fare || 0,
+            fare: roundToInt(rideData.provider_earnings || (rideData.final_fare || rideData.estimated_fare) * (1 - (rideData.commission_rate || 0.2))),
             notes: rideData.notes || undefined,
             created_at: rideData.created_at,
             pickup_photo: rideData.pickup_photo,
@@ -404,8 +413,11 @@ export function useProviderJobDetail(options: UseProviderJobDetailOptions = {}) 
             } : null,
             estimated_fare: rideData.estimated_fare || 0,
             final_fare: rideData.final_fare,
+            provider_earnings: rideData.provider_earnings,
+            platform_commission: rideData.platform_commission,
+            commission_rate: rideData.commission_rate,
             promo_code: rideData.promo_code ?? null,
-            promo_discount: rideData.promo_discount ?? null,
+            promo_discount: rideData.promo_discount_amount ?? null,
             tip_amount: rideData.tip_amount ?? null,
             tip_message: rideData.tip_message ?? null
           }

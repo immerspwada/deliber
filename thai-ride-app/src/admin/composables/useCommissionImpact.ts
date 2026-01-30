@@ -1,11 +1,16 @@
 /**
  * Commission Impact Calculator
  * คำนวณผลกระทบจากการเปลี่ยนอัตราคอมมิชชั่นต่อทุก Role
+ * 
+ * ROUNDING STANDARD:
+ * - All monetary amounts rounded to integers using Math.round()
+ * - < 0.5 rounds down, ≥ 0.5 rounds up
  */
 
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { CommissionRates, CommissionImpact } from '@/types/financial-settings'
+import { roundToInt, formatCurrency as formatCurrencyUtil } from '@/utils/mathRounding'
 
 interface ServiceImpact {
   service_type: keyof CommissionRates
@@ -83,16 +88,16 @@ export function useCommissionImpact() {
           t.service_type === serviceType
         ) || []
 
-        const totalRevenue = serviceTxs.reduce((sum, tx) => sum + (tx.total_fare || 0), 0)
+        const totalRevenue = serviceTxs.reduce((sum, tx) => sum + roundToInt(tx.total_fare || 0), 0)
         const avgMonthlyRevenue = totalRevenue // Already 30 days
 
-        // คำนวณการเปลี่ยนแปลง
-        const oldCommission = avgMonthlyRevenue * currentRate
-        const newCommission = avgMonthlyRevenue * newRate
+        // คำนวณการเปลี่ยนแปลง (all amounts rounded to integers)
+        const oldCommission = roundToInt(avgMonthlyRevenue * currentRate)
+        const newCommission = roundToInt(avgMonthlyRevenue * newRate)
         const commissionChange = newCommission - oldCommission
 
-        const oldProviderEarnings = avgMonthlyRevenue * (1 - currentRate)
-        const newProviderEarnings = avgMonthlyRevenue * (1 - newRate)
+        const oldProviderEarnings = roundToInt(avgMonthlyRevenue * (1 - currentRate))
+        const newProviderEarnings = roundToInt(avgMonthlyRevenue * (1 - newRate))
         const providerChange = newProviderEarnings - oldProviderEarnings
 
         totalPlatformChange += commissionChange
