@@ -50,46 +50,15 @@ export function useServicePromotions() {
     error.value = null
 
     try {
-      // Try using RPC function first (production)
+      // Use unified RPC function that queries promo_codes table
+      // This ensures admin-created promos are immediately visible to customers
       const { data, error: fetchError } = await supabase
-        .rpc('get_service_promotions', { p_service_id: serviceId || null })
+        .rpc('get_service_promotions_from_codes', { 
+          p_service_id: serviceId || null 
+        })
 
       if (fetchError) {
-        // If RPC function doesn't exist, use direct table query
-        if (fetchError.code === 'PGRST202') {
-          let query = supabase
-            .from('service_promotions')
-            .select(`
-              id,
-              service_id,
-              title,
-              description,
-              discount_type,
-              discount_value,
-              min_order_amount,
-              max_discount,
-              promo_code,
-              image_url,
-              end_date
-            `)
-            .eq('is_active', true)
-            .lte('start_date', new Date().toISOString())
-            .gte('end_date', new Date().toISOString())
-            .order('end_date', { ascending: true })
-
-          if (serviceId) {
-            query = query.eq('service_id', serviceId)
-          }
-
-          const { data: fallbackData, error: fallbackError } = await query
-
-          if (fallbackError) {
-            console.error('[ServicePromotions] Database error:', fallbackError)
-            throw new Error('Database schema not ready. Please apply migration 241.')
-          }
-          promotions.value = (fallbackData || []) as ServicePromotion[]
-          return
-        }
+        console.error('[ServicePromotions] RPC error:', fetchError)
         throw fetchError
       }
       

@@ -105,109 +105,130 @@ const closeModal = () => {
 
 <template>
   <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="show && currentOrder" class="modal-overlay" @click.self="closeModal">
-        <div class="modal-container">
+    <Transition name="vm-modal">
+      <div v-if="show && currentOrder" class="vm-modal-overlay" @click.self="closeModal">
+        <div class="vm-modal-container">
           <!-- Progress Bar -->
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
+          <div class="vm-progress-bar">
+            <div class="vm-progress-fill" :style="{ width: `${progress}%` }"></div>
           </div>
           
           <!-- Header -->
-          <div class="modal-header">
-            <div class="order-count">{{ currentIndex + 1 }} / {{ orders.length }}</div>
-            <button class="close-btn" @click="closeModal">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="vm-modal-header">
+            <div class="vm-order-count">{{ currentIndex + 1 }} / {{ orders.length }}</div>
+            <button 
+              type="button"
+              class="vm-icon-btn" 
+              aria-label="ปิด"
+              @click="closeModal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
             </button>
           </div>
           
           <!-- Order Info -->
-          <div class="order-info">
-            <div class="order-icon" :class="currentOrder.type">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="vm-order-info">
+            <div class="vm-order-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path :d="getTypeIcon(currentOrder.type)"/>
               </svg>
             </div>
-            <div class="order-details">
-              <span class="order-type">{{ currentOrder.typeName }}</span>
-              <span class="order-date">{{ currentOrder.date }}</span>
+            <div class="vm-order-details">
+              <span class="vm-order-type">{{ currentOrder.typeName }}</span>
+              <span class="vm-order-date">{{ currentOrder.date }}</span>
             </div>
           </div>
           
           <!-- Route -->
-          <div class="route-info">
-            <div class="route-point">
-              <div class="point-dot pickup"></div>
-              <span>{{ currentOrder.from }}</span>
+          <div class="vm-route-display">
+            <div class="vm-route-visual">
+              <div class="vm-route-dot vm-route-dot--start"></div>
+              <div class="vm-route-line"></div>
+              <div class="vm-route-dot vm-route-dot--end"></div>
             </div>
-            <div class="route-line"></div>
-            <div class="route-point">
-              <div class="point-dot destination"></div>
-              <span>{{ currentOrder.to }}</span>
+            <div class="vm-route-content">
+              <div class="vm-route-item">
+                <span class="vm-route-label">จาก</span>
+                <span class="vm-route-text">{{ currentOrder.from }}</span>
+              </div>
+              <div class="vm-route-item">
+                <span class="vm-route-label">ถึง</span>
+                <span class="vm-route-text">{{ currentOrder.to }}</span>
+              </div>
             </div>
           </div>
           
           <!-- Driver Info -->
-          <div v-if="currentOrder.driverName" class="driver-info">
-            <div class="driver-avatar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div v-if="currentOrder.driverName" class="vm-driver-info">
+            <div class="vm-driver-avatar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="8" r="4"/>
                 <path d="M20 21a8 8 0 10-16 0"/>
               </svg>
             </div>
-            <span>{{ currentOrder.driverName }}</span>
+            <span class="vm-driver-name">{{ currentOrder.driverName }}</span>
           </div>
           
           <!-- Rating Title -->
-          <h3 class="rating-title">ให้คะแนนบริการ</h3>
+          <h3 class="vm-rating-title">ให้คะแนนบริการ</h3>
           
           <!-- Star Rating -->
-          <div class="star-rating">
+          <div class="vm-star-rating">
             <button
               v-for="star in 5"
               :key="star"
-              class="star-btn"
+              type="button"
+              class="vm-star-btn"
               :class="{ 
-                active: star <= selectedRating,
-                hover: star <= hoverRating && hoverRating > selectedRating
+                'vm-star-active': star <= selectedRating,
+                'vm-star-hover': star <= hoverRating && hoverRating > selectedRating
               }"
+              :aria-label="`ให้คะแนน ${star} ดาว`"
               @click="selectRating(star)"
               @mouseenter="hoverRating = star"
               @mouseleave="hoverRating = 0"
             >
-              <svg viewBox="0 0 24 24" :fill="star <= selectedRating ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" :fill="star <= selectedRating ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
               </svg>
             </button>
           </div>
           
           <!-- Rating Label -->
-          <div class="rating-label" :class="{ visible: selectedRating > 0 }">
+          <div class="vm-rating-label" :class="{ 'vm-rating-label-visible': selectedRating > 0 }">
             {{ ratingLabels[selectedRating] }}
           </div>
           
           <!-- Comment Input -->
-          <div v-if="selectedRating > 0" class="comment-section">
+          <div v-if="selectedRating > 0" class="vm-comment-section">
             <textarea
               v-model="comment"
+              class="vm-comment-input"
               placeholder="แสดงความคิดเห็น (ไม่บังคับ)"
               rows="2"
+              aria-label="ความคิดเห็น"
             ></textarea>
           </div>
           
           <!-- Actions -->
-          <div class="modal-actions">
-            <button class="skip-btn" :disabled="isSubmitting" @click="skipRating">
+          <div class="vm-modal-actions">
+            <button 
+              type="button"
+              class="vm-btn vm-btn-secondary" 
+              :disabled="isSubmitting" 
+              @click="skipRating"
+            >
               ข้ามไปก่อน
             </button>
             <button 
-              class="submit-btn" 
+              type="button"
+              class="vm-btn vm-btn-primary" 
               :disabled="selectedRating === 0 || isSubmitting"
               @click="submitRating"
             >
-              <span v-if="isSubmitting" class="spinner"></span>
+              <span v-if="isSubmitting" class="vm-spinner"></span>
               <span v-else>{{ hasMore ? 'ถัดไป' : 'เสร็จสิ้น' }}</span>
             </button>
           </div>
@@ -591,5 +612,375 @@ const closeModal = () => {
 .modal-enter-from .modal-container,
 .modal-leave-to .modal-container {
   transform: translateY(100%);
+}
+</style>
+
+
+<style scoped>
+/* =====================================================
+ * QUICK RATING MODAL - VECTOR MONOCHROME
+ * ===================================================== */
+
+.vm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--vm-bg-overlay, rgba(0, 0, 0, 0.6));
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: var(--vm-z-modal, 400);
+  padding: var(--vm-space-4, 16px);
+}
+
+.vm-modal-container {
+  background: var(--vm-bg-primary, #FFFFFF);
+  border-radius: var(--vm-radius-xl, 20px) var(--vm-radius-xl, 20px) 0 0;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 0 var(--vm-space-6, 24px) var(--vm-space-6, 24px);
+  animation: vm-slide-up 0.3s var(--vm-ease-decelerate, cubic-bezier(0, 0, 0.2, 1));
+}
+
+@keyframes vm-slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Progress Bar */
+.vm-progress-bar {
+  height: 2px;
+  background: var(--vm-border-light, #E5E5E5);
+  border-radius: var(--vm-radius-full, 9999px);
+  margin: var(--vm-space-4, 16px) 0;
+  overflow: hidden;
+}
+
+.vm-progress-fill {
+  height: 100%;
+  background: var(--vm-accent, #000000);
+  border-radius: var(--vm-radius-full, 9999px);
+  transition: width var(--vm-duration-slow, 300ms) var(--vm-ease-decelerate, cubic-bezier(0, 0, 0.2, 1));
+}
+
+/* Header */
+.vm-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--vm-space-5, 20px);
+}
+
+.vm-order-count {
+  font-size: var(--vm-text-sm, 12px);
+  color: var(--vm-text-secondary, #1A1A1A);
+  font-weight: var(--vm-weight-medium, 500);
+  font-family: var(--vm-font-mono, 'SF Mono', monospace);
+}
+
+/* Order Info */
+.vm-order-info {
+  display: flex;
+  align-items: center;
+  gap: var(--vm-space-3, 12px);
+  margin-bottom: var(--vm-space-4, 16px);
+}
+
+.vm-order-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vm-bg-secondary, #F5F5F5);
+  border-radius: var(--vm-radius-md, 12px);
+  flex-shrink: 0;
+}
+
+.vm-order-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: var(--vm-text-primary, #000000);
+  stroke-width: 2;
+}
+
+.vm-order-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vm-space-1, 4px);
+  min-width: 0;
+}
+
+.vm-order-type {
+  font-size: var(--vm-text-md, 16px);
+  font-weight: var(--vm-weight-semibold, 600);
+  color: var(--vm-text-primary, #000000);
+}
+
+.vm-order-date {
+  font-size: var(--vm-text-sm, 12px);
+  color: var(--vm-text-secondary, #1A1A1A);
+}
+
+/* Route Display */
+.vm-route-display {
+  display: flex;
+  gap: var(--vm-space-3, 12px);
+  padding: var(--vm-space-4, 16px);
+  background: var(--vm-bg-secondary, #F5F5F5);
+  border-radius: var(--vm-radius-md, 12px);
+  margin-bottom: var(--vm-space-4, 16px);
+}
+
+.vm-route-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--vm-space-1, 4px);
+  padding-top: var(--vm-space-1, 4px);
+  flex-shrink: 0;
+}
+
+.vm-route-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vm-space-3, 12px);
+  min-width: 0;
+  flex: 1;
+}
+
+.vm-route-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vm-space-1, 4px);
+}
+
+.vm-route-label {
+  font-size: var(--vm-text-xs, 10px);
+  color: var(--vm-text-tertiary, #4D4D4D);
+  font-weight: var(--vm-weight-medium, 500);
+  text-transform: uppercase;
+  letter-spacing: var(--vm-tracking-wide, 0.05em);
+}
+
+/* Driver Info */
+.vm-driver-info {
+  display: flex;
+  align-items: center;
+  gap: var(--vm-space-2, 8px);
+  margin-bottom: var(--vm-space-5, 20px);
+  padding: var(--vm-space-3, 12px);
+  background: var(--vm-bg-secondary, #F5F5F5);
+  border-radius: var(--vm-radius-md, 12px);
+}
+
+.vm-driver-avatar {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vm-bg-primary, #FFFFFF);
+  border-radius: var(--vm-radius-full, 9999px);
+  flex-shrink: 0;
+}
+
+.vm-driver-avatar svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--vm-text-secondary, #1A1A1A);
+  stroke-width: 2;
+}
+
+.vm-driver-name {
+  font-size: var(--vm-text-sm, 12px);
+  color: var(--vm-text-secondary, #1A1A1A);
+  font-weight: var(--vm-weight-medium, 500);
+}
+
+/* Rating Title */
+.vm-rating-title {
+  font-size: var(--vm-text-lg, 18px);
+  font-weight: var(--vm-weight-semibold, 600);
+  color: var(--vm-text-primary, #000000);
+  text-align: center;
+  margin-bottom: var(--vm-space-4, 16px);
+  line-height: var(--vm-leading-tight, 1.2);
+}
+
+/* Star Rating */
+.vm-star-rating {
+  display: flex;
+  justify-content: center;
+  gap: var(--vm-space-2, 8px);
+  margin-bottom: var(--vm-space-2, 8px);
+}
+
+.vm-star-btn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: transform var(--vm-duration-base, 200ms) var(--vm-ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+  border-radius: var(--vm-radius-full, 9999px);
+}
+
+.vm-star-btn:hover {
+  background: var(--vm-bg-secondary, #F5F5F5);
+}
+
+.vm-star-btn:active {
+  transform: scale(0.9);
+}
+
+.vm-star-btn svg {
+  width: 36px;
+  height: 36px;
+  stroke: var(--vm-border-medium, #CCCCCC);
+  transition: all var(--vm-duration-base, 200ms) var(--vm-ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.vm-star-btn.vm-star-active svg,
+.vm-star-btn.vm-star-hover svg {
+  stroke: var(--vm-accent, #000000);
+  fill: var(--vm-accent, #000000);
+}
+
+/* Rating Label */
+.vm-rating-label {
+  text-align: center;
+  font-size: var(--vm-text-sm, 12px);
+  font-weight: var(--vm-weight-medium, 500);
+  color: var(--vm-text-primary, #000000);
+  height: 20px;
+  opacity: 0;
+  transition: opacity var(--vm-duration-base, 200ms) var(--vm-ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.vm-rating-label-visible {
+  opacity: 1;
+}
+
+/* Comment Section */
+.vm-comment-section {
+  margin-top: var(--vm-space-4, 16px);
+  animation: vm-fade-in 0.3s var(--vm-ease-decelerate, cubic-bezier(0, 0, 0.2, 1));
+}
+
+@keyframes vm-fade-in {
+  from { 
+    opacity: 0; 
+    transform: translateY(-10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.vm-comment-input {
+  width: 100%;
+  padding: var(--vm-space-3, 12px) var(--vm-space-4, 16px);
+  border: 1px solid var(--vm-border-medium, #CCCCCC);
+  border-radius: var(--vm-radius-md, 12px);
+  font-size: var(--vm-text-sm, 12px);
+  font-family: var(--vm-font-primary, -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif);
+  color: var(--vm-text-primary, #000000);
+  background: var(--vm-bg-primary, #FFFFFF);
+  resize: none;
+  transition: border-color var(--vm-duration-base, 200ms) var(--vm-ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+  line-height: var(--vm-leading-normal, 1.5);
+}
+
+.vm-comment-input:focus {
+  outline: none;
+  border-color: var(--vm-border-focus, #000000);
+}
+
+.vm-comment-input::placeholder {
+  color: var(--vm-text-disabled, #666666);
+}
+
+/* Actions */
+.vm-modal-actions {
+  display: flex;
+  gap: var(--vm-space-3, 12px);
+  margin-top: var(--vm-space-6, 24px);
+}
+
+.vm-modal-actions .vm-btn {
+  flex: 1;
+  min-height: 56px;
+}
+
+.vm-modal-actions .vm-btn-primary {
+  flex: 2;
+}
+
+/* Spinner */
+.vm-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--vm-white, #FFFFFF);
+  border-radius: var(--vm-radius-full, 9999px);
+  animation: vm-spin 0.8s linear infinite;
+}
+
+@keyframes vm-spin {
+  to { 
+    transform: rotate(360deg); 
+  }
+}
+
+/* Modal Transitions */
+.vm-modal-enter-active,
+.vm-modal-leave-active {
+  transition: opacity var(--vm-duration-slow, 300ms) var(--vm-ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.vm-modal-enter-from,
+.vm-modal-leave-to {
+  opacity: 0;
+}
+
+.vm-modal-enter-from .vm-modal-container,
+.vm-modal-leave-to .vm-modal-container {
+  transform: translateY(100%);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .vm-modal-container {
+    border-radius: var(--vm-radius-lg, 16px) var(--vm-radius-lg, 16px) 0 0;
+  }
+  
+  .vm-star-btn {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .vm-star-btn svg {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Safe Areas (iOS) */
+@supports (padding: max(0px)) {
+  .vm-modal-container {
+    padding-bottom: max(var(--vm-space-6, 24px), env(safe-area-inset-bottom));
+  }
 }
 </style>

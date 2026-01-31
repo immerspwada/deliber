@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
+import './styles/vector-monochrome.css'
 import './styles/transitions.css'
 // Note: Leaflet CSS loaded via CDN in index.html (no need to import here)
 // Leaflet fixes - override any conflicting styles

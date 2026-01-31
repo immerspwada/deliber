@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Feature: F02 - Customer Ride Booking
- * MUNEEF Style UI - Clean and Modern
+ * Vector Monochrome Design - Minimalist & Professional
  * Flow: 1.เลือกจุดรับ → 2.เลือกจุดหมาย → 3.เลือกประเภทรถ → 4.ยืนยันจอง
  */
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
@@ -14,6 +14,7 @@ import PromoButton from "../components/promo/PromoButton.vue";
 import PromoSelectionModal from "../components/promo/PromoSelectionModal.vue";
 import DestinationPicker from "../components/DestinationPicker.vue";
 import PickupPicker from "../components/PickupPicker.vue";
+import VectorIcons from "../components/icons/VectorIcons.vue";
 import type { NearbyPlace } from "../composables/useNearbyPlaces";
 import { useLocation, type GeoLocation } from "../composables/useLocation";
 import { useRideStore } from "../stores/ride";
@@ -1402,17 +1403,10 @@ watch(rideType, async () => {
           </div>
         </Transition>
 
-        <!-- Top Bar -->
-        <div class="top-bar" :class="{ hidden: tapToSelectMode }">
-          <button class="nav-btn" @click="goBack">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+        <!-- Top Bar - Vector Monochrome Design -->
+        <div class="vm-top-bar" :class="{ hidden: tapToSelectMode }">
+          <button class="vm-icon-btn vm-focus-visible" @click="goBack" aria-label="กลับ">
+            <VectorIcons name="arrow-left" :size="24" />
           </button>
           <div class="logo-badge">
             <svg viewBox="0 0 32 32" fill="none">
@@ -1428,15 +1422,8 @@ watch(rideType, async () => {
             </svg>
             <span>GOBEAR</span>
           </div>
-          <button class="nav-btn">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+          <button class="vm-icon-btn vm-focus-visible" aria-label="เมนู">
+            <VectorIcons name="more-vertical" :size="24" />
           </button>
         </div>
       </div>
@@ -1449,24 +1436,32 @@ watch(rideType, async () => {
         <div class="panel-handle"></div>
 
         <!-- Step Indicator - Clear Progress -->
-        <div class="step-indicator-wrapper">
+        <div class="step-indicator-wrapper vm-step-indicator">
           <div class="step-indicator-header">
-            <span class="step-indicator-title">ขั้นตอนที่ {{ currentStepIndex + 1 }} จาก {{ stepLabels.length }}</span>
-            <span class="step-indicator-current">{{ stepLabels[currentStepIndex]?.label }}</span>
+            <span class="step-indicator-title vm-text-sm vm-text-gray-600">ขั้นตอนที่ {{ currentStepIndex + 1 }} จาก {{ stepLabels.length }}</span>
+            <span class="step-indicator-current vm-text-base vm-font-medium">{{ stepLabels[currentStepIndex]?.label }}</span>
           </div>
           <div class="step-indicator-enhanced">
-            <div class="step-progress-bar">
+            <div 
+              class="step-progress-bar vm-step-progress"
+              role="progressbar"
+              :aria-valuenow="Math.round((currentStepIndex / (stepLabels.length - 1)) * 100)"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              :aria-label="`ความคืบหน้า ${Math.round((currentStepIndex / (stepLabels.length - 1)) * 100)}%`"
+            >
               <div
-                class="step-progress-fill"
+                class="step-progress-fill vm-step-progress-fill"
                 :style="{
                   width: `${(currentStepIndex / (stepLabels.length - 1)) * 100}%`,
                 }"
               ></div>
             </div>
             <div class="step-items-row">
-              <div
+              <button
                 v-for="(s, index) in stepLabels"
                 :key="s.key"
+                type="button"
                 :class="[
                   'step-item-enhanced',
                   {
@@ -1475,26 +1470,24 @@ watch(rideType, async () => {
                     clickable: index < currentStepIndex,
                   },
                 ]"
+                :disabled="index >= currentStepIndex"
+                :aria-label="`${s.label} - ${index < currentStepIndex ? 'เสร็จสิ้น' : index === currentStepIndex ? 'กำลังดำเนินการ' : 'รอดำเนินการ'}`"
+                :aria-current="s.key === step ? 'step' : undefined"
                 @click="goToStep(s.key)"
               >
                 <div class="step-circle">
                   <template v-if="index < currentStepIndex">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                    >
-                      <path d="M20 6L9 17l-5-5" />
-                    </svg>
+                    <VectorIcons name="check" :size="16" />
                   </template>
-                  <template v-else>{{ s.number }}</template>
+                  <template v-else>
+                    <span class="vm-text-sm vm-font-medium">{{ s.number }}</span>
+                  </template>
                 </div>
                 <div class="step-label-group">
-                  <span class="step-text">{{ s.label }}</span>
-                  <span class="step-description">{{ s.description }}</span>
+                  <span class="step-text vm-text-xs">{{ s.label }}</span>
+                  <span class="step-description vm-text-2xs vm-text-gray-500">{{ s.description }}</span>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1511,20 +1504,20 @@ watch(rideType, async () => {
             ]"
           >
             <!-- Pickup Section (Collapsed when selected) -->
-            <div class="location-section pickup-section" :class="{ 'is-selected': pickupLocation }">
+            <div class="location-section pickup-section vm-location-section" :class="{ 'is-selected': pickupLocation }">
               <!-- Pickup Header -->
-              <div class="location-section-header">
-                <div class="location-marker-icon pickup">
-                  <div class="marker-dot" :class="{ pulse: !pickupLocation }"></div>
+              <div class="location-section-header vm-location-header">
+                <div class="location-marker-icon pickup vm-location-marker vm-location-marker-pickup">
+                  <div class="marker-dot vm-marker-dot" :class="{ pulse: !pickupLocation }"></div>
                 </div>
-                <div class="location-section-title">
-                  <span class="section-label">จุดรับ</span>
-                  <span v-if="pickupLocation" class="section-value">{{ pickupAddress }}</span>
-                  <span v-else class="section-placeholder">เลือกจุดรับ</span>
+                <div class="location-section-title vm-location-title">
+                  <span class="section-label vm-text-xs vm-text-gray-600">จุดรับ</span>
+                  <span v-if="pickupLocation" class="section-value vm-text-sm vm-font-medium">{{ pickupAddress }}</span>
+                  <span v-else class="section-placeholder vm-text-sm vm-text-gray-400">เลือกจุดรับ</span>
                 </div>
                 <button
                   v-if="pickupLocation"
-                  class="edit-btn"
+                  class="edit-btn vm-btn vm-btn-ghost vm-btn-sm vm-focus-visible"
                   type="button"
                   aria-label="เปลี่ยนจุดรับ"
                   @click="clearPickup(); triggerHaptic('light');"
@@ -1535,72 +1528,62 @@ watch(rideType, async () => {
 
               <!-- Pickup Options (Show when not selected) -->
               <Transition name="slide-fade">
-                <div v-if="!pickupLocation" class="location-options">
+                <div v-if="!pickupLocation" class="location-options vm-location-options">
                   <!-- GPS Button - Primary -->
                   <button
-                    class="gps-btn primary"
+                    class="gps-btn primary vm-btn vm-btn-primary vm-btn-full vm-focus-visible"
                     :class="{ 'is-loading': isGettingLocation }"
                     :disabled="isGettingLocation"
+                    :aria-busy="isGettingLocation"
+                    aria-label="ใช้ตำแหน่งปัจจุบัน"
                     @click="useCurrentLocationEnhanced('pickup')"
                   >
-                    <div class="gps-icon">
+                    <div class="gps-icon vm-btn-icon">
                       <template v-if="isGettingLocation">
-                        <div class="spinner-small"></div>
+                        <div class="spinner-small vm-spinner"></div>
                       </template>
                       <template v-else>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
-                        </svg>
+                        <VectorIcons name="navigation" :size="20" />
                       </template>
                     </div>
                     <span>{{ isGettingLocation ? 'กำลังค้นหา...' : 'ใช้ตำแหน่งปัจจุบัน' }}</span>
                   </button>
 
                   <!-- Quick Options Row -->
-                  <div class="quick-options-row">
+                  <div class="quick-options-row vm-quick-options">
                     <button
-                      class="quick-option-btn"
+                      class="quick-option-btn vm-icon-btn vm-icon-btn-lg vm-focus-visible"
+                      aria-label="ค้นหาจุดรับ"
                       @click="showPickupPicker = true; triggerHaptic('medium');"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8" />
-                        <path d="M21 21l-4.35-4.35" />
-                      </svg>
-                      <span>ค้นหา</span>
+                      <VectorIcons name="search" :size="20" />
+                      <span class="vm-text-2xs vm-mt-1">ค้นหา</span>
                     </button>
                     <button
                       v-if="homePlace"
-                      class="quick-option-btn home"
+                      class="quick-option-btn home vm-icon-btn vm-icon-btn-lg vm-focus-visible"
+                      aria-label="เลือกบ้าน"
                       @click="handlePickupPickerSelect(homePlace); triggerHaptic('medium');"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                        <polyline points="9,22 9,12 15,12 15,22" />
-                      </svg>
-                      <span>บ้าน</span>
+                      <VectorIcons name="home" :size="20" />
+                      <span class="vm-text-2xs vm-mt-1">บ้าน</span>
                     </button>
                     <button
                       v-if="workPlace"
-                      class="quick-option-btn work"
+                      class="quick-option-btn work vm-icon-btn vm-icon-btn-lg vm-focus-visible"
+                      aria-label="เลือกที่ทำงาน"
                       @click="handlePickupPickerSelect(workPlace); triggerHaptic('medium');"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="7" width="20" height="14" rx="2" />
-                        <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
-                      </svg>
-                      <span>ที่ทำงาน</span>
+                      <VectorIcons name="briefcase" :size="20" />
+                      <span class="vm-text-2xs vm-mt-1">ที่ทำงาน</span>
                     </button>
                     <button
-                      class="quick-option-btn map"
+                      class="quick-option-btn map vm-icon-btn vm-icon-btn-lg vm-focus-visible"
+                      aria-label="เลือกจากแผนที่"
                       @click="showPickupMapPicker = true; triggerHaptic('medium');"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-                        <circle cx="12" cy="10" r="3" />
-                      </svg>
-                      <span>แผนที่</span>
+                      <VectorIcons name="map-pin" :size="20" />
+                      <span class="vm-text-2xs vm-mt-1">แผนที่</span>
                     </button>
                   </div>
                 </div>
@@ -1608,23 +1591,20 @@ watch(rideType, async () => {
             </div>
 
             <!-- Destination Section -->
-            <div class="location-section destination-section" :class="{ 'is-active': pickupLocation && !destinationLocation }">
+            <div class="location-section destination-section vm-location-section vm-location-section-destination" :class="{ 'is-active': pickupLocation && !destinationLocation }">
               <!-- Destination Header -->
-              <div class="location-section-header">
-                <div class="location-marker-icon destination">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-                    <circle cx="12" cy="10" r="3" fill="white" />
-                  </svg>
+              <div class="location-section-header vm-location-header">
+                <div class="location-marker-icon destination vm-location-marker vm-location-marker-destination">
+                  <VectorIcons name="map-pin" :size="20" />
                 </div>
-                <div class="location-section-title">
-                  <span class="section-label">ปลายทาง</span>
-                  <span v-if="destinationLocation" class="section-value">{{ destinationAddress }}</span>
-                  <span v-else class="section-placeholder">ไปไหนดี?</span>
+                <div class="location-section-title vm-location-title">
+                  <span class="section-label vm-text-xs vm-text-gray-600">ปลายทาง</span>
+                  <span v-if="destinationLocation" class="section-value vm-text-sm vm-font-medium">{{ destinationAddress }}</span>
+                  <span v-else class="section-placeholder vm-text-sm vm-text-gray-400">ไปไหนดี?</span>
                 </div>
                 <button
                   v-if="destinationLocation"
-                  class="edit-btn"
+                  class="edit-btn vm-btn vm-btn-ghost vm-btn-sm vm-focus-visible"
                   type="button"
                   aria-label="เปลี่ยนปลายทาง"
                   @click="destinationLocation = null; destinationAddress = ''; triggerHaptic('light');"
@@ -1635,125 +1615,119 @@ watch(rideType, async () => {
 
               <!-- Destination Options (Show when pickup selected but destination not) -->
               <Transition name="slide-fade">
-                <div v-if="pickupLocation && !destinationLocation" class="destination-options">
+                <div v-if="pickupLocation && !destinationLocation" class="destination-options vm-destination-options">
                   <!-- Hero Search Bar -->
                   <button
-                    class="hero-search-bar"
+                    class="hero-search-bar vm-search-bar vm-focus-visible"
+                    aria-label="ค้นหาปลายทาง"
                     @click="showDestinationPicker = true; triggerHaptic('medium');"
                   >
-                    <div class="hero-search-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8" />
-                        <path d="M21 21l-4.35-4.35" />
-                      </svg>
+                    <div class="hero-search-icon vm-search-icon">
+                      <VectorIcons name="search" :size="20" />
                     </div>
-                    <span class="hero-search-placeholder">ค้นหาปลายทาง...</span>
-                    <div class="hero-search-arrow">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 18l6-6-6-6" />
-                      </svg>
+                    <span class="hero-search-placeholder vm-text-sm vm-text-gray-400">ค้นหาปลายทาง...</span>
+                    <div class="hero-search-arrow vm-search-arrow">
+                      <VectorIcons name="chevron-right" :size="20" />
                     </div>
                   </button>
 
                   <!-- Quick Access: Home & Work -->
-                  <div v-if="homePlace || workPlace" class="quick-access-row">
+                  <div v-if="homePlace || workPlace" class="quick-access-row vm-quick-access">
                     <button
                       v-if="homePlace"
-                      class="quick-access-chip home"
+                      class="quick-access-chip home vm-chip vm-chip-outline vm-focus-visible"
+                      aria-label="เลือกบ้านเป็นปลายทาง"
                       @click="selectSavedPlaceEnhanced(homePlace); triggerHaptic('medium');"
                     >
-                      <div class="quick-access-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                          <polyline points="9,22 9,12 15,12 15,22" />
-                        </svg>
+                      <div class="quick-access-icon vm-chip-icon">
+                        <VectorIcons name="home" :size="16" />
                       </div>
-                      <div class="quick-access-text">
-                        <span class="quick-access-label">บ้าน</span>
+                      <div class="quick-access-text vm-chip-text">
+                        <span class="quick-access-label vm-text-sm">บ้าน</span>
                       </div>
                     </button>
                     <button
                       v-if="workPlace"
-                      class="quick-access-chip work"
+                      class="quick-access-chip work vm-chip vm-chip-outline vm-focus-visible"
+                      aria-label="เลือกที่ทำงานเป็นปลายทาง"
                       @click="selectSavedPlaceEnhanced(workPlace); triggerHaptic('medium');"
                     >
-                      <div class="quick-access-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <rect x="2" y="7" width="20" height="14" rx="2" />
-                          <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
-                        </svg>
+                      <div class="quick-access-icon vm-chip-icon">
+                        <VectorIcons name="briefcase" :size="16" />
                       </div>
-                      <div class="quick-access-text">
-                        <span class="quick-access-label">ที่ทำงาน</span>
+                      <div class="quick-access-text vm-chip-text">
+                        <span class="quick-access-label vm-text-sm">ที่ทำงาน</span>
                       </div>
                     </button>
                   </div>
 
                   <!-- Popular Destinations -->
-                  <div class="popular-destinations-compact">
-                    <div class="popular-grid">
+                  <div class="popular-destinations-compact vm-popular-destinations">
+                    <div class="popular-grid vm-popular-grid">
                       <button
-                        class="popular-chip"
+                        class="popular-chip vm-chip vm-chip-outline vm-focus-visible"
+                        aria-label="เลือกเซ็นทรัลเวิลด์เป็นปลายทาง"
                         @click="selectDestPlaceQuick({ name: 'เซ็นทรัลเวิลด์', address: 'ราชดำริ, ปทุมวัน', lat: 13.7466, lng: 100.5391 })"
                       >
-                        <span>🛍️ เซ็นทรัลเวิลด์</span>
+                        <span class="vm-text-sm">🛍️ เซ็นทรัลเวิลด์</span>
                       </button>
                       <button
-                        class="popular-chip"
+                        class="popular-chip vm-chip vm-chip-outline vm-focus-visible"
+                        aria-label="เลือกสยามพารากอนเป็นปลายทาง"
                         @click="selectDestPlaceQuick({ name: 'สยามพารากอน', address: 'พระราม 1, ปทุมวัน', lat: 13.7461, lng: 100.5347 })"
                       >
-                        <span>🛍️ สยามพารากอน</span>
+                        <span class="vm-text-sm">🛍️ สยามพารากอน</span>
                       </button>
                       <button
-                        class="popular-chip"
+                        class="popular-chip vm-chip vm-chip-outline vm-focus-visible"
+                        aria-label="เลือกสนามบินสุวรรณภูมิเป็นปลายทาง"
                         @click="selectDestPlaceQuick({ name: 'สนามบินสุวรรณภูมิ', address: 'บางพลี, สมุทรปราการ', lat: 13.69, lng: 100.7501 })"
                       >
-                        <span>✈️ สุวรรณภูมิ</span>
+                        <span class="vm-text-sm">✈️ สุวรรณภูมิ</span>
                       </button>
                       <button
-                        class="popular-chip"
+                        class="popular-chip vm-chip vm-chip-outline vm-focus-visible"
+                        aria-label="เลือกสนามบินดอนเมืองเป็นปลายทาง"
                         @click="selectDestPlaceQuick({ name: 'สนามบินดอนเมือง', address: 'ดอนเมือง, กรุงเทพฯ', lat: 13.9126, lng: 100.6068 })"
                       >
-                        <span>✈️ ดอนเมือง</span>
+                        <span class="vm-text-sm">✈️ ดอนเมือง</span>
                       </button>
                     </div>
                   </div>
 
                   <!-- Quick Actions -->
-                  <div class="quick-action-row compact">
+                  <div class="quick-action-row compact vm-quick-actions">
                     <button
-                      class="quick-action-btn tap-select"
+                      class="quick-action-btn tap-select vm-btn vm-btn-secondary vm-focus-visible"
+                      aria-label="แตะเลือกจากแผนที่"
                       @click="enableTapToSelect"
                     >
-                      <div class="quick-action-icon tap">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
-                        </svg>
+                      <div class="quick-action-icon tap vm-btn-icon">
+                        <VectorIcons name="target" :size="20" />
                       </div>
-                      <span>แตะแผนที่</span>
+                      <span class="vm-text-sm">แตะแผนที่</span>
                     </button>
                     <button
-                      class="quick-action-btn nearby"
+                      class="quick-action-btn nearby vm-btn vm-btn-secondary vm-focus-visible"
+                      aria-label="ดูสถานที่ใกล้เคียง"
                       @click="showNearbyPlaces = true; triggerHaptic('medium');"
                     >
-                      <div class="quick-action-icon nearby">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
+                      <div class="quick-action-icon nearby vm-btn-icon">
+                        <VectorIcons name="compass" :size="20" />
                       </div>
-                      <span>ใกล้เคียง</span>
+                      <span class="vm-text-sm">ใกล้เคียง</span>
                     </button>
                   </div>
 
                   <!-- Recent Places -->
-                  <div v-if="recentPlaces.length > 0 && !placesLoading" class="recent-places-compact">
-                    <h4 class="section-title-small">ไปเมื่อเร็วๆ นี้</h4>
-                    <div class="recent-chips-scroll">
+                  <div v-if="recentPlaces.length > 0 && !placesLoading" class="recent-places-compact vm-recent-places">
+                    <h4 class="section-title-small vm-text-xs vm-text-gray-600 vm-font-medium vm-mb-2">ไปเมื่อเร็วๆ นี้</h4>
+                    <div class="recent-chips-scroll vm-recent-scroll">
                       <button
                         v-for="place in recentPlaces.slice(0, 4)"
                         :key="place.id"
-                        class="recent-chip"
+                        class="recent-chip vm-chip vm-chip-outline vm-focus-visible"
+                        :aria-label="`เลือก ${place.name} เป็นปลายทาง`"
                         @click="selectRecentPlaceEnhanced(place)"
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1989,154 +1963,74 @@ watch(rideType, async () => {
             </div>
 
             <!-- Ride Options Enhanced -->
-            <div class="ride-options-enhanced">
+            <div class="vm-vehicle-grid">
               <button
                 v-for="(type, index) in rideTypes"
                 :key="type.value"
+                type="button"
                 :class="[
-                  'ride-option-enhanced',
+                  'vm-vehicle-card vm-focus-visible',
                   {
-                    active: rideType === type.value,
-                    'is-pressed': pressedButton === `ride-${type.value}`,
+                    'vm-vehicle-card-selected': rideType === type.value,
                   },
                 ]"
                 :style="{ animationDelay: `${index * 80}ms` }"
+                :aria-pressed="rideType === type.value"
+                :aria-label="`เลือก ${type.label} ราคา ${rideTypeFares[type.value] > 0 ? Math.round(rideTypeFares[type.value]) : 'กำลังคำนวณ'} บาท`"
                 @click="selectRideTypeEnhanced(type.value)"
-                @mousedown="handleButtonPress(`ride-${type.value}`)"
-                @mouseup="handleButtonRelease"
-                @touchstart="handleButtonPress(`ride-${type.value}`)"
-                @touchend="handleButtonRelease"
               >
-                <div class="ride-option-left">
-                  <div :class="['ride-icon-enhanced', type.value]">
-                    <svg viewBox="0 0 48 48" fill="none">
-                      <rect
-                        x="4"
-                        y="18"
-                        width="40"
-                        height="18"
-                        rx="4"
-                        :fill="
-                          type.value === 'premium'
-                            ? '#1A1A1A'
-                            : type.value === 'shared'
-                              ? '#6366F1'
-                              : 'var(--cm-accent)'
-                        "
-                      />
-                      <rect
-                        x="8"
-                        y="10"
-                        width="32"
-                        height="14"
-                        rx="4"
-                        :fill="
-                          type.value === 'premium'
-                            ? '#1A1A1A'
-                            : type.value === 'shared'
-                              ? '#6366F1'
-                              : 'var(--cm-accent)'
-                        "
-                      />
-                      <rect
-                        x="12"
-                        y="12"
-                        width="10"
-                        height="8"
-                        rx="2"
-                        :fill="
-                          type.value === 'premium'
-                            ? '#4A4A4A'
-                            : type.value === 'shared'
-                              ? '#A5B4FC'
-                              : 'var(--cm-bg-hover)'
-                        "
-                      />
-                      <rect
-                        x="26"
-                        y="12"
-                        width="10"
-                        height="8"
-                        rx="2"
-                        :fill="
-                          type.value === 'premium'
-                            ? '#4A4A4A'
-                            : type.value === 'shared'
-                              ? '#A5B4FC'
-                              : 'var(--cm-bg-hover)'
-                        "
-                      />
-                      <circle cx="14" cy="36" r="5" fill="#333" />
-                      <circle cx="34" cy="36" r="5" fill="#333" />
-                    </svg>
+                <div class="vm-vehicle-card-content">
+                  <div class="vm-vehicle-icon">
+                    <VectorIcons 
+                      :name="type.value === 'premium' ? 'luxury-car' : type.value === 'shared' ? 'motorcycle' : 'car'" 
+                      :size="48" 
+                    />
                   </div>
-                  <div class="ride-option-info">
-                    <div class="ride-option-header">
-                      <span class="ride-option-name">{{ type.label }}</span>
+                  <div class="vm-vehicle-info">
+                    <div class="vm-vehicle-header">
+                      <span class="vm-text-base vm-font-medium">{{ type.label }}</span>
                       <span
                         v-if="type.value === 'shared'"
-                        class="ride-badge eco"
+                        class="vm-chip vm-chip-sm"
                       >ประหยัด</span>
                       <span
                         v-if="type.value === 'premium'"
-                        class="ride-badge premium"
+                        class="vm-chip vm-chip-sm"
                       >หรู</span>
                     </div>
-                    <div class="ride-option-meta">
-                      <span class="eta-badge">
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M12 6v6l4 2" />
-                        </svg>
+                    <div class="vm-vehicle-meta">
+                      <span class="vm-text-xs vm-text-secondary">
+                        <VectorIcons name="clock" :size="14" />
                         {{ type.eta }}
                       </span>
-                      <span class="capacity-badge">
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <circle cx="12" cy="8" r="4" />
-                          <path d="M20 21a8 8 0 10-16 0" />
-                        </svg>
+                      <span class="vm-text-xs vm-text-secondary">
+                        <VectorIcons name="user" :size="14" />
                         {{ type.capacity }}
                       </span>
                     </div>
-                    <p class="ride-option-desc">{{ type.description }}</p>
+                    <p class="vm-text-xs vm-text-tertiary">{{ type.description }}</p>
                   </div>
                 </div>
-                <div class="ride-option-right">
+                <div class="vm-vehicle-price">
                   <!-- Show loading state if no fare calculated yet -->
-                  <span v-if="estimatedDistance === 0" class="ride-option-price loading">
-                    <span class="loading-dots">เลือกปลายทาง</span>
+                  <span v-if="estimatedDistance === 0" class="vm-text-sm vm-text-tertiary">
+                    เลือกปลายทาง
                   </span>
                   <!-- Show calculated fare from database -->
-                  <span v-else-if="rideTypeFares[type.value] > 0" class="ride-option-price">
+                  <span v-else-if="rideTypeFares[type.value] > 0" class="vm-text-lg vm-font-medium">
                     ฿{{ Math.round(rideTypeFares[type.value]) }}
                   </span>
                   <!-- Fallback: calculating -->
-                  <span v-else class="ride-option-price calculating">
-                    <span class="loading-dots">คำนวณ...</span>
+                  <span v-else class="vm-text-sm vm-text-tertiary">
+                    <span class="vm-spinner vm-spinner-sm"></span>
+                    คำนวณ...
                   </span>
                   <Transition name="scale-fade">
                     <div
                       v-if="rideType === type.value"
-                      class="ride-check-enhanced"
+                      class="vm-vehicle-check"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="3"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
+                      <VectorIcons name="check" :size="14" />
                     </div>
                   </Transition>
                 </div>
@@ -2145,95 +2039,60 @@ watch(rideType, async () => {
 
             <!-- Surge Warning -->
             <Transition name="slide-fade">
-              <div v-if="surgeMultiplier > 1" class="surge-warning">
-                <div class="surge-icon">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  </svg>
+              <div v-if="surgeMultiplier > 1" class="vm-alert vm-alert-warning">
+                <div class="vm-alert-icon">
+                  <VectorIcons name="alert-circle" :size="20" />
                 </div>
-                <div class="surge-text">
-                  <span class="surge-title">ช่วงเวลาเร่งด่วน</span>
-                  <span class="surge-desc">ค่าโดยสารเพิ่มขึ้น x{{ surgeMultiplier.toFixed(1) }}</span>
+                <div class="vm-alert-content">
+                  <span class="vm-text-sm vm-font-medium">ช่วงเวลาเร่งด่วน</span>
+                  <span class="vm-text-xs vm-text-secondary">ค่าโดยสารเพิ่มขึ้น x{{ surgeMultiplier.toFixed(1) }}</span>
                 </div>
               </div>
             </Transition>
 
             <!-- Payment Method -->
-            <div
-              class="payment-method-card-enhanced"
-              :class="{ 'is-pressed': pressedButton === 'payment' }"
-              @mousedown="handleButtonPress('payment')"
-              @mouseup="handleButtonRelease"
-              @touchstart="handleButtonPress('payment')"
-              @touchend="handleButtonRelease"
+            <button
+              type="button"
+              class="vm-card vm-card-interactive vm-focus-visible"
+              :aria-label="`เปลี่ยนวิธีชำระเงิน ปัจจุบัน ${paymentMethods.find((p) => p.value === paymentMethod)?.label}`"
               @click="
                 showPaymentSheet = true;
                 triggerHaptic('light');
               "
             >
-              <div class="payment-method-body">
-                <div class="payment-method-icon">
-                  <svg
+              <div class="vm-card-content">
+                <div class="vm-card-icon">
+                  <VectorIcons 
                     v-if="paymentMethod === 'cash'"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <rect x="1" y="4" width="22" height="16" rx="2" />
-                    <circle cx="12" cy="12" r="4" />
-                  </svg>
-                  <svg
+                    name="banknote" 
+                    :size="24" 
+                  />
+                  <VectorIcons 
                     v-else-if="paymentMethod === 'wallet'"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      d="M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-5z"
-                    />
-                    <path d="M16 12h5v4h-5a2 2 0 010-4z" />
-                  </svg>
-                  <svg
+                    name="wallet" 
+                    :size="24" 
+                  />
+                  <VectorIcons 
                     v-else
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <rect x="1" y="4" width="22" height="16" rx="2" />
-                    <path d="M1 10h22" />
-                  </svg>
+                    name="credit-card" 
+                    :size="24" 
+                  />
                 </div>
-                <div class="payment-method-info">
-                  <span class="payment-method-value">{{
+                <div class="vm-card-info">
+                  <span class="vm-text-base vm-font-medium">{{
                     paymentMethods.find((p) => p.value === paymentMethod)?.label
                   }}</span>
                   <span
                     v-if="paymentMethod === 'wallet'"
-                    class="wallet-balance-hint"
-                    :class="{ insufficient: hasInsufficientBalance }"
+                    class="vm-text-xs"
+                    :class="hasInsufficientBalance ? 'vm-text-error' : 'vm-text-secondary'"
                   >
                     คงเหลือ ฿{{ walletBalance.toLocaleString() }}
                   </span>
                 </div>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  class="payment-arrow"
-                >
-                  <path d="M9 5l7 7-7 7" />
-                </svg>
+                <VectorIcons name="chevron-right" :size="20" />
               </div>
-            </div>
+            </button>
 
             <!-- Promo Code -->
             <PromoButton
@@ -2243,22 +2102,25 @@ watch(rideType, async () => {
             />
 
             <!-- Fare Summary Compact -->
-            <div class="fare-summary-compact">
-              <div class="fare-row">
-                <span>ค่าโดยสาร</span>
-                <span>฿{{ estimatedFare.toFixed(0) }}</span>
-              </div>
-              <div v-if="surgeMultiplier > 1" class="fare-row surge">
-                <span>ช่วงเร่งด่วน (x{{ surgeMultiplier.toFixed(1) }})</span>
-                <span>+฿{{ (estimatedFare * (surgeMultiplier - 1)).toFixed(0) }}</span>
-              </div>
-              <div v-if="promoDiscount > 0" class="fare-row discount">
-                <span>ส่วนลด</span>
-                <span>-฿{{ promoDiscount }}</span>
-              </div>
-              <div class="fare-row total">
-                <span>รวมทั้งหมด</span>
-                <span class="total-price">฿{{ finalFare }}</span>
+            <div class="vm-card">
+              <div class="vm-card-content vm-space-y-2">
+                <div class="vm-flex vm-justify-between">
+                  <span class="vm-text-sm vm-text-secondary">ค่าโดยสาร</span>
+                  <span class="vm-text-sm vm-font-medium">฿{{ estimatedFare.toFixed(0) }}</span>
+                </div>
+                <div v-if="surgeMultiplier > 1" class="vm-flex vm-justify-between">
+                  <span class="vm-text-sm vm-text-secondary">ช่วงเร่งด่วน (x{{ surgeMultiplier.toFixed(1) }})</span>
+                  <span class="vm-text-sm vm-font-medium">+฿{{ (estimatedFare * (surgeMultiplier - 1)).toFixed(0) }}</span>
+                </div>
+                <div v-if="promoDiscount > 0" class="vm-flex vm-justify-between">
+                  <span class="vm-text-sm vm-text-success">ส่วนลด</span>
+                  <span class="vm-text-sm vm-text-success vm-font-medium">-฿{{ promoDiscount }}</span>
+                </div>
+                <div class="vm-divider"></div>
+                <div class="vm-flex vm-justify-between">
+                  <span class="vm-text-base vm-font-medium">รวมทั้งหมด</span>
+                  <span class="vm-text-lg vm-font-bold">฿{{ finalFare }}</span>
+                </div>
               </div>
             </div>
 
@@ -2266,28 +2128,20 @@ watch(rideType, async () => {
             <Transition name="slide-fade">
               <div
                 v-if="hasInsufficientBalance"
-                class="insufficient-balance-warning"
+                class="vm-alert vm-alert-error"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                  />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <div class="warning-text">
-                  <span class="warning-title">ยอดเงินไม่เพียงพอ</span>
-                  <span class="warning-detail">คงเหลือ ฿{{ walletBalance.toLocaleString() }} / ต้องการ ฿{{
+                <div class="vm-alert-icon">
+                  <VectorIcons name="alert-circle" :size="20" />
+                </div>
+                <div class="vm-alert-content">
+                  <span class="vm-text-sm vm-font-medium">ยอดเงินไม่เพียงพอ</span>
+                  <span class="vm-text-xs vm-text-secondary">คงเหลือ ฿{{ walletBalance.toLocaleString() }} / ต้องการ ฿{{
                     finalFare.toLocaleString()
                   }}</span>
                 </div>
                 <button
-                  class="topup-btn"
+                  type="button"
+                  class="vm-btn vm-btn-sm vm-btn-primary"
                   @click="router.push('/customer/wallet')"
                 >
                   เติมเงิน
@@ -2297,58 +2151,45 @@ watch(rideType, async () => {
 
             <!-- Book Button -->
             <button
+              type="button"
               :disabled="isBooking || hasInsufficientBalance"
               :class="[
-                'confirm-book-btn',
+                'vm-btn vm-btn-primary vm-btn-full vm-btn-lg vm-focus-visible',
                 {
-                  'is-loading': isBooking,
-                  'is-disabled': hasInsufficientBalance,
+                  'vm-btn-loading': isBooking,
+                  'vm-btn-disabled': hasInsufficientBalance,
                 },
               ]"
+              :aria-busy="isBooking"
+              :aria-label="isBooking ? 'กำลังค้นหาคนขับ' : hasInsufficientBalance ? 'ยอดเงินไม่พอ' : `จองรถ ราคา ${finalFare} บาท`"
               @click="bookRide"
             >
               <template v-if="isBooking">
-                <div class="booking-spinner"></div>
-                <div class="booking-text">
-                  <span class="booking-title">กำลังค้นหาคนขับ...</span>
-                  <span class="booking-subtitle">รอสักครู่</span>
+                <div class="vm-spinner"></div>
+                <div class="vm-flex vm-flex-col vm-items-center">
+                  <span class="vm-text-base vm-font-medium">กำลังค้นหาคนขับ...</span>
+                  <span class="vm-text-xs vm-text-secondary">รอสักครู่</span>
                 </div>
               </template>
               <template v-else-if="hasInsufficientBalance">
-                <div class="confirm-btn-content">
-                  <span class="confirm-btn-text">ยอดเงินไม่พอ</span>
-                  <span class="confirm-btn-price">฿{{ finalFare }}</span>
+                <div class="vm-flex vm-justify-between vm-items-center vm-w-full">
+                  <span class="vm-text-base vm-font-medium">ยอดเงินไม่พอ</span>
+                  <span class="vm-text-lg vm-font-bold">฿{{ finalFare }}</span>
                 </div>
               </template>
               <template v-else>
-                <div class="confirm-btn-content">
-                  <span class="confirm-btn-text">จองรถ</span>
-                  <span class="confirm-btn-price">฿{{ finalFare }}</span>
+                <div class="vm-flex vm-justify-between vm-items-center vm-w-full">
+                  <span class="vm-text-base vm-font-medium">จองรถ</span>
+                  <span class="vm-text-lg vm-font-bold">฿{{ finalFare }}</span>
                 </div>
-                <div class="confirm-btn-icon">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </div>
+                <VectorIcons name="arrow-right" :size="20" />
               </template>
             </button>
 
             <!-- Safety Note -->
-            <div class="safety-note">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <span>การเดินทางของคุณได้รับการคุ้มครองโดย GOBEAR</span>
+            <div class="vm-flex vm-items-center vm-justify-center vm-gap-2 vm-mt-4">
+              <VectorIcons name="info" :size="16" />
+              <span class="vm-text-xs vm-text-secondary">การเดินทางของคุณได้รับการคุ้มครองโดย GOBEAR</span>
             </div>
           </div>
         </template>
@@ -2360,167 +2201,133 @@ watch(rideType, async () => {
       <div class="schedule-sheet-content">
         <!-- Ride Now Option -->
         <button
-          class="schedule-option"
-          :class="{ active: !isScheduled }"
+          type="button"
+          class="vm-card vm-card-interactive"
+          :class="{ 'vm-card-selected': !isScheduled }"
           @click="setRideNow"
+          aria-pressed="!isScheduled"
+          aria-label="เดินทางตอนนี้ รถจะมารับทันที"
         >
-          <div class="schedule-option-icon now">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 6v6l4 2" />
-            </svg>
-          </div>
-          <div class="schedule-option-text">
-            <span class="schedule-option-title">เดินทางตอนนี้</span>
-            <span class="schedule-option-desc">รถจะมารับทันที</span>
-          </div>
-          <div v-if="!isScheduled" class="schedule-check">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
+          <div class="vm-flex vm-items-center vm-gap-3">
+            <div class="vm-icon-container">
+              <VectorIcons name="clock" class="vm-icon-lg" />
+            </div>
+            <div class="vm-flex-1">
+              <span class="vm-text-base vm-font-medium vm-block">เดินทางตอนนี้</span>
+              <span class="vm-text-sm vm-text-gray-600 vm-block">รถจะมารับทันที</span>
+            </div>
+            <div v-if="!isScheduled" class="vm-icon-container vm-icon-success">
+              <VectorIcons name="check" class="vm-icon-md" />
+            </div>
           </div>
         </button>
 
         <!-- Schedule Later Option -->
         <button
-          class="schedule-option"
-          :class="{ active: isScheduled }"
+          type="button"
+          class="vm-card vm-card-interactive"
+          :class="{ 'vm-card-selected': isScheduled }"
           @click="isScheduled = true"
+          aria-pressed="isScheduled"
+          aria-label="จองล่วงหน้า เลือกวันและเวลาที่ต้องการ"
         >
-          <div class="schedule-option-icon later">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M16 2v4M8 2v4M3 10h18" />
-              <path d="M12 14v3l2 1" />
-            </svg>
-          </div>
-          <div class="schedule-option-text">
-            <span class="schedule-option-title">จองล่วงหน้า</span>
-            <span class="schedule-option-desc">เลือกวันและเวลาที่ต้องการ</span>
-          </div>
-          <div v-if="isScheduled" class="schedule-check">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
+          <div class="vm-flex vm-items-center vm-gap-3">
+            <div class="vm-icon-container">
+              <VectorIcons name="calendar" class="vm-icon-lg" />
+            </div>
+            <div class="vm-flex-1">
+              <span class="vm-text-base vm-font-medium vm-block">จองล่วงหน้า</span>
+              <span class="vm-text-sm vm-text-gray-600 vm-block">เลือกวันและเวลาที่ต้องการ</span>
+            </div>
+            <div v-if="isScheduled" class="vm-icon-container vm-icon-success">
+              <VectorIcons name="check" class="vm-icon-md" />
+            </div>
           </div>
         </button>
 
         <!-- Date/Time Picker (show when schedule later is selected) -->
         <Transition name="slide-fade">
-          <div v-if="isScheduled" class="schedule-datetime-picker">
-            <div class="datetime-row">
-              <label class="datetime-label">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h18" />
-                </svg>
-                วันที่
-              </label>
-              <input
-                v-model="scheduledDate"
-                type="date"
-                :min="getMinDate()"
-                :max="getMaxDate()"
-                class="datetime-input"
-              />
-            </div>
-            <div class="datetime-row">
-              <label class="datetime-label">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
-                </svg>
-                เวลา
-              </label>
-              <input
-                v-model="scheduledTime"
-                type="time"
-                :min="getMinTime()"
-                class="datetime-input"
-              />
-            </div>
+          <div v-if="isScheduled" class="vm-card vm-mt-4">
+            <div class="vm-flex vm-flex-col vm-gap-4">
+              <div class="vm-flex vm-items-center vm-gap-3">
+                <label class="vm-flex vm-items-center vm-gap-2 vm-text-sm vm-font-medium vm-w-20">
+                  <VectorIcons name="calendar" class="vm-icon-sm" />
+                  วันที่
+                </label>
+                <input
+                  v-model="scheduledDate"
+                  type="date"
+                  :min="getMinDate()"
+                  :max="getMaxDate()"
+                  class="vm-input vm-flex-1"
+                  aria-label="เลือกวันที่"
+                />
+              </div>
+              <div class="vm-flex vm-items-center vm-gap-3">
+                <label class="vm-flex vm-items-center vm-gap-2 vm-text-sm vm-font-medium vm-w-20">
+                  <VectorIcons name="clock" class="vm-icon-sm" />
+                  เวลา
+                </label>
+                <input
+                  v-model="scheduledTime"
+                  type="time"
+                  :min="getMinTime()"
+                  class="vm-input vm-flex-1"
+                  aria-label="เลือกเวลา"
+                />
+              </div>
 
-            <!-- Quick Time Options -->
-            <div class="quick-time-options">
-              <button
-                v-for="mins in [30, 60, 120]"
-                :key="mins"
-                class="quick-time-btn"
-                @click="
-                  () => {
-                    const d = new Date();
-                    d.setMinutes(d.getMinutes() + mins);
-                    scheduledDate = d.toISOString().split('T')[0] || '';
-                    scheduledTime = d.toTimeString().slice(0, 5);
-                  }
-                "
-              >
-                {{ mins < 60 ? `${mins} นาที` : `${mins / 60} ชม.` }}
-              </button>
+              <!-- Quick Time Options -->
+              <div class="vm-flex vm-gap-2">
+                <button
+                  v-for="mins in [30, 60, 120]"
+                  :key="mins"
+                  type="button"
+                  class="vm-chip vm-chip-outline vm-flex-1"
+                  @click="
+                    () => {
+                      const d = new Date();
+                      d.setMinutes(d.getMinutes() + mins);
+                      scheduledDate = d.toISOString().split('T')[0] || '';
+                      scheduledTime = d.toTimeString().slice(0, 5);
+                    }
+                  "
+                  :aria-label="`จองล่วงหน้า ${mins < 60 ? `${mins} นาที` : `${mins / 60} ชั่วโมง`}`"
+                >
+                  {{ mins < 60 ? `${mins} นาที` : `${mins / 60} ชม.` }}
+                </button>
+              </div>
             </div>
           </div>
         </Transition>
 
         <!-- Recurring Rides Link -->
         <button
-          class="recurring-link"
+          type="button"
+          class="vm-card vm-card-interactive vm-mt-4"
           @click="
             showScheduleSheet = false;
             openRecurringSheet();
           "
+          aria-label="จัดการการจองประจำ"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M17 2.1l4 4-4 4" />
-            <path d="M3 12.2v-2a4 4 0 014-4h12.8" />
-            <path d="M7 21.9l-4-4 4-4" />
-            <path d="M21 11.8v2a4 4 0 01-4 4H4.2" />
-          </svg>
-          <span>จัดการการจองประจำ</span>
-          <span v-if="activeTemplates.length > 0" class="recurring-count">{{
-            activeTemplates.length
-          }}</span>
+          <div class="vm-flex vm-items-center vm-gap-3">
+            <VectorIcons name="repeat" class="vm-icon-md" />
+            <span class="vm-text-base vm-flex-1">จัดการการจองประจำ</span>
+            <span v-if="activeTemplates.length > 0" class="vm-chip vm-chip-primary vm-chip-sm">
+              {{ activeTemplates.length }}
+            </span>
+            <VectorIcons name="chevron-right" class="vm-icon-sm vm-text-gray-400" />
+          </div>
         </button>
 
         <!-- Confirm Button -->
         <button
-          class="schedule-confirm-btn"
+          type="button"
+          class="vm-btn vm-btn-primary vm-btn-full vm-btn-lg vm-mt-6"
           :disabled="isScheduled && (!scheduledDate || !scheduledTime)"
           @click="confirmSchedule"
+          aria-label="ยืนยันเวลาเดินทาง"
         >
           <span>ยืนยัน</span>
         </button>
@@ -2531,108 +2338,75 @@ watch(rideType, async () => {
     <BottomSheet v-model="showRecurringSheet" title="การจองประจำ">
       <div class="recurring-sheet-content">
         <!-- Active Templates -->
-        <div v-if="recurringLoading" class="recurring-loading">
-          <div class="spinner"></div>
-          <span>กำลังโหลด...</span>
+        <div v-if="recurringLoading" class="vm-flex vm-flex-col vm-items-center vm-gap-3 vm-py-8">
+          <div class="vm-spinner"></div>
+          <span class="vm-text-sm vm-text-gray-600">กำลังโหลด...</span>
         </div>
 
         <div
           v-else-if="recurringTemplates.length === 0"
-          class="recurring-empty"
+          class="vm-flex vm-flex-col vm-items-center vm-gap-3 vm-py-8 vm-text-center"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path d="M17 2.1l4 4-4 4" />
-            <path d="M3 12.2v-2a4 4 0 014-4h12.8" />
-            <path d="M7 21.9l-4-4 4-4" />
-            <path d="M21 11.8v2a4 4 0 01-4 4H4.2" />
-          </svg>
-          <span>ยังไม่มีการจองประจำ</span>
-          <p>สร้างการจองประจำเพื่อให้ระบบจองรถให้อัตโนมัติ</p>
+          <VectorIcons name="repeat" class="vm-icon-xl vm-text-gray-400" />
+          <span class="vm-text-base vm-font-medium">ยังไม่มีการจองประจำ</span>
+          <p class="vm-text-sm vm-text-gray-600">สร้างการจองประจำเพื่อให้ระบบจองรถให้อัตโนมัติ</p>
         </div>
 
-        <div v-else class="recurring-list">
+        <div v-else class="vm-flex vm-flex-col vm-gap-3">
           <div
             v-for="template in recurringTemplates"
             :key="template.id"
-            class="recurring-item"
-            :class="{ inactive: !template.is_active }"
+            class="vm-card"
+            :class="{ 'vm-opacity-50': !template.is_active }"
           >
             <div
-              class="recurring-item-main"
+              class="vm-flex vm-items-start vm-gap-3 vm-cursor-pointer"
               @click="useRecurringTemplate(template)"
+              role="button"
+              tabindex="0"
+              :aria-label="`ใช้เทมเพลต ${template.name || 'การจองประจำ'}`"
             >
-              <div class="recurring-item-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M17 2.1l4 4-4 4" />
-                  <path d="M3 12.2v-2a4 4 0 014-4h12.8" />
-                </svg>
+              <div class="vm-icon-container vm-mt-1">
+                <VectorIcons name="repeat" class="vm-icon-md" />
               </div>
-              <div class="recurring-item-info">
-                <span class="recurring-item-name">{{
+              <div class="vm-flex-1 vm-min-w-0">
+                <span class="vm-text-base vm-font-medium vm-block vm-truncate">{{
                   template.name || "การจองประจำ"
                 }}</span>
-                <span class="recurring-item-route">{{ template.pickup_address }} →
-                  {{ template.destination_address }}</span>
-                <span class="recurring-item-schedule">{{
+                <span class="vm-text-sm vm-text-gray-600 vm-block vm-truncate">
+                  {{ template.pickup_address }} → {{ template.destination_address }}
+                </span>
+                <span class="vm-text-xs vm-text-gray-500 vm-block vm-mt-1">{{
                   formatSchedule(template)
                 }}</span>
-                <span v-if="template.is_active" class="recurring-item-next">
+                <span v-if="template.is_active" class="vm-text-xs vm-text-gray-500 vm-block">
                   ครั้งถัดไป: {{ getNextScheduleDisplay(template) }}
                 </span>
               </div>
             </div>
-            <div class="recurring-item-actions">
+            <div class="vm-flex vm-gap-2 vm-mt-3 vm-pt-3 vm-border-t vm-border-gray-200">
               <button
-                class="recurring-action-btn toggle"
-                :class="{ active: template.is_active }"
+                type="button"
+                class="vm-btn vm-btn-outline vm-btn-sm vm-flex-1"
+                :class="{ 'vm-btn-success': template.is_active }"
                 :title="template.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'"
                 @click.stop="toggleTemplate(template.id)"
+                :aria-label="template.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'"
               >
-                <svg
-                  v-if="template.is_active"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M18.36 6.64a9 9 0 11-12.73 0" />
-                  <line x1="12" y1="2" x2="12" y2="12" />
-                </svg>
-                <svg
-                  v-else
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polygon points="10,8 16,12 10,16" />
-                </svg>
+                <VectorIcons 
+                  :name="template.is_active ? 'power' : 'play'" 
+                  class="vm-icon-sm" 
+                />
+                <span>{{ template.is_active ? 'ปิด' : 'เปิด' }}</span>
               </button>
               <button
-                class="recurring-action-btn delete"
+                type="button"
+                class="vm-btn vm-btn-outline vm-btn-sm"
                 title="ลบ"
                 @click.stop="deleteTemplate(template.id)"
+                aria-label="ลบการจองประจำ"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" />
-                  <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                </svg>
+                <VectorIcons name="trash" class="vm-icon-sm" />
               </button>
             </div>
           </div>
@@ -2640,25 +2414,19 @@ watch(rideType, async () => {
 
         <!-- Create New Button -->
         <button
-          class="create-recurring-btn"
+          type="button"
+          class="vm-btn vm-btn-primary vm-btn-full vm-btn-lg vm-mt-4"
           :disabled="!pickupLocation || !destinationLocation"
           @click="
             showRecurringSheet = false;
             showCreateRecurringModal = true;
           "
+          aria-label="สร้างการจองประจำใหม่"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v8M8 12h8" />
-          </svg>
+          <VectorIcons name="plus" class="vm-icon-md" />
           <span>สร้างการจองประจำใหม่</span>
         </button>
-        <p v-if="!pickupLocation || !destinationLocation" class="create-hint">
+        <p v-if="!pickupLocation || !destinationLocation" class="vm-text-xs vm-text-gray-500 vm-text-center vm-mt-2">
           เลือกจุดรับและจุดหมายก่อนสร้างการจองประจำ
         </p>
       </div>
@@ -2668,39 +2436,45 @@ watch(rideType, async () => {
     <BottomSheet v-model="showCreateRecurringModal" title="สร้างการจองประจำ">
       <div class="create-recurring-content">
         <!-- Route Preview -->
-        <div class="route-preview-mini">
-          <div class="route-point">
-            <span class="route-dot pickup"></span>
-            <span>{{ pickupAddress || "จุดรับ" }}</span>
-          </div>
-          <div class="route-line"></div>
-          <div class="route-point">
-            <span class="route-dot destination"></span>
-            <span>{{ destinationAddress || "จุดหมาย" }}</span>
+        <div class="vm-card vm-mb-4">
+          <div class="vm-flex vm-flex-col vm-gap-2">
+            <div class="vm-flex vm-items-center vm-gap-3">
+              <div class="vm-w-3 vm-h-3 vm-rounded-full vm-bg-primary-600"></div>
+              <span class="vm-text-sm vm-flex-1 vm-truncate">{{ pickupAddress || "จุดรับ" }}</span>
+            </div>
+            <div class="vm-w-0.5 vm-h-6 vm-bg-gray-300 vm-ml-1.5"></div>
+            <div class="vm-flex vm-items-center vm-gap-3">
+              <div class="vm-w-3 vm-h-3 vm-rounded-full vm-bg-error-600"></div>
+              <span class="vm-text-sm vm-flex-1 vm-truncate">{{ destinationAddress || "จุดหมาย" }}</span>
+            </div>
           </div>
         </div>
 
         <!-- Name Input -->
-        <div class="form-group">
-          <label>ชื่อการจอง (ไม่บังคับ)</label>
+        <div class="vm-mb-4">
+          <label class="vm-text-sm vm-font-medium vm-block vm-mb-2">ชื่อการจอง (ไม่บังคับ)</label>
           <input
             v-model="recurringName"
             type="text"
             placeholder="เช่น ไปทำงาน, กลับบ้าน"
-            class="form-input"
+            class="vm-input"
+            aria-label="ชื่อการจอง"
           />
         </div>
 
         <!-- Schedule Type -->
-        <div class="form-group">
-          <label>รูปแบบการจอง</label>
-          <div class="schedule-type-options">
+        <div class="vm-mb-4">
+          <label class="vm-text-sm vm-font-medium vm-block vm-mb-2">รูปแบบการจอง</label>
+          <div class="vm-flex vm-gap-2">
             <button
               v-for="(label, type) in scheduleTypeLabels"
               :key="String(type)"
-              class="schedule-type-btn"
-              :class="{ active: recurringScheduleType === String(type) }"
+              type="button"
+              class="vm-chip vm-chip-outline vm-flex-1"
+              :class="{ 'vm-chip-selected': recurringScheduleType === String(type) }"
               @click="recurringScheduleType = String(type) as any"
+              :aria-pressed="recurringScheduleType === String(type)"
+              :aria-label="`เลือกรูปแบบ ${label}`"
             >
               {{ label }}
             </button>
@@ -2714,15 +2488,16 @@ watch(rideType, async () => {
               recurringScheduleType === 'weekly' ||
                 recurringScheduleType === 'custom'
             "
-            class="form-group"
+            class="vm-mb-4"
           >
-            <label>เลือกวัน</label>
-            <div class="day-selector">
+            <label class="vm-text-sm vm-font-medium vm-block vm-mb-2">เลือกวัน</label>
+            <div class="vm-flex vm-flex-wrap vm-gap-2">
               <button
                 v-for="(label, index) in dayLabels"
                 :key="index"
-                class="day-btn"
-                :class="{ active: recurringScheduleDays.includes(index) }"
+                type="button"
+                class="vm-chip vm-chip-outline"
+                :class="{ 'vm-chip-selected': recurringScheduleDays.includes(index) }"
                 @click="
                   () => {
                     if (recurringScheduleDays.includes(index)) {
@@ -2737,6 +2512,8 @@ watch(rideType, async () => {
                     }
                   }
                 "
+                :aria-pressed="recurringScheduleDays.includes(index)"
+                :aria-label="`เลือกวัน${label}`"
               >
                 {{ label }}
               </button>
@@ -2745,26 +2522,32 @@ watch(rideType, async () => {
         </Transition>
 
         <!-- Time -->
-        <div class="form-group">
-          <label>เวลาออกเดินทาง</label>
+        <div class="vm-mb-4">
+          <label class="vm-text-sm vm-font-medium vm-block vm-mb-2">เวลาออกเดินทาง</label>
           <input
             v-model="recurringScheduleTime"
             type="time"
-            class="form-input time-input"
+            class="vm-input"
+            aria-label="เลือกเวลาออกเดินทาง"
           />
         </div>
 
         <!-- Save Button -->
         <button
-          class="save-recurring-btn"
+          type="button"
+          class="vm-btn vm-btn-primary vm-btn-full vm-btn-lg"
           :disabled="
             recurringLoading ||
               (recurringScheduleType === 'weekly' &&
                 recurringScheduleDays.length === 0)
           "
           @click="saveAsRecurring"
+          aria-label="บันทึกการจองประจำ"
         >
-          <span v-if="recurringLoading">กำลังบันทึก...</span>
+          <span v-if="recurringLoading" class="vm-flex vm-items-center vm-gap-2">
+            <div class="vm-spinner vm-spinner-sm"></div>
+            กำลังบันทึก...
+          </span>
           <span v-else>บันทึกการจองประจำ</span>
         </button>
       </div>
@@ -2772,29 +2555,25 @@ watch(rideType, async () => {
 
     <!-- Payment Sheet -->
     <BottomSheet v-model="showPaymentSheet" title="วิธีชำระเงิน">
-      <div class="payment-options">
+      <div class="vm-flex vm-flex-col vm-gap-3">
         <button
           v-for="method in paymentMethods"
           :key="method.value"
-          :class="[
-            'payment-option',
-            { active: paymentMethod === method.value },
-          ]"
+          type="button"
+          class="vm-card vm-card-interactive"
+          :class="{ 'vm-card-selected': paymentMethod === method.value }"
           @click="
             paymentMethod = method.value;
             showPaymentSheet = false;
           "
+          :aria-pressed="paymentMethod === method.value"
+          :aria-label="`เลือกวิธีชำระเงิน ${method.label}`"
         >
-          <span>{{ method.label }}</span>
-          <div v-if="paymentMethod === method.value" class="check-mark">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
+          <div class="vm-flex vm-items-center vm-justify-between">
+            <span class="vm-text-base">{{ method.label }}</span>
+            <div v-if="paymentMethod === method.value" class="vm-icon-container vm-icon-success">
+              <VectorIcons name="check" class="vm-icon-md" />
+            </div>
           </div>
         </button>
       </div>
@@ -2888,8 +2667,19 @@ watch(rideType, async () => {
 </template>
 
 <style src="../styles/native-ride-enhancements.css"></style>
+<style src="../styles/vector-monochrome.css"></style>
 
 <style scoped>
+/* ========================================
+   MINIMAL THEME INTEGRATION
+   Date: 2026-01-31
+   Approach: CSS-Only (No HTML changes)
+   ======================================== */
+
+/* Import Minimal Theme CSS */
+@import "../styles/customer-minimal-theme.css";
+@import "../styles/ride-minimal.css";
+
 /* ========================================
    NATIVE APP ENHANCEMENTS
    ======================================== */

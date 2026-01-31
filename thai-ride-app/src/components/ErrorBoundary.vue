@@ -64,59 +64,66 @@ const handleRetry = () => {
 </script>
 
 <template>
-  <div v-if="error" class="error-boundary">
-    <div class="error-content">
-      <!-- Error Icon -->
-      <div class="error-icon">
-        <svg 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          stroke-width="2"
-          aria-hidden="true"
+  <!-- Single root element for Transition compatibility -->
+  <div class="error-boundary-wrapper">
+    <div v-if="error" class="error-boundary">
+      <div class="error-content">
+        <!-- Error Icon -->
+        <div class="error-icon">
+          <svg 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        
+        <!-- Error Message -->
+        <h3 class="error-title">{{ fallbackMessage }}</h3>
+        
+        <!-- Error Details (dev only) -->
+        <details v-if="isDev" class="error-details">
+          <summary>รายละเอียดข้อผิดพลาด</summary>
+          <pre>{{ error.message }}</pre>
+          <pre v-if="error.stack">{{ error.stack }}</pre>
+        </details>
+        
+        <!-- Retry Button -->
+        <button
+          v-if="showRetry"
+          type="button"
+          class="retry-button"
+          @click="handleRetry"
         >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
+          <svg 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
+          </svg>
+          <span>ลองใหม่อีกครั้ง</span>
+        </button>
       </div>
-      
-      <!-- Error Message -->
-      <h3 class="error-title">{{ fallbackMessage }}</h3>
-      
-      <!-- Error Details (dev only) -->
-      <details v-if="isDev" class="error-details">
-        <summary>รายละเอียดข้อผิดพลาด</summary>
-        <pre>{{ error.message }}</pre>
-        <pre v-if="error.stack">{{ error.stack }}</pre>
-      </details>
-      
-      <!-- Retry Button -->
-      <button
-        v-if="showRetry"
-        type="button"
-        class="retry-button"
-        @click="handleRetry"
-      >
-        <svg 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          stroke-width="2"
-          aria-hidden="true"
-        >
-          <path d="M21 12a9 9 0 11-6.219-8.56" />
-        </svg>
-        <span>ลองใหม่อีกครั้ง</span>
-      </button>
     </div>
+    
+    <!-- Render children when no error -->
+    <slot v-else />
   </div>
-  
-  <!-- Render children when no error -->
-  <slot v-else />
 </template>
 
 <style scoped>
+.error-boundary-wrapper {
+  /* Wrapper for single root element */
+}
+
 .error-boundary {
   display: flex;
   align-items: center;

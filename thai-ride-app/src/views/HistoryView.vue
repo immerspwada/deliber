@@ -10,6 +10,7 @@ import SkeletonLoader from '../components/SkeletonLoader.vue'
 import DeliveryRatingModal from '../components/delivery/DeliveryRatingModal.vue'
 import ShoppingRatingModal from '../components/shopping/ShoppingRatingModal.vue'
 import QuickRatingModal from '../components/customer/QuickRatingModal.vue'
+import VectorIcons from '../components/icons/VectorIcons.vue'
 
 const router = useRouter()
 const { 
@@ -267,6 +268,18 @@ const getStatusText = (status: string) => {
   return status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'
 }
 
+const getServiceIcon = (type: string): string => {
+  const iconMap: Record<string, string> = {
+    'ride': 'car',
+    'delivery': 'package',
+    'shopping': 'shopping-cart',
+    'queue': 'clipboard',
+    'moving': 'truck',
+    'laundry': 'washing-machine'
+  }
+  return iconMap[type] || 'car'
+}
+
 const handleRebook = (item: any) => {
   const data = rebookRide(item)
   router.push({ path: '/services', query: { destination: data.to } })
@@ -310,132 +323,117 @@ onMounted(async () => {
   <div class="history-page">
     <PullToRefresh :loading="isRefreshing || loading" @refresh="handleRefresh">
       <!-- Header -->
-      <header class="page-header">
-        <div class="header-top">
-          <button class="back-btn" aria-label="กลับ" @click="goBack">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
+      <header class="vm-top-bar">
+        <div class="vm-top-bar-content">
+          <button 
+            type="button"
+            class="vm-icon-btn" 
+            aria-label="กลับ" 
+            @click="goBack"
+          >
+            <VectorIcons name="arrow-left" :size="24" />
           </button>
-          <h1 class="page-title">ประวัติการใช้งาน</h1>
-          <div class="header-actions">
+          <h1 class="vm-title">ประวัติการใช้งาน</h1>
+          <div class="vm-top-bar-actions">
             <button 
-              class="icon-btn" 
+              type="button"
+              class="vm-icon-btn" 
               aria-label="ส่งออกข้อมูล"
-              @click="handleExport"
               :disabled="history.length === 0"
+              @click="handleExport"
             >
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-              </svg>
+              <VectorIcons name="download" :size="20" />
             </button>
             <button 
-              class="icon-btn" 
+              type="button"
+              class="vm-icon-btn" 
               aria-label="ข้อมูลเชิงลึก"
               @click="showInsights = !showInsights"
             >
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-              </svg>
+              <VectorIcons name="bar-chart" :size="20" />
             </button>
           </div>
         </div>
         
         <!-- Stats Summary -->
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="stat-icon completed">
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
+        <div class="vm-stats-grid">
+          <div class="vm-stat-card">
+            <div class="vm-stat-icon">
+              <VectorIcons name="check-circle" :size="20" />
             </div>
-            <div class="stat-content">
-              <span class="stat-value">{{ stats.completedOrders }}</span>
-              <span class="stat-label">รายการสำเร็จ</span>
+            <div class="vm-stat-content">
+              <span class="vm-stat-value">{{ stats.completedOrders }}</span>
+              <span class="vm-stat-label">รายการสำเร็จ</span>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon spent">
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
+          <div class="vm-stat-card">
+            <div class="vm-stat-icon">
+              <VectorIcons name="dollar-sign" :size="20" />
             </div>
-            <div class="stat-content">
-              <span class="stat-value">฿{{ stats.totalSpent.toLocaleString() }}</span>
-              <span class="stat-label">ยอดใช้จ่ายรวม</span>
+            <div class="vm-stat-content">
+              <span class="vm-stat-value">฿{{ stats.totalSpent.toLocaleString() }}</span>
+              <span class="vm-stat-label">ยอดใช้จ่ายรวม</span>
             </div>
           </div>
         </div>
 
         <!-- Insights Panel -->
-        <div v-if="showInsights && insights.length > 0" class="insights-panel">
+        <div v-if="showInsights && insights.length > 0" class="vm-insights-panel">
           <div 
             v-for="insight in insights" 
             :key="insight.title"
-            :class="['insight-card', insight.type]"
+            class="vm-insight-card"
           >
-            <div class="insight-icon">
-              <svg v-if="insight.icon === 'alert-circle'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <svg v-else-if="insight.icon === 'check-circle'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <svg v-else-if="insight.icon === 'star'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-              </svg>
-              <svg v-else-if="insight.icon === 'gift'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
-              </svg>
-              <svg v-else width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
+            <div class="vm-insight-icon">
+              <VectorIcons 
+                :name="insight.icon" 
+                :size="18" 
+              />
             </div>
-            <div class="insight-content">
-              <h4 class="insight-title">{{ insight.title }}</h4>
-              <p class="insight-message">{{ insight.message }}</p>
+            <div class="vm-insight-content">
+              <h4 class="vm-insight-title">{{ insight.title }}</h4>
+              <p class="vm-insight-message">{{ insight.message }}</p>
             </div>
           </div>
         </div>
       </header>
 
-      <div class="content-container">
+      <div class="vm-container">
         <!-- Search Bar -->
-        <div class="search-section">
-          <div class="search-bar">
-            <svg class="search-icon" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
+        <div class="vm-search-section">
+          <div class="vm-search-bar">
+            <VectorIcons name="search" :size="18" class="vm-search-icon" />
             <input 
               v-model="searchQuery"
               type="text" 
               placeholder="ค้นหารหัส, สถานที่, ไรเดอร์..."
-              class="search-input"
+              class="vm-search-input"
+              aria-label="ค้นหาประวัติ"
             />
             <button 
               v-if="searchQuery || dateRangeStart || fareMin"
-              class="clear-btn"
+              type="button"
+              class="vm-icon-btn vm-icon-btn-sm"
               aria-label="ล้างการค้นหา"
               @click="clearAdvancedFilters"
             >
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
+              <VectorIcons name="x" :size="16" />
             </button>
           </div>
         </div>
 
         <!-- Filter Tabs -->
-        <div class="filter-section">
-          <div class="filters-scroll">
+        <div class="vm-filter-section">
+          <div class="vm-filters-scroll">
             <button
               v-for="filter in filters"
               :key="filter.id"
-              :class="['filter-chip', { active: activeFilter === filter.id }]"
+              type="button"
+              :class="['vm-filter-chip', { 'vm-filter-chip-active': activeFilter === filter.id }]"
               @click="changeFilter(filter.id)"
             >
-              <span class="filter-label">{{ filter.label }}</span>
-              <span v-if="activeFilter === filter.id && filteredHistory.length > 0" class="filter-count">
+              <span class="vm-filter-label">{{ filter.label }}</span>
+              <span v-if="activeFilter === filter.id && filteredHistory.length > 0" class="vm-filter-count">
                 {{ filteredHistory.length }}
               </span>
             </button>
@@ -446,121 +444,100 @@ onMounted(async () => {
         <SkeletonLoader v-if="loading && !isRefreshing" type="history" :count="3" />
 
         <!-- History List -->
-        <div v-else class="history-list">
+        <div v-else class="vm-history-list">
           <!-- Group by date -->
           <template v-if="filteredHistory.length > 0">
             <div
               v-for="item in filteredHistory"
               :key="item.id"
-              class="history-card"
+              class="vm-history-card"
+              @click="viewReceipt(item.id)"
             >
-              <!-- Card Top: Type + Status -->
-              <div class="card-top">
-                <div class="service-type" :class="item.type">
-                  <!-- Icons -->
-                  <svg v-if="item.type === 'ride'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M9 11h6M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11M5 11v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M5 11h14"/>
-                  </svg>
-                  <svg v-else-if="item.type === 'delivery'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                  </svg>
-                  <svg v-else-if="item.type === 'shopping'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-                  </svg>
-                  <svg v-else-if="item.type === 'queue'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-                  </svg>
-                  <svg v-else-if="item.type === 'moving'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h.01M16 17h.01M5 11h14l-1.5-4.5A2 2 0 0015.6 5H8.4a2 2 0 00-1.9 1.5L5 11zm0 0v6a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-6M3 11h2m14 0h2"/>
-                  </svg>
-                  <svg v-else-if="item.type === 'laundry'" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm8 4a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z"/>
-                  </svg>
+              <!-- Card Header: Type + Status -->
+              <div class="vm-card-header">
+                <div class="vm-service-badge">
+                  <VectorIcons 
+                    :name="getServiceIcon(item.type)" 
+                    :size="18" 
+                  />
                   <span>{{ item.typeName }}</span>
                 </div>
-                <span :class="['status-pill', item.status]">
+                <span :class="['vm-status-badge', `vm-status-${item.status}`]">
                   {{ getStatusText(item.status) }}
                 </span>
               </div>
 
-              <!-- Route Info -->
-              <div class="route-section">
-                <div class="route-visual">
-                  <div class="route-dot start"></div>
-                  <div class="route-line-vertical"></div>
-                  <div class="route-dot end"></div>
+              <!-- Route Display -->
+              <div class="vm-route-section">
+                <div class="vm-route-visual">
+                  <div class="vm-route-dot vm-route-dot--start"></div>
+                  <div class="vm-route-line"></div>
+                  <div class="vm-route-dot vm-route-dot--end"></div>
                 </div>
-                <div class="route-addresses">
-                  <div class="address-item">
-                    <span class="address-label">จาก</span>
-                    <span class="address-text">{{ item.from }}</span>
+                <div class="vm-route-content">
+                  <div class="vm-route-item">
+                    <span class="vm-route-label">จาก</span>
+                    <span class="vm-route-text">{{ item.from }}</span>
                   </div>
-                  <div class="address-item">
-                    <span class="address-label">ถึง</span>
-                    <span class="address-text">{{ item.to }}</span>
+                  <div class="vm-route-item">
+                    <span class="vm-route-label">ถึง</span>
+                    <span class="vm-route-text">{{ item.to }}</span>
                   </div>
                 </div>
               </div>
 
-              <!-- Driver Info (if available) -->
-              <div v-if="item.driver_name" class="driver-section">
-                <div class="driver-avatar">
-                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                  </svg>
+              <!-- Driver Info -->
+              <div v-if="item.driver_name" class="vm-driver-section">
+                <div class="vm-driver-avatar">
+                  <VectorIcons name="user" :size="20" />
                 </div>
-                <div class="driver-details">
-                  <span class="driver-name">{{ item.driver_name }}</span>
-                  <span v-if="item.vehicle" class="driver-vehicle">{{ item.vehicle }}</span>
+                <div class="vm-driver-info">
+                  <span class="vm-driver-name">{{ item.driver_name }}</span>
+                  <span v-if="item.vehicle" class="vm-driver-vehicle">{{ item.vehicle }}</span>
                 </div>
-                <div v-if="item.rating" class="driver-rating">
-                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                  </svg>
+                <div v-if="item.rating" class="vm-rating-badge">
+                  <VectorIcons name="star" :size="14" />
                   <span>{{ item.rating }}</span>
                 </div>
               </div>
 
-              <!-- Card Bottom: Meta + Actions -->
-              <div class="card-bottom">
-                <div class="meta-section">
-                  <div class="datetime">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
+              <!-- Card Footer: Meta + Price + Actions -->
+              <div class="vm-card-footer">
+                <div class="vm-meta-section">
+                  <div class="vm-meta-item">
+                    <VectorIcons name="calendar" :size="14" />
                     <span>{{ item.date }} • {{ item.time }}</span>
                   </div>
-                  <div class="tracking-code">
-                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/>
-                    </svg>
+                  <div class="vm-meta-item">
+                    <VectorIcons name="hash" :size="12" />
                     <span>{{ item.tracking_id }}</span>
                   </div>
                 </div>
-                <div class="price-actions">
-                  <span class="price">฿{{ item.fare.toLocaleString() }}</span>
-                  <div class="action-btns">
+                <div class="vm-price-actions">
+                  <span class="vm-price">฿{{ item.fare.toLocaleString() }}</span>
+                  <div class="vm-action-buttons">
                     <button 
                       v-if="item.status === 'completed'" 
-                      class="icon-btn" 
+                      type="button"
+                      class="vm-icon-btn vm-icon-btn-sm" 
                       aria-label="ดูใบเสร็จ"
-                      @click="viewReceipt(item.id)"
+                      @click.stop="viewReceipt(item.id)"
                     >
-                      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                      </svg>
+                      <VectorIcons name="file-text" :size="18" />
                     </button>
                     <button 
                       v-if="item.status === 'completed' && !item.rating && (item.type === 'delivery' || item.type === 'shopping')" 
-                      class="text-btn secondary" 
-                      @click="openRatingModal(item)"
+                      type="button"
+                      class="vm-btn-secondary vm-btn-sm" 
+                      @click.stop="openRatingModal(item)"
                     >
                       ให้คะแนน
                     </button>
                     <button 
                       v-if="item.status === 'completed'" 
-                      class="text-btn primary" 
-                      @click="handleRebook(item)"
+                      type="button"
+                      class="vm-btn-primary vm-btn-sm" 
+                      @click.stop="handleRebook(item)"
                     >
                       จองอีกครั้ง
                     </button>
@@ -571,18 +548,17 @@ onMounted(async () => {
           </template>
 
           <!-- Empty State -->
-          <div v-else class="empty-state">
-            <div class="empty-illustration">
-              <svg width="80" height="80" fill="none" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="36" fill="var(--cm-bg-hover)" stroke="var(--cm-accent)" stroke-width="2" stroke-dasharray="4 4"/>
-                <path d="M28 32h24M28 40h16M28 48h20" stroke="var(--cm-accent)" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="54" cy="54" r="12" fill="var(--cm-accent)"/>
-                <path d="M50 54l3 3 5-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+          <div v-else class="vm-empty-state">
+            <div class="vm-empty-icon">
+              <VectorIcons name="clipboard-check" :size="64" />
             </div>
-            <h3 class="empty-title">ยังไม่มีประวัติการใช้งาน</h3>
-            <p class="empty-desc">เมื่อคุณใช้บริการ ประวัติจะแสดงที่นี่</p>
-            <button class="empty-cta" @click="router.push('/customer')">
+            <h3 class="vm-empty-title">ยังไม่มีประวัติการใช้งาน</h3>
+            <p class="vm-empty-desc">เมื่อคุณใช้บริการ ประวัติจะแสดงที่นี่</p>
+            <button 
+              type="button"
+              class="vm-btn vm-btn-primary" 
+              @click="router.push('/customer')"
+            >
               เริ่มใช้บริการ
             </button>
           </div>

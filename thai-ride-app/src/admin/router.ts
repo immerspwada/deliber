@@ -394,6 +394,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         meta: { module: 'settings' }
       },
       {
+        path: 'settings/maps',
+        name: 'AdminMapsSettingsV2',
+        component: () => import('./views/MapsSettingsView.vue'),
+        meta: { module: 'settings' }
+      },
+      {
         path: 'settings/security',
         name: 'AdminSecuritySettingsV2',
         component: AdminSecurityView,

@@ -83,7 +83,7 @@ const { handle: handleError } = useErrorHandler();
 const { withLoading, isLoadingKey } = useLoadingStates();
 const { get: getCache, set: setCache, invalidate, registerRefresh } = useCacheInvalidation();
 const { unreadCount, fetchNotifications } = useNotifications();
-const { summary: loyaltySummary, fetchSummary: fetchLoyaltySummary } =
+const { summary: loyaltySummary, currentPoints: loyaltyCurrentPoints, fetchSummary: fetchLoyaltySummary } =
   useLoyalty();
 const { balance, fetchBalance } = useWallet();
 const { history: recentPlaces, fetchHistory: fetchRecentPlaces } =
@@ -155,13 +155,18 @@ const walletBalance = computed(() => {
   return cachedWallet || 0;
 });
 
-const loyaltyPoints = computed(() => {
-  const live = loyaltySummary.value?.current_points;
-  if (live !== undefined && live !== null) {
-    setCache(CacheKeys.loyalty('customer'), live, 5 * 60 * 1000); // 5 min TTL
-    return live;
+const loyaltyPoints = computed<number>(() => {
+  // Use the composable's currentPoints computed which already extracts the value correctly
+  const points = loyaltyCurrentPoints.value;
+  
+  // Validate it's actually a number
+  if (typeof points === 'number' && !isNaN(points)) {
+    setCache(CacheKeys.loyalty('customer'), points, 5 * 60 * 1000); // 5 min TTL
+    return points;
   }
-  return cachedLoyalty || 0;
+  
+  // Fallback to cached value or 0
+  return typeof cachedLoyalty === 'number' ? cachedLoyalty : 0;
 });
 
 const recentDestinations = computed(() => {
@@ -327,7 +332,7 @@ const fetchActiveOrders = async () => {
       const orders: ActiveOrder[] = [];
 
       // Parallel fetch all order types - ใช้ Promise.allSettled เพื่อไม่ให้ error หนึ่งทำให้ทั้งหมดล้ม
-      const [ridesResult, deliveriesResult, shoppingResult, queuesResult] =
+      const [ridesResult, deliveriesResult, shoppingResult] =
         await Promise.allSettled([
           supabase
             .from("ride_requests")
@@ -349,14 +354,6 @@ const fetchActiveOrders = async () => {
             .eq("user_id", userId)
             .in("status", ["pending", "matched", "purchased", "delivering"])
             .limit(3),
-          // Note: queue_bookings may not be in database types yet
-          supabase
-            .from("ride_requests" as any)
-            .select("id, tracking_id, status")
-            .eq("user_id", userId)
-            .eq("service_type", "queue")
-            .in("status", ["pending", "confirmed", "in_progress"])
-            .limit(0), // Disabled until queue_bookings table is added
         ]);
 
       // Process rides
@@ -412,23 +409,6 @@ const fetchActiveOrders = async () => {
           });
         });
       }
-
-      // Process queues (disabled until table exists)
-      // if (queuesResult.status === "fulfilled" && queuesResult.value.data) {
-      //   queuesResult.value.data.forEach((q: any) => {
-      //     orders.push({
-      //       id: q.id,
-      //       trackingId: q.tracking_id,
-      //       type: "queue",
-      //       typeName: "จองคิว",
-      //       status: q.status,
-      //       statusText: getStatusText("queue", q.status),
-      //       from: q.service_name || "",
-      //       to: q.location_name || "",
-      //       trackingPath: `/customer/queue-booking/${q.id}`,
-      //     });
-      //   });
-      // }
 
       activeOrders.value = orders.slice(0, 3);
       setCache(CacheKeys.orders('customer'), activeOrders.value, 5 * 60 * 1000); // 5 min TTL

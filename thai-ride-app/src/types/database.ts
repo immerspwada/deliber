@@ -1061,6 +1061,24 @@ export type Database = {
         Args: Record<string, never>
         Returns: number
       }
+      get_service_promotions_from_codes: {
+        Args: {
+          p_service_id?: string | null
+        }
+        Returns: Array<{
+          id: string
+          service_id: string
+          title: string
+          description: string | null
+          discount_type: 'percentage' | 'fixed' | 'free_delivery'
+          discount_value: number
+          min_order_amount: number
+          max_discount: number | null
+          promo_code: string | null
+          image_url: string | null
+          end_date: string
+        }>
+      }
     }
     Enums: {
       [_ in never]: never
