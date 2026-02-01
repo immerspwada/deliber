@@ -80,6 +80,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {
+    path: '/customer/moving',
+    name: 'CustomerMoving',
+    component: () => import('../views/MovingView.vue'),
+    meta: { requiresAuth: true, hideNavigation: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
+  },
+  {
     path: '/customer/profile',
     name: 'CustomerProfile',
     component: () => import('../views/ProfileView.vue'),
@@ -107,6 +113,12 @@ export const routes: RouteRecordRaw[] = [
     path: '/customer/saved-places',
     name: 'CustomerSavedPlaces',
     component: () => import('../views/SavedPlacesView.vue'),
+    meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
+  },
+  {
+    path: '/customer/bundles',
+    name: 'CustomerBundles',
+    component: () => import('../views/BundlesView.vue'),
     meta: { requiresAuth: true, allowedRoles: ['customer', 'provider', 'admin', 'super_admin', 'manager', 'worker', 'client'] }
   },
   {

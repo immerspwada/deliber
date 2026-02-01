@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="view-header">
       <div>
-        <h1>Service Bundles</h1>
-        <p class="subtitle">Manage multi-service packages and templates</p>
+        <h1>แพ็คเกจบริการ</h1>
+        <p class="subtitle">จัดการแพ็คเกจบริการและเทมเพลต</p>
       </div>
       <button class="btn-primary" @click="showCreateModal = true">
         <svg
@@ -16,7 +16,7 @@
         >
           <path d="M12 5v14M5 12h14" stroke-width="2" stroke-linecap="round" />
         </svg>
-        Create Bundle Template
+        สร้างเทมเพลต
       </button>
     </div>
 
@@ -39,7 +39,7 @@
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ stats.totalBundles }}</div>
-          <div class="stat-label">Total Bundles</div>
+          <div class="stat-label">แพ็คเกจทั้งหมด</div>
         </div>
       </div>
 
@@ -60,7 +60,7 @@
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ stats.activeBundles }}</div>
-          <div class="stat-label">Active Templates</div>
+          <div class="stat-label">เทมเพลตที่ใช้งาน</div>
         </div>
       </div>
 
@@ -82,7 +82,7 @@
         </div>
         <div class="stat-content">
           <div class="stat-value">{{ stats.totalCustomers }}</div>
-          <div class="stat-label">Customers Using Bundles</div>
+          <div class="stat-label">ลูกค้าที่ใช้แพ็คเกจ</div>
         </div>
       </div>
 
@@ -105,7 +105,7 @@
           <div class="stat-value">
             ฿{{ stats.totalRevenue.toLocaleString() }}
           </div>
-          <div class="stat-label">Total Revenue</div>
+          <div class="stat-label">รายได้ทั้งหมด</div>
         </div>
       </div>
     </div>
@@ -116,25 +116,25 @@
         :class="['tab', { active: activeTab === 'templates' }]"
         @click="activeTab = 'templates'"
       >
-        Bundle Templates
+        เทมเพลตแพ็คเกจ
       </button>
       <button
         :class="['tab', { active: activeTab === 'active' }]"
         @click="activeTab = 'active'"
       >
-        Active Bundles
+        แพ็คเกจที่ใช้งาน
       </button>
       <button
         :class="['tab', { active: activeTab === 'history' }]"
         @click="activeTab = 'history'"
       >
-        History
+        ประวัติ
       </button>
     </div>
 
     <!-- Templates Tab -->
     <div v-if="activeTab === 'templates'" class="content-section">
-      <div v-if="loading" class="loading">Loading templates...</div>
+      <div v-if="loading" class="loading">กำลังโหลดเทมเพลต...</div>
 
       <div v-else class="templates-grid">
         <div
@@ -153,7 +153,7 @@
                 template.is_active ? 'active' : 'inactive',
               ]"
             >
-              {{ template.is_active ? "Active" : "Inactive" }}
+              {{ template.is_active ? "ใช้งาน" : "ปิดใช้งาน" }}
             </span>
           </div>
 
@@ -182,12 +182,12 @@
                 stroke-width="2"
               />
             </svg>
-            <span>{{ template.discount_percentage }}% Discount</span>
+            <span>ส่วนลด {{ template.discount_percentage }}%</span>
           </div>
 
           <div class="template-actions">
             <button class="btn-secondary" @click="editTemplate(template)">
-              Edit
+              แก้ไข
             </button>
             <button
               :class="[
@@ -196,7 +196,7 @@
               ]"
               @click="toggleTemplateStatus(template)"
             >
-              {{ template.is_active ? "Deactivate" : "Activate" }}
+              {{ template.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน" }}
             </button>
           </div>
         </div>
@@ -205,21 +205,21 @@
 
     <!-- Active Bundles Tab -->
     <div v-if="activeTab === 'active'" class="content-section">
-      <div v-if="loading" class="loading">Loading active bundles...</div>
+      <div v-if="loading" class="loading">กำลังโหลดแพ็คเกจที่ใช้งาน...</div>
 
       <div v-else class="bundles-table">
         <table>
           <thead>
             <tr>
-              <th>Bundle ID</th>
-              <th>Customer</th>
-              <th>Services</th>
-              <th>Price</th>
-              <th>Discount</th>
-              <th>Status</th>
-              <th>Progress</th>
-              <th>Created</th>
-              <th>Actions</th>
+              <th>รหัสแพ็คเกจ</th>
+              <th>ลูกค้า</th>
+              <th>บริการ</th>
+              <th>ราคา</th>
+              <th>ส่วนลด</th>
+              <th>สถานะ</th>
+              <th>ความคืบหน้า</th>
+              <th>สร้างเมื่อ</th>
+              <th>จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -252,7 +252,7 @@
                     }}
                   </div>
                   <div v-if="bundle.total_final_price" class="estimated-price">
-                    Est: ฿{{ bundle.total_estimated_price }}
+                    ประมาณ: ฿{{ bundle.total_estimated_price }}
                   </div>
                 </div>
               </td>
@@ -315,23 +315,23 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Search by Bundle ID or Customer..."
+          placeholder="ค้นหาด้วยรหัสแพ็คเกจหรือชื่อลูกค้า..."
           class="search-input"
         />
         <select v-model="statusFilter" class="filter-select">
-          <option value="">All Statuses</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="partial">Partial</option>
+          <option value="">สถานะทั้งหมด</option>
+          <option value="completed">เสร็จสมบูรณ์</option>
+          <option value="cancelled">ยกเลิก</option>
+          <option value="partial">บางส่วน</option>
         </select>
       </div>
 
-      <div v-if="loading" class="loading">Loading history...</div>
+      <div v-if="loading" class="loading">กำลังโหลดประวัติ...</div>
 
       <div v-else class="bundles-table">
         <!-- Similar table structure as active bundles -->
         <p v-if="filteredHistory.length === 0" class="empty-state">
-          No bundles found matching your criteria
+          ไม่พบแพ็คเกจที่ตรงกับเงื่อนไขการค้นหา
         </p>
       </div>
     </div>
@@ -348,8 +348,8 @@
             <h2>
               {{
                 editingTemplate
-                  ? "Edit Bundle Template"
-                  : "Create Bundle Template"
+                  ? "แก้ไขเทมเพลตแพ็คเกจ"
+                  : "สร้างเทมเพลตแพ็คเกจ"
               }}
             </h2>
             <button class="close-btn" @click="closeModal">
@@ -368,36 +368,36 @@
 
           <form class="modal-body" @submit.prevent="saveTemplate">
             <div class="form-group">
-              <label>Name (English) *</label>
+              <label>ชื่อ (ภาษาอังกฤษ) *</label>
               <input
                 v-model="formData.name"
                 type="text"
                 required
-                placeholder="e.g., Moving + Laundry Package"
+                placeholder="เช่น Moving + Laundry Package"
               />
             </div>
 
             <div class="form-group">
-              <label>Name (Thai) *</label>
+              <label>ชื่อ (ภาษาไทย) *</label>
               <input
                 v-model="formData.name_th"
                 type="text"
                 required
-                placeholder="e.g., แพ็คเกจขนย้าย + ซักผ้า"
+                placeholder="เช่น แพ็คเกจขนย้าย + ซักผ้า"
               />
             </div>
 
             <div class="form-group">
-              <label>Description (English)</label>
+              <label>คำอธิบาย (ภาษาอังกฤษ)</label>
               <textarea
                 v-model="formData.description"
                 rows="2"
-                placeholder="Brief description..."
+                placeholder="คำอธิบายสั้นๆ..."
               ></textarea>
             </div>
 
             <div class="form-group">
-              <label>Description (Thai)</label>
+              <label>คำอธิบาย (ภาษาไทย)</label>
               <textarea
                 v-model="formData.description_th"
                 rows="2"
@@ -406,7 +406,7 @@
             </div>
 
             <div class="form-group">
-              <label>Services Included *</label>
+              <label>บริการที่รวมอยู่ *</label>
               <div class="services-checkboxes">
                 <label
                   v-for="service in availableServices"
@@ -425,13 +425,13 @@
                 v-if="formData.service_types.length < 2"
                 class="form-hint error"
               >
-                Select at least 2 services
+                เลือกอย่างน้อย 2 บริการ
               </p>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label>Discount Percentage *</label>
+                <label>เปอร์เซ็นต์ส่วนลด *</label>
                 <div class="input-with-suffix">
                   <input
                     v-model.number="formData.discount_percentage"
@@ -445,7 +445,7 @@
               </div>
 
               <div class="form-group">
-                <label>Display Order</label>
+                <label>ลำดับการแสดงผล</label>
                 <input
                   v-model.number="formData.display_order"
                   type="number"
@@ -457,21 +457,21 @@
             <div class="form-group">
               <label class="checkbox-label">
                 <input v-model="formData.is_popular" type="checkbox" />
-                <span class="checkbox-text">Mark as Popular</span>
+                <span class="checkbox-text">ทำเครื่องหมายเป็นยอดนิยม</span>
               </label>
             </div>
 
             <div class="form-group">
               <label class="checkbox-label">
                 <input v-model="formData.is_active" type="checkbox" />
-                <span class="checkbox-text">Active (visible to customers)</span>
+                <span class="checkbox-text">ใช้งาน (แสดงให้ลูกค้าเห็น)</span>
               </label>
             </div>
           </form>
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" @click="closeModal">
-              Cancel
+              ยกเลิก
             </button>
             <button
               type="button"
@@ -479,8 +479,8 @@
               :disabled="saving || formData.service_types.length < 2"
               @click="saveTemplate"
             >
-              <span v-if="saving">Saving...</span>
-              <span v-else>{{ editingTemplate ? "Update" : "Create" }} Template</span>
+              <span v-if="saving">กำลังบันทึก...</span>
+              <span v-else>{{ editingTemplate ? "อัปเดต" : "สร้าง" }}เทมเพลต</span>
             </button>
           </div>
         </div>
@@ -611,23 +611,23 @@ const filteredHistory = computed(() => {
 
 function formatServiceType(type: string): string {
   const types: Record<string, string> = {
-    ride: "Ride",
-    delivery: "Delivery",
-    shopping: "Shopping",
-    queue: "Queue",
-    moving: "Moving",
-    laundry: "Laundry",
+    ride: "เรียกรถ",
+    delivery: "ส่งของ",
+    shopping: "ซื้อของ",
+    queue: "จองคิว",
+    moving: "ขนย้าย",
+    laundry: "ซักรีด",
   };
   return types[type] || type;
 }
 
 function formatStatus(status: string): string {
   const statuses: Record<string, string> = {
-    pending: "Pending",
-    active: "Active",
-    completed: "Completed",
-    cancelled: "Cancelled",
-    partial: "Partial",
+    pending: "รอดำเนินการ",
+    active: "ใช้งาน",
+    completed: "เสร็จสมบูรณ์",
+    cancelled: "ยกเลิก",
+    partial: "บางส่วน",
   };
   return statuses[status] || status;
 }
@@ -666,7 +666,7 @@ function closeModal() {
 
 async function saveTemplate() {
   if (formData.value.service_types.length < 2) {
-    alert("Please select at least 2 services");
+    alert("กรุณาเลือกอย่างน้อย 2 บริการ");
     return;
   }
 
@@ -705,7 +705,7 @@ async function saveTemplate() {
     await loadTemplates();
   } catch (e: any) {
     console.error("Error saving template:", e);
-    alert("Failed to save template: " + (e.message || "Unknown error"));
+    alert("ไม่สามารถบันทึกเทมเพลตได้: " + (e.message || "ข้อผิดพลาดที่ไม่ทราบสาเหตุ"));
   } finally {
     saving.value = false;
   }

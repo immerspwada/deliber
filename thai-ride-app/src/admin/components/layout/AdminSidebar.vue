@@ -35,6 +35,7 @@ const menuSections = [
       { path: '/admin/orders', label: 'ออเดอร์ทั้งหมด', icon: 'orders' },
       { path: '/admin/delivery', label: 'ส่งของ', icon: 'package' },
       { path: '/admin/shopping', label: 'ช้อปปิ้ง', icon: 'cart' },
+      { path: '/admin/service-bundles', label: 'แพ็คเกจบริการ', icon: 'bundle' },
       { path: '/admin/driver-tracking', label: 'ติดตามคนขับ', icon: 'map' },
       { path: '/admin/scheduled-rides', label: 'นัดหมาย', icon: 'calendar' }
     ]
@@ -150,6 +151,10 @@ const navigate = (path: string) => {
           <svg v-else-if="item.icon === 'cart'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
             <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>
+          </svg>
+          <svg v-else-if="item.icon === 'bundle'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M9 21V9"/>
           </svg>
           <svg v-else-if="item.icon === 'dollar'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
